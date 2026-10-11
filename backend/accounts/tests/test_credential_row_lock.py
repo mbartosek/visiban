@@ -1,11 +1,13 @@
-"""Credential issuance and password-change finalization are serialized on the user row (#1564).
+"""Credential issuance and password-change finalization are serialized on the user row (#1564, #1586).
 
-Creating a personal access token and changing the password both take the user
-row lock first (``accounts.credentials.lock_user_row``), so for one user they
-run one after the other and the later one sees the earlier one's committed
-state. The tests use a PostgreSQL pause-and-barrier (as in
+Creating a personal access token, issuing the DRF auth token at REST login
+(#1586) and changing the password all take the user row lock first
+(``accounts.credentials.lock_user_row``), so for one user they run one after
+the other and the later one sees the earlier one's committed state. The
+threaded tests use a PostgreSQL pause-and-barrier (as in
 ``boards/tests/test_concurrent_lock_sites.py``, #1524) to make the ordering
 deterministic, and are skipped on SQLite, which has no row locks.
+``LoginRechecksLockedRowTests`` runs on every backend.
 """
 
 import threading
@@ -14,7 +16,8 @@ from unittest import skipUnless
 from unittest.mock import patch
 
 from django.db import connection, connections
-from django.test import TransactionTestCase
+from django.test import TestCase, TransactionTestCase
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from accounts import credentials
@@ -110,3 +113,86 @@ class CredentialRowLockTests(TransactionTestCase):
         self.assertEqual(change.status_code, 200)
         self.assertGreaterEqual(change_done, hold_ended)
         self.assertEqual(PersonalAccessToken.objects.filter(user_id=self.user.pk).count(), 0)
+
+    # REST login (#1586): the DRF auth Token is issued under the same lock.
+
+    def _login(self, password):
+        return APIClient().post(
+            "/api/v1/auth/login/",
+            {"username": "locker", "password": password},
+            format="json",
+        )
+
+    def test_login_after_password_change_issues_no_token(self):
+        results, hold_ended = self._run_pair(
+            self._change_password,
+            lambda: self._login(OLD_PASSWORD),
+            credentials,
+            "lock_user_row",
+        )
+        change, _ = results["first"]
+        login, login_done = results["second"]
+        self.assertEqual(change.status_code, 200)
+        self.assertGreaterEqual(login_done, hold_ended)
+        self.assertEqual(login.status_code, 400)
+        self.assertNotIn("key", login.json())
+        self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
+
+    def test_password_change_after_login_removes_token(self):
+        results, hold_ended = self._run_pair(
+            lambda: self._login(OLD_PASSWORD),
+            self._change_password,
+            credentials,
+            "lock_user_row",
+        )
+        login, _ = results["first"]
+        change, change_done = results["second"]
+        self.assertEqual(login.status_code, 200)
+        self.assertIn("key", login.json())
+        self.assertEqual(change.status_code, 200)
+        self.assertGreaterEqual(change_done, hold_ended)
+        self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
+
+
+class LoginRechecksLockedRowTests(TestCase):
+    """Login re-reads the user row under the lock before issuing a Token (#1586).
+
+    Runs on every backend: the locked read is replaced with a row as another
+    transaction would have left it.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="relogin", password=OLD_PASSWORD)
+
+    def _login_with_locked_row(self, **changes):
+        def locked_row(user):
+            row = User.objects.get(pk=user.pk)
+            for field, value in changes.items():
+                setattr(row, field, value)
+            return row
+
+        with patch.object(credentials, "lock_user_row", side_effect=locked_row):
+            return APIClient().post(
+                "/api/v1/auth/login/",
+                {"username": "relogin", "password": OLD_PASSWORD},
+                format="json",
+            )
+
+    def test_login_refused_when_stored_password_differs(self):
+        response = self._login_with_locked_row(password="pbkdf2_sha256$1$other$hash")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(), {"non_field_errors": ["Unable to log in with provided credentials."]}
+        )
+        self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
+
+    def test_login_refused_when_account_inactive(self):
+        response = self._login_with_locked_row(is_active=False)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
+
+    def test_login_with_unchanged_row_returns_key(self):
+        response = self._login_with_locked_row()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.json()), {"key"})
+        self.assertEqual(response.json()["key"], Token.objects.get(user_id=self.user.pk).key)
