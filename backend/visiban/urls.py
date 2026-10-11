@@ -284,9 +284,16 @@ if settings.GIT_LENS_ENABLED:
 # Enterprise extension point — the enterprise package registers additional URL
 # patterns here without modifying this file. If the enterprise package is not
 # installed, this block is silently skipped and the OSS URL set is used as-is.
+#
+# ``extension_urlpatterns`` keeps the same pattern objects so the pending-action
+# gate can tell an extension's own routes from OSS routes: an extension may
+# exempt its own views under its own gated prefix, never an OSS view
+# (visiban.middleware.oss_gated_view_names, accounts.E007, #1593).
+extension_urlpatterns = []
 try:
     from enterprise.urls import enterprise_urlpatterns  # type: ignore[import]
-    urlpatterns += enterprise_urlpatterns
+    extension_urlpatterns = list(enterprise_urlpatterns)
+    urlpatterns += extension_urlpatterns
 except ImportError:
     pass
 

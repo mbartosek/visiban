@@ -646,39 +646,194 @@ def _view_name_of(pattern) -> str:
     return f"{module}.{qualname}"
 
 
+# A route segment such as ``<int:pk>`` in a ``path()`` route (same syntax as
+# Django's own route parser).
+_ROUTE_PARAMETER_RE = re.compile(r"<(?:(?P<converter>[^>:]+):)?(?P<parameter>[^>]+)>")
+
+
+def _slash_free_converters() -> tuple[type, ...]:
+    """Built-in path converters whose values can never contain ``/``."""
+    from django.urls.converters import IntConverter, SlugConverter, StringConverter, UUIDConverter
+
+    return (IntConverter, SlugConverter, StringConverter, UUIDConverter)
+
+
+def _regex_literal_prefix(source: str) -> tuple[str, bool]:
+    """``(prefix, fully_literal)`` for a regex source such as ``^sso/(?P<x>\\w+)/$``.
+
+    *prefix* is the literal text every match of the regex starts with
+    (``sso/``); *fully_literal* is True when the regex matches only that text
+    (``^accounts/3rdparty/signup/$``). Anything the parser cannot read, or a
+    case-insensitive regex, gives ``("", False)``: no known prefix, so the
+    caller cannot rule the route out.
+    """
+    try:
+        from re import _parser as sre_parse  # Python 3.11+
+    except ImportError:  # pragma: no cover - older interpreters
+        try:
+            import sre_parse  # type: ignore[no-redef]
+        except ImportError:
+            return "", False
+    try:
+        parsed = sre_parse.parse(source)
+    except Exception:  # noqa: BLE001 - any parse failure means "unknown", never "safe"
+        return "", False
+    if parsed.state.flags & re.IGNORECASE:
+        return "", False
+    ops = list(parsed)
+    i = 0
+    while i < len(ops) and ops[i][0] == sre_parse.AT and ops[i][1] in (
+        sre_parse.AT_BEGINNING,
+        sre_parse.AT_BEGINNING_STRING,
+    ):
+        i += 1
+    chars = []
+    while i < len(ops) and ops[i][0] == sre_parse.LITERAL:
+        chars.append(chr(ops[i][1]))
+        i += 1
+    fully_literal = all(
+        op == sre_parse.AT and arg in (sre_parse.AT_END, sre_parse.AT_END_STRING) for op, arg in ops[i:]
+    )
+    return "".join(chars), fully_literal
+
+
+def _pattern_tokens(pattern, is_endpoint: bool) -> list[tuple]:
+    """Split one URL pattern into the tokens ``_can_serve_under`` matches against.
+
+    Tokens: ``("lit", text)``; ``("re", compiled, literal_prefix, slash_free)``
+    for a converter or a regex whose matches vary; ``("any",)`` for a pattern
+    whose matches cannot be bounded (an unanchored regex, which Django
+    applies with ``search()`` and so can sit after ANY leading text, or an
+    unknown pattern class such as ``LocalePrefixPattern``).
+    """
+    from django.urls.resolvers import RegexPattern, RoutePattern
+
+    if isinstance(pattern, RoutePattern):
+        route = str(pattern)
+        converters = getattr(pattern, "converters", None)
+        if converters is None:
+            return [("any",)]
+        tokens: list[tuple] = []
+        pos = 0
+        for m in _ROUTE_PARAMETER_RE.finditer(route):
+            tokens.append(("lit", route[pos : m.start()]))
+            converter = converters.get(m.group("parameter"))
+            if converter is None:
+                return [("any",)]
+            tokens.append(
+                ("re", re.compile(converter.regex), "", isinstance(converter, _slash_free_converters()))
+            )
+            pos = m.end()
+        tokens.append(("lit", route[pos:]))
+        return tokens
+    if isinstance(pattern, RegexPattern):
+        source = str(pattern)
+        anchored = source.startswith(("^", r"\A")) or (is_endpoint and source.endswith("$"))
+        if not anchored:
+            return [("any",)]
+        prefix, fully_literal = _regex_literal_prefix(source)
+        if fully_literal:
+            return [("lit", prefix)]
+        return [("re", pattern.regex, prefix, False)]
+    return [("any",)]
+
+
+def _can_serve_under(tokens: list[tuple], rem: str) -> bool:
+    """True when the route *tokens* can match some path that starts with *rem*.
+
+    *rem* is a gated prefix without its leading slash (``accounts/``). This
+    over-approximates on purpose: a route is dropped only when it provably
+    cannot produce such a path. A converter or regex is tried at every split
+    of *rem* (``<str:x>`` can be ``accounts``, ``^(?:accounts|admin)/`` can be
+    ``accounts/``); a regex or ``path`` converter that would have to match
+    past the end of *rem* is assumed able to (fail safe), while the
+    slash-free built-in converters cannot, because *rem* ends with ``/``.
+    """
+    if not rem:
+        return True
+    if not tokens:
+        # A slashless path (``/admin``) is gated like ``/admin/``.
+        return rem == "/"
+    token, rest = tokens[0], tokens[1:]
+    if token[0] == "any":
+        return True
+    if token[0] == "lit":
+        text = token[1]
+        if text.startswith(rem):
+            return True
+        return rem.startswith(text) and _can_serve_under(rest, rem[len(text) :])
+    _, regex, prefix, slash_free = token
+    if prefix and prefix.startswith(rem):
+        return True
+    if not rem.startswith(prefix):
+        return False
+    for k in range(len(prefix), len(rem) + 1):
+        if regex.fullmatch(rem[:k]) and _can_serve_under(rest, rem[k:]):
+            return True
+    return not slash_free
+
+
+def _extra_gated_prefixes() -> tuple[str, ...]:
+    return pending_action_gated_prefixes()[len(PENDING_ACTION_GATED_PREFIXES) :]
+
+
 @functools.lru_cache(maxsize=8)
-def _oss_gated_view_names(urlconf) -> frozenset[str]:
+def _oss_gated_view_names(urlconf, extra_prefixes: tuple[str, ...]) -> frozenset[str]:
     from django.urls import URLPattern, URLResolver, get_resolver
 
+    builtin = tuple(p[1:] for p in PENDING_ACTION_GATED_PREFIXES)
+    extra = tuple(p[1:] for p in extra_prefixes)
+    resolver = get_resolver(urlconf)
+    # Routes the root URLconf took from its extension point (visiban/urls.py
+    # ``extension_urlpatterns``) are the extension's own: they count only
+    # under the built-in prefixes.
+    extension_ids = {id(p) for p in getattr(resolver.urlconf_module, "extension_urlpatterns", ()) or ()}
     names: set[str] = set()
 
-    def walk(patterns, route: str, namespace: str) -> None:
+    def walk(patterns, tokens: list[tuple], namespace: str, top: bool, oss: bool) -> None:
         for p in patterns:
-            here = route + str(p.pattern).lstrip("^")
+            here_oss = oss and not (top and id(p) in extension_ids)
+            here = tokens + _pattern_tokens(p.pattern, isinstance(p, URLPattern))
             if isinstance(p, URLResolver):
                 ns = f"{namespace}{p.namespace}:" if p.namespace else namespace
-                walk(p.url_patterns, here, ns)
-            elif isinstance(p, URLPattern) and ("/" + here).startswith(PENDING_ACTION_GATED_PREFIXES):
-                names.add(f"{namespace}{_view_name_of(p)}")
+                walk(p.url_patterns, here, ns, False, here_oss)
+            elif isinstance(p, URLPattern):
+                prefixes = builtin + (extra if here_oss else ())
+                if any(_can_serve_under(here, prefix) for prefix in prefixes):
+                    names.add(f"{namespace}{_view_name_of(p)}")
 
-    walk(get_resolver(urlconf).url_patterns, "", "")
+    walk(resolver.url_patterns, [], "", True, True)
     return frozenset(names)
 
 
 def oss_gated_view_names(urlconf=None) -> frozenset[str]:
-    """Names of every view mounted under a BUILT-IN gated prefix (``/accounts/``, ``/admin/``).
+    """Names of every view that can serve a path under a gated prefix and may not be exempted by an extension.
 
-    Walks the URLconf rather than calling ``reverse()`` so that a view whose
-    route needs arguments (``admin:accounts_user_change``) is covered too. Only
-    ``PENDING_ACTION_GATED_PREFIXES`` is used, not the extension prefixes: an
-    extension's own views are what ``PENDING_ACTION_EXTRA_EXEMPT_VIEWS`` is for.
-    Used by ``accounts.E007`` and by ``pending_action_exempt_views`` so the
-    check, the merge and the gate share one prefix constant. Cached per
-    URLconf (the default is resolved first so a ROOT_URLCONF override is a
-    different key); call ``oss_gated_view_names.cache_clear()`` after
-    changing URL patterns in a test.
+    Two sets of routes count (#1593):
+
+    - every route that can serve a path under a BUILT-IN prefix
+      (``/accounts/``, ``/admin/``), whoever mounted it;
+    - every OSS route that can serve a path under an operator-added
+      ``PENDING_ACTION_EXTRA_GATED_PREFIXES`` entry. A route is an
+      extension's own, and does not count here, when the root URLconf took it
+      from its extension point: the top-level patterns listed in the root
+      module's ``extension_urlpatterns`` (``visiban/urls.py`` fills it from
+      ``enterprise.urls.enterprise_urlpatterns``). A root URLconf without
+      that attribute marks every route OSS, which is the fail-safe reading.
+
+    "Can serve" is decided on each pattern's matching rules, not on its
+    printed route: a regex alternation (``^(?:accounts|admin)/``), a leading
+    converter (``<str:x>/``) and an unanchored regex all count, and a route
+    whose reach cannot be bounded is counted rather than allowed. The walk
+    covers routes that need arguments (``admin:accounts_user_change``), which
+    ``reverse()`` alone would not. Used by ``accounts.E007`` and by
+    ``pending_action_exempt_views`` so the check, the merge and the gate share
+    one prefix list. Cached per URLconf and extra-prefix setting (the default
+    URLconf is resolved first so a ROOT_URLCONF override is a different key);
+    call ``oss_gated_view_names.cache_clear()`` after changing URL patterns in
+    a test.
     """
-    return _oss_gated_view_names(urlconf or settings.ROOT_URLCONF)
+    return _oss_gated_view_names(urlconf or settings.ROOT_URLCONF, _extra_gated_prefixes())
 
 
 oss_gated_view_names.cache_clear = _oss_gated_view_names.cache_clear  # type: ignore[attr-defined]
@@ -711,12 +866,13 @@ def pending_action_exempt_views() -> frozenset[str]:
     extension package whose own views under a gated prefix meet the admission
     rule above (for example a SAML assertion consumer). Exact view names only;
     an entry that is not well formed is left out here and reported by the
-    ``accounts.E006`` system check. A name shared with an OSS view under
-    ``/accounts/`` or ``/admin/`` that is not already exempt is also left out
-    (reported by ``accounts.E007``): checks do not run under gunicorn/ASGI or
-    with ``--skip-checks``, so this merge is the enforcement and the check is
-    the reporter. The admission rule itself is policy; only the OSS-prefix
-    subset is enforced.
+    ``accounts.E006`` system check. A name in ``oss_gated_view_names()`` (a
+    view that can serve a path under ``/accounts/`` or ``/admin/``, or an OSS
+    view under an extra gated prefix) that is not already exempt is also left
+    out (reported by ``accounts.E007``): checks do not run under gunicorn/ASGI
+    or with ``--skip-checks``, so this merge is the enforcement and the check
+    is the reporter. The admission rule itself is policy; only that subset is
+    enforced.
     """
     extra = getattr(settings, "PENDING_ACTION_EXTRA_EXEMPT_VIEWS", ()) or ()
     if isinstance(extra, str):

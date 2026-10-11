@@ -838,9 +838,11 @@ PENDING_ACTION_EXTRA_GATED_PREFIXES = ()
 # still reach (#1561), by exact resolved view name (e.g. "saml_acs"). Same
 # extension point; each entry must meet the admission rule in
 # docs/development/authorization-entry-points.md (system check accounts.E006
-# rejects malformed names). Views under /accounts/ and /admin/ cannot be
-# exempted here: accounts.E007 reports such a name, and the middleware ignores
-# it at runtime (checks do not run under gunicorn/ASGI).
+# rejects malformed names). Views under /accounts/ and /admin/, and OSS views
+# under an extra gated prefix above, cannot be exempted here: accounts.E007
+# reports such a name, and the middleware ignores it at runtime (checks do not
+# run under gunicorn/ASGI). An extension's own views are the ones it adds
+# through the extension point in visiban/urls.py (extension_urlpatterns, #1593).
 PENDING_ACTION_EXTRA_EXEMPT_VIEWS = ()
 ACCOUNT_LOGOUT_REDIRECT_URL = FRONTEND_URL
 # Guard against operator misconfiguration: a value like "//evil.com" would produce
