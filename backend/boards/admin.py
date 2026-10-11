@@ -17,7 +17,9 @@ from .serializers import (
     SwimlaneSerializer,
 )
 from .permissions import SITE_ADMIN
-from .services.cards import enforce_column_limits, lock_card_cell_entry, lock_card_row
+from .services.cards import (
+    enforce_column_limits, lock_card_cell_entry, lock_card_row, lock_cards_for_cascade,
+)
 from .services.errors import WeightLimitExceeded, WipHardBlocked, WipLimitExceeded
 from .views._helpers import _refetched_card_data
 
@@ -238,19 +240,27 @@ class CardAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         board_id = obj.board_id
         card_uid = obj.uid
-        super().delete_model(request, obj)
-        _broadcast.record_board_event(
-            board_id, _broadcast.EVT_CARD_DELETED, {"card_uid": card_uid}, actor_id=request.user.pk
-        )
-
-    def delete_queryset(self, request, queryset):
-        # Capture board_id + uid before delete — post-delete the instances are gone.
-        deleted = [(c.board_id, c.uid) for c in queryset]
-        super().delete_queryset(request, queryset)
-        for board_id, card_uid in deleted:
+        # Lock the card before the collector reads its child rows, in one
+        # transaction held across the delete (#1603; see lock_cards_for_cascade).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(pk=obj.pk))
+            super().delete_model(request, obj)
             _broadcast.record_board_event(
                 board_id, _broadcast.EVT_CARD_DELETED, {"card_uid": card_uid}, actor_id=request.user.pk
             )
+
+    def delete_queryset(self, request, queryset):
+        # One outer atomic: a bulk action is not wrapped by Django, so a lock
+        # taken per object would not be held across the delete (#1603).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(pk__in=queryset.values("pk")))
+            # Capture board_id + uid before delete — post-delete the instances are gone.
+            deleted = [(c.board_id, c.uid) for c in queryset]
+            super().delete_queryset(request, queryset)
+            for board_id, card_uid in deleted:
+                _broadcast.record_board_event(
+                    board_id, _broadcast.EVT_CARD_DELETED, {"card_uid": card_uid}, actor_id=request.user.pk
+                )
 
 
 @admin.register(Column)
@@ -267,18 +277,24 @@ class ColumnAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         board_id = obj.board_id
         column_uid = obj.uid
-        super().delete_model(request, obj)
-        _broadcast.record_board_event(
-            board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
-        )
-
-    def delete_queryset(self, request, queryset):
-        deleted = [(c.board_id, c.uid) for c in queryset]
-        super().delete_queryset(request, queryset)
-        for board_id, column_uid in deleted:
+        # Cards first, then the column (#1603; see lock_cards_for_cascade).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(column_id=obj.pk))
+            super().delete_model(request, obj)
             _broadcast.record_board_event(
                 board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
             )
+
+    def delete_queryset(self, request, queryset):
+        # One outer atomic across lock + delete (#1603).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(column__in=queryset.values("pk")))
+            deleted = [(c.board_id, c.uid) for c in queryset]
+            super().delete_queryset(request, queryset)
+            for board_id, column_uid in deleted:
+                _broadcast.record_board_event(
+                    board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
+                )
 
 
 class _BoardEventAdminMixin:
@@ -342,18 +358,35 @@ class _BoardEventAdminMixin:
         event = self.event_updated if change else self.event_created
         self._emit(self._board_id(obj), event, self._payload(obj, request), request)
 
+    def _cards_cascaded_by(self, queryset):
+        """Cards a delete of ``queryset`` cascades to, or ``None`` when the
+        model has no card cascade (Label, BoardMembership). Swimlane overrides
+        it so its delete takes the card-row lock first (#1603)."""
+        return None
+
+    def _lock_cascade(self, queryset):
+        cards = self._cards_cascaded_by(queryset)
+        if cards is not None:
+            lock_cards_for_cascade(cards)
+
     def delete_model(self, request, obj):
         board_id = self._board_id(obj)
         payload = self._delete_payload(obj)
-        super().delete_model(request, obj)
-        self._emit(board_id, self.event_deleted, payload, request)
+        with transaction.atomic():
+            self._lock_cascade(type(obj).objects.filter(pk=obj.pk))
+            super().delete_model(request, obj)
+            self._emit(board_id, self.event_deleted, payload, request)
 
     def delete_queryset(self, request, queryset):
-        # Capture identifiers before delete — post-delete each instance's pk is cleared.
-        deleted = [(self._board_id(o), self._delete_payload(o)) for o in queryset]
-        super().delete_queryset(request, queryset)
-        for board_id, payload in deleted:
-            self._emit(board_id, self.event_deleted, payload, request)
+        # One outer atomic across lock + delete: a bulk action is not wrapped
+        # by Django, so per-object locks would not be held (#1603).
+        with transaction.atomic():
+            self._lock_cascade(queryset)
+            # Capture identifiers before delete — post-delete each instance's pk is cleared.
+            deleted = [(self._board_id(o), self._delete_payload(o)) for o in queryset]
+            super().delete_queryset(request, queryset)
+            for board_id, payload in deleted:
+                self._emit(board_id, self.event_deleted, payload, request)
 
 
 @admin.register(Swimlane)
@@ -377,6 +410,9 @@ class SwimlaneAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
 
     def _delete_payload(self, obj):
         return {"swimlane_uid": obj.uid}
+
+    def _cards_cascaded_by(self, queryset):
+        return Card.objects.filter(swimlane__in=queryset.values("pk"))
 
 
 @admin.register(Label)
@@ -433,21 +469,27 @@ class BoardAdmin(admin.ModelAdmin):
         board_id = obj.id
         board_uid = obj.uid
         group_id = obj.group_id
-        super().delete_model(request, obj)
-        _record_board_and_group_event(
-            board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
-            actor_id=request.user.pk,
-        )
-
-    def delete_queryset(self, request, queryset):
-        # Capture identifiers before delete — post-delete each instance's pk is cleared.
-        deleted = [(b.id, b.uid, b.group_id) for b in queryset]
-        super().delete_queryset(request, queryset)
-        for board_id, board_uid, group_id in deleted:
+        # Cards first, then the board (#1603; see lock_cards_for_cascade).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(board_id=obj.pk))
+            super().delete_model(request, obj)
             _record_board_and_group_event(
                 board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
                 actor_id=request.user.pk,
             )
+
+    def delete_queryset(self, request, queryset):
+        # One outer atomic across lock + delete (#1603).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(board__in=queryset.values("pk")))
+            # Capture identifiers before delete — post-delete each instance's pk is cleared.
+            deleted = [(b.id, b.uid, b.group_id) for b in queryset]
+            super().delete_queryset(request, queryset)
+            for board_id, board_uid, group_id in deleted:
+                _record_board_and_group_event(
+                    board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
+                    actor_id=request.user.pk,
+                )
 
 
 @admin.register(BoardMembership)
