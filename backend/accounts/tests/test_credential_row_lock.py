@@ -182,13 +182,28 @@ class LoginRechecksLockedRowTests(TestCase):
         response = self._login_with_locked_row(password="pbkdf2_sha256$1$other$hash")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            response.json(), {"non_field_errors": ["Unable to log in with provided credentials."]}
+            response.json(),
+            {"non_field_errors": ["Unable to log in with provided credentials."]},
         )
         self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
 
     def test_login_refused_when_account_inactive(self):
         response = self._login_with_locked_row(is_active=False)
         self.assertEqual(response.status_code, 400)
+        self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
+
+    def test_login_refused_when_user_row_no_longer_exists(self):
+        with patch.object(credentials, "lock_user_row", side_effect=User.DoesNotExist):
+            response = APIClient().post(
+                "/api/v1/auth/login/",
+                {"username": "relogin", "password": OLD_PASSWORD},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"non_field_errors": ["Unable to log in with provided credentials."]},
+        )
         self.assertFalse(Token.objects.filter(user_id=self.user.pk).exists())
 
     def test_login_with_unchanged_row_returns_key(self):

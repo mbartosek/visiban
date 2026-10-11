@@ -24,7 +24,8 @@ def lock_user_row(user):
     """Lock *user*'s row and return the freshly read row.
 
     Credential issuance (``PersonalAccessToken`` creation,
-    ``reissue_auth_token``) and credential
+    ``reissue_auth_token``, and the DRF ``Token`` issued at REST login in
+    ``accounts.views.ThrottledLoginView.login``) and credential
     revocation (``finalize_password_change`` and the admin-set variant) take
     this lock first, so they are serialized per user. Must be called inside
     ``transaction.atomic()``. SQLite has no row locks, so there it is a plain
