@@ -222,8 +222,18 @@ class VisibanUserAdmin(UserAdmin):
                 # does not carry (a demotion, a pending password-change
                 # flag); those fields must come from the locked row, or this
                 # save would write the older values back.
+                #
+                # The same holds for a field the form carries but the
+                # administrator did not change (#1619): the form re-submits
+                # every value it rendered, including the read-only password
+                # hash, so only the fields in ``changed_data`` take the
+                # submitted value. An unbound form (no submission) has no
+                # ``changed_data`` to go by, so only the first rule applies.
+                changed = set(form.changed_data) if getattr(form, "is_bound", False) else None
                 for field in User._meta.concrete_fields:
-                    if field.name not in form.fields:
+                    if field.name not in form.fields or (
+                        changed is not None and field.name not in changed
+                    ):
                         setattr(obj, field.attname, getattr(stored, field.attname))
             super().save_model(request, obj, form, change)
             if stored is not None:

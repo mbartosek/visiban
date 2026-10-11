@@ -287,7 +287,11 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
         the lockout is cleared only once they have.
         """
         with transaction.atomic():
-            result = super().save()
+            # Only the password column is written (#1619): ``self.user`` was
+            # read in ``validate()``, and the stock ``SetPasswordForm.save()``
+            # would write every column of that copy back.
+            result = self.set_password_form.save(commit=False)
+            self.user.save(update_fields=["password"])
             finalize_password_reset(self.user)
         clear_login_lockout(self.context["request"], self.user)
         return result
@@ -317,6 +321,13 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # #1619: TokenRevokingPasswordChangeView passes the user row it read
+        # under the row lock, so the current password is checked against, and
+        # the new one written to, the stored row rather than the copy loaded
+        # when the request started.
+        locked_user = self.context.get("locked_user")
+        if locked_user is not None:
+            self.user = locked_user
         self.old_password_field_enabled = True
         if "old_password" not in self.fields:
             self.fields["old_password"] = serializers.CharField(max_length=128)
@@ -331,6 +342,20 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
                     "Your old password was entered incorrectly. Please enter it again."
                 )
         return value
+
+    def save(self):
+        """dj-rest-auth's ``save``, writing only the password column (#1619).
+
+        Django's ``SetPasswordForm.save()`` ends in a full ``user.save()``;
+        saving just ``password`` means no other column (``is_active``, the
+        forced-change flags) can be written back from an earlier read.
+        """
+        from django.contrib.auth import update_session_auth_hash
+
+        self.set_password_form.save(commit=False)
+        self.user.save(update_fields=["password"])
+        if not self.logout_on_password_change:
+            update_session_auth_hash(self.request, self.user)
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
@@ -523,7 +548,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         try:
             with transaction.atomic():
-                instance = super().update(instance, validated_data)
+                instance = self._save_changed_fields(instance, validated_data)
         except IntegrityError:
             # unique_username_ci is the backstop for a concurrent rename racing
             # validate_username (same TOCTOU handling as ChooseUsernameView).
@@ -543,6 +568,33 @@ class UserSerializer(serializers.ModelSerializer):
             instance.refresh_from_db(fields=["email"])
         elif cancel_pending:
             cancel_email_change(instance)
+        return instance
+
+    @staticmethod
+    def _save_changed_fields(instance, validated_data):
+        """``ModelSerializer.update``, but writing only the columns the request sets (#1619).
+
+        *instance* is the user as loaded when the request started. DRF's stock
+        ``update`` ends in a full ``instance.save()``, which writes every column
+        from that copy, so a password change, deactivation or forced-change flag
+        committed by another request in the meantime would be overwritten with
+        the earlier value. Restricting the save to the validated fields leaves
+        every other column as it is stored.
+        """
+        from rest_framework.utils import model_meta
+
+        info = model_meta.get_field_info(instance)
+        many_to_many = {}
+        for attr, value in validated_data.items():
+            if attr in info.relations and info.relations[attr].to_many:
+                many_to_many[attr] = value
+            else:
+                setattr(instance, attr, value)
+        update_fields = [attr for attr in validated_data if attr not in many_to_many]
+        if update_fields:
+            instance.save(update_fields=update_fields)
+        for attr, value in many_to_many.items():
+            getattr(instance, attr).set(value)
         return instance
 
     class Meta:

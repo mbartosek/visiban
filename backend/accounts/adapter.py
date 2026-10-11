@@ -202,7 +202,13 @@ class RegistrationAdapter(DefaultAccountAdapter):
         from .credentials import finalize_password_change
 
         with transaction.atomic():
-            super().set_password(user, password)
+            # allauth's own hook is ``user.set_password(); user.save()``. Only
+            # the password column is written here (#1619): *user* is the copy
+            # the flow loaded when the request started, and a full save would
+            # write its other columns (``is_active``, the forced-change flags)
+            # back over changes committed since.
+            user.set_password(password)
+            user.save(update_fields=["password"])
             finalize_password_change(user)
 
     def clean_username(self, username, shallow=False):
