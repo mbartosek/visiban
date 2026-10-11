@@ -4,6 +4,9 @@ from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
 from django.db import models
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
+from django.utils import timezone
 from django.conf import settings
 
 from boards.uid import _generate_uid
@@ -1594,3 +1597,33 @@ class CardExternalRef(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.ref}"
+
+
+@receiver(pre_delete, sender=settings.AUTH_USER_MODEL, dispatch_uid="boards_revoke_deleted_creator_links")
+def revoke_board_invite_links_of_deleted_creator(sender, instance, **kwargs):
+    """Revoke a user's pending board invite links before the user row goes (#1578).
+
+    ``BoardInviteLink.created_by`` is SET_NULL, so a deleted creator's links
+    would otherwise stay listed as pending and keep counting against the
+    per-board caps. A pre_delete receiver, not a call in one delete view, so
+    every deletion path (admin API, Django admin ``delete_selected``, shell,
+    cascade, ``QuerySet.delete()``) is covered. Revocation sets ``revoked_at``
+    like the explicit revoke path; consumed links keep their history.
+    """
+    pending = list(
+        BoardInviteLink.objects.filter(
+            created_by=instance, used_at__isnull=True, revoked_at__isnull=True,
+        ).values_list("pk", "board_id")
+    )
+    if not pending:
+        return
+    BoardInviteLink.objects.filter(pk__in=[pk for pk, _ in pending]).update(
+        revoked_at=timezone.now(),
+    )
+
+    from . import broadcast as _board_broadcast
+
+    for link_id, board_id in pending:
+        _board_broadcast.record_board_event(
+            board_id, _board_broadcast.EVT_INVITE_LINK_REVOKED, {"id": link_id},
+        )

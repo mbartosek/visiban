@@ -889,7 +889,10 @@ class DeadSenderInviteTests(_BoardFixture, TestCase):
         self.sender.delete()
         link.refresh_from_db()
         self.assertIsNone(link.created_by_id)
-        self._assert_dead(link)
+        # Deletion revokes the stored row (#1578); the list still reports revoked.
+        self.assertEqual(self._row(link)["status"], "revoked")
+        self.assertIs(self._row(link)["can_register"], False)
+        self.assertIsNotNone(link.revoked_at)
 
     def test_demoted_sender_frees_cap_slots(self):
         self._fill_cap_with_sender_invites()

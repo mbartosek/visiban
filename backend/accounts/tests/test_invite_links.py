@@ -875,7 +875,10 @@ class SiteInviteEffectiveStatusAndCapTests(TestCase):
     def test_deleted_creator_lists_revoked(self):
         link, _ = InviteLink.generate(created_by=self.creator)
         self.creator.delete()
-        self._assert_lists_revoked_and_row_untouched(link)
+        # Deletion revokes the stored row (#1578); the list still reports revoked.
+        self.assertEqual(self._statuses()[link.pk], "revoked")
+        link.refresh_from_db()
+        self.assertIsNotNone(link.revoked_at)
 
     def test_creator_deactivated_outside_the_admin_api_lists_revoked(self):
         link, _ = InviteLink.generate(created_by=self.creator)
