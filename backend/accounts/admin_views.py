@@ -558,6 +558,11 @@ class AdminCreateUserSerializer(drf_serializers.Serializer):
         return value
 
 
+SUPERUSER_SITE_ADMIN_MESSAGE = (
+    "Cannot remove site admin from a superuser; remove superuser status first."
+)
+
+
 class AdminPatchUserSerializer(drf_serializers.Serializer):
     """Validates partial updates allowed by site admins."""
     is_active = drf_serializers.BooleanField(required=False)
@@ -565,6 +570,18 @@ class AdminPatchUserSerializer(drf_serializers.Serializer):
     can_access_all_content = drf_serializers.BooleanField(required=False)
     must_change_password = drf_serializers.BooleanField(required=False)
     has_completed_tour = drf_serializers.BooleanField(required=False)
+
+    def validate_is_site_admin(self, value):
+        """Refuse to clear site admin on a superuser (#1597).
+
+        Superuser status implies site admin (``accounts/signals.py``
+        ``ensure_superuser_is_site_admin``), so the flag cannot be cleared
+        while ``is_superuser`` is set. The view passes the target in context.
+        """
+        target = self.context.get("target")
+        if not value and target is not None and target.is_superuser:
+            raise drf_serializers.ValidationError(SUPERUSER_SITE_ADMIN_MESSAGE)
+        return value
 
 
 class InviteLinkSerializer(drf_serializers.Serializer):
@@ -916,9 +933,15 @@ class AdminUserDetailView(APIView):
         if target is None:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = AdminPatchUserSerializer(data=request.data, partial=True)
+        serializer = AdminPatchUserSerializer(
+            data=request.data, partial=True, context={"target": target}
+        )
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            errors = dict(serializer.errors)
+            # The admin UI reads ``detail``; carry the refusal reason there too.
+            if SUPERUSER_SITE_ADMIN_MESSAGE in [str(e) for e in errors.get("is_site_admin", [])]:
+                errors["detail"] = SUPERUSER_SITE_ADMIN_MESSAGE
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         validated = serializer.validated_data
         update_fields = []
@@ -972,7 +995,18 @@ class AdminUserDetailView(APIView):
             # Atomic with the revocations below: a rolled-back deactivation must
             # not leave links revoked (and the on_commit broadcasts never fire).
             with transaction.atomic():
-                prior = access_state(lock_user_row(target.pk))
+                locked = lock_user_row(target.pk)
+                # Re-check on the locked row: the serializer saw an unlocked
+                # read, and superuser status may have been granted since.
+                if locked.is_superuser and validated.get("is_site_admin") is False:
+                    return Response(
+                        {
+                            "is_site_admin": [SUPERUSER_SITE_ADMIN_MESSAGE],
+                            "detail": SUPERUSER_SITE_ADMIN_MESSAGE,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                prior = access_state(locked)
                 target.save(update_fields=update_fields)
                 # Deactivating through PATCH must revoke the user's invite links
                 # exactly like the dedicated deactivate endpoint (#1510): they

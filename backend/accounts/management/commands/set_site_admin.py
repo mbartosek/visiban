@@ -32,7 +32,16 @@ class Command(BaseCommand):
             # is the break-glass route, so site links are revoked even for an
             # already-demoted user and group links lapse for an inactive one.
             with transaction.atomic():
-                prior = access_state(lock_user_row(user.pk))
+                locked = lock_user_row(user.pk)
+                # Superuser status implies site admin, so the flag cannot be
+                # cleared while it is set (#1597). Checked under the row lock,
+                # before any change or invite-link revocation.
+                if locked.is_superuser:
+                    raise CommandError(
+                        f'User "{username}" is a superuser; remove superuser '
+                        "status before revoking site admin"
+                    )
+                prior = access_state(locked)
                 user.is_site_admin = False
                 user.can_access_all_content = False
                 user.save(update_fields=["is_site_admin", "can_access_all_content"])

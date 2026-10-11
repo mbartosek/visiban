@@ -116,7 +116,7 @@ emailed (each board's admins see those invites move to **Revoked**) and their ac
 
 #### Make admin / Remove admin
 
-Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. *(1.2+)* **Remove admin** also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.
+Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. **Remove admin** is refused for an account that is still a superuser; remove superuser status first. *(1.2+)* **Remove admin** also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.
 
 The last active site admin on the instance cannot be demoted.
 
@@ -219,7 +219,7 @@ All admin-panel operations are also available via management commands for script
 python manage.py set_site_admin <username>
 
 # Revoke site admin
-python manage.py set_site_admin <username> --revoke
+python manage.py set_site_admin <username> --revoke   # refused for a superuser; remove superuser status first
 
 # Create the initial site admin (run once on first boot)
 python manage.py ensure_site_admin
