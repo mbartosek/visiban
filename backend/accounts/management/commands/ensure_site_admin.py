@@ -2,7 +2,9 @@ import logging
 import os
 import secrets
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.contrib.sites.models import Site
+from accounts.credentials import lock_user_row, require_password_change_after_admin_set
 from accounts.management._secure_file import write_secret_file
 from accounts.models import User
 
@@ -32,17 +34,26 @@ class Command(BaseCommand):
         email = os.environ.get("DJANGO_SUPERUSER_EMAIL", "admin@localhost")
         password = secrets.token_urlsafe(16)
 
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={"email": email},
-        )
-        user.set_password(password)
-        user.is_site_admin = True
-        user.can_access_all_content = True
-        user.is_staff = True
-        user.is_superuser = True
-        user.must_change_password = True
-        user.save()
+        # The password set here is an operator-set credential on a possibly
+        # pre-existing account, so it follows the same credential-change path as
+        # the admin-set password: the user row is locked, and every credential
+        # issued under the previous password (PATs and the DRF Token) is revoked
+        # in the same transaction as the save (#1596). The helper also keeps
+        # must_change_password set, since the operator now knows the password.
+        with transaction.atomic():
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults={"email": email},
+            )
+            user = lock_user_row(user)
+            user.set_password(password)
+            user.is_site_admin = True
+            user.can_access_all_content = True
+            user.is_staff = True
+            user.is_superuser = True
+            user.must_change_password = True
+            user.save()
+            require_password_change_after_admin_set(user)
 
         action = "Created" if created else "Promoted existing"
 
