@@ -1,6 +1,7 @@
 # Verifying release images and the Helm chart
 
-*(New in 1.2)* Every Visiban release is signed keyless with [Sigstore cosign](https://docs.sigstore.dev/)
+*(New in 1.2)* Every Visiban release cut after image signing shipped (the first release after
+`v1.2.0-alpha.4`) is signed keyless with [Sigstore cosign](https://docs.sigstore.dev/)
 by the GitLab CI job that published it, so you can check that what you pull was built and
 pushed by Visiban's release pipeline rather than trusting the registry:
 
@@ -14,8 +15,8 @@ carries its own copy. Verify against the registry you actually pull from. GHCR k
 copies indefinitely. On the GitLab registry, the current cleanup policy can sweep signature
 and attestation tags about 90 days after a release, even though the image itself is kept.
 Extending the policy is tracked in [#1541](https://gitlab.com/visiban/visiban/-/issues/1541).
-A nightly CI job, `check-release-attestations`, re-verifies the newest releases' signatures and SBOM
-attestations on both registries so a sweep or delete does not go unnoticed. See
+A nightly CI job, `check-release-attestations`, re-verifies the newest signed releases' signatures and SBOM
+attestations on both registries (releases cut before image signing shipped are skipped unless backfilled) so a sweep or delete does not go unnoticed. See
 [CI gate self-tests](../development/ci-gates.md).
 See [Container image retention](container-image-retention.md#signature-and-sbom-attestation-tags-1153).
 
@@ -114,8 +115,8 @@ signed and attested.
 
 ## Older releases
 
-Images published before this feature (1.1.x and the 1.2 pre-releases cut before it merged)
-carry no image signature or SBOM, and `cosign verify` reports `no signatures found`.
+Images published before this feature carry no image signature or SBOM: every 1.0.x and
+1.1.x release, and `v1.2.0-alpha.1` through `v1.2.0-alpha.4`. For those images, `cosign verify` reports `no signatures found`.
 This means the image was never signed. It does not mean the image was tampered with.
 Maintainers can bring an already-published release up to the same bar without re-cutting
 it: the manual `image-attest-backfill` CI job on `main` signs and attests a given tag's

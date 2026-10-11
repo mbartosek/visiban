@@ -4250,9 +4250,15 @@ check-release-images:
 # can delete them ~90 days after a release, #1541) or a manual delete would
 # remove every signature and SBOM with no job going red. This job re-runs
 # `cosign verify` and `cosign verify-attestation --type cyclonedx` for the
-# newest ATTEST_CHECK_COUNT releases (default 3), both images, BOTH registries,
-# the index and each platform digest, with the documented tag-only identity
+# newest ATTEST_CHECK_COUNT releases (default 3) whose own .gitlab-ci.yml
+# defines the image-attest jobs, i.e. that were signed at release time, on
+# both images, BOTH registries, the index and each platform digest, with the documented tag-only identity
 # (docs/administration/image-verification.md). Zero attestations is a failure.
+# Releases cut before #1153 were never signed and are listed as not checked
+# (#1606); until one is cut after #1153 the job exits 0 with a notice.
+# GIT_DEPTH 0: the script reads .gitlab-ci.yml at each tag and fails on a tag
+# commit missing from the clone, so it needs full history, not a shallow
+# clone plus whatever `git fetch --tags` happens to deepen.
 #
 # Gated on the Nightly schedule's existing CVE_SCAN=true variable rather than
 # "any schedule": it spends cosign downloads and Sigstore transparency-log
@@ -4262,7 +4268,8 @@ check-release-images:
 # the same reason as check-release-images.
 #
 # Releases signed later by `image-attest-backfill` carry the main-or-tag
-# identity: list each one in ATTEST_BACKFILLED_TAGS (space-separated) with the
+# identity (and, if they predate #1153, are only in scope once listed): list
+# each one in ATTEST_BACKFILLED_TAGS (space-separated) with the
 # issue that justified it. A permanent per-reference exception goes in
 # ATTEST_ACCEPTED_GAPS, likewise with a comment. Both are empty on purpose.
 # cosign comes from `.cosign-pin`, shared with image-attest and helm-publish.
@@ -4274,6 +4281,7 @@ check-release-attestations:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CVE_SCAN == "true"'
   variables:
+    GIT_DEPTH: "0"
     ATTEST_CHECK_COUNT: "3"
     ATTEST_BACKFILLED_TAGS: ""
     ATTEST_ACCEPTED_GAPS: ""
@@ -4293,8 +4301,17 @@ check-release-attestations:
       AUTHS="\"${CI_REGISTRY}\":{\"auth\":\"$(b64 "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}")\"}"
       AUTHS="${AUTHS},\"ghcr.io\":{\"auth\":\"$(b64 "${GHCR_USER}" "${GHCR_TOKEN}")\"}"
       printf '{"auths":{%s}}' "${AUTHS}" > "$HOME/.docker/config.json"
-    # Scheduled pipelines clone at the default depth; fetch every tag so the
-    # newest N releases are the real newest N.
+    # Fetch every tag so the newest N releases are the real newest N. GIT_DEPTH
+    # 0 does not unshallow a build dir the fetch strategy reuses from an
+    # earlier shallow clone, and the script fails on a shallow repo (ancestry
+    # decides pre-signing vs. signing dropped, #1606), so unshallow first.
+    - |
+      # Fail closed like gitleaks-history: anything but "false" is treated as
+      # shallow; the shallow-file guard keeps a complete repo from erroring.
+      if [ "$(git rev-parse --is-shallow-repository)" != "false" ] \
+          && [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+        git fetch --unshallow origin
+      fi
     - git fetch origin --tags --force
   script:
     - bash scripts/check-release-attestations.sh --self-test
