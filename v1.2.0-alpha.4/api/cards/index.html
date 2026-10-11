@@ -4808,7 +4808,7 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 <a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="patch-apiv1boardsboard_idcardsid"><code>PATCH /api/v1/boards/{board_id}/cards/{id}/</code><a class="headerlink" href="#patch-apiv1boardsboard_idcardsid" title="Permanent link">&para;</a></h3>
-<p>Update card fields. Requires member or above. Returns <code>404 Not Found</code> if the card was deleted concurrently; nothing is saved.</p>
+<p>Update card fields. Requires member or above. Returns <code>404 Not Found</code> if the card was deleted concurrently; nothing is saved. A PATCH/PUT racing an archive or move of the same card is evaluated against the card's state at the moment it is written, not when the request began: it returns <code>404 Not Found</code> if the card was archived concurrently (as for any archived card), and a concurrent move is kept — only the submitted fields change, and echoing the card's pre-move <code>column</code>/<code>swimlane</code>/<code>position</code> is rejected with <code>use_move_endpoint</code> (see below).</p>
 <blockquote>
 <p><strong>Ownership gate:</strong> Members may only edit cards they created. A member who did not create the card must have the <code>is_moderator</code> entitlement or be a board admin. Non-moderator members who did not create the card receive <code>403 Forbidden</code>.</p>
 </blockquote>
