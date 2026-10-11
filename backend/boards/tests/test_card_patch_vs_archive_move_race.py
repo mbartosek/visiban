@@ -42,6 +42,8 @@ from boards.models import (
     Swimlane,
 )
 from boards.services import cards as card_services
+from mcp_server import tools as mcp_tools
+from mcp_server.context import reset_current_user, set_current_user
 
 SERVICES = "boards.services.cards"
 HOLD_TIMEOUT = 10.0
@@ -291,3 +293,54 @@ class CardPatchVsArchiveMoveRaceTests(TransactionTestCase):
         self.assertEqual(moved.status_code, 200, moved.data)
         card = Card.objects.get(pk=self.card.pk)
         self.assertEqual((card.column_id, card.title), (self.col_b.pk, "again"))
+
+
+class McpUpdateCardStaleSnapshotTests(APITestCase):
+    """The MCP ``update_card`` tool goes through the same service (#1598).
+
+    Called directly rather than over the transport, so it runs where
+    ``test_mcp_crud.py`` is skipped. The archive/move is committed right after
+    the tool's own read of the card (``_resolve_board_for_card``), outside the
+    service's transaction, so it survives a refused update and the test can
+    check it was not undone.
+    """
+
+    def setUp(self):
+        _fixture(self, "racer1598mcp")
+        token = set_current_user(self.user)
+        self.addCleanup(reset_current_user, token)
+
+    def _after_tool_read(self, mutate):
+        real = mcp_tools._resolve_board_for_card
+
+        def racing(user, card_id):
+            resolved = real(user, card_id)
+            mutate()
+            return resolved
+
+        return patch("mcp_server.tools._resolve_board_for_card", side_effect=racing)
+
+    def test_card_archived_after_tool_read_is_not_found(self):
+        with self._after_tool_read(
+            lambda: Card.objects.filter(pk=self.card.pk).update(
+                archived_at=timezone.now()
+            )
+        ):
+            out = mcp_tools.update_card(card_id=self.card.pk, title="again")
+        self.assertEqual(out.get("error", {}).get("code"), "card_not_found", out)
+        card = Card.objects.get(pk=self.card.pk)
+        self.assertIsNotNone(card.archived_at)
+        self.assertEqual(card.title, "C")
+
+    def test_card_moved_after_tool_read_keeps_the_move(self):
+        with self._after_tool_read(
+            lambda: Card.objects.filter(pk=self.card.pk).update(
+                column=self.col_b, position=3
+            )
+        ):
+            out = mcp_tools.update_card(card_id=self.card.pk, title="again")
+        self.assertNotIn("error", out)
+        card = Card.objects.get(pk=self.card.pk)
+        self.assertEqual(
+            (card.column_id, card.position, card.title), (self.col_b.pk, 3, "again")
+        )
