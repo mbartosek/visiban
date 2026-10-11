@@ -109,6 +109,7 @@ python:S1192|String literals should not be duplicated
 python:S2068|Hard-coded passwords are security-sensitive
 python:S2245|Pseudorandom number generators are security-sensitive
 python:S3776|Cognitive Complexity of functions should not be too high
+python:S6418|Secrets should not be hard-coded
 pythonsecurity:S8705|Argument injection
 pythonsecurity:S8707|Agentic workflows should not be vulnerable to path injection attacks
 shell:S5332|Using clear-text protocols is security-sensitive
