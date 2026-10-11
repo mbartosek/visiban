@@ -6,7 +6,8 @@ without turning the scanner off. Where each job runs is in the table; it is not 
 | Job | Source | Blocks? | Runs | Scope |
 |---|---|---|---|---|
 | `gitleaks-scan` | Pinned gitleaks binary, `.gitleaks.toml` | Yes, any finding | MR + `main` | Whole working tree |
-| `gitleaks-history` | Pinned gitleaks binary, `.gitleaks.toml` | Yes, any finding, but it runs **after merge on `main`**, so it is a post-merge tripwire, not a merge gate | `main` only | **Full git history** |
+| `gitleaks-commits` | Pinned gitleaks binary, `.gitleaks.toml` | Yes, any finding (#1612). The per-commit merge gate | MR only | **Every commit the MR adds** (`merge-base..HEAD`), so a secret added in one commit and removed or annotated in a later one is still caught |
+| `gitleaks-history` | Pinned gitleaks binary, `.gitleaks.toml` | Yes, any finding, but it runs **after merge on `main`**, so it is a post-merge tripwire, not a merge gate | `main` only | **Full history reachable from the pipeline commit** (`--log-opts="$CI_COMMIT_SHA"`); other refs in a reused runner clone are ignored |
 | `secret_detection` + `secret-detection-gate` | GitLab `secret-detection` component (pinned) | Yes, any unsuppressed finding (#1537). The component job itself only reports; the gate reads its report | MR + `main` | MR diff (shallow clone) |
 | `semgrep-sast` + `sast-severity-gate` | GitLab `sast` component (pinned) | Yes at **High/Critical** only | MR + `main` | Python and TypeScript/JavaScript |
 | `backend-sast` | bandit | Yes, medium+ | MR + `main` when `backend/**/*.py` changed | `backend/` |
@@ -15,7 +16,7 @@ without turning the scanner off. Where each job runs is in the table; it is not 
 
 `dep-scan-osv`, `pip-audit`, and the license checks are deliberately outside this policy.
 
-The secret scanners that gate are `gitleaks-scan`, `gitleaks-history`, and
+The secret scanners that gate are `gitleaks-scan`, `gitleaks-commits`, `gitleaks-history`, and
 `secret-detection-gate`. GitLab's analyzers exit 0 even when they find something, so
 `allow_failure: false` on the component's `secret_detection` job only turns an analyzer crash
 into a red job; it does not stop a leak. `secret-detection-gate` (`scripts/secret-detection-gate.py`,
@@ -60,7 +61,7 @@ so a temporary acceptance has to be revisited. Prefer fixing the code.
 
 ## Secret detection allowlist
 
-`gitleaks-scan` (working tree) and `gitleaks-history` (every commit on `main`) both use
+`gitleaks-scan` (working tree), `gitleaks-commits` (the MR's commits) and `gitleaks-history` (every commit on `main`) all use
 `.gitleaks.toml`, which carries commented path allowlist entries for known-safe fixtures
 (lockfile hashes, API doc examples, test mocks) and one commit-scoped entry for a single
 historical test password. Add an entry only for a value that is provably not a credential,
@@ -77,8 +78,12 @@ same format and matching rules as the semgrep suppressions above (exact `rule`, 
 glob `file`, `expires` at most 90 days out, expired entries fail the gate), and additionally the
 `reason` must cite a tracking issue as `#NNNN`. The gate prints only the rule name and
 `file:line`, never the matched value. Prefer fixing the file to suppressing it. Full history is
-covered by `gitleaks-history`; the existing history was triaged locally before it became
+covered by `gitleaks-history`, and an MR's own commits by `gitleaks-commits`; the existing history was triaged locally before it became
 blocking.
+
+If `gitleaks-commits` flags an intermediate commit, do not just annotate the final tree: with
+`merge_method=merge` every commit enters `main`'s history, so rewrite the branch to drop the
+literal (or add a narrow commit-scoped entry in `.gitleaks.toml`) before merging.
 
 If `gitleaks-history` flags an old commit, treat the credential as compromised: rotate it
 first, because the history is public on the GitHub and enterprise mirrors. Rewriting history
@@ -88,8 +93,9 @@ does not un-leak it.
 
 Because `semgrep-sast` is blocking, an analyzer crash or registry timeout blocks MRs and
 `main`. Retry the job; do not flip `allow_failure` back to `true`. `sast-severity-gate`
-fails if the report is missing or unparsable. `gitleaks-history` fails if the clone is
-shallow, so it can never report green on a partial history.
+fails if the report is missing or unparsable. `gitleaks-history` and `gitleaks-commits` fail if the
+clone is shallow (or, for `gitleaks-commits`, the MR diff base is missing), so they can never
+report green on a partial scan.
 
 To disable semgrep deliberately, add `semgrep` to the SAST component's `excluded_analyzers`
 input **and remove `sast-severity-gate` in the same change**. (The component has no
@@ -108,6 +114,6 @@ printf 'aws_access_key_id = "%s%s"\n' AKIA QYLPMN5HHHFPZAM2 \
 ```
 
 This is the planted-credential check for the issue's first acceptance criterion: a leaked
-key fails `gitleaks-scan` (and, on `main`, `gitleaks-history`). The component's
+key fails `gitleaks-scan` (and, on `main`, `gitleaks-history`; on an MR, `gitleaks-commits` for a key in any of its commits). The component's
 `secret_detection` job does not fail on it; `secret-detection-gate` does, when the component
 reports it.
