@@ -7,7 +7,9 @@ from unittest.mock import patch
 from django.core.management import call_command, CommandError
 from django.test import TestCase
 
-from accounts.models import User
+from rest_framework.authtoken.models import Token
+
+from accounts.models import PersonalAccessToken, User
 
 
 class EnsureSiteAdminTests(TestCase):
@@ -59,6 +61,37 @@ class EnsureSiteAdminTests(TestCase):
         self.assertTrue(existing.must_change_password)
         # Exactly one user with this username
         self.assertEqual(User.objects.filter(username="admin").count(), 1)
+
+    def test_promoting_existing_user_revokes_issued_credentials(self):
+        """The password reset of an existing account follows the standard credential-change path (#1596)."""
+        existing = User.objects.create_user(username="admin", password="oldpass")
+        old_key = Token.objects.create(user=existing).key
+        PersonalAccessToken.generate(existing, "ci")
+        self.assertEqual(existing.personal_access_tokens.count(), 1)
+
+        call_command("ensure_site_admin", stdout=StringIO())
+
+        existing.refresh_from_db()
+        self.assertFalse(Token.objects.filter(key=old_key).exists())
+        self.assertFalse(Token.objects.filter(user=existing).exists())
+        self.assertEqual(existing.personal_access_tokens.count(), 0)
+        self.assertFalse(existing.check_password("oldpass"))
+        self.assertTrue(existing.must_change_password)
+        self.assertTrue(existing.is_site_admin)
+
+    def test_new_account_branch_leaves_other_users_credentials_alone(self):
+        """Creating the account does not touch credentials that belong to other users."""
+        other = User.objects.create_user(username="someone", password="pass")
+        Token.objects.create(user=other)
+        PersonalAccessToken.generate(other, "keep")
+
+        call_command("ensure_site_admin", stdout=StringIO())
+
+        admin = User.objects.get(username="admin")
+        self.assertTrue(admin.is_site_admin)
+        self.assertTrue(admin.must_change_password)
+        self.assertTrue(Token.objects.filter(user=other).exists())
+        self.assertEqual(other.personal_access_tokens.count(), 1)
 
     def test_writes_password_to_file(self):
         """The generated password is written to a file, not printed to stdout."""
