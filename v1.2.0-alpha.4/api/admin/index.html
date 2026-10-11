@@ -4836,7 +4836,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>400 Bad Request</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td>Invalid field value, or attempting to demote yourself / the last active site admin.</td>
+<td>Invalid field value, or attempting to demote yourself / the last active site admin, or to set <code>is_site_admin: false</code> on a superuser (remove superuser status first; the body carries both <code>detail</code> and an <code>is_site_admin</code> field error).</td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>
