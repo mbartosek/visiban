@@ -45,6 +45,7 @@ Clearing **Active** on a user deletes their Personal Access Tokens and revokes t
 - **Boards, columns, swimlanes** — direct database access for debugging
 - **Board memberships** — view and correct membership records
 - **Social accounts** — inspect OAuth-linked accounts
+- **Email addresses, social accounts, social tokens, social apps and API tokens** — available to superusers only. A staff account cannot see or change these, even if it was granted their model permissions, because they hold the sign-in identities and credentials of other users.
 
 ## Production note
 

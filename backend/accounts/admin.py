@@ -337,3 +337,66 @@ class SuperuserOnlyGroupAdmin(GroupAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return self._superuser_only(request)
+
+
+# ---------------------------------------------------------------------------
+# Third-party admins that carry a user's email, login identity or API token
+# (#1618)
+#
+# allauth's EmailAddress / SocialAccount / SocialToken / SocialApp and DRF's
+# TokenProxy register stock admins gated only by Django model permissions, so
+# a staff account holding those permissions could edit another user's
+# credentials, including a superuser's, without going through
+# VisibanUserAdmin (which hides superusers from non-superusers). They stay
+# registered for break-glass use, but only superusers may see or change them.
+#
+# `allauth` and `rest_framework.authtoken` precede `accounts` in
+# INSTALLED_APPS, so their admin modules have already registered by the time
+# this module is imported; the is_registered guard keeps a differing install
+# (app absent or reordered) from failing startup.
+# ---------------------------------------------------------------------------
+class SuperuserOnlyAdminMixin:
+    """Limit every admin permission hook to active superusers."""
+
+    @staticmethod
+    def _is_active_superuser(request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_module_permission(self, request):
+        return self._is_active_superuser(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._is_active_superuser(request)
+
+    def has_add_permission(self, request):
+        return self._is_active_superuser(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._is_active_superuser(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._is_active_superuser(request)
+
+
+def _restrict_to_superusers(model):
+    """Re-register ``model``'s existing admin with the superuser-only mixin."""
+    if not admin.site.is_registered(model):
+        return
+    original = type(admin.site._registry[model])
+    admin.site.unregister(model)
+    restricted = type(
+        original.__name__, (SuperuserOnlyAdminMixin, original), {"__module__": __name__}
+    )
+    admin.site.register(model, restricted)
+
+
+def _restrict_third_party_admins():
+    from allauth.account.models import EmailAddress
+    from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
+    from rest_framework.authtoken.models import TokenProxy
+
+    for model in (EmailAddress, SocialAccount, SocialToken, SocialApp, TokenProxy):
+        _restrict_to_superusers(model)
+
+
+_restrict_third_party_admins()
