@@ -343,12 +343,9 @@ class SuperuserOnlyGroupAdmin(GroupAdmin):
 # Third-party admins that carry a user's email, login identity or API token
 # (#1618)
 #
-# allauth's EmailAddress / SocialAccount / SocialToken / SocialApp and DRF's
-# TokenProxy register stock admins gated only by Django model permissions, so
-# a staff account holding those permissions could edit another user's
-# credentials, including a superuser's, without going through
-# VisibanUserAdmin (which hides superusers from non-superusers). They stay
-# registered for break-glass use, but only superusers may see or change them.
+# These admins hold sign-in identities and credentials, so access is limited to
+# superusers regardless of model permissions. They stay registered for
+# break-glass use.
 #
 # `allauth` and `rest_framework.authtoken` precede `accounts` in
 # INSTALLED_APPS, so their admin modules have already registered by the time
