@@ -58,7 +58,7 @@ Site admin status is a field on the `User` model (`is_site_admin`). It can be se
 python manage.py set_site_admin <username>
 
 # Revoke
-python manage.py set_site_admin <username> --revoke
+python manage.py set_site_admin <username> --revoke   # refused for a superuser; remove superuser status first
 
 # Docker
 docker compose run --rm backend python manage.py set_site_admin <username>

@@ -286,6 +286,62 @@ class AdminPatchUserTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.admin)
 
+    def test_demoting_a_superuser_from_site_admin_is_refused(self):
+        from accounts.models import InviteLink
+
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        self.target.refresh_from_db()
+        self.target.save()  # superuser promotion derives the site admin flags
+        link, _ = InviteLink.generate(created_by=self.target)
+
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": False})
+
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        self.assertIn("is_site_admin", r.json())
+        self.assertIn("superuser", r.json()["detail"])
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_site_admin)
+        self.assertTrue(self.target.can_access_all_content)
+        link.refresh_from_db()
+        self.assertIsNone(link.revoked_at)
+
+    def test_demotion_rechecks_superuser_on_the_locked_row(self):
+        from unittest.mock import patch
+
+        from accounts import admin_views
+
+        User.objects.filter(pk=self.target.pk).update(is_site_admin=True)
+        real_lock = admin_views.lock_user_row
+
+        def lock_after_concurrent_grant(pk):
+            # Superuser status granted between the view's read and the lock.
+            User.objects.filter(pk=pk).update(is_superuser=True)
+            return real_lock(pk)
+
+        with patch.object(admin_views, "lock_user_row", side_effect=lock_after_concurrent_grant):
+            r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": False})
+
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        self.assertIn("is_site_admin", r.json())
+        self.assertIn("superuser", r.json()["detail"])
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_site_admin)
+
+    def test_patch_not_touching_site_admin_on_a_superuser_is_unaffected(self):
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"has_completed_tour": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        # Re-asserting site admin on a superuser is not a demotion.
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+
+    def test_demoting_a_non_superuser_site_admin_succeeds(self):
+        User.objects.filter(pk=self.target.pk).update(is_site_admin=True)
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": False})
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.target.refresh_from_db()
+        self.assertFalse(self.target.is_site_admin)
+
     def test_deactivate_user(self):
         r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_active": False})
         self.assertEqual(r.status_code, status.HTTP_200_OK)

@@ -79,6 +79,9 @@ python manage.py set_site_admin <username> --revoke
 ```
 
 !!! note
+    An account that is still a superuser cannot have site admin removed; remove its superuser status first. The command and **Remove admin** both refuse it.
+
+!!! note
     A site admin cannot demote themselves — this prevents accidentally locking yourself out of the instance. To revoke your own status, ask another site admin to do it. The last active site admin on the instance cannot be demoted through the admin API or the site-admin panel.
 
 ## Restricting registration

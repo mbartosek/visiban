@@ -254,6 +254,27 @@ class SetSiteAdminTests(TestCase):
         l1.refresh_from_db()
         self.assertTrue(l1.is_active)
 
+    def test_revoke_on_a_superuser_is_refused_without_side_effects(self):
+        from accounts.models import InviteLink
+
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.user.refresh_from_db()
+        self.user.save()  # superuser promotion derives the site admin flags
+        link, _ = InviteLink.generate(created_by=self.user)
+
+        out = StringIO()
+        with self.assertRaises(CommandError) as ctx:
+            call_command("set_site_admin", "testuser", "--revoke", stdout=out)
+
+        self.assertIn("superuser", str(ctx.exception))
+        self.assertNotIn("Revoked", out.getvalue())
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_superuser)
+        self.assertTrue(self.user.is_site_admin)
+        self.assertTrue(self.user.can_access_all_content)
+        link.refresh_from_db()
+        self.assertIsNone(link.revoked_at)
+
     def test_revoke_still_revokes_site_links_for_already_demoted_user(self):
         from accounts.models import InviteLink
 
