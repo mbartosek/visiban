@@ -93,6 +93,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
+from accounts.credentials import lock_user_row, revoke_auth_token
 from accounts.models import SiteSetting, User
 from boards.notifications_email import suppress_notification_email
 from boards.serializers import _normalize_custom_field_value
@@ -865,27 +866,41 @@ class Command(BaseCommand):
                 password = settings.DEMO_ADMIN_PASSWORD
             else:
                 password = settings.DEMO_MEMBER_PASSWORD
-            user, _ = User.objects.get_or_create(
-                username=username,
-                defaults={
-                    "email": f"{username}@visiban.example",
-                    "first_name": first,
-                    "last_name": last,
-                },
-            )
-            user.is_site_admin = is_admin
-            user.set_password(password)
-            # The published visitor (#1179) is seeded with the tour already
-            # completed: finishing the tour saves via PATCH /api/v1/auth/me/,
-            # which the demo fence refuses (it is not on DEMO_ALLOWED_WRITES), so
-            # an auto-running tour would end every visitor's first minute on a
-            # refusal toast. A visitor is evaluating the product, not onboarding
-            # onto a team. The unpublished accounts keep the old behavior: reset
-            # on every run, since --wipe deletes boards, not users, and an
-            # account that finished the tour yesterday would otherwise never see
-            # it again.
-            user.has_completed_tour = key == "visitor"
-            user.save()
+            # Lock the row, re-set the password and revoke the credentials issued
+            # under the previous one in one transaction (#1600, Rule 3 in
+            # docs/development/security-invariants.md). The demo passwords are
+            # published, so a re-seed that kept an old PAT or DRF Token alive
+            # would leave a credential the reset was meant to cut off.
+            # require_password_change_after_admin_set is deliberately not used:
+            # it would set must_change_password on demo accounts that every
+            # visitor signs in to with the published password.
+            with transaction.atomic():
+                user, created = User.objects.get_or_create(
+                    username=username,
+                    defaults={
+                        "email": f"{username}@visiban.example",
+                        "first_name": first,
+                        "last_name": last,
+                    },
+                )
+                user = lock_user_row(user)
+                user.is_site_admin = is_admin
+                user.set_password(password)
+                # The published visitor (#1179) is seeded with the tour already
+                # completed: finishing the tour saves via PATCH /api/v1/auth/me/,
+                # which the demo fence refuses (it is not on DEMO_ALLOWED_WRITES), so
+                # an auto-running tour would end every visitor's first minute on a
+                # refusal toast. A visitor is evaluating the product, not onboarding
+                # onto a team. The unpublished accounts keep the old behavior: reset
+                # on every run, since --wipe deletes boards, not users, and an
+                # account that finished the tour yesterday would otherwise never see
+                # it again.
+                user.has_completed_tour = key == "visitor"
+                user.save()
+                if not created:
+                    # A new account has issued nothing to revoke.
+                    user.personal_access_tokens.all().delete()
+                    revoke_auth_token(user)
             users[key] = user
         return users
 

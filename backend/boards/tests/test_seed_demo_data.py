@@ -701,6 +701,40 @@ class SeedDemoSiteTests(TestCase):
             self.assertFalse(member.is_site_admin)
             self.assertTrue(member.check_password("test-member-pw-1"))
 
+    def test_reseed_revokes_existing_account_credentials(self):
+        """#1600: re-seeding an existing demo account revokes its PATs and DRF Token.
+
+        The demo passwords are published, so the re-set must cut off every
+        credential issued under the previous one. It must not set
+        must_change_password: visitors sign in with the published password.
+        """
+        from rest_framework.authtoken.models import Token
+
+        from accounts.models import PersonalAccessToken
+
+        names = ["visitor", "admin", "maya", "jordan"]
+        existing = []
+        for name in names:
+            u = User.objects.create_user(username=name, email=f"{name}@example.com", password="old-pw-1234")
+            PersonalAccessToken.generate(u, "stale")
+            Token.objects.create(user=u)
+            existing.append(u)
+        bystander = User.objects.create_user(username="bystander", email="b@example.com", password="x-pw-1234")
+        PersonalAccessToken.generate(bystander, "keep")
+        Token.objects.create(user=bystander)
+
+        _seed(demo_site=True)
+
+        for u in existing:
+            u.refresh_from_db()
+            self.assertFalse(u.has_usable_password() and u.check_password("old-pw-1234"), u.username)
+            self.assertFalse(u.must_change_password, u.username)
+            self.assertFalse(PersonalAccessToken.objects.filter(user=u).exists(), u.username)
+            self.assertFalse(Token.objects.filter(user=u).exists(), u.username)
+        # Only the re-seeded accounts are touched.
+        self.assertTrue(PersonalAccessToken.objects.filter(user=bystander).exists())
+        self.assertTrue(Token.objects.filter(user=bystander).exists())
+
     @override_settings(DEMO_LOGIN_USERNAME="showcase")
     def test_visitor_username_follows_setting(self):
         _seed(demo_site=True)
