@@ -4028,6 +4028,12 @@ a scoped, non-admin Personal Access Token for <code>demo2</code> and writes it t
 (<code>VISIBAN_LOAD_TEST_TOKEN_FILE</code>, mode <code>0600</code>, never logged). No credential is hardcoded anywhere
 in the job or the script — this follows the same "no hardcoded credentials" rule as every other
 backend job in <code>.gitlab-ci.yml</code>.</p>
+<p>The job passes <code>--set-random-password</code>, the same flag the schema-fuzz jobs use
+(<a href="https://gitlab.com/visiban/visiban/-/issues/1607">#1607</a>). <code>demo2</code> is seeded with no usable
+password, and a password change revokes every token. The flag gives <code>demo2</code> a random password
+that is never recorded, so the password-change routes require a current password and no request
+can revoke the job's token mid-run. The flag is off by default, and the command is for throwaway
+CI databases like this job's only.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python3<span class="w"> </span>scripts/nightly_load_test.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span>--base-url<span class="w"> </span>http://localhost:8000<span class="w"> </span><span class="se">\</span>
