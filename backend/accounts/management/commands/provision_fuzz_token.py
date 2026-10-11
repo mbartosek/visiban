@@ -15,6 +15,26 @@ The raw token is written to a file (mode 0600), never to stdout or a log
 statement, matching the pattern `ensure_site_admin` uses for the initial
 admin password — CI reads the file into a job variable rather than the
 command's output ever appearing in a pipeline log.
+
+For throwaway CI databases only. ``--set-random-password`` (off by default)
+gives a password-less target a random password that is never recorded (#1607).
+The seeded members are social-only, and both password-change routes
+(``/auth/password/change/``, ``/auth/change-password/``) skip the
+current-password check for such an account so it can set its first password. A
+fuzzer that generates two matching, valid new passwords therefore changes the
+password, which revokes every PAT, and every later request in the run answers
+401. With a password nobody holds, those routes require a current password the
+fuzzer cannot supply. The flag is opt-in because on a real social-only or
+SSO-only account a usable password also lifts the verified-email gate on
+password reset (``accounts/forms.py``), so whoever controls the stored mailbox
+could set a password and sign in.
+
+The flag uses a bare ``set_password`` rather than
+``credentials.finalize_password_change`` on purpose. The CI database is fresh,
+and the token is minted after the password change under the same user-row
+lock, so there is nothing to revoke and the new token is not revoked either.
+That exemption holds only for a throwaway database. Any other password change
+must go through ``finalize_password_change``.
 """
 
 import os
@@ -33,7 +53,10 @@ _DEFAULT_TOKEN_FILE = os.environ.get(
 
 
 class Command(BaseCommand):
-    help = "Mint a scoped, non-admin Personal Access Token for the schema-fuzz CI job."
+    help = (
+        "Mint a scoped, non-admin Personal Access Token for the schema-fuzz and "
+        "nightly-load-test CI jobs. For throwaway CI databases only."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -45,6 +68,16 @@ class Command(BaseCommand):
             "--token-file",
             default=_DEFAULT_TOKEN_FILE,
             help="Path to write the raw token to (default: %(default)s or VISIBAN_FUZZ_TOKEN_FILE).",
+        )
+        parser.add_argument(
+            "--set-random-password",
+            action="store_true",
+            help=(
+                "If the user has no usable password, set a random, unrecorded one so a "
+                "fuzzed password change cannot revoke the token (#1607). Throwaway CI "
+                "databases only: on a real social-only account it lifts the "
+                "verified-email gate on password reset."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -69,17 +102,13 @@ class Command(BaseCommand):
         # Token creation is serialized with credential changes on the user row.
         with transaction.atomic():
             locked = credentials.lock_user_row(user)
-            # The token has to outlive the fuzz run (#1607). The seeded members
-            # are social-only (no usable password), and both password-change
-            # routes (/auth/password/change/, /auth/change-password/) skip the
-            # current-password check for such an account so it can set its first
-            # password. A fuzzer that happens to generate two matching, valid new
-            # passwords therefore changes the password, and a password change
-            # revokes every PAT (credentials.finalize_password_change) — so every
-            # later request in the run answers 401. Giving the account a random
-            # password nobody holds makes the current password required again,
-            # which the fuzzer cannot supply. The value is never written anywhere.
-            password_locked = not locked.has_usable_password()
+            # --set-random-password (#1607): see the module docstring for why
+            # the token needs it, why it is opt-in, and why a bare
+            # set_password (not finalize_password_change) is correct here.
+            # Set before the token is minted, under the same row lock.
+            password_locked = (
+                options["set_random_password"] and not locked.has_usable_password()
+            )
             if password_locked:
                 locked.set_password(secrets.token_urlsafe(32))
                 locked.save(update_fields=["password"])

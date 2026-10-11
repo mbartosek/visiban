@@ -102,8 +102,11 @@ no usable password (social-only). For such an account, both password-change rout
 (`/auth/password/change/`, `/auth/change-password/`) skip the current-password check, and a
 successful change revokes every Personal Access Token. The MR budget never generated a
 matching, valid new-password pair. On 2026-10-11 the deep budget did, and every request
-after it returned `401`. `provision_fuzz_token` therefore gives a password-less target a
-random password that is never recorded, so those routes answer `400` to the fuzzer. A run
+after it returned `401`. Both fuzz jobs therefore run `provision_fuzz_token
+--set-random-password`, which gives a password-less target a random password that is never
+recorded, so those routes answer `400` to the fuzzer. The flag is off by default and is for
+throwaway CI databases only. On a real social-only account, a usable password would lift the
+verified-email gate on password reset. A run
 of `401`s in a fuzz job means the token stopped authenticating. It is not an API finding.
 
 **Server output is a job artifact, not job log.** Both jobs redirect `runserver` output

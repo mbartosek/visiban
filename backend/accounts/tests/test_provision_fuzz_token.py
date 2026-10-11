@@ -29,6 +29,7 @@ class ProvisionFuzzTokenTests(TestCase):
             "demo2",
             "--token-file",
             self.token_file,
+            "--set-random-password",
             stdout=out,
         )
 
@@ -48,6 +49,7 @@ class ProvisionFuzzTokenTests(TestCase):
             "demo2",
             "--token-file",
             self.token_file,
+            "--set-random-password",
         )
         mode = stat.S_IMODE(os.stat(self.token_file).st_mode)
         self.assertEqual(mode, 0o600)
@@ -57,9 +59,10 @@ class ProvisionFuzzTokenTests(TestCase):
 
         Both password-change routes skip the current-password check for a
         social-only account, and a successful change revokes every PAT — so the
-        deep fuzz run 401ed for the rest of its budget. The command now gives such
-        an account a random password, and the change route then rejects a body
-        without the right current password, leaving the token alive.
+        deep fuzz run 401ed for the rest of its budget. With --set-random-password
+        the command gives such an account a random password, and the change route
+        then rejects a body without the right current password, leaving the token
+        alive.
         """
         social = User.objects.create_user(username="social")
         social.set_unusable_password()
@@ -71,6 +74,7 @@ class ProvisionFuzzTokenTests(TestCase):
             "social",
             "--token-file",
             self.token_file,
+            "--set-random-password",
             stdout=out,
         )
         social.refresh_from_db()
@@ -107,19 +111,47 @@ class ProvisionFuzzTokenTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
 
-    def test_existing_password_is_left_alone(self):
-        before = User.objects.get(pk=self.member.pk).password
+    def test_passwordless_member_untouched_without_flag(self):
+        """The password write is opt-in (#1607 security review).
+
+        On a real social-only account a usable password would lift the
+        verified-email gate on password reset, so without the flag the command
+        must leave a password-less user password-less.
+        """
+        social = User.objects.create_user(username="social")
+        social.set_unusable_password()
+        social.save()
         out = StringIO()
         call_command(
             "provision_fuzz_token",
             "--username",
-            "demo2",
+            "social",
             "--token-file",
             self.token_file,
             stdout=out,
         )
-        self.assertEqual(User.objects.get(pk=self.member.pk).password, before)
+        social.refresh_from_db()
+        self.assertFalse(social.has_usable_password())
+        self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
         self.assertNotIn("random, unrecorded password", out.getvalue())
+
+    def test_existing_password_is_left_alone_with_or_without_flag(self):
+        before = User.objects.get(pk=self.member.pk).password
+        for flags in ([], ["--set-random-password"]):
+            with self.subTest(flags=flags):
+                token_file = os.path.join(self.tmp_dir, f"token{len(flags)}")
+                out = StringIO()
+                call_command(
+                    "provision_fuzz_token",
+                    "--username",
+                    "demo2",
+                    "--token-file",
+                    token_file,
+                    *flags,
+                    stdout=out,
+                )
+                self.assertEqual(User.objects.get(pk=self.member.pk).password, before)
+                self.assertNotIn("random, unrecorded password", out.getvalue())
 
     def test_refuses_missing_user(self):
         with self.assertRaises(CommandError) as ctx:

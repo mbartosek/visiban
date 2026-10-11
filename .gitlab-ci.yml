@@ -1177,10 +1177,11 @@ backend-schema-fuzz:
     # populated board, not an empty database where every path-parameterized
     # operation 404s before schemathesis can reach its core logic.
     - python manage.py seed_demo_data --force
-    # Also gives the (social-only) fuzz user a random password nobody holds: a
-    # passwordless account's password-change routes need no current password,
-    # and a fuzzed change revokes this PAT for the rest of the run (#1607).
-    - python manage.py provision_fuzz_token --username demo2
+    # --set-random-password gives the (social-only) fuzz user a random password
+    # nobody holds: a passwordless account's password-change routes need no
+    # current password, and a fuzzed change revokes this PAT for the rest of the
+    # run (#1607). Throwaway CI database only; see the command's docstring.
+    - python manage.py provision_fuzz_token --username demo2 --set-random-password
     # Server output goes to an artifact, not the job log (#1607). Every request
     # writes an access line (and a 4xx a django.request "Bad Request:" /
     # "Forbidden:" line); the deep run's ~100k requests hit GitLab's 16 MB log
@@ -1236,6 +1237,8 @@ backend-schema-fuzz:
       junit: schemathesis-junit.xml
     paths:
       - schema-fuzz-server.log
+    # Server log can carry request bodies in tracebacks; keep it to developers.
+    access: developer
     when: always
     expire_in: 1 week
 
@@ -4628,7 +4631,10 @@ nightly-load-test:
     # fixture size is independent of and cannot collide with seed-demo-data's
     # manual refresh of "Visiban Demo Board".
     - python manage.py seed_demo_data --force --scale ${LOAD_TEST_SCALE} --with-notifications
-    - python manage.py provision_fuzz_token --username demo2 --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}"
+    # --set-random-password: same reason as backend-schema-fuzz (#1607); the
+    # load profile does not change passwords today, but the token must not be
+    # revocable by one. Throwaway CI database only.
+    - python manage.py provision_fuzz_token --username demo2 --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}" --set-random-password
     - python manage.py runserver 0.0.0.0:8000 &
     # Poll liveness instead of a fixed sleep, same pattern as oidc-smoke /
     # backend-schema-fuzz.
