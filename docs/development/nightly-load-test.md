@@ -67,6 +67,13 @@ a scoped, non-admin Personal Access Token for `demo2` and writes it to a CI-only
 in the job or the script — this follows the same "no hardcoded credentials" rule as every other
 backend job in `.gitlab-ci.yml`.
 
+The job passes `--set-random-password`, the same flag the schema-fuzz jobs use
+([#1607](https://gitlab.com/visiban/visiban/-/issues/1607)). `demo2` is seeded with no usable
+password, and a password change revokes every token. The flag gives `demo2` a random password
+that is never recorded, so the password-change routes require a current password and no request
+can revoke the job's token mid-run. The flag is off by default, and the command is for throwaway
+CI databases like this job's only.
+
 ## Running it
 
 ```bash

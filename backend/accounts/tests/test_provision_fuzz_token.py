@@ -135,6 +135,37 @@ class ProvisionFuzzTokenTests(TestCase):
         self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
         self.assertNotIn("random, unrecorded password", out.getvalue())
 
+    def test_without_flag_a_password_change_revokes_the_token(self):
+        """The #1607 failure mode, which --set-random-password exists to prevent.
+
+        A password-less user's change route needs no current password, and the
+        change revokes every PAT, so the fuzz token locks itself out.
+        """
+        social = User.objects.create_user(username="social")
+        social.set_unusable_password()
+        social.save()
+        call_command(
+            "provision_fuzz_token",
+            "--username",
+            "social",
+            "--token-file",
+            self.token_file,
+            stdout=StringIO(),
+        )
+        with open(self.token_file) as fh:
+            auth = f"Token {fh.read().strip()}"
+        new_password = "Correct-Horse-Battery-1607"
+        resp = self.client.post(
+            "/api/v1/auth/password/change/",
+            {"new_password1": new_password, "new_password2": new_password},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=auth,
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertFalse(PersonalAccessToken.objects.filter(user=social).exists())
+        resp = self.client.get("/api/v1/auth/me/", HTTP_AUTHORIZATION=auth)
+        self.assertEqual(resp.status_code, 401)
+
     def test_existing_password_is_left_alone_with_or_without_flag(self):
         before = User.objects.get(pk=self.member.pk).password
         for flags in ([], ["--set-random-password"]):
