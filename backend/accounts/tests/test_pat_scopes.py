@@ -491,6 +491,31 @@ class RevokedMidRequestTests(APITestCase):
         with self.assertRaises(InvalidPersonalAccessToken):
             record_token_usage(pat, SCOPE_READ)
 
+    def test_authenticate_returns_401_when_revoked_between_resolve_and_use(self):
+        """#1608: the revocation race through the real REST stack is a 401."""
+        from unittest import mock
+
+        from accounts import authentication
+
+        user = make_user("raceuser2")
+        pat, raw = PersonalAccessToken.generate(user, "a", scopes=[SCOPE_READ])
+        real_resolve = authentication.resolve_personal_access_token
+
+        def resolve_then_revoke(token):
+            resolved = real_resolve(token)
+            PersonalAccessToken.objects.filter(pk=pat.pk).delete()
+            return resolved
+
+        with mock.patch.object(
+            authentication,
+            "resolve_personal_access_token",
+            side_effect=resolve_then_revoke,
+        ):
+            r = self.client.get(
+                "/api/v1/boards/", HTTP_AUTHORIZATION=f"Token {raw}"
+            )
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class TokenHasScopeAbsentInputTests(TestCase):
     """#1075: every guard needs a test for the branch where its input is absent."""

@@ -247,7 +247,13 @@ class PATAuthentication(BaseAuthentication):
         # retries a 401 with fresh credentials would loop forever on a scope
         # problem no credential refresh can fix.
         presented_scope = self._enforce_baseline_scopes(request, pat)
-        record_token_usage(pat, presented_scope)
+        try:
+            record_token_usage(pat, presented_scope)
+        except InvalidPersonalAccessToken as exc:
+            # The token was revoked between resolution and this write (password
+            # change, DELETE, deactivation). That is a revoked credential: 401,
+            # same as the resolve step, never a 500 (#1608).
+            raise AuthenticationFailed(exc.detail)
 
         return (pat.user, pat)
 
