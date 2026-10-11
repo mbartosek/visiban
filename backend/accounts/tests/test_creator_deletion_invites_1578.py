@@ -59,3 +59,27 @@ class DeletedCreatorInviteRevocationTests(TestCase):
         board.refresh_from_db()
         self.assertIsNone(site.revoked_at)
         self.assertIsNone(board.revoked_at)
+
+    def test_board_revoke_event_is_recorded(self):
+        from boards.broadcast import EVT_INVITE_LINK_REVOKED
+        from boards.models import BoardEvent
+
+        _, board_link = self._make_links(self.creator)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.creator.delete()
+        board_link.refresh_from_db()
+        self.assertIsNotNone(board_link.revoked_at)
+        event = BoardEvent.objects.get(board_id=self.board.pk, event=EVT_INVITE_LINK_REVOKED)
+        self.assertEqual(event.data, {"id": board_link.pk})
+
+    def test_deleting_board_owner_with_pending_link(self):
+        owner = User.objects.create_user(username="owner1578", password="pw")
+        board = Board.objects.create(name="Owned", owner=owner)
+        link, _ = BoardInviteLink.generate(board, owner)
+        owner.delete()
+        self.assertFalse(BoardInviteLink.objects.filter(pk=link.pk).exists())
+
+    def test_deleting_user_without_links(self):
+        user = User.objects.create_user(username="nolinks1578", password="pw")
+        user.delete()
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())

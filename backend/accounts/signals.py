@@ -16,9 +16,8 @@ def _connect_user_signals():
     def revoke_site_invites_of_deleted_creator(sender, instance, **kwargs):
         """Revoke a user's pending site invite links before the user row goes (#1578).
 
-        ``InviteLink.created_by`` is SET_NULL, so the links would otherwise stay
-        listed as pending and keep counting against the site cap. A pre_delete
-        receiver covers every deletion path (admin API, Django admin
+        so they stop appearing as pending and stop counting against the
+        site invite cap. A pre_delete receiver covers every deletion path (admin API, Django admin
         ``delete_selected``, shell, ``QuerySet.delete()``).
         """
         from .invite_utils import revoke_site_invite_links

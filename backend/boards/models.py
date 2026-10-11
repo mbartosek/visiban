@@ -1603,9 +1603,8 @@ class CardExternalRef(models.Model):
 def revoke_board_invite_links_of_deleted_creator(sender, instance, **kwargs):
     """Revoke a user's pending board invite links before the user row goes (#1578).
 
-    ``BoardInviteLink.created_by`` is SET_NULL, so a deleted creator's links
-    would otherwise stay listed as pending and keep counting against the
-    per-board caps. A pre_delete receiver, not a call in one delete view, so
+    so they stop appearing as pending and stop counting against the
+    per-board invite caps. A pre_delete receiver, not a call in one delete view, so
     every deletion path (admin API, Django admin ``delete_selected``, shell,
     cascade, ``QuerySet.delete()``) is covered. Revocation sets ``revoked_at``
     like the explicit revoke path; consumed links keep their history.
