@@ -3924,11 +3924,18 @@ without turning the scanner off. Where each job runs is in the table; it is not 
 <td>Whole working tree</td>
 </tr>
 <tr>
+<td><code>gitleaks-commits</code></td>
+<td>Pinned gitleaks binary, <code>.gitleaks.toml</code></td>
+<td>Yes, any finding (#1612). The per-commit merge gate</td>
+<td>MR only</td>
+<td><strong>Every commit the MR adds</strong> (<code>merge-base..HEAD</code>), so a secret added in one commit and removed or annotated in a later one is still caught</td>
+</tr>
+<tr>
 <td><code>gitleaks-history</code></td>
 <td>Pinned gitleaks binary, <code>.gitleaks.toml</code></td>
 <td>Yes, any finding, but it runs <strong>after merge on <code>main</code></strong>, so it is a post-merge tripwire, not a merge gate</td>
 <td><code>main</code> only</td>
-<td><strong>Full git history</strong></td>
+<td><strong>Full history reachable from the pipeline commit</strong> (<code>--log-opts="$CI_COMMIT_SHA"</code>); other refs in a reused runner clone are ignored</td>
 </tr>
 <tr>
 <td><code>secret_detection</code> + <code>secret-detection-gate</code></td>
@@ -3968,7 +3975,7 @@ without turning the scanner off. Where each job runs is in the table; it is not 
 </tbody>
 </table>
 <p><code>dep-scan-osv</code>, <code>pip-audit</code>, and the license checks are deliberately outside this policy.</p>
-<p>The secret scanners that gate are <code>gitleaks-scan</code>, <code>gitleaks-history</code>, and
+<p>The secret scanners that gate are <code>gitleaks-scan</code>, <code>gitleaks-commits</code>, <code>gitleaks-history</code>, and
 <code>secret-detection-gate</code>. GitLab's analyzers exit 0 even when they find something, so
 <code>allow_failure: false</code> on the component's <code>secret_detection</code> job only turns an analyzer crash
 into a red job; it does not stop a leak. <code>secret-detection-gate</code> (<code>scripts/secret-detection-gate.py</code>,
@@ -4002,7 +4009,7 @@ directory prefixes do not match, and entries that are empty or wildcard-only (<c
 are rejected. <code>expires</code> is required and may be at most 90 days out. An expired entry <strong>fails the gate</strong>,
 so a temporary acceptance has to be revisited. Prefer fixing the code.</p>
 <h2 id="secret-detection-allowlist">Secret detection allowlist<a class="headerlink" href="#secret-detection-allowlist" title="Permanent link">&para;</a></h2>
-<p><code>gitleaks-scan</code> (working tree) and <code>gitleaks-history</code> (every commit on <code>main</code>) both use
+<p><code>gitleaks-scan</code> (working tree), <code>gitleaks-commits</code> (the MR's commits) and <code>gitleaks-history</code> (every commit on <code>main</code>) all use
 <code>.gitleaks.toml</code>, which carries commented path allowlist entries for known-safe fixtures
 (lockfile hashes, API doc examples, test mocks) and one commit-scoped entry for a single
 historical test password. Add an entry only for a value that is provably not a credential,
@@ -4018,16 +4025,20 @@ same format and matching rules as the semgrep suppressions above (exact <code>ru
 glob <code>file</code>, <code>expires</code> at most 90 days out, expired entries fail the gate), and additionally the
 <code>reason</code> must cite a tracking issue as <code>#NNNN</code>. The gate prints only the rule name and
 <code>file:line</code>, never the matched value. Prefer fixing the file to suppressing it. Full history is
-covered by <code>gitleaks-history</code>; the existing history was triaged locally before it became
+covered by <code>gitleaks-history</code>, and an MR's own commits by <code>gitleaks-commits</code>; the existing history was triaged locally before it became
 blocking.</p>
+<p>If <code>gitleaks-commits</code> flags an intermediate commit, do not just annotate the final tree: with
+<code>merge_method=merge</code> every commit enters <code>main</code>'s history, so rewrite the branch to drop the
+literal (or add a narrow commit-scoped entry in <code>.gitleaks.toml</code>) before merging. In an MR pipeline <code>gitleaks-commits</code> reads the MR branch's own <code>.gitleaks.toml</code>, so an allowlist entry added on the branch takes effect for that MR; this is the same trust model as <code>gitleaks-scan</code>, so reviewers must scrutinize <code>.gitleaks.toml</code> diffs.</p>
 <p>If <code>gitleaks-history</code> flags an old commit, treat the credential as compromised: rotate it
 first, because the history is public on the GitHub and enterprise mirrors. Rewriting history
 does not un-leak it.</p>
 <h2 id="blocking-scanners-fail-closed">Blocking scanners fail closed<a class="headerlink" href="#blocking-scanners-fail-closed" title="Permanent link">&para;</a></h2>
 <p>Because <code>semgrep-sast</code> is blocking, an analyzer crash or registry timeout blocks MRs and
 <code>main</code>. Retry the job; do not flip <code>allow_failure</code> back to <code>true</code>. <code>sast-severity-gate</code>
-fails if the report is missing or unparsable. <code>gitleaks-history</code> fails if the clone is
-shallow, so it can never report green on a partial history.</p>
+fails if the report is missing or unparsable. <code>gitleaks-history</code> and <code>gitleaks-commits</code> fail if the
+clone is shallow (or, for <code>gitleaks-commits</code>, the MR diff base is missing), so they can never
+report green on a partial scan.</p>
 <p>To disable semgrep deliberately, add <code>semgrep</code> to the SAST component's <code>excluded_analyzers</code>
 input <strong>and remove <code>sast-severity-gate</code> in the same change</strong>. (The component has no
 <code>SAST_DISABLED</code> variable in the pinned version.) Excluding it without removing the gate
@@ -4040,7 +4051,7 @@ scanner locally, in memory, instead:</p>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>gitleaks<span class="w"> </span>stdin<span class="w"> </span>--config<span class="w"> </span>.gitleaks.toml<span class="w"> </span>--redact<span class="w"> </span>--exit-code<span class="w"> </span><span class="m">1</span><span class="w">   </span><span class="c1"># must exit 1</span>
 </code></pre></div>
 <p>This is the planted-credential check for the issue's first acceptance criterion: a leaked
-key fails <code>gitleaks-scan</code> (and, on <code>main</code>, <code>gitleaks-history</code>). The component's
+key fails <code>gitleaks-scan</code> (and, on <code>main</code>, <code>gitleaks-history</code>; on an MR, <code>gitleaks-commits</code> for a key in any of its commits). The component's
 <code>secret_detection</code> job does not fail on it; <code>secret-detection-gate</code> does, when the component
 reports it.</p>
 

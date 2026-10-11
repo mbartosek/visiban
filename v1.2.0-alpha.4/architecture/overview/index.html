@@ -4128,8 +4128,15 @@
 <td>Yes (the <code>main</code> rule matches a schedule on <code>main</code>)</td>
 </tr>
 <tr>
+<td><code>gitleaks-commits</code></td>
+<td>Secrets in each of the MR's own commits (<code>merge-base..HEAD</code>), so a secret removed or annotated in a later commit is still caught</td>
+<td>MR only</td>
+<td>Yes, any finding</td>
+<td>N/A (not run on schedules)</td>
+</tr>
+<tr>
 <td><code>gitleaks-history</code></td>
-<td>Secrets in full git history</td>
+<td>Secrets in history reachable from the pipeline commit</td>
 <td><code>main</code> only (post-merge tripwire)</td>
 <td>No (not run on MRs)</td>
 <td>Yes, on <code>main</code> pipelines, including a schedule on <code>main</code></td>
