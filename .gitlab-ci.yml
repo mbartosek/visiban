@@ -3122,7 +3122,9 @@ gitleaks-history:
 # every commit enters main's history and the public mirrors. This scans exactly
 # the commits the MR adds (merge-base..HEAD) with the same pinned gitleaks and
 # .gitleaks.toml. GIT_DEPTH 0 so the diff base is present; the guards fail closed
-# rather than scan nothing and report green.
+# rather than scan nothing and report green. If merged-results/merge-train pipelines
+# are ever enabled, CI_COMMIT_SHA becomes the merge commit and the range also walks
+# target-branch commits: that widens the scan but keeps it correct.
 gitleaks-commits:
   stage: security
   needs: []
