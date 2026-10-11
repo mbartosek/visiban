@@ -83,7 +83,7 @@ class ProvisionFuzzTokenTests(TestCase):
 
         with open(self.token_file) as fh:
             raw_token = fh.read().strip()
-        new_password = "Correct-Horse-Battery-1607"
+        new_password = "Correct-Horse-Battery-1607"  # gitleaks:allow -- test-only fixture password, not a credential
         for url, body, why in (
             (
                 "/api/v1/auth/password/change/",
@@ -154,7 +154,7 @@ class ProvisionFuzzTokenTests(TestCase):
         )
         with open(self.token_file) as fh:
             auth = f"Token {fh.read().strip()}"
-        new_password = "Correct-Horse-Battery-1607"
+        new_password = "Correct-Horse-Battery-1607"  # gitleaks:allow -- test-only fixture password, not a credential
         resp = self.client.post(
             "/api/v1/auth/password/change/",
             {"new_password1": new_password, "new_password2": new_password},
