@@ -28,8 +28,10 @@
 # first nightly checked three pre-#1153 alphas and reported 60 "failures" for
 # signatures that had never existed). A pre-signing release that a Maintainer
 # backfills is brought back into scope by listing it in ATTEST_BACKFILLED_TAGS.
-# A tag NEWER than the newest signing-era release that lacks the signing jobs
-# is a failure (signing was dropped from the release pipeline), never a skip.
+# A tag that lacks the signing jobs but DESCENDS (git ancestry, not version
+# order) from a release that had them is a failure (signing was dropped from
+# the release pipeline), never a skip; so is a tag that does not resolve to a
+# commit, and a shallow clone, where ancestry cannot be trusted.
 # If no release has been cut since signing shipped, the job says so and exits
 # 0; the self-test pins that the current .gitlab-ci.yml still defines the
 # signing jobs, so a rename cannot turn that notice into a permanent pass.
@@ -135,34 +137,51 @@ signing_era() {
 }
 
 # resolve_release_tags → sets RESOLVED_TAGS (the newest ATTEST_CHECK_COUNT
-# signing-era or backfilled tags), UNSIGNED_NEWER (tags newer than the newest
-# of those that lack the signing jobs), PRE_SIGNING (tags skipped because they
-# predate signing, newest first, only those seen before the scan stopped),
-# UNREADABLE and ANY_TAG. Called directly, not in $(…), so it can set globals.
+# signing-era or backfilled tags), UNSIGNED_AFTER (tags without the signing
+# jobs that descend from a signing-era release), PRE_SIGNING (tags without the
+# signing jobs that descend from none), UNREADABLE and ANY_TAG. Called
+# directly, not in $(…), so it can set globals.
+#
+# "After signing" is decided by commit ancestry, never by version order: a
+# release whose pipeline dropped the signing jobs and a later one that
+# restored them (alpha.5 signed, alpha.6 not, alpha.7 signed), or a patch tag
+# on an older release line branched from a signed release (v1.2.1 sorts
+# below a signed v1.3.0), both have unsigned tags BELOW a signed one in
+# version order, and neither is "pre-signing". Only tags whose .gitlab-ci.yml
+# really defines the jobs anchor the ancestry: a backfilled tag predates
+# signing, so its descendants are not "cut after signing" because of it.
+# The scan is full (no early stop) so every unsigned tag is classified.
 resolve_release_tags() {
-  local t rc picked=0 pending="" found=0
-  RESOLVED_TAGS=""; UNSIGNED_NEWER=""; PRE_SIGNING=""; UNREADABLE=""; ANY_TAG=0
+  local t rc picked=0 anchors="" unsigned="" a after
+  RESOLVED_TAGS=""; UNSIGNED_AFTER=""; PRE_SIGNING=""; UNREADABLE=""; ANY_TAG=0
   for t in $(all_release_tags); do
     ANY_TAG=1
     rc=0
-    if in_list "$t" "$ATTEST_BACKFILLED_TAGS"; then rc=0; else signing_era "$t" || rc=$?; fi
+    signing_era "$t" || rc=$?
     case "$rc" in
-      0)
-        if [ "$found" -eq 0 ]; then UNSIGNED_NEWER="$pending"; pending=""; found=1; fi
+      0) anchors="${anchors:+$anchors }$t" ;;
+      2) UNREADABLE="${UNREADABLE:+$UNREADABLE }$t"; continue ;;
+    esac
+    if [ "$rc" -eq 0 ] || in_list "$t" "$ATTEST_BACKFILLED_TAGS"; then
+      if [ "$picked" -lt "$ATTEST_CHECK_COUNT" ]; then
         RESOLVED_TAGS="${RESOLVED_TAGS:+$RESOLVED_TAGS }$t"
         picked=$((picked + 1))
-        [ "$picked" -ge "$ATTEST_CHECK_COUNT" ] && break ;;
-      2) UNREADABLE="${UNREADABLE:+$UNREADABLE }$t" ;;
-      *)
-        if [ "$found" -eq 0 ]; then
-          pending="${pending:+$pending }$t"
-        else
-          PRE_SIGNING="${PRE_SIGNING:+$PRE_SIGNING }$t"
-        fi ;;
-    esac
+      fi
+    else
+      unsigned="${unsigned:+$unsigned }$t"
+    fi
   done
-  # No signing-era tag at all: everything seen predates signing.
-  [ "$found" -eq 1 ] || PRE_SIGNING="$pending"
+  for t in $unsigned; do
+    after=0
+    for a in $anchors; do
+      if git merge-base --is-ancestor "$a" "$t" 2>/dev/null; then after=1; break; fi
+    done
+    if [ "$after" -eq 1 ]; then
+      UNSIGNED_AFTER="${UNSIGNED_AFTER:+$UNSIGNED_AFTER }$t"
+    else
+      PRE_SIGNING="${PRE_SIGNING:+$PRE_SIGNING }$t"
+    fi
+  done
   return 0
 }
 
@@ -279,14 +298,19 @@ run_checks() {
       echo "ERROR: no v* release tag found to check — a gate that checks nothing must not pass." >&2
       return 2
     fi
+    # Ancestry decides "pre-signing" vs "signing dropped": a shallow clone can
+    # make a descendant look unrelated, so refuse rather than skip (#1606).
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+      fail "shallow clone: commit ancestry is unreliable, so unsigned tags cannot be told apart from pre-signing ones (set GIT_DEPTH 0)"
+    fi
     for tag in $UNREADABLE; do
-      fail "${tag}: tag commit not in the clone — cannot tell whether it was signed (fetch tags with history)"
+      fail "${tag}: does not resolve to a commit in the clone — cannot tell whether it was signed"
     done
-    for tag in $UNSIGNED_NEWER; do
-      fail "${tag}: cut after image signing shipped, but its .gitlab-ci.yml defines none of [${ATTEST_SIGNING_JOBS}] — the release pipeline did not sign it"
+    for tag in $UNSIGNED_AFTER; do
+      fail "${tag}: descends from a signed release, but its .gitlab-ci.yml does not define every job in [${ATTEST_SIGNING_JOBS}] — the release pipeline did not sign it"
     done
     if [ -n "$PRE_SIGNING" ]; then
-      echo "-- not checked, cut before image signing shipped (#1153): ${PRE_SIGNING}"
+      echo "-- not checked, descended from no signed release (cut before image signing, #1153): ${PRE_SIGNING}"
     fi
     tags="$RESOLVED_TAGS"
     if [ -z "$tags" ]; then
@@ -482,15 +506,22 @@ STUB
     "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'cannot resolve the index digest' && echo 0 || echo 1)"
 
   # Test repos: commit_ci <dir> <signed|unsigned> commits a .gitlab-ci.yml that
-  # does or does not define the image signing jobs (#1606).
+  # does or does not define the image signing jobs (#1606). The unsigned one
+  # defines frontend-image-attest for real and names backend-image-attest only
+  # in a comment and as an indented key, so a match that is not anchored to a
+  # whole top-level line would wrongly count it as signed.
   commit_ci() {
     if [ "$2" = signed ]; then
       printf 'backend-manifest:\n  stage: deploy\nbackend-image-attest:\n  stage: deploy\nfrontend-image-attest:\n  stage: deploy\n' > "$1/.gitlab-ci.yml"
     else
-      printf 'backend-manifest:\n  stage: deploy\n# backend-image-attest: (comment, not a job)\n' > "$1/.gitlab-ci.yml"
+      printf 'backend-manifest:\n  stage: deploy\n# backend-image-attest: (comment, not a job)\nfrontend-image-attest:\n  stage: deploy\n  backend-image-attest:\n    nested: true\n' > "$1/.gitlab-ci.yml"
     fi
     ( cd "$1" && git add .gitlab-ci.yml \
       && git -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m "$2" )
+  }
+  in_repo() { # in_repo <dir> — run_checks over that repo's tags, sets rc/out
+    rc=0
+    out="$( cd "$1" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
   }
 
   echo "case: ATTEST_CHECK_COUNT bounds the releases checked"
@@ -512,33 +543,64 @@ STUB
   ( cd "$tmp/era" && git init -q . )
   commit_ci "$tmp/era" unsigned
   ( cd "$tmp/era" && git tag v1.1.0 && git tag v1.2.0-alpha.3 && git tag v1.2.0-alpha.4 )
-  rc=0
-  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  in_repo "$tmp/era"
   check "no signing-era release yet: exits 0 with a notice, verifies nothing" \
     "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no release has been cut since image signing' && [ ! -e "$tmp/identity.log" ] && echo 0 || echo 1)"
   check "names the pre-signing releases it skipped" \
-    "$(echo "$out" | grep -q 'cut before image signing shipped (#1153): v1.2.0-alpha.4 v1.2.0-alpha.3 v1.1.0' && echo 0 || echo 1)"
+    "$(echo "$out" | grep -q 'not checked, descended from no signed release (cut before image signing, #1153): v1.2.0-alpha.4 v1.2.0-alpha.3 v1.1.0$' && echo 0 || echo 1)"
   commit_ci "$tmp/era" signed
   ( cd "$tmp/era" && git tag v1.2.0-alpha.5 )
-  reset; rc=0
-  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  reset; in_repo "$tmp/era"
   check "only the signing-era release is checked, and it passes" \
     "$([ "$rc" -eq 0 ] && [ "$(echo "$out" | grep -c '^== ')" -eq 1 ] && echo "$out" | grep -q '^== v1.2.0-alpha.5$' && echo 0 || echo 1)"
-  ATTEST_BACKFILLED_TAGS="v1.2.0-alpha.4"; reset; rc=0
-  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
-  check "a backfilled pre-signing release is brought back into scope" \
-    "$([ "$rc" -eq 0 ] && echo "$out" | grep -q '^== v1.2.0-alpha.4 (documented backfill' && ! echo "$out" | grep -q '^== v1.2.0-alpha.3' && echo 0 || echo 1)"
+  ATTEST_BACKFILLED_TAGS="v1.2.0-alpha.3"; reset; in_repo "$tmp/era"
+  check "a backfilled pre-signing release is in scope, and does not make other pre-signing tags fail" \
+    "$([ "$rc" -eq 0 ] && echo "$out" | grep -q '^== v1.2.0-alpha.3 (documented backfill' && ! echo "$out" | grep -q 'descends from a signed release' && echo 0 || echo 1)"
   ATTEST_BACKFILLED_TAGS=""
-  : > "$tmp/no-sig"; rc=0
-  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  : > "$tmp/no-sig"; in_repo "$tmp/era"
   check "a signing-era release with a missing signature still fails" \
     "$([ "$rc" -eq 1 ] && echo "$out" | grep -q '(index of v1.2.0-alpha.5): no verifying signature' && echo 0 || echo 1)"
   commit_ci "$tmp/era" unsigned
   ( cd "$tmp/era" && git tag v1.2.0-beta.1 )
-  reset; rc=0
-  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  reset; in_repo "$tmp/era"
   check "a release cut AFTER signing without the signing jobs fails, never skips" \
-    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.0-beta.1: cut after image signing shipped' && echo 0 || echo 1)"
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.0-beta.1: descends from a signed release' && echo 0 || echo 1)"
+  # Signing dropped (beta.1) and then restored (beta.2): beta.1 now sorts
+  # BELOW a signed tag, but it is still a release cut after signing.
+  commit_ci "$tmp/era" signed
+  ( cd "$tmp/era" && git tag v1.2.0-beta.2 )
+  reset; in_repo "$tmp/era"
+  check "signing dropped then restored: the gap still fails, not 'pre-signing'" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.0-beta.1: descends from a signed release' && ! echo "$out" | grep -q 'not checked.*v1.2.0-beta.1' && echo 0 || echo 1)"
+
+  echo "case: a patch on an older release line, cut after signing (#1606)"
+  reset
+  mkdir "$tmp/line"
+  ( cd "$tmp/line" && git init -q . )
+  commit_ci "$tmp/line" signed
+  ( cd "$tmp/line" && git tag v1.2.0 )
+  commit_ci "$tmp/line" signed
+  ( cd "$tmp/line" && git tag v1.3.0 && git checkout -q -b release-1.2 v1.2.0 )
+  commit_ci "$tmp/line" unsigned
+  ( cd "$tmp/line" && git tag v1.2.1 )
+  in_repo "$tmp/line"
+  check "v1.2.1 sorts below signed v1.3.0 but descends from signed v1.2.0: fails" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.1: descends from a signed release' && echo 0 || echo 1)"
+
+  echo "case: a tag that does not resolve to a commit"
+  reset
+  ( cd "$tmp/line" && git checkout -q release-1.2 && git tag v1.2.2 "$(git hash-object -w .gitlab-ci.yml)" )
+  in_repo "$tmp/line"
+  check "fails and names it, never treats it as pre-signing" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.2: does not resolve to a commit' && ! echo "$out" | grep -q 'not checked.*v1.2.2' && echo 0 || echo 1)"
+
+  echo "case: a shallow clone"
+  reset
+  git clone -q --depth 1 "file://$tmp/era" "$tmp/shallow" 2>/dev/null
+  in_repo "$tmp/shallow"
+  check "fails: ancestry cannot be trusted (GIT_DEPTH 0)" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'shallow clone: commit ancestry is unreliable' && echo 0 || echo 1)"
+
   check "the repo's own .gitlab-ci.yml still defines every ATTEST_SIGNING_JOBS job" \
     "$(cfg="$(cat "$here/../.gitlab-ci.yml")"; r=0; for j in $ATTEST_SIGNING_JOBS; do grep -qx "${j}:" <<<"$cfg" || r=1; done; echo "$r")"
 

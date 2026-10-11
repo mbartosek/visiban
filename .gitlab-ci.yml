@@ -4280,8 +4280,14 @@ check-release-attestations:
       AUTHS="\"${CI_REGISTRY}\":{\"auth\":\"$(b64 "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}")\"}"
       AUTHS="${AUTHS},\"ghcr.io\":{\"auth\":\"$(b64 "${GHCR_USER}" "${GHCR_TOKEN}")\"}"
       printf '{"auths":{%s}}' "${AUTHS}" > "$HOME/.docker/config.json"
-    # Scheduled pipelines clone at the default depth; fetch every tag so the
-    # newest N releases are the real newest N.
+    # Fetch every tag so the newest N releases are the real newest N. GIT_DEPTH
+    # 0 does not unshallow a build dir the fetch strategy reuses from an
+    # earlier shallow clone, and the script fails on a shallow repo (ancestry
+    # decides pre-signing vs. signing dropped, #1606), so unshallow first.
+    - |
+      if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+        git fetch --unshallow origin
+      fi
     - git fetch origin --tags --force
   script:
     - bash scripts/check-release-attestations.sh --self-test
