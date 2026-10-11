@@ -4219,7 +4219,7 @@ access described in Rule 2.</p>
 <tr>
 <td>Django admin password</td>
 <td><code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code> (<code>/admin/accounts/user/&lt;id&gt;/password/</code>)</td>
-<td>When the stored hash changes on another user's account: <code>require_password_change_after_admin_set</code> sets <code>must_change_password</code> (when a usable password was set, not when password sign-in was disabled) and deletes the user's PATs and DRF <code>Token</code>; their sessions end because the session auth hash changes. On the actor's own account: <code>finalize_password_change</code>. A user created through the admin with a usable password is created with <code>must_change_password</code> set (<code>VisibanUserAdmin.save_model</code>)</td>
+<td>When the stored hash changes on another user's account: <code>require_password_change_after_admin_set</code> sets <code>must_change_password</code> (when a usable password was set, not when password sign-in was disabled) and deletes the user's PATs and DRF <code>Token</code>; their sessions end because the session auth hash changes. On the actor's own account: <code>finalize_password_change</code>. A user created through the admin with a usable password is created with <code>must_change_password</code> set (<code>VisibanUserAdmin.save_model</code>). The <code>ensure_site_admin</code> management command, when it sets a password on an existing account, uses the same helper under the user-row lock</td>
 </tr>
 <tr>
 <td>WebSocket ticket</td>
