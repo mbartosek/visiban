@@ -10,6 +10,9 @@ from .models import (
     record_site_setting_changes,
     snapshot_site_setting,
 )
+from boards.models import Card
+from boards.services.cards import lock_cards_for_cascade
+
 from .credentials import finalize_password_change, require_password_change_after_admin_set
 
 
@@ -102,6 +105,21 @@ class VisibanUserAdmin(UserAdmin):
             super().save_model(request, obj, form, change)
             if stored is not None:
                 apply_access_loss_revocations(obj, request.user, access_state(stored))
+
+    def delete_model(self, request, obj):
+        # Board.owner is CASCADE, so deleting a user deletes their boards and
+        # those boards' cards: lock the cards first, in one transaction held
+        # across the delete (#1603; see lock_cards_for_cascade).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(board__owner_id=obj.pk))
+            super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        # A bulk action is not wrapped in a transaction by Django: one outer
+        # atomic so the locks outlive the delete (#1603).
+        with transaction.atomic():
+            lock_cards_for_cascade(Card.objects.filter(board__owner__in=queryset.values("pk")))
+            super().delete_queryset(request, queryset)
 
 
 def _stored_password_hash(pk, *, lock=False):
