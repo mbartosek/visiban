@@ -41,7 +41,7 @@ Clearing **Active** on a user deletes their Personal Access Tokens and revokes t
 - **Groups** (Django auth permission groups) — visible and editable by superusers only; staff accounts do not see this entry even when granted the group permissions
 - **Site settings** — instance-wide configuration (registration mode, file uploads, [maintenance mode](maintenance-mode.md)); clicking the entry goes directly to the settings form — there is always exactly one row
 - **Boards, columns, swimlanes** — direct database access for debugging
-- **Group memberships** — view and correct membership records
+- **Board memberships** — view and correct membership records
 - **Social accounts** — inspect OAuth-linked accounts
 
 ## Production note
