@@ -4222,6 +4222,11 @@ access described in Rule 2.</p>
 <td>When the stored hash changes on another user's account: <code>require_password_change_after_admin_set</code> sets <code>must_change_password</code> (when a usable password was set, not when password sign-in was disabled) and deletes the user's PATs and DRF <code>Token</code>; their sessions end because the session auth hash changes. On the actor's own account: <code>finalize_password_change</code>. A user created through the admin with a usable password is created with <code>must_change_password</code> set (<code>VisibanUserAdmin.save_model</code>). The <code>ensure_site_admin</code> management command, when it sets a password on an existing account, uses the same helper under the user-row lock</td>
 </tr>
 <tr>
+<td>Demo-site seed password</td>
+<td><code>boards/management/commands/seed_demo_data.py</code> <code>_ensure_demo_site_users</code> (<code>--demo-site</code>)</td>
+<td>When the account already exists, the re-set takes <code>lock_user_row</code>, then deletes the user's PATs and DRF <code>Token</code> (<code>revoke_auth_token</code>) in the same <code>transaction.atomic()</code> as the password save (#1600). A new account has nothing to revoke. <code>must_change_password</code> is deliberately not set (the passwords are published for visitors), so this surface does not use <code>require_password_change_after_admin_set</code> (<code>boards/tests/test_seed_demo_data.py</code>)</td>
+</tr>
+<tr>
 <td>WebSocket ticket</td>
 <td><code>accounts/ws_auth.py</code> <code>issue_ws_ticket</code>, <code>consume_ws_ticket</code>, <code>_resolve_ticket_user</code></td>
 <td>Single use, <code>WS_TICKET_TTL</code> expiry, refused for an inactive user or a minting credential that is no longer live</td>
