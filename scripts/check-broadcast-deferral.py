@@ -211,6 +211,15 @@ LOOP_FANOUT_BY_DESIGN: dict[str, str] = {
         "collapsed into one payload. Bounded by the unused links one user "
         "created, capped by the per-creator link limit."
     ),
+    "backend/boards/models.py::revoke_board_invite_links_of_deleted_creator": (
+        "One invite_link.revoked per board invite link revoked by this pre_delete "
+        "receiver (#1578) — the board-side twin of groups/models.py::_announce. "
+        "A deleted creator's links span boards (distinct channels) and each frame "
+        "carries that link's own id, so they cannot be collapsed into one "
+        "payload. record_board_event() defers each publish with on_commit. "
+        "Bounded by the unused links one user created; emailed links are also "
+        "capped per board by BOARD_MAX_PENDING_EMAILED_INVITES."
+    ),
     "backend/groups/views.py::GroupViewSet._evict_stale_ws": (
         "One member.removed per board the user actually lost access to — the "
         "loop iterates boards (distinct channels), not rows on one channel, and "
