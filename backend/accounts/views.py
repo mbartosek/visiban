@@ -223,6 +223,36 @@ class ThrottledLoginView(DjRestAuthLoginView):
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 
+    def login(self):
+        """Issue the login credentials under the user-row lock (#1586).
+
+        API token issuance is serialized with every other credential write for
+        the user (``accounts.credentials.lock_user_row``: PAT creation, token
+        reissue, and the password-change, reset and admin-set finalize
+        helpers). Under the lock the stored row is re-read: it must still
+        exist, carry the password hash the credentials were verified against,
+        and be active; otherwise the login is refused with the same 400 body
+        as any other credential failure.
+
+        The DRF ``Token`` get-or-create and the session login both run inside
+        this transaction, so the credentials a login returns always belong to
+        the user row's current password. Lock order is user row, then token
+        row, the same order the finalize helpers use (the password save locks
+        the user row before ``revoke_auth_token`` touches the token table).
+        """
+        user = self.serializer.validated_data["user"]
+        refused = drf_serializers.ValidationError(
+            {"non_field_errors": ["Unable to log in with provided credentials."]}
+        )
+        with transaction.atomic():
+            try:
+                locked = credentials.lock_user_row(user)
+            except get_user_model().DoesNotExist:
+                raise refused from None
+            if locked.password != user.password or not locked.is_active:
+                raise refused
+            super().login()
+
 
 class VerifyEmailThrottle(AnonRateThrottle):
     """Rate limit for the verify-email endpoint.
