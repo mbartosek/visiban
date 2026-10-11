@@ -1,5 +1,5 @@
 from django.db import connection, transaction
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 
@@ -11,6 +11,18 @@ def _connect_user_signals():
     """
     from django.contrib.auth import get_user_model
     User = get_user_model()
+
+    @receiver(pre_delete, sender=User, dispatch_uid="accounts.revoke_deleted_creator_site_invites")
+    def revoke_site_invites_of_deleted_creator(sender, instance, **kwargs):
+        """Revoke a user's pending site invite links before the user row goes (#1578).
+
+        so they stop appearing as pending and stop counting against the
+        site invite cap. A pre_delete receiver covers every deletion path (admin API, Django admin
+        ``delete_selected``, shell, ``QuerySet.delete()``).
+        """
+        from .invite_utils import revoke_site_invite_links
+
+        revoke_site_invite_links(instance)
 
     @receiver(pre_save, sender=User, dispatch_uid="accounts.capture_prior_superuser_state")
     def capture_prior_superuser_state(sender, instance, update_fields=None, **kwargs):
