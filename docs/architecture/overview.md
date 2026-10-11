@@ -126,7 +126,8 @@ Key design decisions:
 | Job | Checks | Runs on | Blocks an MR? | Blocks the nightly schedule? |
 |---|---|---|---|---|
 | `gitleaks-scan` | Secrets in the whole working tree | MR, `main` | Yes, any finding | Yes (the `main` rule matches a schedule on `main`) |
-| `gitleaks-history` | Secrets in full git history | `main` only (post-merge tripwire) | No (not run on MRs) | Yes, on `main` pipelines, including a schedule on `main` |
+| `gitleaks-commits` | Secrets in each of the MR's own commits (`merge-base..HEAD`), so a secret removed or annotated in a later commit is still caught | MR only | Yes, any finding | N/A (not run on schedules) |
+| `gitleaks-history` | Secrets in history reachable from the pipeline commit | `main` only (post-merge tripwire) | No (not run on MRs) | Yes, on `main` pipelines, including a schedule on `main` |
 | `secret_detection` + `secret-detection-gate` | GitLab secret-detection component | MR, `main` | Yes, via the gate. The component job exits 0 on findings, so `allow_failure: false` on it alone only catches an analyzer crash; `secret-detection-gate` reads its report and fails on any unsuppressed finding | Yes (same rules on `main`) |
 | `semgrep-sast` + `sast-severity-gate` | GitLab SAST component (Python, TypeScript/JavaScript) | MR, `main` | Yes, via the gate, at High/Critical only; Low/Medium/Info stay visible in the MR security widget | Yes (same rules on `main`) |
 | `backend-sast` | bandit, medium+ | MR and `main`, when `backend/**/*.py` changed | Yes | Yes (`changes:` matches on a schedule) |

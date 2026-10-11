@@ -38,7 +38,9 @@ include:
 # secret is public on three remotes almost immediately.
 #
 #   gitleaks-scan      blocks on any finding              — full working tree, MR + main
-#   gitleaks-history   blocks on any finding              — full git history, main only
+#   gitleaks-commits   blocks on any finding              — every commit the MR adds (#1612), MR only
+#                      (the per-commit merge gate: gitleaks-scan sees only the final tree)
+#   gitleaks-history   blocks on any finding              — history reachable from the pipeline commit, main only
 #                      (runs after merge: a post-merge tripwire, not a merge gate)
 #   secret_detection   blocks via secret-detection-gate    — the component job itself only reports;
 #                      the gate reads its report (#1537)
@@ -65,12 +67,12 @@ include:
 # NOTE: GitLab's analyzers always exit 0 on findings, so allow_failure: false
 # here does NOT make secret_detection block on a leak — it only makes an
 # analyzer crash fail the job. Findings are gated by secret-detection-gate
-# below (#1537), alongside gitleaks-scan and gitleaks-history.
+# below (#1537), alongside gitleaks-scan, gitleaks-commits and gitleaks-history.
 secret_detection:
   allow_failure: false
 
 # The component's job only inspects the MR diff (GIT_DEPTH 50). Full-history
-# coverage is gitleaks-history below (the component analyzer ignores
+# coverage is gitleaks-commits (MR) and gitleaks-history (main) below (the component analyzer ignores
 # .gitleaks.toml, so it cannot share the repo's reviewed allowlist).
 
 semgrep-sast:
@@ -3080,8 +3082,14 @@ gitleaks-scan:
 # A secret that was committed and later "removed" is still retrievable from the
 # public GitHub and enterprise mirrors, so main must prove its whole history is
 # clean. Main only: a full-history scan on every MR is slow and would re-report
-# the same findings forever. GIT_DEPTH 0 because GitLab's default shallow clone
-# would hide everything older than the fetch depth.
+# the same findings forever; MRs get the cheap per-commit scan gitleaks-commits
+# instead. GIT_DEPTH 0 because GitLab's default shallow clone would hide
+# everything older than the fetch depth.
+#
+# The walk is pinned to the pipeline commit's ancestry (--log-opts="$CI_COMMIT_SHA")
+# because `gitleaks git` otherwise runs `git log --all`. Some runners reuse their
+# build dir, so refs fetched by OTHER pipelines (unmerged branches) persist in the
+# clone and would be scanned too, making the result depend on runner placement (#1612).
 gitleaks-history:
   stage: security
   needs: []
@@ -3105,7 +3113,42 @@ gitleaks-history:
         echo "ERROR: shallow clone; gitleaks-history needs full history (GIT_DEPTH 0)." >&2
         exit 1
       fi
-    - gitleaks git . --config .gitleaks.toml --no-banner --redact --exit-code 1
+    - gitleaks git . --config .gitleaks.toml --no-banner --redact --exit-code 1 --log-opts="$CI_COMMIT_SHA"
+  allow_failure: false
+
+# gitleaks-commits (#1612): the per-commit merge gate. gitleaks-scan only sees the
+# final tree, so a secret that an MR adds in one commit and removes or annotates
+# (`# gitleaks:allow`) in a later one passes it, yet — with merge_method=merge —
+# every commit enters main's history and the public mirrors. This scans exactly
+# the commits the MR adds (merge-base..HEAD) with the same pinned gitleaks and
+# .gitleaks.toml. GIT_DEPTH 0 so the diff base is present; the guards fail closed
+# rather than scan nothing and report green. If merged-results/merge-train pipelines
+# are ever enabled, CI_COMMIT_SHA becomes the merge commit and the range also walks
+# target-branch commits: that widens the scan but keeps it correct.
+gitleaks-commits:
+  stage: security
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/alpine:3.20
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  before_script:
+    - apk add --no-cache wget git
+    - wget -q -O /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+    - tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+    - chmod +x /usr/local/bin/gitleaks
+  script:
+    - |
+      if [ -z "$CI_MERGE_REQUEST_DIFF_BASE_SHA" ]; then
+        echo "ERROR: CI_MERGE_REQUEST_DIFF_BASE_SHA is empty; cannot scope the commit scan." >&2
+        exit 1
+      fi
+      if ! git cat-file -e "$CI_MERGE_REQUEST_DIFF_BASE_SHA^{commit}"; then
+        echo "ERROR: diff base $CI_MERGE_REQUEST_DIFF_BASE_SHA is not in the clone (GIT_DEPTH 0 expected); refusing to scan nothing." >&2
+        exit 1
+      fi
+    - gitleaks git . --config .gitleaks.toml --no-banner --redact --exit-code 1 --log-opts="$CI_MERGE_REQUEST_DIFF_BASE_SHA..$CI_COMMIT_SHA"
   allow_failure: false
 
 # ─── Nightly SonarCloud scan (#1369, part of the #1368 quality epic) ─────────

@@ -7,8 +7,8 @@ its gl-secret-detection-report.json and fails on any finding that is not
 covered by an unexpired entry in .gitlab/secret-detection-suppressions.json.
 
 Every finding blocks regardless of severity: a leaked secret has no "Low". The
-component's ruleset is separate from .gitleaks.toml (which gitleaks-scan and
-gitleaks-history use), so its fixture/example hits need their own allowlist;
+component's ruleset is separate from .gitleaks.toml (which gitleaks-scan,
+gitleaks-commits and gitleaks-history use), so its fixture/example hits need their own allowlist;
 an expiring list forces each acceptance to be revisited.
 
 Suppression rules (matching, glob safety, 90-day max expiry) are shared with

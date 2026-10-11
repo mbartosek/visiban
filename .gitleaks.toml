@@ -54,8 +54,8 @@ paths = [
   '''(^|/)scripts/helm-structure-check\.sh$''',
 ]
 
-# Commit-scoped allowlist (#1071). Serves gitleaks-scan and gitleaks-history,
-# both of which read this file. A `gitleaks git` run over origin/main history
+# Commit-scoped allowlist (#1071). Serves gitleaks-scan, gitleaks-commits and
+# gitleaks-history, all of which read this file. A `gitleaks git` run over origin/main history
 # found exactly one hit: the fixture password constant NEW_PASSWORD in
 # backend/accounts/tests/test_ws_credential_revocation_e2e.py, introduced in
 # commit 8079469d9. It is a literal test password used to prove that a
