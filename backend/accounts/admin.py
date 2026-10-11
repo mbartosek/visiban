@@ -170,10 +170,8 @@ class SiteSettingAdmin(admin.ModelAdmin):
         )
 
 
-# Django's stock Group admin edits permission sets directly. The user form makes
-# `groups` and `user_permissions` read-only for non-superusers, so an editable
-# Group admin would let staff change those same permissions another way. The
-# Group admin is therefore limited to active superusers (#1617).
+# Django's stock Group admin edits permission sets directly, so it is limited to
+# active superusers (#1617).
 admin.site.unregister(AuthGroup)
 
 
