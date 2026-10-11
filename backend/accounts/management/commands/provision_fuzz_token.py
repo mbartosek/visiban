@@ -18,6 +18,7 @@ command's output ever appearing in a pipeline log.
 """
 
 import os
+import secrets
 
 from django.db import transaction
 from django.core.management.base import BaseCommand, CommandError
@@ -68,6 +69,20 @@ class Command(BaseCommand):
         # Token creation is serialized with credential changes on the user row.
         with transaction.atomic():
             locked = credentials.lock_user_row(user)
+            # The token has to outlive the fuzz run (#1607). The seeded members
+            # are social-only (no usable password), and both password-change
+            # routes (/auth/password/change/, /auth/change-password/) skip the
+            # current-password check for such an account so it can set its first
+            # password. A fuzzer that happens to generate two matching, valid new
+            # passwords therefore changes the password, and a password change
+            # revokes every PAT (credentials.finalize_password_change) — so every
+            # later request in the run answers 401. Giving the account a random
+            # password nobody holds makes the current password required again,
+            # which the fuzzer cannot supply. The value is never written anywhere.
+            password_locked = not locked.has_usable_password()
+            if password_locked:
+                locked.set_password(secrets.token_urlsafe(32))
+                locked.save(update_fields=["password"])
             _, raw_token = locked.personal_access_tokens.model.generate(
                 user=locked,
                 name="backend-schema-fuzz (CI)",
@@ -83,3 +98,8 @@ class Command(BaseCommand):
                 f"Minted a scoped PAT for '{username}' (scopes={PAT_DEFAULT_SCOPES}) -> {token_file}"
             )
         )
+        if password_locked:
+            self.stdout.write(
+                f"Set a random, unrecorded password on '{username}' (it had none), so "
+                "the password-change routes require a current password the fuzzer cannot supply."
+            )

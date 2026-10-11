@@ -1177,8 +1177,17 @@ backend-schema-fuzz:
     # populated board, not an empty database where every path-parameterized
     # operation 404s before schemathesis can reach its core logic.
     - python manage.py seed_demo_data --force
+    # Also gives the (social-only) fuzz user a random password nobody holds: a
+    # passwordless account's password-change routes need no current password,
+    # and a fuzzed change revokes this PAT for the rest of the run (#1607).
     - python manage.py provision_fuzz_token --username demo2
-    - python manage.py runserver 0.0.0.0:8000 &
+    # Server output goes to an artifact, not the job log (#1607). Every request
+    # writes an access line (and a 4xx a django.request "Bad Request:" /
+    # "Forbidden:" line); the deep run's ~100k requests hit GitLab's 16 MB log
+    # cap and truncated schemathesis's own summary and unobserved-baseline
+    # report. 5xx tracebacks are in schema-fuzz-server.log; after_script prints
+    # the "Internal Server Error:" lines on failure.
+    - python manage.py runserver 0.0.0.0:8000 > "${CI_PROJECT_DIR}/schema-fuzz-server.log" 2>&1 &
     # Poll liveness instead of a fixed sleep, same pattern as oidc-smoke.
     - |
       for i in $(seq 1 30); do
@@ -1212,12 +1221,21 @@ backend-schema-fuzz:
            Budget: FUZZ_MAX_EXAMPLES=${FUZZ_MAX_EXAMPLES} FUZZ_MAX_TIME=${FUZZ_MAX_TIME}.
            Remove the trailer commit (or push a newer commit) to go back to random.
         4. Do NOT retry the job or add a baseline entry to turn it green.
+        Server output (tracebacks for any 5xx) is in the job artifact
+        schema-fuzz-server.log, not this log (#1607).
       ============================================================================
       EOF
+        if [ -f schema-fuzz-server.log ]; then
+          echo "Server 5xx lines (first 50; full tracebacks in schema-fuzz-server.log):"
+          grep -m 50 'Internal Server Error:' schema-fuzz-server.log || echo "  (none)"
+          echo "401 responses: $(grep -c 'Unauthorized:' schema-fuzz-server.log || true) (nonzero means the fuzz token stopped authenticating, #1607)"
+        fi
       fi
   artifacts:
     reports:
       junit: schemathesis-junit.xml
+    paths:
+      - schema-fuzz-server.log
     when: always
     expire_in: 1 week
 

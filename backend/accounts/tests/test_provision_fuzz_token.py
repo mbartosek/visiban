@@ -52,6 +52,75 @@ class ProvisionFuzzTokenTests(TestCase):
         mode = stat.S_IMODE(os.stat(self.token_file).st_mode)
         self.assertEqual(mode, 0o600)
 
+    def test_social_only_member_gets_unguessable_password(self):
+        """#1607: a passwordless member must not let the fuzzer revoke its own token.
+
+        Both password-change routes skip the current-password check for a
+        social-only account, and a successful change revokes every PAT — so the
+        deep fuzz run 401ed for the rest of its budget. The command now gives such
+        an account a random password, and the change route then rejects a body
+        without the right current password, leaving the token alive.
+        """
+        social = User.objects.create_user(username="social")
+        social.set_unusable_password()
+        social.save()
+        out = StringIO()
+        call_command(
+            "provision_fuzz_token",
+            "--username",
+            "social",
+            "--token-file",
+            self.token_file,
+            stdout=out,
+        )
+        social.refresh_from_db()
+        self.assertTrue(social.has_usable_password())
+        self.assertIn("random, unrecorded password", out.getvalue())
+
+        with open(self.token_file) as fh:
+            raw_token = fh.read().strip()
+        new_password = "Correct-Horse-Battery-1607"
+        for url, body, why in (
+            (
+                "/api/v1/auth/password/change/",
+                {"new_password1": new_password, "new_password2": new_password},
+                b"old_password",
+            ),
+            (
+                "/api/v1/auth/change-password/",
+                {"new_password": new_password},
+                b"Current password is incorrect",
+            ),
+        ):
+            resp = self.client.post(
+                url,
+                body,
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Token {raw_token}",
+            )
+            # Rejected for the missing/wrong current password specifically.
+            self.assertEqual(resp.status_code, 400, (url, resp.content))
+            self.assertIn(why, resp.content)
+        self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
+        resp = self.client.get(
+            "/api/v1/auth/me/", HTTP_AUTHORIZATION=f"Token {raw_token}"
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_existing_password_is_left_alone(self):
+        before = User.objects.get(pk=self.member.pk).password
+        out = StringIO()
+        call_command(
+            "provision_fuzz_token",
+            "--username",
+            "demo2",
+            "--token-file",
+            self.token_file,
+            stdout=out,
+        )
+        self.assertEqual(User.objects.get(pk=self.member.pk).password, before)
+        self.assertNotIn("random, unrecorded password", out.getvalue())
+
     def test_refuses_missing_user(self):
         with self.assertRaises(CommandError) as ctx:
             call_command(
