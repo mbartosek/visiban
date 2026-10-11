@@ -3903,7 +3903,8 @@
 
 
 <h1 id="verifying-release-images-and-the-helm-chart">Verifying release images and the Helm chart<a class="headerlink" href="#verifying-release-images-and-the-helm-chart" title="Permanent link">&para;</a></h1>
-<p><em>(New in 1.2)</em> Every Visiban release is signed keyless with <a href="https://docs.sigstore.dev/">Sigstore cosign</a>
+<p><em>(New in 1.2)</em> Every Visiban release cut after image signing shipped (the first release after
+<code>v1.2.0-alpha.4</code>) is signed keyless with <a href="https://docs.sigstore.dev/">Sigstore cosign</a>
 by the GitLab CI job that published it, so you can check that what you pull was built and
 pushed by Visiban's release pipeline rather than trusting the registry:</p>
 <table>
@@ -3932,8 +3933,8 @@ carries its own copy. Verify against the registry you actually pull from. GHCR k
 copies indefinitely. On the GitLab registry, the current cleanup policy can sweep signature
 and attestation tags about 90 days after a release, even though the image itself is kept.
 Extending the policy is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1541">#1541</a>.
-A nightly CI job, <code>check-release-attestations</code>, re-verifies the newest releases' signatures and SBOM
-attestations on both registries so a sweep or delete does not go unnoticed. See
+A nightly CI job, <code>check-release-attestations</code>, re-verifies the newest signed releases' signatures and SBOM
+attestations on both registries (releases cut before image signing shipped are skipped unless backfilled) so a sweep or delete does not go unnoticed. See
 <a href="../../development/ci-gates/">CI gate self-tests</a>.
 See <a href="../container-image-retention/#signature-and-sbom-attestation-tags-1153">Container image retention</a>.</p>
 <p>There is no key to download. A signature is valid when its Sigstore certificate says it was
@@ -4008,8 +4009,8 @@ release version. <code>helm show chart oci://ghcr.io/visiban/charts/visiban</cod
 alternative. A chart release is not published until both of that release's images have been
 signed and attested.</p>
 <h2 id="older-releases">Older releases<a class="headerlink" href="#older-releases" title="Permanent link">&para;</a></h2>
-<p>Images published before this feature (1.1.x and the 1.2 pre-releases cut before it merged)
-carry no image signature or SBOM, and <code>cosign verify</code> reports <code>no signatures found</code>.
+<p>Images published before this feature carry no image signature or SBOM: every 1.0.x and
+1.1.x release, and <code>v1.2.0-alpha.1</code> through <code>v1.2.0-alpha.4</code>. For those images, <code>cosign verify</code> reports <code>no signatures found</code>.
 This means the image was never signed. It does not mean the image was tampered with.
 Maintainers can bring an already-published release up to the same bar without re-cutting
 it: the manual <code>image-attest-backfill</code> CI job on <code>main</code> signs and attests a given tag's
