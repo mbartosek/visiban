@@ -6,6 +6,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.authtoken.models import Token, TokenProxy
 
+from django.contrib import admin
+
+from accounts.admin import SuperuserOnlyAdminMixin
 from accounts.models import User
 
 PLAIN_STATIC = {
@@ -54,6 +57,13 @@ class ThirdPartyAdminRestrictionTests(TestCase):
         self.assertIn(response.status_code, (302, 403, 404), response.status_code)
         if response.status_code == 302:
             self.assertIn("login", response["Location"])
+
+    def test_each_admin_is_registered_with_the_superuser_only_mixin(self):
+        for model in (EmailAddress, SocialAccount, SocialToken, SocialApp, TokenProxy):
+            with self.subTest(model=model.__name__):
+                self.assertIsInstance(
+                    admin.site._registry[model], SuperuserOnlyAdminMixin
+                )
 
     def test_non_superuser_with_model_perms_is_refused_everywhere(self):
         self.client.force_login(self.staff)

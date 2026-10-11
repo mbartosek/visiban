@@ -349,8 +349,8 @@ class SuperuserOnlyGroupAdmin(GroupAdmin):
 #
 # `allauth` and `rest_framework.authtoken` precede `accounts` in
 # INSTALLED_APPS, so their admin modules have already registered by the time
-# this module is imported; the is_registered guard keeps a differing install
-# (app absent or reordered) from failing startup.
+# this module is imported. If that ordering changes, or an app is removed,
+# startup fails loudly instead of leaving a stock admin unrestricted.
 # ---------------------------------------------------------------------------
 class SuperuserOnlyAdminMixin:
     """Limit every admin permission hook to active superusers."""
@@ -377,8 +377,6 @@ class SuperuserOnlyAdminMixin:
 
 def _restrict_to_superusers(model):
     """Re-register ``model``'s existing admin with the superuser-only mixin."""
-    if not admin.site.is_registered(model):
-        return
     original = type(admin.site._registry[model])
     admin.site.unregister(model)
     restricted = type(
