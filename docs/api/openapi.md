@@ -97,6 +97,26 @@ the fuzz itself ran and failed, the job files one tracking issue titled
 open. That needs a `FUZZ_DEEP_API_TOKEN` (or `KAIZEN_API_TOKEN`) CI variable with `api`
 scope. Without one, the job log shows what would have been filed.
 
+**The fuzz user keeps its token for the whole run (#1607).** The seeded `demo2` account has
+no usable password (social-only). For such an account, both password-change routes
+(`/auth/password/change/`, `/auth/change-password/`) skip the current-password check, and a
+successful change revokes every Personal Access Token. The MR budget never generated a
+matching, valid new-password pair. On 2026-10-11 the deep budget did, and every request
+after it returned `401`. Both fuzz jobs therefore run `provision_fuzz_token
+--set-random-password`, which gives a password-less target a random password that is never
+recorded, so those routes answer `400` to the fuzzer. The flag is off by default and is for
+throwaway CI databases only. On a real social-only account, a usable password would lift the
+verified-email gate on password reset. A run
+of `401`s in a fuzz job means the token stopped authenticating. It is not an API finding.
+
+**Server output is a job artifact, not job log.** Both jobs redirect `runserver` output
+(one access line per request, plus `django.request` lines for every 4xx/5xx) to
+`schema-fuzz-server.log`, kept with `when: always`. The deep run makes over 100k requests,
+and with that output in the job log it hit GitLab's 16 MB limit, which cut off schemathesis's
+summary and unobserved-baseline report (#1607). On failure, `after_script` prints the
+`Internal Server Error:` lines and a `401` count from that file. Full tracebacks are in the
+artifact.
+
 **Error envelope.** Visiban has no custom DRF `EXCEPTION_HANDLER`, so authentication,
 permission, lookup, and throttling failures all render as DRF's default `{"detail": "<message>"}`.
 `visiban/schema_hooks.py` (a drf-spectacular `POSTPROCESSING_HOOKS` entry) documents that

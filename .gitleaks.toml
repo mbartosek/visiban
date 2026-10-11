@@ -71,6 +71,13 @@ paths = [
 # test_ws_credential_revocation_e2e.py before its inline `gitleaks:allow`),
 # used against throwaway test databases. The current tree scans clean, so
 # these exist only in history. Still scoped by commit, not by file.
+#
+# Two more (#1607): 4c818710d and d133b8317 added the fixture password
+# Correct-Horse-Battery-1607 to test_provision_fuzz_token.py before it carried
+# an inline `gitleaks:allow`. It is used only against the throwaway test
+# database, never a real credential. A commit pin is invalidated by a rebase:
+# these were first pinned as b6227a808/b458d83a6, and rebasing the branch onto
+# main turned gitleaks-commits red until they were re-pinned.
 commits = [
   "8079469d92fca8989e37ac7427a51d7c8c1b9249",
   "e45b56374107d5a46b74fc67f1d51fb2921d5f73",
@@ -80,4 +87,6 @@ commits = [
   "a20074bbe7d20639e0f2d5846c5ddef9d2df7662",
   "3f58dcb6cba7d2de32fb3aed2173271cc2cde8d4",
   "721177740bbad794e21f718ba0c8be45e284f21f",
+  "4c818710d7ba98a748980c5c9e3f7374747a7d7a",
+  "d133b8317ee35a2f6cd3d4f66fb5dd78bab239b8",
 ]
