@@ -960,6 +960,44 @@ def lock_card_row(card_id):
     )
 
 
+def lock_cards_for_cascade(cards):
+    """Lock every card in ``cards`` ``FOR UPDATE``, pk-ordered, in one
+    statement, before a column, swimlane or board delete cascades to them
+    (#1599).
+
+    Why: the container's cascade is ``delete_card``'s cascade times N, and it
+    had the same race ``delete_card`` closed in #1587. Django's collector
+    reads each card's child rows (comments, checklist items, attachments,
+    relations, activity) before it deletes anything; a child write holding
+    ``lock_card_for_write`` could insert a row the collector never saw and
+    commit before the container's card ``DELETE`` reached that card. The card
+    foreign keys are ``DEFERRABLE INITIALLY DEFERRED`` on PostgreSQL, so the
+    container delete then failed its own FK check at COMMIT — a 500. Holding
+    the card rows first means a write that started earlier commits before the
+    collector reads (so its rows are cascaded away), and a write that starts
+    later waits, finds the card gone, and answers 404.
+
+    Locking was chosen over catching the commit-time ``IntegrityError`` and
+    retrying: the error surfaces at COMMIT, after the view's work and
+    broadcasts were queued, and a retry loop would only repeat the race.
+
+    Lock order: card rows, all in **one** statement ordered by pk — the same
+    shape as ``move_card``'s card lock, so the two queue rather than deadlock
+    — and before any column, swimlane or board row the delete takes (the
+    collector's ``DELETE`` of the container row comes after), keeping the
+    card -> column order. ``FOR UPDATE`` because the rows are about to be
+    deleted, which ``FOR NO KEY UPDATE`` would not cover. One query however
+    many cards; only pks are read. Archived cards are included: they cascade
+    too, so pass an unfiltered queryset. Must run inside the transaction that
+    deletes the container. On SQLite the lock clause is a no-op.
+
+    Not covered: a card *created* or *moved into* the container after this
+    lock is taken is not locked by it (#1599 is scoped to child writes on the
+    container's existing cards).
+    """
+    list(cards.order_by("pk").select_for_update().values_list("pk", flat=True))
+
+
 def lock_card_for_write(card_id):
     """Lock a card row ``FOR NO KEY UPDATE`` for the rest of the caller's
     transaction, raising ``CardNotFound`` when the row is already gone (#1587).

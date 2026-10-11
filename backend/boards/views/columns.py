@@ -16,6 +16,7 @@ from visiban.permissions import (
 )
 
 from .. import broadcast as _broadcast
+from ..services import cards as card_services
 from ..models import Board, BoardMembership, Column
 from ..permissions import SITE_ADMIN
 from ..serializers import ColumnSerializer
@@ -114,6 +115,11 @@ class ColumnViewSet(viewsets.ModelViewSet):
         board_id = instance.board_id
         column_uid = instance.uid
         with transaction.atomic():
+            # Lock the column's cards before Django collects the cascade
+            # (#1599): a card child write that commits mid-cascade otherwise
+            # fails this delete's deferred FK check at COMMIT (500). See
+            # lock_cards_for_cascade for the lock order.
+            card_services.lock_cards_for_cascade(instance.cards.all())
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=self.request.user.id)
 
