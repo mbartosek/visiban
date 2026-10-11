@@ -4230,11 +4230,14 @@ check-release-images:
 # remove every signature and SBOM with no job going red. This job re-runs
 # `cosign verify` and `cosign verify-attestation --type cyclonedx` for the
 # newest ATTEST_CHECK_COUNT releases (default 3) whose own .gitlab-ci.yml
-# defines the image-attest jobs, i.e. that were signed at release time (#1606:
-# releases cut before #1153 were never signed and are listed as not checked;
-# until one is cut after #1153 the job exits 0 with a notice), both images, BOTH registries,
-# the index and each platform digest, with the documented tag-only identity
+# defines the image-attest jobs, i.e. that were signed at release time, on
+# both images, BOTH registries, the index and each platform digest, with the documented tag-only identity
 # (docs/administration/image-verification.md). Zero attestations is a failure.
+# Releases cut before #1153 were never signed and are listed as not checked
+# (#1606); until one is cut after #1153 the job exits 0 with a notice.
+# GIT_DEPTH 0: the script reads .gitlab-ci.yml at each tag and fails on a tag
+# commit missing from the clone, so it needs full history, not a shallow
+# clone plus whatever `git fetch --tags` happens to deepen.
 #
 # Gated on the Nightly schedule's existing CVE_SCAN=true variable rather than
 # "any schedule": it spends cosign downloads and Sigstore transparency-log
@@ -4257,6 +4260,7 @@ check-release-attestations:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CVE_SCAN == "true"'
   variables:
+    GIT_DEPTH: "0"
     ATTEST_CHECK_COUNT: "3"
     ATTEST_BACKFILLED_TAGS: ""
     ATTEST_ACCEPTED_GAPS: ""
