@@ -96,7 +96,7 @@ backfill regexp from that page. The GHCR copy is unaffected. Applying the keep-r
 original tag-pipeline signatures are then never swept.
 
 The nightly `check-release-attestations` job
-([#1542](https://gitlab.com/visiban/visiban/-/issues/1542)) checks that the newest releases'
+([#1542](https://gitlab.com/visiban/visiban/-/issues/1542)) checks that the newest signed releases'
 signatures and SBOM attestations are still present and still verify, on both registries. It
 fails when a sweep or manual delete removes them. See the
 [CI gates runbook](../development/ci-gates.md#self-tested-today) for what a red run means and

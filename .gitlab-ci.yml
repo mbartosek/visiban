@@ -4229,7 +4229,10 @@ check-release-images:
 # can delete them ~90 days after a release, #1541) or a manual delete would
 # remove every signature and SBOM with no job going red. This job re-runs
 # `cosign verify` and `cosign verify-attestation --type cyclonedx` for the
-# newest ATTEST_CHECK_COUNT releases (default 3), both images, BOTH registries,
+# newest ATTEST_CHECK_COUNT releases (default 3) whose own .gitlab-ci.yml
+# defines the image-attest jobs, i.e. that were signed at release time (#1606:
+# releases cut before #1153 were never signed and are listed as not checked;
+# until one is cut after #1153 the job exits 0 with a notice), both images, BOTH registries,
 # the index and each platform digest, with the documented tag-only identity
 # (docs/administration/image-verification.md). Zero attestations is a failure.
 #
@@ -4241,7 +4244,8 @@ check-release-images:
 # the same reason as check-release-images.
 #
 # Releases signed later by `image-attest-backfill` carry the main-or-tag
-# identity: list each one in ATTEST_BACKFILLED_TAGS (space-separated) with the
+# identity (and, if they predate #1153, are only in scope once listed): list
+# each one in ATTEST_BACKFILLED_TAGS (space-separated) with the
 # issue that justified it. A permanent per-reference exception goes in
 # ATTEST_ACCEPTED_GAPS, likewise with a comment. Both are empty on purpose.
 # cosign comes from `.cosign-pin`, shared with image-attest and helm-publish.

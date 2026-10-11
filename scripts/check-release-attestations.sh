@@ -20,6 +20,20 @@
 #   3. `cosign verify-attestation --type cyclonedx` each platform digest, and
 #      require at least one attestation back whose in-toto subject is that
 #      digest. "Verified, returned nothing" is a failure, never a pass.
+# Only releases cut AFTER image signing shipped (#1153) are checked: a tag is
+# in scope when the .gitlab-ci.yml at that tag defines every job in
+# ATTEST_SIGNING_JOBS, i.e. that release's own pipeline signed and attested its
+# images. Older releases were never signed, so they have nothing that could
+# have been swept, and this gate is about signatures SURVIVING (#1606: the
+# first nightly checked three pre-#1153 alphas and reported 60 "failures" for
+# signatures that had never existed). A pre-signing release that a Maintainer
+# backfills is brought back into scope by listing it in ATTEST_BACKFILLED_TAGS.
+# A tag NEWER than the newest signing-era release that lacks the signing jobs
+# is a failure (signing was dropped from the release pipeline), never a skip.
+# If no release has been cut since signing shipped, the job says so and exits
+# 0; the self-test pins that the current .gitlab-ci.yml still defines the
+# signing jobs, so a rename cannot turn that notice into a permanent pass.
+#
 # Identity is the documented tag-only regexp
 # (docs/administration/image-verification.md). A tag listed in
 # ATTEST_BACKFILLED_TAGS (releases signed later by the manual
@@ -51,9 +65,14 @@
 #                         default; for documented, permanent exceptions only
 #                         (for example a pre-#1153 release that was never
 #                         signed and will not be backfilled).
+# ATTEST_SIGNING_JOBS     CI job names whose presence in a tag's
+#                         .gitlab-ci.yml marks it as cut after image signing
+#                         shipped (default "backend-image-attest
+#                         frontend-image-attest").
 # ATTEST_TAGS             space-separated tags to check instead of resolving
 #                         them from git (used by --self-test and by a
-#                         maintainer running one release on demand).
+#                         maintainer running one release on demand). Bypasses
+#                         the signing-era filter: an explicit tag is checked.
 # CRANE, COSIGN           the crane / cosign commands (default `crane`,
 #                         `cosign`); overridable so --self-test can drive the
 #                         decision logic with stubs and no registry.
@@ -82,6 +101,7 @@ ATTEST_ARCHES="${ATTEST_ARCHES:-amd64 arm64}"
 ATTEST_BACKFILLED_TAGS="${ATTEST_BACKFILLED_TAGS:-}"
 ATTEST_ACCEPTED_GAPS="${ATTEST_ACCEPTED_GAPS:-}"
 ATTEST_TAGS="${ATTEST_TAGS:-}"
+ATTEST_SIGNING_JOBS="${ATTEST_SIGNING_JOBS:-backend-image-attest frontend-image-attest}"
 CRANE="${CRANE:-crane}"
 COSIGN="${COSIGN:-cosign}"
 
@@ -91,12 +111,59 @@ CHECKED_ATTESTATIONS=0
 fail() { echo "  FAIL    $*" >&2; FAILURES=$((FAILURES + 1)); }
 
 # Same version-sort rules as check-release-images.sh: without the suffix
-# config git sorts v1.1.0-rc.3 AFTER v1.1.0. --count (not `| head`) avoids a
-# SIGPIPE under pipefail.
-resolve_release_tags() {
+# config git sorts v1.1.0-rc.3 AFTER v1.1.0.
+all_release_tags() {
   git -c versionsort.suffix=-alpha -c versionsort.suffix=-beta -c versionsort.suffix=-rc \
-    for-each-ref --count="$ATTEST_CHECK_COUNT" --sort=-v:refname \
+    for-each-ref --sort=-v:refname \
     --format='%(refname:short)' 'refs/tags/v*' 2>/dev/null
+}
+
+# signing_era <tag> → 0 when the .gitlab-ci.yml at <tag> defines every job in
+# ATTEST_SIGNING_JOBS (that release's pipeline signed its images), 1 when it
+# does not (or has no .gitlab-ci.yml), 2 when the tag's commit is not in the
+# clone. 2 is never treated as "pre-signing": an unreadable tag is a failure.
+# Here-strings, not `printf | grep -q`: grep -q exits on the first match and
+# the SIGPIPE'd printf would fail the pipeline under pipefail.
+signing_era() {
+  local t="$1" cfg j
+  git cat-file -e "${t}^{commit}" 2>/dev/null || return 2
+  cfg="$(git show "${t}:.gitlab-ci.yml" 2>/dev/null)" || return 1
+  for j in $ATTEST_SIGNING_JOBS; do
+    grep -qx "${j}:" <<<"$cfg" || return 1
+  done
+  return 0
+}
+
+# resolve_release_tags → sets RESOLVED_TAGS (the newest ATTEST_CHECK_COUNT
+# signing-era or backfilled tags), UNSIGNED_NEWER (tags newer than the newest
+# of those that lack the signing jobs), PRE_SIGNING (tags skipped because they
+# predate signing, newest first, only those seen before the scan stopped),
+# UNREADABLE and ANY_TAG. Called directly, not in $(…), so it can set globals.
+resolve_release_tags() {
+  local t rc picked=0 pending="" found=0
+  RESOLVED_TAGS=""; UNSIGNED_NEWER=""; PRE_SIGNING=""; UNREADABLE=""; ANY_TAG=0
+  for t in $(all_release_tags); do
+    ANY_TAG=1
+    rc=0
+    if in_list "$t" "$ATTEST_BACKFILLED_TAGS"; then rc=0; else signing_era "$t" || rc=$?; fi
+    case "$rc" in
+      0)
+        if [ "$found" -eq 0 ]; then UNSIGNED_NEWER="$pending"; pending=""; found=1; fi
+        RESOLVED_TAGS="${RESOLVED_TAGS:+$RESOLVED_TAGS }$t"
+        picked=$((picked + 1))
+        [ "$picked" -ge "$ATTEST_CHECK_COUNT" ] && break ;;
+      2) UNREADABLE="${UNREADABLE:+$UNREADABLE }$t" ;;
+      *)
+        if [ "$found" -eq 0 ]; then
+          pending="${pending:+$pending }$t"
+        else
+          PRE_SIGNING="${PRE_SIGNING:+$PRE_SIGNING }$t"
+        fi ;;
+    esac
+  done
+  # No signing-era tag at all: everything seen predates signing.
+  [ "$found" -eq 1 ] || PRE_SIGNING="$pending"
+  return 0
 }
 
 default_registries() {
@@ -204,10 +271,33 @@ run_checks() {
     return 2
   fi
 
-  if [ -n "$ATTEST_TAGS" ]; then tags="$ATTEST_TAGS"; else tags="$(resolve_release_tags)"; fi
-  if [ -z "$tags" ]; then
-    echo "ERROR: no v* release tag found to check — a gate that checks nothing must not pass." >&2
-    return 2
+  if [ -n "$ATTEST_TAGS" ]; then
+    tags="$ATTEST_TAGS"
+  else
+    resolve_release_tags
+    if [ "$ANY_TAG" -eq 0 ]; then
+      echo "ERROR: no v* release tag found to check — a gate that checks nothing must not pass." >&2
+      return 2
+    fi
+    for tag in $UNREADABLE; do
+      fail "${tag}: tag commit not in the clone — cannot tell whether it was signed (fetch tags with history)"
+    done
+    for tag in $UNSIGNED_NEWER; do
+      fail "${tag}: cut after image signing shipped, but its .gitlab-ci.yml defines none of [${ATTEST_SIGNING_JOBS}] — the release pipeline did not sign it"
+    done
+    if [ -n "$PRE_SIGNING" ]; then
+      echo "-- not checked, cut before image signing shipped (#1153): ${PRE_SIGNING}"
+    fi
+    tags="$RESOLVED_TAGS"
+    if [ -z "$tags" ]; then
+      if [ "$FAILURES" -gt 0 ]; then
+        echo "check-release-attestations: ${FAILURES} failure(s)." >&2
+        return 1
+      fi
+      echo "check-release-attestations: no release has been cut since image signing shipped (#1153);"
+      echo "nothing to verify yet. The next v* tag pipeline signs its images and this job checks them."
+      return 0
+    fi
   fi
 
   for tag in $tags; do
@@ -391,16 +481,66 @@ STUB
   check "exits 1 and says so" \
     "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'cannot resolve the index digest' && echo 0 || echo 1)"
 
+  # Test repos: commit_ci <dir> <signed|unsigned> commits a .gitlab-ci.yml that
+  # does or does not define the image signing jobs (#1606).
+  commit_ci() {
+    if [ "$2" = signed ]; then
+      printf 'backend-manifest:\n  stage: deploy\nbackend-image-attest:\n  stage: deploy\nfrontend-image-attest:\n  stage: deploy\n' > "$1/.gitlab-ci.yml"
+    else
+      printf 'backend-manifest:\n  stage: deploy\n# backend-image-attest: (comment, not a job)\n' > "$1/.gitlab-ci.yml"
+    fi
+    ( cd "$1" && git add .gitlab-ci.yml \
+      && git -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m "$2" )
+  }
+
   echo "case: ATTEST_CHECK_COUNT bounds the releases checked"
   reset
   mkdir "$tmp/repo"
-  ( cd "$tmp/repo" && git init -q . \
-    && git -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m c \
-    && git tag v1.0.0 && git tag v1.1.0 && git tag v1.2.0 )
+  ( cd "$tmp/repo" && git init -q . )
+  commit_ci "$tmp/repo" signed
+  ( cd "$tmp/repo" && git tag v1.0.0 && git tag v1.1.0 && git tag v1.2.0 )
   rc=0
   out="$( cd "$tmp/repo" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=2 && run_checks 2>&1 )" || rc=$?
   check "exactly 2 releases are checked, the newest 2" \
     "$([ "$(echo "$out" | grep -c '^== ')" -eq 2 ] && echo "$out" | grep -q '^== v1.2.0' && echo "$out" | grep -q '^== v1.1.0' && ! echo "$out" | grep -q '^== v1.0.0' && echo 0 || echo 1)"
+
+  # #1606: the first nightly checked the three newest tags, all cut before
+  # image signing existed, and reported every digest as unsigned.
+  echo "case: releases cut before image signing are not checked (#1606)"
+  reset
+  mkdir "$tmp/era"
+  ( cd "$tmp/era" && git init -q . )
+  commit_ci "$tmp/era" unsigned
+  ( cd "$tmp/era" && git tag v1.1.0 && git tag v1.2.0-alpha.3 && git tag v1.2.0-alpha.4 )
+  rc=0
+  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "no signing-era release yet: exits 0 with a notice, verifies nothing" \
+    "$([ "$rc" -eq 0 ] && echo "$out" | grep -q 'no release has been cut since image signing' && [ ! -e "$tmp/identity.log" ] && echo 0 || echo 1)"
+  check "names the pre-signing releases it skipped" \
+    "$(echo "$out" | grep -q 'cut before image signing shipped (#1153): v1.2.0-alpha.4 v1.2.0-alpha.3 v1.1.0' && echo 0 || echo 1)"
+  commit_ci "$tmp/era" signed
+  ( cd "$tmp/era" && git tag v1.2.0-alpha.5 )
+  reset; rc=0
+  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "only the signing-era release is checked, and it passes" \
+    "$([ "$rc" -eq 0 ] && [ "$(echo "$out" | grep -c '^== ')" -eq 1 ] && echo "$out" | grep -q '^== v1.2.0-alpha.5$' && echo 0 || echo 1)"
+  ATTEST_BACKFILLED_TAGS="v1.2.0-alpha.4"; reset; rc=0
+  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "a backfilled pre-signing release is brought back into scope" \
+    "$([ "$rc" -eq 0 ] && echo "$out" | grep -q '^== v1.2.0-alpha.4 (documented backfill' && ! echo "$out" | grep -q '^== v1.2.0-alpha.3' && echo 0 || echo 1)"
+  ATTEST_BACKFILLED_TAGS=""
+  : > "$tmp/no-sig"; rc=0
+  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "a signing-era release with a missing signature still fails" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q '(index of v1.2.0-alpha.5): no verifying signature' && echo 0 || echo 1)"
+  commit_ci "$tmp/era" unsigned
+  ( cd "$tmp/era" && git tag v1.2.0-beta.1 )
+  reset; rc=0
+  out="$( cd "$tmp/era" && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "a release cut AFTER signing without the signing jobs fails, never skips" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.0-beta.1: cut after image signing shipped' && echo 0 || echo 1)"
+  check "the repo's own .gitlab-ci.yml still defines every ATTEST_SIGNING_JOBS job" \
+    "$(cfg="$(cat "$here/../.gitlab-ci.yml")"; r=0; for j in $ATTEST_SIGNING_JOBS; do grep -qx "${j}:" <<<"$cfg" || r=1; done; echo "$r")"
 
   echo "case: the real entry point's exit status (subprocess, stubs on PATH)"
   mkdir "$tmp/bin"; ln -s "$tmp/crane" "$tmp/bin/crane"; ln -s "$tmp/cosign" "$tmp/bin/cosign"
