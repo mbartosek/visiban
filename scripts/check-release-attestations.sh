@@ -152,7 +152,7 @@ signing_era() {
 # signing, so its descendants are not "cut after signing" because of it.
 # The scan is full (no early stop) so every unsigned tag is classified.
 resolve_release_tags() {
-  local t rc picked=0 anchors="" unsigned="" a after
+  local t rc picked=0 anchors="" unsigned="" a after mb
   RESOLVED_TAGS=""; UNSIGNED_AFTER=""; PRE_SIGNING=""; UNREADABLE=""; ANY_TAG=0
   for t in $(all_release_tags); do
     ANY_TAG=1
@@ -172,11 +172,22 @@ resolve_release_tags() {
     fi
   done
   for t in $unsigned; do
+    # merge-base --is-ancestor: 0 = ancestor, 1 = not; anything else (128:
+    # missing object, corrupt or partial clone) is "cannot tell", which must
+    # fail and name the tag, never fall through to a pre-signing skip.
     after=0
     for a in $anchors; do
-      if git merge-base --is-ancestor "$a" "$t" 2>/dev/null; then after=1; break; fi
+      mb=0
+      git merge-base --is-ancestor "$a" "$t" 2>/dev/null || mb=$?
+      case "$mb" in
+        0) after=1; break ;;
+        1) ;;
+        *) after=2; break ;;
+      esac
     done
-    if [ "$after" -eq 1 ]; then
+    if [ "$after" -eq 2 ]; then
+      UNREADABLE="${UNREADABLE:+$UNREADABLE }$t"
+    elif [ "$after" -eq 1 ]; then
       UNSIGNED_AFTER="${UNSIGNED_AFTER:+$UNSIGNED_AFTER }$t"
     else
       PRE_SIGNING="${PRE_SIGNING:+$PRE_SIGNING }$t"
@@ -300,11 +311,13 @@ run_checks() {
     fi
     # Ancestry decides "pre-signing" vs "signing dropped": a shallow clone can
     # make a descendant look unrelated, so refuse rather than skip (#1606).
-    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+    # Fail closed: anything but a literal "false" (an old git that does not
+    # know the flag echoes it back) counts as shallow.
+    if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" != "false" ]; then
       fail "shallow clone: commit ancestry is unreliable, so unsigned tags cannot be told apart from pre-signing ones (set GIT_DEPTH 0)"
     fi
     for tag in $UNREADABLE; do
-      fail "${tag}: does not resolve to a commit in the clone — cannot tell whether it was signed"
+      fail "${tag}: does not resolve to a commit, or its ancestry cannot be read, in the clone — cannot tell whether it was signed"
     done
     for tag in $UNSIGNED_AFTER; do
       fail "${tag}: descends from a signed release, but its .gitlab-ci.yml does not define every job in [${ATTEST_SIGNING_JOBS}] — the release pipeline did not sign it"
@@ -593,12 +606,46 @@ STUB
   in_repo "$tmp/line"
   check "fails and names it, never treats it as pre-signing" \
     "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.2.2: does not resolve to a commit' && ! echo "$out" | grep -q 'not checked.*v1.2.2' && echo 0 || echo 1)"
+  # Same, with no signed release to compare ancestry against: only the
+  # commit check itself stands between this tag and a pre-signing skip.
+  mkdir "$tmp/blob"
+  ( cd "$tmp/blob" && git init -q . )
+  commit_ci "$tmp/blob" unsigned
+  ( cd "$tmp/blob" && git tag v1.0.0 && git tag v1.0.1 "$(git hash-object -w .gitlab-ci.yml)" )
+  reset; in_repo "$tmp/blob"
+  check "fails even when no signed release exists (no ancestry fallback)" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.0.1: does not resolve to a commit' && echo 0 || echo 1)"
+
+  echo "case: git merge-base errors (missing object, corrupt or partial clone)"
+  reset
+  mkdir "$tmp/mb"
+  ( cd "$tmp/mb" && git init -q . )
+  commit_ci "$tmp/mb" unsigned
+  ( cd "$tmp/mb" && git tag v1.0.0 )
+  commit_ci "$tmp/mb" signed
+  ( cd "$tmp/mb" && git tag v1.1.0 )
+  # A git function that fails merge-base with 128, like a missing object
+  # would, and passes everything else through; scoped to the subshell.
+  rc=0
+  out="$( cd "$tmp/mb" \
+    && git() { if [ "$1" = merge-base ]; then return 128; fi; command git "$@"; } \
+    && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "fails and names the tag, never skips it as pre-signing" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'v1.0.0: does not resolve to a commit, or its ancestry cannot be read' && ! echo "$out" | grep -q 'not checked.*v1.0.0' && echo 0 || echo 1)"
 
   echo "case: a shallow clone"
   reset
   git clone -q --depth 1 "file://$tmp/era" "$tmp/shallow" 2>/dev/null
   in_repo "$tmp/shallow"
   check "fails: ancestry cannot be trusted (GIT_DEPTH 0)" \
+    "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'shallow clone: commit ancestry is unreliable' && echo 0 || echo 1)"
+  # An old git (< 2.15) does not know --is-shallow-repository and echoes it
+  # back; anything but "false" must count as shallow (fail closed).
+  reset; rc=0
+  out="$( cd "$tmp/era" \
+    && git() { if [ "$1" = rev-parse ] && [ "${2:-}" = --is-shallow-repository ]; then echo "$2"; return 0; fi; command git "$@"; } \
+    && ATTEST_TAGS="" && ATTEST_CHECK_COUNT=3 && run_checks 2>&1 )" || rc=$?
+  check "an unrecognized shallow answer fails closed" \
     "$([ "$rc" -eq 1 ] && echo "$out" | grep -q 'shallow clone: commit ancestry is unreliable' && echo 0 || echo 1)"
 
   check "the repo's own .gitlab-ci.yml still defines every ATTEST_SIGNING_JOBS job" \

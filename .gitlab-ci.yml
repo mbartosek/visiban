@@ -4285,7 +4285,10 @@ check-release-attestations:
     # earlier shallow clone, and the script fails on a shallow repo (ancestry
     # decides pre-signing vs. signing dropped, #1606), so unshallow first.
     - |
-      if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+      # Fail closed like gitleaks-history: anything but "false" is treated as
+      # shallow; the shallow-file guard keeps a complete repo from erroring.
+      if [ "$(git rev-parse --is-shallow-repository)" != "false" ] \
+          && [ -f "$(git rev-parse --git-dir)/shallow" ]; then
         git fetch --unshallow origin
       fi
     - git fetch origin --tags --force
