@@ -712,20 +712,25 @@ class SeedDemoSiteTests(TestCase):
 
         from accounts.models import PersonalAccessToken
 
-        existing = User.objects.create_user(username="visitor", email="v@example.com", password="old-pw-1234")
-        PersonalAccessToken.generate(existing, "stale")
-        Token.objects.create(user=existing)
+        names = ["visitor", "admin", "maya", "jordan"]
+        existing = []
+        for name in names:
+            u = User.objects.create_user(username=name, email=f"{name}@example.com", password="old-pw-1234")
+            PersonalAccessToken.generate(u, "stale")
+            Token.objects.create(user=u)
+            existing.append(u)
         bystander = User.objects.create_user(username="bystander", email="b@example.com", password="x-pw-1234")
         PersonalAccessToken.generate(bystander, "keep")
         Token.objects.create(user=bystander)
 
         _seed(demo_site=True)
 
-        existing.refresh_from_db()
-        self.assertTrue(existing.check_password("test-visitor-pw-1"))
-        self.assertFalse(existing.must_change_password)
-        self.assertFalse(PersonalAccessToken.objects.filter(user=existing).exists())
-        self.assertFalse(Token.objects.filter(user=existing).exists())
+        for u in existing:
+            u.refresh_from_db()
+            self.assertFalse(u.has_usable_password() and u.check_password("old-pw-1234"), u.username)
+            self.assertFalse(u.must_change_password, u.username)
+            self.assertFalse(PersonalAccessToken.objects.filter(user=u).exists(), u.username)
+            self.assertFalse(Token.objects.filter(user=u).exists(), u.username)
         # Only the re-seeded accounts are touched.
         self.assertTrue(PersonalAccessToken.objects.filter(user=bystander).exists())
         self.assertTrue(Token.objects.filter(user=bystander).exists())
