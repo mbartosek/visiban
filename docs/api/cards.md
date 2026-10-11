@@ -186,7 +186,7 @@ The following fields are returned for every card object in this endpoint, `POST 
 ```
 
 ### `PATCH /api/v1/boards/{board_id}/cards/{id}/`
-Update card fields. Requires member or above. Returns `404 Not Found` if the card was deleted concurrently; nothing is saved.
+Update card fields. Requires member or above. Returns `404 Not Found` if the card was deleted concurrently; nothing is saved. A PATCH/PUT racing an archive or move of the same card is evaluated against the card's state at the moment it is written, not when the request began: it returns `404 Not Found` if the card was archived concurrently (as for any archived card), and a concurrent move is kept — only the submitted fields change, and echoing the card's pre-move `column`/`swimlane`/`position` is rejected with `use_move_endpoint` (see below).
 
 > **Ownership gate:** Members may only edit cards they created. A member who did not create the card must have the `is_moderator` entitlement or be a board admin. Non-moderator members who did not create the card receive `403 Forbidden`.
 

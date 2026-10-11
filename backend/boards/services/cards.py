@@ -498,6 +498,63 @@ def create_card(
 # update
 # ---------------------------------------------------------------------------
 
+def _reject_cell_change(board, card, submitted):
+    """Raise ``UseMoveEndpoint`` when ``submitted`` changes the card's cell.
+
+    ``update_card`` calls this twice: once on the caller's snapshot, so the
+    common case fails before any lock is taken, and again on the state read
+    under the card lock (#1598), so an echo of a value a concurrent move has
+    since changed cannot write the old cell back.
+    """
+    # Reject a change of `column`, `swimlane`, or `position` — same-board or
+    # cross-board (#1106, #1275). All three bypass WIP/weight enforcement and
+    # the CardMovement audit trail, which only the move transition evaluates.
+    # Echoing back the card's *current* value is still accepted so a client
+    # that round-trips the full representation it was given keeps working
+    # (required by the 1.0 backward-compatibility contract). Both sides are
+    # normalized to int before comparing rather than resolved against the DB,
+    # so the API never needs to tell the caller whether a foreign id it
+    # guessed happens to exist on another board — and so an unchanged value
+    # sent in a different JSON representation (`5.0`, `"5"`) is not
+    # misreported as a real change (security-review finding on #1275). A
+    # value that fails to coerce to int is left to the serializer's own field
+    # validation rather than raised here as a move-endpoint bypass. `None` is
+    # likewise left to field validation rather than treated as a no-op, since
+    # column, swimlane, and position are all non-nullable and the current
+    # value can therefore never legitimately be None.
+    for field_name, current_value in (
+        ("column", card.column_id), ("swimlane", card.swimlane_id), ("position", card.position),
+    ):
+        if field_name in submitted:
+            raw_value = submitted.get(field_name)
+            if raw_value is None:
+                continue
+            try:
+                raw_normalized = int(float(raw_value))
+            except (TypeError, ValueError):
+                continue
+            if raw_normalized != int(current_value):
+                raise UseMoveEndpoint(field_name, board_pk=board.pk, card_pk=card.pk)
+
+
+def _adopt_locked_state(card, locked):
+    """Copy the row read under the card lock onto the caller's ``card`` (#1598).
+
+    Done in place, without a second query, because ``card`` is also the
+    instance the caller's serializer will save. Unlike ``refresh_from_db()``
+    this keeps the parked label prefetch and any related-object cache whose
+    foreign key did not change, so an unraced PATCH costs no extra queries; a
+    cached related object is dropped only when its key moved under us.
+    """
+    for field in Card._meta.concrete_fields:
+        value = getattr(locked, field.attname)
+        if getattr(card, field.attname) == value:
+            continue
+        setattr(card, field.attname, value)
+        if field.is_relation and field.is_cached(card):
+            field.delete_cached_value(card)
+
+
 def update_card(*, actor, board, card, submitted, apply, render, role=None, force=False):
     """Apply a field update, recording a ``CardActivity`` row per changed field.
 
@@ -540,35 +597,7 @@ def update_card(*, actor, board, card, submitted, apply, render, role=None, forc
         ),
     )
 
-    # Reject a change of `column`, `swimlane`, or `position` — same-board or
-    # cross-board (#1106, #1275). All three bypass WIP/weight enforcement and
-    # the CardMovement audit trail, which only the move transition evaluates.
-    # Echoing back the card's *current* value is still accepted so a client
-    # that round-trips the full representation it was given keeps working
-    # (required by the 1.0 backward-compatibility contract). Both sides are
-    # normalized to int before comparing rather than resolved against the DB,
-    # so the API never needs to tell the caller whether a foreign id it
-    # guessed happens to exist on another board — and so an unchanged value
-    # sent in a different JSON representation (`5.0`, `"5"`) is not
-    # misreported as a real change (security-review finding on #1275). A
-    # value that fails to coerce to int is left to the serializer's own field
-    # validation rather than raised here as a move-endpoint bypass. `None` is
-    # likewise left to field validation rather than treated as a no-op, since
-    # column, swimlane, and position are all non-nullable and the current
-    # value can therefore never legitimately be None.
-    for field_name, current_value in (
-        ("column", card.column_id), ("swimlane", card.swimlane_id), ("position", card.position),
-    ):
-        if field_name in submitted:
-            raw_value = submitted.get(field_name)
-            if raw_value is None:
-                continue
-            try:
-                raw_normalized = int(float(raw_value))
-            except (TypeError, ValueError):
-                continue
-            if raw_normalized != int(current_value):
-                raise UseMoveEndpoint(field_name, board_pk=board.pk, card_pk=card.pk)
+    _reject_cell_change(board, card, submitted)
 
     board_id = card.board_id
     with transaction.atomic():
@@ -577,7 +606,25 @@ def update_card(*, actor, board, card, submitted, apply, render, role=None, forc
         # row, and Django falls back to an INSERT that re-creates the card.
         # Taken before enforce_column_limits below locks the column, keeping
         # the card -> column order move_card uses.
-        lock_card_for_write(card.pk)
+        locked = lock_card_for_write(card.pk)
+        # Re-read under the lock (#1598). `card` is the caller's snapshot from
+        # before the lock, and apply() -> serializer.save() writes *every*
+        # column of it, not just the patched ones. An archive or a move that
+        # committed between that read and this lock would otherwise be
+        # silently undone: archived_at written back to NULL, the card put back
+        # in its old cell, and no CardMovement row for the reversal. Adopting
+        # the locked row's values means save() writes current state plus the
+        # patch, and the snapshot below, the weight check, the activity diff
+        # and the broadcast are all computed from post-lock state. Nothing can
+        # change the row again before COMMIT: archive, move and reorder all
+        # need a lock that conflicts with this one.
+        _adopt_locked_state(card, locked)
+        # Same answers a request that read the card after the race would get:
+        # an archived card is a 404 (the REST queryset and the guard above),
+        # and a column/swimlane/position that no longer matches is a move.
+        if card.archived_at is not None:
+            raise CardNotFound()
+        _reject_cell_change(board, card, submitted)
         # Snapshot before the write so the activity diff can name what changed.
         old_title = card.title
         old_priority = card.priority
@@ -1022,19 +1069,18 @@ def lock_card_for_write(card_id):
     which conflicts with it — and it is the mode a plain UPDATE of the row
     takes anyway.
 
+    Returns the row as read under the lock, which callers that go on to save
+    the card must write from instead of an earlier snapshot (#1598).
+
     Lock order: this is the card row, so it must be taken before any column
     row the same transaction locks (card -> column, as ``move_card`` and
     ``lock_card_cell_entry`` do). Must be called inside ``transaction.atomic()``.
     On SQLite the lock clause is a no-op and only the existence check remains.
     """
-    found = (
-        Card.objects.filter(pk=card_id)
-        .select_for_update(no_key=True)
-        .values_list("pk", flat=True)
-        .first()
-    )
-    if found is None:
+    locked = Card.objects.filter(pk=card_id).select_for_update(no_key=True).first()
+    if locked is None:
         raise CardNotFound()
+    return locked
 
 
 def _read_card_for_move(card_id, board):
