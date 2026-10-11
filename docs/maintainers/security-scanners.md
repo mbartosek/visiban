@@ -83,7 +83,7 @@ blocking.
 
 If `gitleaks-commits` flags an intermediate commit, do not just annotate the final tree: with
 `merge_method=merge` every commit enters `main`'s history, so rewrite the branch to drop the
-literal (or add a narrow commit-scoped entry in `.gitleaks.toml`) before merging.
+literal (or add a narrow commit-scoped entry in `.gitleaks.toml`) before merging. In an MR pipeline `gitleaks-commits` reads the MR branch's own `.gitleaks.toml`, so an allowlist entry added on the branch takes effect for that MR; this is the same trust model as `gitleaks-scan`, so reviewers must scrutinize `.gitleaks.toml` diffs.
 
 If `gitleaks-history` flags an old commit, treat the credential as compromised: rotate it
 first, because the history is public on the GitHub and enterprise mirrors. Rewriting history
