@@ -38,7 +38,15 @@ from rest_framework.test import APIClient, APITestCase
 from accounts.models import User
 from boards import broadcast as _broadcast
 from boards import hooks
-from boards.models import Board, BoardMembership, Card, CardMovement, Column, Swimlane
+from boards.models import (
+    Board,
+    BoardMembership,
+    Card,
+    CardMovement,
+    CardRelation,
+    Column,
+    Swimlane,
+)
 from boards.services import cards as card_services
 
 SERVICES = "boards.services.cards"
@@ -95,6 +103,12 @@ class CardArchiveStaleSnapshotTests(APITestCase):
 
         return patch(f"{SERVICES}.lock_card_for_write", side_effect=racing)
 
+    def _post(self, url):
+        # APITestCase wraps each test in a transaction that never commits, so
+        # the deferred broadcasts and hooks are run explicitly here.
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(url)
+
     def _events(self, event_type):
         return [c for c in self.broadcast.call_args_list if c.args[1] == event_type]
 
@@ -102,7 +116,7 @@ class CardArchiveStaleSnapshotTests(APITestCase):
         with self._before_lock(
             lambda: Card.objects.filter(pk=self.card.pk).update(column=self.col_b)
         ):
-            resp = self.client.post(f"{self.base}/archive/")
+            resp = self._post(f"{self.base}/archive/")
         self.assertEqual(resp.status_code, 200, resp.data)
         [row] = _movements(self.card, ARCHIVED)
         self.assertEqual(
@@ -115,7 +129,7 @@ class CardArchiveStaleSnapshotTests(APITestCase):
         with self._before_lock(
             lambda: Card.objects.filter(pk=self.card.pk).update(archived_at=stamp)
         ):
-            resp = self.client.post(f"{self.base}/archive/")
+            resp = self._post(f"{self.base}/archive/")
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(Card.objects.get(pk=self.card.pk).archived_at, stamp)
         self.assertEqual(_movements(self.card, ARCHIVED), [])
@@ -127,7 +141,7 @@ class CardArchiveStaleSnapshotTests(APITestCase):
         with self._before_lock(
             lambda: Card.objects.filter(pk=self.card.pk).update(archived_at=None)
         ):
-            resp = self.client.post(f"{self.base}/unarchive/")
+            resp = self._post(f"{self.base}/unarchive/")
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertIsNone(resp.data["archived_at"])
         self.assertEqual(_movements(self.card, UNARCHIVED), [])
@@ -139,11 +153,89 @@ class CardArchiveStaleSnapshotTests(APITestCase):
         with self._before_lock(
             lambda: Card.objects.filter(pk=self.card.pk).update(column=self.col_b)
         ):
-            resp = self.client.post(f"{self.base}/unarchive/")
+            resp = self._post(f"{self.base}/unarchive/")
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data["column"], self.col_b.pk)
         [row] = _movements(self.card, UNARCHIVED)
         self.assertEqual((row.from_column_id, row.to_column_id), (self.col_b.pk, self.col_b.pk))
+
+    # -- blocked peers are read under the lock ---------------------------------
+
+    def _peer_with_new_blocker(self):
+        """A card that ``self.card`` starts blocking just before the lock."""
+        peer = Card.objects.create(
+            board=self.board, column=self.col_a, swimlane=self.swim,
+            title="P", created_by=self.user, position=1,
+        )
+
+        def block():
+            CardRelation.objects.create(
+                from_card=self.card, to_card=peer,
+                relation_type=CardRelation.Type.BLOCKS, created_by=self.user,
+            )
+
+        return peer, block
+
+    def _updated_card_ids(self):
+        return [
+            c.args[2].get("id")
+            for c in self._events(_broadcast.EVT_CARD_UPDATED)
+        ]
+
+    def test_archive_broadcasts_peer_blocked_before_lock(self):
+        peer, block = self._peer_with_new_blocker()
+        with self._before_lock(block):
+            resp = self._post(f"{self.base}/archive/")
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(self._updated_card_ids(), [peer.pk])
+
+    def test_unarchive_broadcasts_peer_blocked_before_lock(self):
+        Card.objects.filter(pk=self.card.pk).update(archived_at=timezone.now())
+        peer, block = self._peer_with_new_blocker()
+        with self._before_lock(block):
+            resp = self._post(f"{self.base}/unarchive/")
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(self._updated_card_ids(), [peer.pk])
+
+    # -- restore checks the limit of the cell the card is in under the lock ---
+
+    def _archived_card_moved_into_limited_column(self, *, room):
+        """Archived in A (no limit); moved into B (WIP 1) just before the lock.
+        B holds one active card, or none when ``room``."""
+        self.board.enforce_wip_limits = True
+        self.board.save(update_fields=["enforce_wip_limits"])
+        self.col_b.wip_limit = 1
+        self.col_b.save(update_fields=["wip_limit"])
+        if not room:
+            Card.objects.create(
+                board=self.board, column=self.col_b, swimlane=self.swim,
+                title="filler", created_by=self.user, position=0,
+            )
+        Card.objects.filter(pk=self.card.pk).update(archived_at=timezone.now())
+        return self._before_lock(
+            lambda: Card.objects.filter(pk=self.card.pk).update(
+                column=self.col_b, position=1,
+            )
+        )
+
+    def test_restore_into_full_column_moved_to_before_lock_is_409(self):
+        with self._archived_card_moved_into_limited_column(room=False):
+            resp = self._post(f"{self.base}/unarchive/")
+        self.assertEqual(resp.status_code, 409, resp.data)
+        self.assertEqual(resp.json()["code"], "wip_limit_exceeded")
+        self.assertEqual(resp.json()["column_name"], "B")
+        card = Card.objects.get(pk=self.card.pk)
+        self.assertIsNotNone(card.archived_at)
+        self.assertEqual(_movements(card, UNARCHIVED), [])
+        self.assertEqual(self.hook_events, [])
+
+    def test_restore_into_column_with_room_moved_to_before_lock_succeeds(self):
+        with self._archived_card_moved_into_limited_column(room=True):
+            resp = self._post(f"{self.base}/unarchive/")
+        self.assertEqual(resp.status_code, 200, resp.data)
+        card = Card.objects.get(pk=self.card.pk)
+        self.assertIsNone(card.archived_at)
+        self.assertEqual(card.column_id, self.col_b.pk)
 
 
 @skipUnless(

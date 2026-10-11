@@ -1327,7 +1327,6 @@ def archive_card(*, actor, board, card_id, render, role=None, render_many=None):
     if card.archived_at is None:
         board_id = card.board_id
         card_uid = card.uid
-        peer_ids = _blocked_peer_ids(card)
         with transaction.atomic():
             # Card row first (#1587): a delete committing after
             # _fetch_for_archive would otherwise make the update_fields save
@@ -1343,6 +1342,12 @@ def archive_card(*, actor, board, card_id, render, role=None, render_many=None):
             # COMMIT: move, archive and update all need a conflicting lock.
             _adopt_locked_state(card, locked)
             if card.archived_at is None:
+                # Read under the lock, like delete_card, so a BLOCKS relation
+                # committed while we waited counts: relation create locks both
+                # cards FOR UPDATE, which conflicts with lock_card_for_write.
+                # Read before it, the newly blocked peer would never get its
+                # card.updated frame and keep a stale blocker_count (#1605).
+                peer_ids = _blocked_peer_ids(card)
                 card.archived_at = timezone.now()
                 card.save(update_fields=["archived_at"])
                 _archive_movement(card, actor, CardMovement.MovementType.ARCHIVED)
@@ -1388,7 +1393,6 @@ def unarchive_card(
         return CardMutationResult(card=card, payload=render(card))
 
     board_id = card.board_id
-    peer_ids = _blocked_peer_ids(card)
     with transaction.atomic():
         # Card row first (#1587) — same delete race as archive_card — and
         # before enforce_column_limits locks the column, keeping the
@@ -1401,6 +1405,9 @@ def unarchive_card(
         _adopt_locked_state(card, locked)
         if card.archived_at is None:
             return CardMutationResult(card=card, payload=render(card))
+        # Under the lock, as in archive_card: a relation committed while we
+        # waited must count, or its peer misses its card.updated frame.
+        peer_ids = _blocked_peer_ids(card)
         card.archived_at = None
         card.save(update_fields=["archived_at"])
         # Checked after the write, with the card row already locked above, so
