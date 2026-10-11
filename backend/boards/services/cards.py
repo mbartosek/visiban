@@ -1332,16 +1332,28 @@ def archive_card(*, actor, board, card_id, render, role=None, render_many=None):
             # Card row first (#1587): a delete committing after
             # _fetch_for_archive would otherwise make the update_fields save
             # below match no row and raise "did not affect any rows" (a 500).
-            lock_card_for_write(card.pk)
-            card.archived_at = timezone.now()
-            card.save(update_fields=["archived_at"])
-            _archive_movement(card, actor, CardMovement.MovementType.ARCHIVED)
-            _broadcast_after_commit(board_id, _broadcast.EVT_CARD_ARCHIVED, {"card_uid": card_uid}, actor.id)
-            # Archiving a blocker drops its targets' blocker_count (#449).
-            # Rendered after the save so each peer payload reflects the new
-            # state, and inside the transaction so it rolls back with it.
-            _broadcast_blocked_peers(board_id, peer_ids, actor, render, render_many)
-            _fire_hooks("card.archived", card.id, board_id, actor.id)
+            locked = lock_card_for_write(card.pk)
+            # Decide from the row read under the lock, not the pre-lock read
+            # (#1605). A move committing in between left `card` naming the
+            # old cell, so the ARCHIVED movement row recorded A -> A while
+            # the card sat in B — a wrong audit trail for cycle-time reports.
+            # An archive committing in between would otherwise be overwritten
+            # with a later timestamp and fire a second movement row,
+            # broadcast and hook. Nothing can change the row again before
+            # COMMIT: move, archive and update all need a conflicting lock.
+            _adopt_locked_state(card, locked)
+            if card.archived_at is None:
+                card.archived_at = timezone.now()
+                card.save(update_fields=["archived_at"])
+                _archive_movement(card, actor, CardMovement.MovementType.ARCHIVED)
+                _broadcast_after_commit(board_id, _broadcast.EVT_CARD_ARCHIVED, {"card_uid": card_uid}, actor.id)
+                # Archiving a blocker drops its targets' blocker_count (#449).
+                # Rendered after the save so each peer payload reflects the new
+                # state, and inside the transaction so it rolls back with it.
+                _broadcast_blocked_peers(board_id, peer_ids, actor, render, render_many)
+                _fire_hooks("card.archived", card.id, board_id, actor.id)
+            # else: archived concurrently — the same no-op as the pre-lock
+            # check above, returning the card and broadcasting nothing.
     return CardMutationResult(card=card, payload=render(card))
 
 
@@ -1381,7 +1393,14 @@ def unarchive_card(
         # Card row first (#1587) — same delete race as archive_card — and
         # before enforce_column_limits locks the column, keeping the
         # card -> column order move_card uses.
-        lock_card_for_write(card.pk)
+        locked = lock_card_for_write(card.pk)
+        # Decide from the locked row (#1605), as archive_card does: a restore
+        # committing in between makes this the documented no-op (no second
+        # UNARCHIVED row, broadcast or hook), and the movement row and the
+        # column limit check below use the card's cell as it is now.
+        _adopt_locked_state(card, locked)
+        if card.archived_at is None:
+            return CardMutationResult(card=card, payload=render(card))
         card.archived_at = None
         card.save(update_fields=["archived_at"])
         # Checked after the write, with the card row already locked above, so
