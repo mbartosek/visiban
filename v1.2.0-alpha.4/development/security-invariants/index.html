@@ -4061,7 +4061,7 @@ write the same data over MCP, a socket, an invite link or an import.</p>
 <tr>
 <td>Django admin</td>
 <td><code>/admin/</code> (<code>django.contrib.admin.site</code>); <code>accounts/admin.py</code> <code>VisibanUserAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code></td>
-<td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page</td>
+<td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page. The Group admin (<code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>) is limited to active superusers for list, view, add, change, delete and app-index visibility (#1617; <code>accounts/tests/test_admin_group_restrictions.py</code>)</td>
 </tr>
 <tr>
 <td>Admin API</td>
