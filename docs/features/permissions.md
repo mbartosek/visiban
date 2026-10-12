@@ -56,7 +56,7 @@ To grant moderator rights, open Board Settings → Members and check the **Moder
 
 ## Site admin and content access
 
-Visiban tracks two independent flags on the User model:
+Visiban tracks two flags on the User model, independent for accounts that are not superusers (superuser status implies both):
 
 | Flag | What it controls |
 |---|---|
@@ -65,9 +65,9 @@ Visiban tracks two independent flags on the User model:
 
 When a user with `can_access_all_content` accesses a board, the permission system treats them as a site-level admin role — they can view and modify any board without an explicit membership.
 
-A user who is `is_site_admin=True` but `can_access_all_content=False` can manage the admin panel (users, settings, instance configuration) but **cannot** see boards they aren't a member of. This separation lets operators grant admin panel access without granting board omniscience.
+A non-superuser who is `is_site_admin=True` but `can_access_all_content=False` can manage the admin panel (users, settings, instance configuration) but **cannot** see boards they aren't a member of. This separation lets operators grant admin panel access without granting board omniscience.
 
 !!! tip
-    The `set_site_admin` management command sets **both** flags together for convenience. To manage them independently, use the admin panel. See [Site Admins](../administration/site-admins.md) for details.
+    The `set_site_admin` management command sets **both** flags together for convenience. To manage them independently (for accounts that are not superusers), use the admin panel. See [Site Admins](../administration/site-admins.md) for details.
 
 A board admin cannot change the role of, or remove, a member with `is_site_admin=True` unless the admin is also a site admin — see [Roles & Permissions — Site admin protection](rbac/roles.md#site-admin-protection).

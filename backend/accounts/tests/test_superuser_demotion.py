@@ -95,6 +95,57 @@ class SuperuserDemotionTests(TestCase):
         u.refresh_from_db()
         self.assertTrue(u.is_site_admin and u.can_access_all_content)
 
+    def test_save_cannot_leave_all_content_cleared_on_a_superuser(self):
+        # #1614: the promotion step re-grants when either derived flag is off.
+        u = _superuser("keep_1614")
+        u.can_access_all_content = False
+        u.save()
+        u.refresh_from_db()
+        self.assertTrue(u.is_site_admin and u.can_access_all_content)
+
+    def test_regrant_logs_once_without_pii(self):
+        u = _superuser("log_1614")
+        u.can_access_all_content = False
+        with self.assertLogs("accounts.signals", level="INFO") as cm:
+            u.save()
+        self.assertEqual(len(cm.records), 1)
+        msg = cm.records[0].getMessage()
+        self.assertIn(f"pk={u.pk}", msg)
+        self.assertNotIn("log_1614", msg)
+        self.assertNotIn("@example.com", msg)
+
+    def test_stale_superuser_instance_does_not_regrant_after_demotion(self):
+        u = _superuser("stale_regrant_1614")
+        User.objects.filter(pk=u.pk).update(is_site_admin=False, can_access_all_content=False)
+        stale = User.objects.get(pk=u.pk)
+        self.assertTrue(stale.is_superuser)
+        User.objects.filter(pk=u.pk).update(
+            is_superuser=False, is_site_admin=False, can_access_all_content=False
+        )
+        stale.save(update_fields=["last_login"])
+        u.refresh_from_db()
+        self.assertFalse(u.is_superuser)
+        self.assertFalse(u.is_site_admin)
+        self.assertFalse(u.can_access_all_content)
+
+    def test_restricted_save_cannot_leave_all_content_cleared(self):
+        u = _superuser("keep_uf_1614")
+        User.objects.filter(pk=u.pk).update(can_access_all_content=False)
+        u.refresh_from_db()
+        u.can_access_all_content = False
+        u.save(update_fields=["can_access_all_content"])
+        u.refresh_from_db()
+        self.assertTrue(u.can_access_all_content)
+
+    def test_non_superuser_all_content_flag_is_untouched(self):
+        u = User.objects.create_user(username="plain_1614", password="pw123456!x")
+        u.is_site_admin = True
+        u.can_access_all_content = False
+        u.save()
+        u.refresh_from_db()
+        self.assertTrue(u.is_site_admin)
+        self.assertFalse(u.can_access_all_content)
+
     def test_stale_instance_does_not_demote(self):
         u = _superuser("stale_1579")
         stale = User.objects.get(pk=u.pk)

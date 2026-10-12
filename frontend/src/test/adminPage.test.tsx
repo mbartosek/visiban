@@ -550,6 +550,30 @@ describe('AdminPage — Users tab', () => {
     })
   })
 
+  it('shows the server refusal when revoking all-content access from a superuser fails (#1614)', async () => {
+    // The admin list payload carries no is_superuser field, so the row cannot
+    // hide the action in advance; the server's 400 detail is what the admin sees.
+    const message = 'Cannot remove all-content access from a superuser; remove superuser status first.'
+    const holder: AdminUser = { ...fakeAdminUsers[1], can_access_all_content: true }
+    mockGetAdminUsers.mockResolvedValue({
+      count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], holder],
+    })
+    mockPatchAdminUser.mockRejectedValue({ response: { data: { detail: message } } })
+    renderAdminPage()
+    fireEvent.click(screen.getByText('Users'))
+    await waitFor(() => screen.getByText('@alice'))
+    await openRowMenu('Alice')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke all-content' }))
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByText('Confirm'))
+
+    await waitFor(() => {
+      expect(mockPatchAdminUser).toHaveBeenCalledWith(3, { can_access_all_content: false })
+      expect(screen.getByText(message)).toBeInTheDocument()
+    })
+  })
+
   it('falls back to a generic error message when clearAdminUserLockout fails without detail (#1203)', async () => {
     mockClearAdminUserLockout.mockRejectedValue(new Error('network error'))
     renderAdminPage()

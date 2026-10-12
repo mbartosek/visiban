@@ -563,6 +563,10 @@ SUPERUSER_SITE_ADMIN_MESSAGE = (
     "Cannot remove site admin from a superuser; remove superuser status first."
 )
 
+SUPERUSER_ALL_CONTENT_MESSAGE = (
+    "Cannot remove all-content access from a superuser; remove superuser status first."
+)
+
 
 class AdminPatchUserSerializer(drf_serializers.Serializer):
     """Validates partial updates allowed by site admins."""
@@ -582,6 +586,19 @@ class AdminPatchUserSerializer(drf_serializers.Serializer):
         target = self.context.get("target")
         if not value and target is not None and target.is_superuser:
             raise drf_serializers.ValidationError(SUPERUSER_SITE_ADMIN_MESSAGE)
+        return value
+
+    def validate_can_access_all_content(self, value):
+        """Refuse to clear all-content access on a superuser (#1614).
+
+        Superuser status implies this flag as well as site admin
+        (``accounts/signals.py`` ``ensure_superuser_is_site_admin``), so it
+        cannot be cleared while ``is_superuser`` is set; the same rule and
+        context as ``validate_is_site_admin`` (#1597).
+        """
+        target = self.context.get("target")
+        if not value and target is not None and target.is_superuser:
+            raise drf_serializers.ValidationError(SUPERUSER_ALL_CONTENT_MESSAGE)
         return value
 
 
@@ -1020,6 +1037,10 @@ class AdminUserDetailView(APIView):
             # The admin UI reads ``detail``; carry the refusal reason there too.
             if SUPERUSER_SITE_ADMIN_MESSAGE in [str(e) for e in errors.get("is_site_admin", [])]:
                 errors["detail"] = SUPERUSER_SITE_ADMIN_MESSAGE
+            elif SUPERUSER_ALL_CONTENT_MESSAGE in [
+                str(e) for e in errors.get("can_access_all_content", [])
+            ]:
+                errors["detail"] = SUPERUSER_ALL_CONTENT_MESSAGE
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
         validated = serializer.validated_data
@@ -1068,6 +1089,14 @@ class AdminUserDetailView(APIView):
                         {
                             "is_site_admin": [SUPERUSER_SITE_ADMIN_MESSAGE],
                             "detail": SUPERUSER_SITE_ADMIN_MESSAGE,
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if locked.is_superuser and validated.get("can_access_all_content") is False:
+                    return Response(
+                        {
+                            "can_access_all_content": [SUPERUSER_ALL_CONTENT_MESSAGE],
+                            "detail": SUPERUSER_ALL_CONTENT_MESSAGE,
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )

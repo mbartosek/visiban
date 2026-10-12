@@ -437,6 +437,11 @@ class User(AbstractUser):
     avatar_url = models.URLField(blank=True)
     display_name = models.CharField(max_length=150, blank=True)
     is_site_admin = models.BooleanField(default=False)
+    # For a superuser this is always true: the post_save signal in
+    # accounts/signals.py re-grants it, and the admin API refuses to clear it.
+    # It is independent of is_site_admin only for non-superusers. The
+    # help_text below predates this and is corrected, with a data migration
+    # that normalizes existing rows, under #1629.
     can_access_all_content = models.BooleanField(
         default=False,
         help_text="Grants read/write access to all boards and groups on this instance regardless of membership. Independent of is_site_admin.",

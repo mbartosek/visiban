@@ -1,6 +1,10 @@
+import logging
+
 from django.db import connection, transaction
 from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
+
+logger = logging.getLogger(__name__)
 
 
 def _connect_user_signals():
@@ -64,12 +68,14 @@ def _connect_user_signals():
 
     @receiver(post_save, sender=User, dispatch_uid="accounts.ensure_superuser_is_site_admin")
     def ensure_superuser_is_site_admin(sender, instance, **kwargs):
-        """Keep is_site_admin in sync with is_superuser.
+        """Keep is_site_admin and can_access_all_content in sync with is_superuser.
 
         When a superuser is created (e.g. via createsuperuser or the ensure_site_admin
         management command) they should automatically hold the is_site_admin flag so
         the admin API is accessible from the first login, without requiring a separate
-        step.  We use update_fields to avoid a recursive save loop.
+        step.  We use update_fields to avoid a recursive save loop. A save that
+        leaves either derived flag false on a superuser re-grants both (#1614),
+        so no route can leave all-content access cleared on a superuser.
 
         The reverse also holds (#1579): removing superuser status removes the
         two flags derived from it, and runs the same access-loss housekeeping
@@ -97,11 +103,24 @@ def _connect_user_signals():
                     instance, None, {**prior, "is_active": instance.is_active}
                 )
             return
-        if instance.is_superuser and not instance.is_site_admin:
-            sender.objects.filter(pk=instance.pk).update(
+        if instance.is_superuser and not (
+            instance.is_site_admin and instance.can_access_all_content
+        ):
+            # Conditional on the stored row still being a superuser: this
+            # instance may be stale, and a demotion committed since it was
+            # loaded must not be undone by a re-grant (#1614).
+            granted = sender.objects.filter(pk=instance.pk, is_superuser=True).update(
                 is_site_admin=True,
                 can_access_all_content=True,
             )
-            # Refresh the in-memory instance so callers see the updated values.
-            instance.is_site_admin = True
-            instance.can_access_all_content = True
+            if granted:
+                logger.info(
+                    "Re-granted derived access flags on superuser pk=%s "
+                    "(is_site_admin %s->True, can_access_all_content %s->True)",
+                    instance.pk,
+                    instance.is_site_admin,
+                    instance.can_access_all_content,
+                )
+                # Refresh the in-memory instance so callers see the updated values.
+                instance.is_site_admin = True
+                instance.can_access_all_content = True

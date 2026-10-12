@@ -13,7 +13,7 @@ User
  ├── display_name (str, blank)
  ├── theme (str — system | dark | light; default system)
  ├── is_site_admin (bool — grants access to the admin panel)
- ├── can_access_all_content (bool — read/write access to all boards and groups, independent of is_site_admin)
+ ├── can_access_all_content (bool — read/write access to all boards and groups, independent of is_site_admin for non-superusers; always true for a superuser)
  ├── must_change_password (bool)
  ├── must_change_username (bool — set when a CI collision renames the account)
  ├── close_editor_on_enter (bool — submit new-card input on Enter; default true)
@@ -173,7 +173,7 @@ Notification
 
 ### User
 
-The `is_site_admin` flag grants access to the Visiban admin panel (user management, site settings). It does **not** grant access to boards or groups. The separate `can_access_all_content` flag grants read/write access to every board and group on the instance regardless of membership. The two flags are independent and can be combined.
+The `is_site_admin` flag grants access to the Visiban admin panel (user management, site settings). It does **not** grant access to boards or groups. The separate `can_access_all_content` flag grants read/write access to every board and group on the instance regardless of membership. For accounts that are not superusers the two flags are independent and can be combined; superuser status implies both.
 
 `theme` (`system` / `dark` / `light`, default `system`) is the per-user dark-mode preference; `avatar_url` and `display_name` are both optional and blank by default. `avatar_url` uses `""` rather than `null` as its "no avatar" sentinel — a 1.0 API contract that cannot change without a major version bump.
 

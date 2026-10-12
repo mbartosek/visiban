@@ -35,6 +35,11 @@ that the IPv4-literal substitution wasn't reverted.
 raised the timeout 120→240s on the (wrong) slow-boot assumption before the real cause was
 found.
 
+**Where the Django server output is:** `oidc-smoke` redirects `runserver` output to the
+`oidc-smoke-server.log` job artifact (developer-only, 1 week) rather than the job log, and
+prints the last 200 lines of it on failure (#1611). Check the artifact if the smoke test
+reports a callback or session error that the job log does not explain.
+
 ## Docker push: `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`
 
 **Signature:** `backend-docker-push` or `frontend-docker-push` fails with this Docker daemon
