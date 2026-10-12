@@ -33,7 +33,7 @@ from django.urls import reverse
 from django.utils.encoding import force_str
 from rest_framework.test import APIClient
 
-from accounts import admin_views
+from accounts.admin import VisibanUserChangeForm
 from accounts.adapter import RegistrationAdapter
 from accounts.models import User
 from accounts.permissions import TokenHasScope
@@ -332,22 +332,30 @@ class DjangoAdminChangeFormStaleRowTests(TestCase):
         data.update(overrides)
         return {k: v for k, v in data.items() if v != ""}
 
+    def _post_with_change_after_load(self, data, **changes):
+        """POST the change form, committing *changes* after the instance loads.
+
+        The form's ``clean`` runs after the admin view loaded the instance and
+        before ``save_model`` takes the row lock, which is the window a
+        concurrent request can commit in.
+        """
+        original_clean = VisibanUserChangeForm.clean
+
+        def clean_then_change(form):
+            cleaned = original_clean(form)
+            _commit_concurrent_change(self.target.pk, **changes)
+            return cleaned
+
+        with patch.object(VisibanUserChangeForm, "clean", clean_then_change):
+            return self.client.post(
+                reverse("admin:accounts_user_change", args=[self.target.pk]), data
+            )
+
     def test_unchanged_fields_keep_values_committed_before_the_save(self):
-        original_lock = admin_views.lock_user_row
-
-        def change_then_lock(pk):
-            # Committed after the admin view loaded the instance, before
-            # save_model takes the row lock.
-            _commit_concurrent_change(
-                pk, password=OTHER_PASSWORD, is_active=False, must_change_password=True
-            )
-            return original_lock(pk)
-
-        with patch.object(admin_views, "lock_user_row", change_then_lock):
-            response = self.client.post(
-                reverse("admin:accounts_user_change", args=[self.target.pk]),
-                self._form_data(first_name="Ada"),
-            )
+        response = self._post_with_change_after_load(
+            self._form_data(first_name="Ada"),
+            password=OTHER_PASSWORD, is_active=False, must_change_password=True,
+        )
         self.assertEqual(response.status_code, 302)
         stored = User.objects.get(pk=self.target.pk)
         self.assertEqual(stored.first_name, "Ada")
@@ -364,6 +372,23 @@ class DjangoAdminChangeFormStaleRowTests(TestCase):
         stored = User.objects.get(pk=self.target.pk)
         self.assertFalse(stored.is_active)
         self.assertTrue(stored.check_password(OLD_PASSWORD))
+
+    def test_stale_unchanged_active_flag_is_not_refused_as_a_deactivation(self):
+        # The form renders the board owner as inactive and the administrator
+        # leaves the box alone; another request reactivates the account before
+        # the save. The locked-row guards judge the value this save writes
+        # (the reactivation is kept), so the board-owner refusal does not fire.
+        from boards.models import Board
+
+        Board.objects.create(name="Owned", owner=self.target)
+        User.objects.filter(pk=self.target.pk).update(is_active=False)
+        response = self._post_with_change_after_load(
+            self._form_data(first_name="Ada", is_active=""), is_active=True
+        )
+        self.assertEqual(response.status_code, 302)
+        stored = User.objects.get(pk=self.target.pk)
+        self.assertEqual(stored.first_name, "Ada")
+        self.assertTrue(stored.is_active)
 
 
 @skipUnless(connection.vendor == "postgresql", "interleaving needs separate PostgreSQL connections")

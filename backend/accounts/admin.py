@@ -206,15 +206,6 @@ class VisibanUserAdmin(UserAdmin):
                 .order_by("pk")
             )
             stored = next((u for u in locked if u.pk == obj.pk), None)
-            if stored is not None:
-                # The form's checks ran before this lock was taken; repeat them
-                # against the locked rows.
-                if (stored.is_active and not obj.is_active and deactivation_refusal(
-                    stored, request.user, include_last_site_admin=True
-                )) or (stored.is_superuser and not obj.is_superuser and demotion_refusal(
-                    stored, request.user
-                )):
-                    raise PermissionDenied
             if stored is not None and form is not None:
                 # The form wrote its values onto the instance Django loaded
                 # earlier in this request. Between that load and the lock
@@ -235,6 +226,18 @@ class VisibanUserAdmin(UserAdmin):
                         changed is not None and field.name not in changed
                     ):
                         setattr(obj, field.attname, getattr(stored, field.attname))
+            if stored is not None:
+                # The form's checks ran before this lock was taken; repeat them
+                # against the locked rows. They run after the values above are
+                # taken from the locked row, so they judge what this save will
+                # write: a stale rendered value the administrator left alone is
+                # not a deactivation or demotion.
+                if (stored.is_active and not obj.is_active and deactivation_refusal(
+                    stored, request.user, include_last_site_admin=True
+                )) or (stored.is_superuser and not obj.is_superuser and demotion_refusal(
+                    stored, request.user
+                )):
+                    raise PermissionDenied
             super().save_model(request, obj, form, change)
             if stored is not None:
                 apply_access_loss_revocations(obj, request.user, access_state(stored))
