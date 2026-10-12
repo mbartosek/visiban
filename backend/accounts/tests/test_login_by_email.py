@@ -186,7 +186,8 @@ class EmailBackendTimingTests(TestCase):
     def _hash_count(self, identifier):
         request = RequestFactory().post("/")
         with patch("django.contrib.auth.base_user.make_password", wraps=hashers.make_password) as mk, \
-             patch("django.contrib.auth.base_user.check_password", wraps=hashers.check_password) as ck:
+             patch("accounts.models.check_password", wraps=hashers.check_password) as ck:
+            # User.check_password calls the hasher through accounts.models (#1601).
             self.assertIsNone(EmailBackend().authenticate(request, username=identifier, password="wrong-password"))
             return mk.call_count + ck.call_count
 
