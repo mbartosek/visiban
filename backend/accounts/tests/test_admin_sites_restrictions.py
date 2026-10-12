@@ -45,16 +45,36 @@ class SitesAdminRestrictionTests(TestCase):
         )
         self.assertNotIn("/admin/sites/", self.client.get(reverse("admin:index")).content.decode())
 
-    def test_non_superuser_cannot_change_or_delete_site(self):
+    def test_non_superuser_cannot_change_add_or_delete_site(self):
         self.client.force_login(self.staff)
         domain = self.site.domain
-        self.client.post(
+        count = Site.objects.count()
+        r = self.client.post(
             reverse("admin:sites_site_change", args=[self.site.pk]),
             {"domain": "changed.example.org", "name": "x"},
         )
-        self.client.post(reverse("admin:sites_site_delete", args=[self.site.pk]), {"post": "yes"})
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post(
+            reverse("admin:sites_site_add"), {"domain": "new.example.org", "name": "new"}
+        )
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post(reverse("admin:sites_site_delete", args=[self.site.pk]), {"post": "yes"})
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(Site.objects.filter(pk=self.site.pk).exists())
+        self.assertEqual(Site.objects.count(), count)
         self.site.refresh_from_db()
         self.assertEqual(self.site.domain, domain)
+
+    def test_inactive_superuser_is_refused_by_every_hook(self):
+        class R:
+            user = User(is_active=False, is_superuser=True)
+
+        model_admin = admin.site._registry[Site]
+        self.assertFalse(model_admin.has_module_permission(R()))
+        self.assertFalse(model_admin.has_view_permission(R()))
+        self.assertFalse(model_admin.has_add_permission(R()))
+        self.assertFalse(model_admin.has_change_permission(R()))
+        self.assertFalse(model_admin.has_delete_permission(R()))
 
     def test_superuser_keeps_access(self):
         self.client.force_login(self.root)
