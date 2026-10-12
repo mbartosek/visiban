@@ -1,7 +1,9 @@
+import functools
 import json
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.actions import delete_selected
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import UserChangeForm
@@ -10,6 +12,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseRedirect
+from django.urls import reverse
 from django.utils.crypto import constant_time_compare, salted_hmac
 
 from .models import (
@@ -187,6 +190,87 @@ def _refusal_message(refusal):
     if boards:
         message += f" Owned boards: {len(boards)}."
     return message
+
+
+class DeletionRefused(Exception):
+    """A user delete was refused; ``messages`` are shown to the administrator (#1616)."""
+
+    def __init__(self, messages_):
+        super().__init__("; ".join(messages_))
+        self.messages = list(messages_)
+
+
+def user_deletion_refusals(targets, actor):
+    """Reasons *targets* may not be deleted by *actor*, as admin-facing strings.
+
+    Deleting a user cascades to the boards they own (``Board.owner`` is
+    CASCADE), so the deactivation rules apply to a delete as well: no
+    self-deletion, no deleting a board owner before the boards are
+    transferred, and never the last active site admin (#1616). The rules come
+    from ``deactivation_refusal`` so this route cannot drift from the form and
+    the admin API.
+
+    A bulk delete is judged as one set: each account is checked on its own and
+    the active site admins left outside the set must be non-empty, because two
+    accounts that are each "not the last" can be the last two. The same rules
+    apply to every actor, superusers included, as on the change form. Callers
+    that hold row locks (``delete_model``/``delete_queryset``) call this under
+    the lock so the counts cannot move between check and delete.
+    """
+    from .admin_views import deactivation_refusal
+
+    targets = list(targets)
+    reasons = []
+    target_pks = {t.pk for t in targets}
+    for target in targets:
+        refusal = deactivation_refusal(
+            target, actor, include_last_site_admin=target.is_active
+        )
+        if refusal is None:
+            continue
+        detail = refusal.body.get("detail", "")
+        reason = str(detail).replace("deactivat", "delet").replace("Cannot delet ", "Cannot delete ")
+        if refusal.body.get("code") == "owned_boards":
+            names = ", ".join(b["name"] for b in refusal.body["owned_boards"])
+            reason = f"User owns boards that must be transferred before deletion ({names})."
+        elif target.pk == actor.pk:
+            reason = "You cannot delete your own account."
+        elif "last active site admin" in reason:
+            reason = "Cannot delete the last active site admin."
+        reasons.append(f"{target}: {reason}")
+    if not reasons and any(t.is_site_admin and t.is_active for t in targets):
+        remaining = User.objects.filter(is_site_admin=True, is_active=True).exclude(
+            pk__in=target_pks
+        )
+        if not remaining.exists():
+            reasons.append("Cannot delete every active site admin.")
+    return reasons
+
+
+def guarded_delete_selected(modeladmin, request, queryset):
+    """The ``delete_selected`` action with the user-delete guards applied (#1616).
+
+    Atomic by design: when any selected account is refused, nothing is deleted
+    and every reason is shown, so a partial delete never leaves the
+    administrator guessing what happened. Checked before the confirmation page
+    and again on the confirming POST.
+    """
+    reasons = user_deletion_refusals(queryset, request.user)
+    if reasons:
+        for reason in reasons:
+            modeladmin.message_user(request, reason, messages.ERROR)
+        modeladmin.message_user(request, "No accounts were deleted.", messages.ERROR)
+        return None
+    try:
+        return delete_selected(modeladmin, request, queryset)
+    except DeletionRefused as exc:
+        for reason in exc.messages:
+            modeladmin.message_user(request, reason, messages.ERROR)
+        modeladmin.message_user(request, "No accounts were deleted.", messages.ERROR)
+        return None
+
+
+functools.update_wrapper(guarded_delete_selected, delete_selected)
 
 
 @admin.register(User)
@@ -422,11 +506,54 @@ class VisibanUserAdmin(UserAdmin):
                     form.cleaned_data.pop(field.name, None)
         super().save_related(request, form, formsets, change)
 
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if "delete_selected" in actions:
+            _func, name, description = actions["delete_selected"]
+            actions["delete_selected"] = (guarded_delete_selected, name, description)
+        return actions
+
+    def delete_view(self, request, object_id, extra_context=None):
+        """Refuse a guarded delete with a message, on the confirm page and on submit (#1616)."""
+        obj = self.get_object(request, unquote(object_id))
+        if obj is not None and self.has_delete_permission(request, obj):
+            reasons = user_deletion_refusals([obj], request.user)
+            if reasons:
+                return self._deletion_refused(request, reasons)
+        try:
+            return super().delete_view(request, object_id, extra_context)
+        except DeletionRefused as exc:
+            return self._deletion_refused(request, exc.messages)
+
+    def _deletion_refused(self, request, reasons):
+        for reason in reasons:
+            self.message_user(request, reason, messages.ERROR)
+        return HttpResponseRedirect(reverse("admin:accounts_user_changelist"))
+
+    @staticmethod
+    def _lock_for_delete(pks):
+        """Lock the targets and every active site admin in one pk-ordered statement.
+
+        Same lock order as ``save_model``, so concurrent deletes and saves
+        serialize instead of deadlocking, and two deletes of the last two site
+        admins cannot both pass the check (#1616).
+        """
+        return list(
+            User.objects.select_for_update()
+            .filter(Q(pk__in=pks) | Q(is_site_admin=True, is_active=True))
+            .order_by("pk")
+        )
+
     def delete_model(self, request, obj):
         # Board.owner is CASCADE, so deleting a user deletes their boards and
         # those boards' cards: lock the cards first, in one transaction held
         # across the delete (#1603; see lock_cards_for_cascade).
         with transaction.atomic():
+            locked = self._lock_for_delete([obj.pk])
+            targets = [u for u in locked if u.pk == obj.pk]
+            reasons = user_deletion_refusals(targets, request.user)
+            if reasons:
+                raise DeletionRefused(reasons)
             lock_cards_for_cascade(Card.objects.filter(board__owner_id=obj.pk))
             super().delete_model(request, obj)
 
@@ -434,7 +561,13 @@ class VisibanUserAdmin(UserAdmin):
         # A bulk action is not wrapped in a transaction by Django: one outer
         # atomic so the locks outlive the delete (#1603).
         with transaction.atomic():
-            lock_cards_for_cascade(Card.objects.filter(board__owner__in=queryset.values("pk")))
+            pks = list(queryset.values_list("pk", flat=True))
+            locked = self._lock_for_delete(pks)
+            targets = [u for u in locked if u.pk in set(pks)]
+            reasons = user_deletion_refusals(targets, request.user)
+            if reasons:
+                raise DeletionRefused(reasons)
+            lock_cards_for_cascade(Card.objects.filter(board__owner__in=pks))
             super().delete_queryset(request, queryset)
 
 
