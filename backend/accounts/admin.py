@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import UserChangeForm
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Q
 
 from .models import (
     AdminActionLog,
@@ -16,6 +19,59 @@ from boards.services.cards import lock_cards_for_cascade
 from .credentials import finalize_password_change, require_password_change_after_admin_set
 
 
+#: Fields only a superuser may edit in the Django admin user form (#1577).
+_SUPERUSER_ONLY_FIELDS = ("is_staff", "is_superuser", "groups", "user_permissions")
+
+
+class VisibanUserChangeForm(UserChangeForm):
+    """The user change form with the admin API's account guards.
+
+    ``VisibanUserAdmin.get_form`` sets ``guard_actor`` to the requesting user.
+    The guards apply to every actor: deactivating one's own account, a board
+    owner or the last active site admin, and removing one's own or the last
+    active superuser status, are refused. Refusals are form errors so they
+    render on the form and nothing is saved.
+    """
+
+    guard_actor = None
+
+    def clean(self):
+        cleaned = super().clean()
+        actor = self.guard_actor
+        stored = self.instance  # clean() runs before the instance is updated
+        if actor is None or not stored.pk:
+            return cleaned
+        from .admin_views import deactivation_refusal, demotion_refusal
+
+        if stored.is_active and "is_active" in self.fields and cleaned.get("is_active") is False:
+            refusal = deactivation_refusal(stored, actor, include_last_site_admin=True)
+            if refusal is not None:
+                raise ValidationError(_refusal_message(refusal), code="deactivation_refused")
+        if stored.is_superuser and "is_superuser" in self.fields and cleaned.get("is_superuser") is False:
+            refusal = demotion_refusal(stored, actor)
+            if refusal is not None:
+                raise ValidationError(_refusal_message(refusal), code="demotion_refused")
+        return cleaned
+
+
+def _is_privileged_other_account(actor, target):
+    """True for a superuser or site-admin account other than *actor*'s own."""
+    return (
+        target is not None
+        and target.pk != actor.pk
+        and (target.is_superuser or target.is_site_admin)
+    )
+
+
+def _refusal_message(refusal):
+    # Board names stay out of the form message; the count is enough here.
+    message = refusal.body["detail"]
+    boards = refusal.body.get("owned_boards")
+    if boards:
+        message += f" Owned boards: {len(boards)}."
+    return message
+
+
 @admin.register(User)
 class VisibanUserAdmin(UserAdmin):
     """Django's ``UserAdmin`` with the project's password rules applied (#1551).
@@ -28,6 +84,41 @@ class VisibanUserAdmin(UserAdmin):
     The admin's own "change my password" page (``/admin/password_change/``) is
     routed to the SPA in ``visiban/urls.py`` instead.
     """
+
+    form = VisibanUserChangeForm
+
+    def get_queryset(self, request):
+        """Non-superuser staff do not see superuser accounts."""
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser:
+            qs = qs.filter(is_superuser=False)
+        return qs
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.guard_actor = request.user
+        return form
+
+    def _refuse_privileged_password_target(self, request, id):
+        """Only a superuser sets the password of a superuser or site admin.
+
+        The lookup bypasses ``get_queryset`` so a superuser target is refused
+        explicitly rather than reported as missing. An account's own password
+        form stays available to its owner.
+        """
+        if request.user.is_superuser:
+            return
+        try:
+            target = (
+                admin.ModelAdmin.get_queryset(self, request)
+                .filter(pk=unquote(id))
+                .only("pk", "is_superuser", "is_site_admin")
+                .first()
+            )
+        except (ValueError, ValidationError):
+            return
+        if _is_privileged_other_account(request.user, target):
+            raise PermissionDenied
 
     def user_change_password(self, request, id, form_url=""):
         """Run Django's view, then apply the password follow-up if it set one.
@@ -45,6 +136,7 @@ class VisibanUserAdmin(UserAdmin):
           because the session auth hash derives from the password hash;
           Django refreshes only the actor's own session.
         """
+        self._refuse_privileged_password_target(request, id)
         if request.method != "POST":
             return super().user_change_password(request, id, form_url)
         target = self.get_object(request, unquote(id))
@@ -63,10 +155,15 @@ class VisibanUserAdmin(UserAdmin):
         return response
 
     def get_readonly_fields(self, request, obj=None):
-        """Only a superuser may change who is a superuser (#1579)."""
+        """Only a superuser may edit privilege-bearing fields (#1579)."""
         readonly = tuple(super().get_readonly_fields(request, obj))
-        if not request.user.is_superuser and "is_superuser" not in readonly:
-            readonly += ("is_superuser",)
+        if not request.user.is_superuser:
+            readonly += tuple(f for f in _SUPERUSER_ONLY_FIELDS if f not in readonly)
+            if _is_privileged_other_account(request.user, obj):
+                # Same predicate as the password form: identity fields of a
+                # site-admin account feed password reset, so they stay with
+                # superusers.
+                readonly += tuple(f for f in ("email", "username") if f not in readonly)
         return readonly
 
     def save_model(self, request, obj, form, change):
@@ -85,13 +182,38 @@ class VisibanUserAdmin(UserAdmin):
         # housekeeping as the admin API (#1563). The stored values are read
         # under a row lock before the save because the ModelForm has already
         # written the submitted values onto ``obj``.
-        from .admin_views import access_state, apply_access_loss_revocations, lock_user_row
+        from .admin_views import (
+            access_state,
+            apply_access_loss_revocations,
+            deactivation_refusal,
+            demotion_refusal,
+        )
 
         with transaction.atomic():
-            try:
-                stored = lock_user_row(obj.pk)
-            except User.DoesNotExist:
-                stored = None
+            # One pk-ordered lock covers the target and every row the guards
+            # count (active site admins and active superusers). A single
+            # ordered statement gives concurrent saves the same lock order, so
+            # they serialize instead of deadlocking, and two accounts removing
+            # each other's access cannot both pass the last-admin checks.
+            locked = list(
+                User.objects.select_for_update()
+                .filter(
+                    Q(pk=obj.pk)
+                    | Q(is_site_admin=True, is_active=True)
+                    | Q(is_superuser=True, is_active=True)
+                )
+                .order_by("pk")
+            )
+            stored = next((u for u in locked if u.pk == obj.pk), None)
+            if stored is not None:
+                # The form's checks ran before this lock was taken; repeat them
+                # against the locked rows.
+                if (stored.is_active and not obj.is_active and deactivation_refusal(
+                    stored, request.user, include_last_site_admin=True
+                )) or (stored.is_superuser and not obj.is_superuser and demotion_refusal(
+                    stored, request.user
+                )):
+                    raise PermissionDenied
             if stored is not None and form is not None:
                 # The form wrote its values onto the instance Django loaded
                 # earlier in this request. Between that load and the lock

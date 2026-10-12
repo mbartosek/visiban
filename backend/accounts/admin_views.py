@@ -1,5 +1,6 @@
 """Admin API views — all endpoints gated by IsSiteAdmin."""
 import logging
+from typing import NamedTuple
 from datetime import timedelta
 
 from django.conf import settings
@@ -917,6 +918,84 @@ def apply_access_loss_revocations(target, actor, prior):
         _revoke_lapsed_admin_invite_links(target)
 
 
+class GuardRefusal(NamedTuple):
+    """A refused account change: the HTTP status and body the admin API returns."""
+
+    status: int
+    body: dict
+
+
+def last_active_site_admin(target):
+    """True when *target* is the only active site admin left (nobody else could take over)."""
+    return not User.objects.filter(is_site_admin=True, is_active=True).exclude(pk=target.pk).exists()
+
+
+def deactivation_refusal(target, actor, *, include_last_site_admin=False):
+    """The one rule set for deactivating *target* by *actor*, or ``None`` if allowed.
+
+    Shared by ``AdminUserDetailView.patch`` and the Django admin user form
+    (``accounts/admin.py``) so the two routes cannot drift apart (#1577). The
+    API's refusals (status and body) are returned unchanged: an actor may not
+    deactivate their own account, and a board owner is not deactivated here
+    because the ownership transfers belong to the dedicated deactivate
+    endpoint. ``include_last_site_admin`` adds the last-active-site-admin
+    refusal, which the Django admin form applies to every actor.
+    """
+    if target.pk == actor.pk:
+        return GuardRefusal(
+            status.HTTP_400_BAD_REQUEST,
+            {"detail": "You cannot deactivate your own account."},
+        )
+    from boards.models import Board
+
+    owned = list(Board.objects.filter(owner=target).values("id", "uid", "name"))
+    if owned:
+        return GuardRefusal(
+            status.HTTP_409_CONFLICT,
+            {
+                "code": "owned_boards",
+                "detail": "User owns boards that must be transferred before deactivation.",
+                "owned_boards": owned,
+            },
+        )
+    if include_last_site_admin and target.is_site_admin and last_active_site_admin(target):
+        return GuardRefusal(
+            status.HTTP_400_BAD_REQUEST,
+            {"detail": "Cannot deactivate the last active site admin."},
+        )
+    return None
+
+
+def demotion_refusal(target, actor):
+    """Refusal for removing superuser status from *target* by *actor*, or ``None``.
+
+    Used by the Django admin user form for every actor. Removing superuser
+    status also removes site-admin access (``accounts/signals.py``), so the
+    refusals mirror the site-admin demotion rules: an actor may not remove
+    their own status, and the last active superuser (or last active site
+    admin) is kept so that at least one account can always administer the
+    instance. *target* is the stored row; callers check the transition first.
+    """
+    if target.pk == actor.pk:
+        return GuardRefusal(
+            status.HTTP_400_BAD_REQUEST,
+            {"detail": "You cannot remove your own superuser status."},
+        )
+    if target.is_active:
+        other_superusers = User.objects.filter(is_superuser=True, is_active=True).exclude(pk=target.pk)
+        if not other_superusers.exists():
+            return GuardRefusal(
+                status.HTTP_400_BAD_REQUEST,
+                {"detail": "Cannot remove superuser status from the last active superuser."},
+            )
+        if target.is_site_admin and last_active_site_admin(target):
+            return GuardRefusal(
+                status.HTTP_400_BAD_REQUEST,
+                {"detail": "Cannot demote the last active site admin."},
+            )
+    return None
+
+
 class AdminUserDetailView(APIView):
     """PATCH /api/admin/users/{id}/ — update is_active, is_site_admin, must_change_password."""
     permission_classes = _ADMIN_PERMISSIONS
@@ -946,26 +1025,12 @@ class AdminUserDetailView(APIView):
         validated = serializer.validated_data
         update_fields = []
 
-        # Guard: cannot deactivate yourself.
+        # Guard: cannot deactivate yourself, nor a board owner via PATCH (the
+        # dedicated deactivate endpoint carries the ownership transfers).
         if "is_active" in validated and not validated["is_active"]:
-            if target.pk == request.user.pk:
-                return Response(
-                    {"detail": "You cannot deactivate your own account."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            # Guard: deactivating a board-owning user via PATCH is not allowed —
-            # use POST /api/admin/users/{id}/deactivate/ to provide ownership transfers.
-            from boards.models import Board
-            owned = list(Board.objects.filter(owner=target).values("id", "uid", "name"))
-            if owned:
-                return Response(
-                    {
-                        "code": "owned_boards",
-                        "detail": "User owns boards that must be transferred before deactivation.",
-                        "owned_boards": owned,
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+            refusal = deactivation_refusal(target, request.user)
+            if refusal is not None:
+                return Response(refusal.body, status=refusal.status)
 
         # Guard: cannot remove the last site admin.
         if "is_site_admin" in validated and not validated["is_site_admin"]:
