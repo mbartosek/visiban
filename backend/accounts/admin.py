@@ -1,4 +1,7 @@
-from django.contrib import admin
+import json
+
+from django import forms
+from django.contrib import admin, messages
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import UserChangeForm
@@ -6,6 +9,8 @@ from django.contrib.auth.models import Group as AuthGroup
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponseRedirect
+from django.utils.crypto import constant_time_compare, salted_hmac
 
 from .models import (
     AdminActionLog,
@@ -24,6 +29,69 @@ from .credentials import finalize_password_change, require_password_change_after
 _SUPERUSER_ONLY_FIELDS = ("is_staff", "is_superuser", "groups", "user_permissions")
 
 
+#: Hidden field carrying the account's state as the change form rendered it (#1622).
+ROW_VERSION_FIELD = "row_version"
+
+STALE_FORM_MESSAGE = (
+    "This account was changed after this page was opened. Reload the page and "
+    "make your changes again."
+)
+
+#: Shown after a redirect to the change page, which then shows the current state.
+STALE_SAVE_MESSAGE = (
+    "This account was changed after this page was opened, so nothing was saved. "
+    "The page now shows the current state of the account; make your changes again."
+)
+
+
+class StaleSubmission(Exception):
+    """The submitted ``row_version`` does not match the row read under the lock."""
+
+
+def _m2m_state(user, field_names):
+    """Sorted primary keys of *user*'s many-to-many fields among *field_names*."""
+    state = {}
+    for name in sorted(field_names):
+        if User._meta.get_field(name).many_to_many:
+            # Read from the database, not a prefetch cache.
+            state[name] = sorted(getattr(user, name).values_list("pk", flat=True))
+    return state
+
+
+def user_row_version(user, field_names):
+    """A keyed digest of *user*'s stored values for the form fields *field_names*.
+
+    The change form renders it as ``row_version``; a submission is accepted
+    only while it still matches the stored account (#1622). The digest is
+    keyed with ``SECRET_KEY`` so the hidden value says nothing about the
+    stored values.
+    """
+    state = {"pk": user.pk, **_m2m_state(user, field_names)}
+    for name in field_names:
+        field = User._meta.get_field(name)
+        if not field.many_to_many:
+            state[name] = field.value_from_object(user)
+    payload = json.dumps(state, sort_keys=True, default=str)
+    return salted_hmac("accounts.admin.user_row_version", payload).hexdigest()
+
+
+def row_version_matches(submitted, current):
+    return constant_time_compare(submitted, current)
+
+
+class _RowVersionField(forms.CharField):
+    """Hidden ``row_version``; never reported as a changed field.
+
+    It is not account data, so it stays out of ``changed_data`` and the admin
+    history's change message.
+    """
+
+    widget = forms.HiddenInput
+
+    def has_changed(self, initial, data):
+        return False
+
+
 class VisibanUserChangeForm(UserChangeForm):
     """The user change form with the admin API's account guards.
 
@@ -32,12 +100,60 @@ class VisibanUserChangeForm(UserChangeForm):
     owner or the last active site admin, and removing one's own or the last
     active superuser status, are refused. Refusals are form errors so they
     render on the form and nothing is saved.
+
+    ``row_version`` records the account's stored values, for the fields this
+    form writes, as the form rendered them (#1622). A submission made against
+    an older state of the account is refused:
+
+    - ``clean`` compares it with the row read when the submission arrives and
+      refuses with a form error asking for a reload;
+    - ``VisibanUserAdmin.save_model`` compares it again with the row (and
+      its groups and permissions) read under the row lock, and
+      ``save_related`` re-reads the groups and permissions before writing
+      them; a mismatch there rolls the save back and redirects to the change
+      page with an error message.
+
+    A submission without ``row_version`` (not produced by the rendered form)
+    skips both comparisons; it carries no privilege, since the same
+    administrator could submit any values. Such a submission still keeps the
+    stored value of every field the administrator left alone.
     """
 
     guard_actor = None
 
+    row_version = _RowVersionField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stored_row_version = None
+        if self.instance.pk and ROW_VERSION_FIELD in self.fields:
+            self._stored_row_version = user_row_version(self.instance, self._versioned_fields())
+            self.fields[ROW_VERSION_FIELD].initial = self._stored_row_version
+
+    def submitted_row_version(self):
+        """The submitted ``row_version``, or ``None`` when absent or unbound."""
+        if not self.is_bound:
+            return None
+        return getattr(self, "cleaned_data", {}).get(ROW_VERSION_FIELD) or None
+
+    def _versioned_fields(self):
+        """The model fields this form can write (disabled fields write nothing)."""
+        model_fields = {f.name for f in User._meta.get_fields() if f.concrete}
+        return [
+            name for name, field in self.fields.items()
+            if name in model_fields and not field.disabled
+        ]
+
     def clean(self):
         cleaned = super().clean()
+        submitted = cleaned.get(ROW_VERSION_FIELD)
+        if (
+            self.is_bound
+            and submitted
+            and self._stored_row_version is not None
+            and not row_version_matches(submitted, self._stored_row_version)
+        ):
+            raise ValidationError(STALE_FORM_MESSAGE, code="stale_form")
         actor = self.guard_actor
         stored = self.instance  # clean() runs before the instance is updated
         if actor is None or not stored.pk:
@@ -94,6 +210,32 @@ class VisibanUserAdmin(UserAdmin):
         if not request.user.is_superuser:
             qs = qs.filter(is_superuser=False)
         return qs
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Turn a refusal under the row lock into a message, not a server error.
+
+        ``StaleSubmission`` propagates out of Django's transaction around the
+        change view, so everything the save wrote is rolled back; the
+        administrator is sent back to the change page, which shows the
+        account's current state (#1622).
+        """
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        except StaleSubmission:
+            self.message_user(request, STALE_SAVE_MESSAGE, messages.ERROR)
+            return HttpResponseRedirect(request.get_full_path())
+
+    def get_fieldsets(self, request, obj=None):
+        """The change form also carries the hidden ``row_version`` (#1622).
+
+        A view-only page has no form to submit, and Django renders every field
+        there as read-only text, so the field is left out.
+        """
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj is None or not fieldsets or not self.has_change_permission(request, obj):
+            return fieldsets
+        (name, options), *rest = fieldsets
+        return [(name, {**options, "fields": (*options["fields"], ROW_VERSION_FIELD)}), *rest]
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -206,6 +348,20 @@ class VisibanUserAdmin(UserAdmin):
                 .order_by("pk")
             )
             stored = next((u for u in locked if u.pk == obj.pk), None)
+            submitted = (
+                form.submitted_row_version()
+                if isinstance(form, VisibanUserChangeForm) else None
+            )
+            if stored is not None and submitted is not None:
+                # clean() compared row_version before this lock; compare it
+                # again with the locked row so a submission made against an
+                # older state of the account is refused (#1622). The groups
+                # and permissions read here are checked again in
+                # save_related, before they are written.
+                fields = form._versioned_fields()
+                if not row_version_matches(submitted, user_row_version(stored, fields)):
+                    raise StaleSubmission
+                form._locked_m2m_state = _m2m_state(stored, fields)
             if stored is not None and form is not None:
                 # The form wrote its values onto the instance Django loaded
                 # earlier in this request. Between that load and the lock
@@ -241,6 +397,30 @@ class VisibanUserAdmin(UserAdmin):
             super().save_model(request, obj, form, change)
             if stored is not None:
                 apply_access_loss_revocations(obj, request.user, access_state(stored))
+
+    def save_related(self, request, form, formsets, change):
+        """Write only the many-to-many fields the administrator changed (#1622).
+
+        As with the concrete fields in ``save_model``, a many-to-many field
+        (``groups``, ``user_permissions``) the administrator left alone keeps
+        its stored value. Django's change view runs in one transaction, so the
+        row lock ``save_model`` took is still held here.
+
+        When a ``row_version`` was submitted, the groups and permissions are
+        read again first; if they differ from what ``save_model`` read under
+        the lock, the save is refused and rolled back.
+        """
+        locked_state = getattr(form, "_locked_m2m_state", None)
+        if change and locked_state is not None:
+            current = _m2m_state(User.objects.get(pk=form.instance.pk), list(locked_state))
+            if current != locked_state:
+                raise StaleSubmission
+        if change and getattr(form, "is_bound", False):
+            changed = set(form.changed_data)
+            for field in User._meta.many_to_many:
+                if field.name in form.fields and field.name not in changed:
+                    form.cleaned_data.pop(field.name, None)
+        super().save_related(request, form, formsets, change)
 
     def delete_model(self, request, obj):
         # Board.owner is CASCADE, so deleting a user deletes their boards and
