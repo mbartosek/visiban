@@ -274,21 +274,36 @@ class SocialConnectStaleRowTests(TestCase):
         sociallogin.state = {"process": "connect"}
         return complete_login(request, sociallogin)
 
-    def test_connect_keeps_concurrent_password_and_deactivation(self):
+    def test_connect_keeps_concurrent_password_change(self):
         from allauth.socialaccount.models import SocialAccount
 
         stale = User.objects.get(pk=self.user.pk)
-        _commit_concurrent_change(
-            self.user.pk, password=OTHER_PASSWORD, is_active=False, must_change_password=True
-        )
+        _commit_concurrent_change(self.user.pk, password=OTHER_PASSWORD)
         self._connect(stale)
         self.assertTrue(
             SocialAccount.objects.filter(user_id=self.user.pk, provider="github").exists()
         )
-        stored = User.objects.get(pk=self.user.pk)
-        self.assertTrue(stored.check_password(OTHER_PASSWORD))
-        self.assertFalse(stored.is_active)
-        self.assertTrue(stored.must_change_password)
+        self.assertTrue(User.objects.get(pk=self.user.pk).check_password(OTHER_PASSWORD))
+
+    def _assert_connect_refused(self, **change):
+        from allauth.socialaccount.models import SocialAccount
+        from django.conf import settings as django_settings
+
+        stale = User.objects.get(pk=self.user.pk)
+        _commit_concurrent_change(self.user.pk, **change)
+        response = self._connect(stale)  # allauth turns the refusal into a redirect
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], django_settings.FRONTEND_URL)
+        self.assertFalse(SocialAccount.objects.filter(provider="github").exists())
+
+    def test_connect_refused_when_deactivated_after_request_start(self):
+        self._assert_connect_refused(is_active=False)
+
+    def test_connect_refused_when_password_change_forced_after_request_start(self):
+        self._assert_connect_refused(must_change_password=True)
+
+    def test_connect_refused_when_username_change_forced_after_request_start(self):
+        self._assert_connect_refused(must_change_username=True)
 
     def test_connect_saves_only_last_login(self):
         from django.db.models.signals import pre_save

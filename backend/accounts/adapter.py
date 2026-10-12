@@ -9,8 +9,6 @@ from django.http import HttpResponseRedirect
 from rest_framework.exceptions import PermissionDenied
 
 from visiban.authorization import (
-    ACCOUNT_GATES,
-    FORCED_CHANGE_GATES,
     account_state_denial,
     principal_is_active,
 )
@@ -400,8 +398,9 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
         Two processes are handled; allauth's ``redirect`` process is left alone:
 
         - ``connect`` (an authenticated user adding a provider from Settings or
-          the post-login prompt): refuse an account with a forced password or
-          username change pending (registry Rule 1; the forced-change
+          the post-login prompt): refuse an inactive account or one with a
+          forced password or username change pending, judged on a fresh read
+          of the user (registry Rule 1; the forced-change
           middleware lets the SSO callback through for sign-in, so the
           connect decision is made here), then refuse an identity that already
           belongs to a different account with ``provider_already_connected``.
@@ -422,13 +421,18 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
                 # allauth would bounce this to the connect redirect, which
                 # would then claim "Connected." once someone signs in.
                 self._redirect_with_error(request, "oauth_failed")
-            if account_state_denial(
-                request.user, exempt=frozenset(ACCOUNT_GATES) - FORCED_CHANGE_GATES
-            ) is not None:
-                # Adding a sign-in method waits until the pending change is
-                # done. Same answer as the forced-change middleware: back to
-                # the SPA, which walks the user through the change, without
-                # saying which change is pending. Nothing is linked.
+            # Judge a fresh read of the account: ``request.user`` was loaded
+            # before the provider round trip (#1624). The gate reads the very
+            # fields a deferred-load instance would then write back on save,
+            # so it gets its own instance, and allauth gets the
+            # ``last_login``-only one (#1619).
+            fresh = type(request.user).objects.get(pk=request.user.pk)
+            request.user = _connect_target(request.user)
+            if account_state_denial(fresh) is not None:
+                # Adding a sign-in method waits until the account is active
+                # and any pending change is done. Same answer as the
+                # forced-change middleware: back to the SPA, without saying
+                # which state applies. Nothing is linked.
                 raise ImmediateHttpResponse(HttpResponseRedirect(django_settings.FRONTEND_URL))
             pending = get_pending_connect_data(request, request.user)
             if pending and pending.get("provider") == provider:
@@ -447,7 +451,6 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
                 raise ImmediateHttpResponse(HttpResponseRedirect(
                     self._settings_url(connect_error="provider_already_connected", provider=provider)
                 ))
-            request.user = _connect_target(request.user)
             return
 
         if process == AuthProcess.REDIRECT or sociallogin.is_existing:
