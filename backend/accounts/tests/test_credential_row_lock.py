@@ -379,3 +379,212 @@ class ConditionalHashUpgradeTests(TestCase):
         stored = User.objects.get(pk=self.user.pk).password
         self.assertTrue(stored.startswith("pbkdf2_sha256$"))
         self.assertEqual(stored, self.user.password)
+
+
+@skipUnless(connection.vendor == "postgresql", "row locks are only observable on PostgreSQL")
+class ResetLinkRedeemedOnceTests(TransactionTestCase):
+    """Reset link redemption is decided under the user row lock (#1623).
+
+    Two simultaneous redemptions of one link yield exactly one success. The
+    first thread is paused just after it takes the row lock.
+    """
+
+    def setUp(self):
+        from allauth.account.forms import default_token_generator
+        from allauth.account.utils import user_pk_to_url_str
+
+        self.user = User.objects.create_user(username="resetonce", email="once@example.com", password=OLD_PASSWORD)
+        self.uid = user_pk_to_url_str(self.user)
+        self.token = default_token_generator.make_token(self.user)
+
+    def _rest(self, password):
+        def run():
+            response = APIClient().post(
+                "/api/v1/auth/password/reset/confirm/",
+                {"uid": self.uid, "token": self.token, "new_password1": password, "new_password2": password},
+                format="json",
+            )
+            return response.status_code
+
+        return run
+
+    def _html(self, password):
+        from django.core.exceptions import PermissionDenied
+
+        from accounts.forms import VisibanResetPasswordKeyForm
+
+        def run():
+            user = User.objects.get(pk=self.user.pk)
+            form = VisibanResetPasswordKeyForm(
+                data={"password1": password, "password2": password}, user=user, temp_key=self.token
+            )
+            self.assertTrue(form.is_valid(), form.errors)
+            try:
+                form.save()
+            except PermissionDenied:
+                return 403
+            return 200
+
+        return run
+
+    def _run_pair(self, first, second):
+        paused = threading.Event()
+        results, errors = {}, []
+        original = credentials.lock_user_row
+
+        def hold(*args, **kwargs):
+            out = original(*args, **kwargs)
+            if threading.current_thread().name == "first" and not paused.is_set():
+                paused.set()
+                threading.Event().wait(HOLD_SECONDS)
+            return out
+
+        def worker(name, fn):
+            try:
+                results[name] = fn()
+            except Exception as exc:  # pragma: no cover - surfaced below
+                errors.append(exc)
+            finally:
+                connections.close_all()
+
+        with patch.object(credentials, "lock_user_row", side_effect=hold):
+            t1 = threading.Thread(target=worker, args=("first", first), name="first")
+            t1.start()
+            self.assertTrue(paused.wait(timeout=15), "first thread never reached the pause")
+            t2 = threading.Thread(target=worker, args=("second", second), name="second")
+            t2.start()
+            t1.join(timeout=30)
+            t2.join(timeout=30)
+        self.assertEqual(errors, [])
+        return results
+
+    def test_rest_simultaneous_redemptions_yield_one_success(self):
+        results = self._run_pair(self._rest("FirstPassword111!"), self._rest("SecondPassword222!"))
+        self.assertEqual(results["first"], 200)
+        self.assertEqual(results["second"], 400)
+        stored = User.objects.get(pk=self.user.pk).password
+        self.assertTrue(check_password("FirstPassword111!", stored))
+        self.assertFalse(check_password("SecondPassword222!", stored))
+
+    def test_html_simultaneous_redemptions_yield_one_success(self):
+        results = self._run_pair(self._html("FirstPassword111!"), self._html("SecondPassword222!"))
+        self.assertEqual(results["first"], 200)
+        self.assertEqual(results["second"], 403)
+        stored = User.objects.get(pk=self.user.pk).password
+        self.assertTrue(check_password("FirstPassword111!", stored))
+        self.assertFalse(check_password("SecondPassword222!", stored))
+
+    def test_rest_and_html_simultaneous_redemptions_yield_one_success(self):
+        results = self._run_pair(self._rest("FirstPassword111!"), self._html("SecondPassword222!"))
+        self.assertEqual(results["first"], 200)
+        self.assertEqual(results["second"], 403)
+
+
+class ResetLinkRecheckTests(TestCase):
+    """The reset link is re-validated on the locked row in ``save()`` (#1623); runs on every backend."""
+
+    NEW = "BrandNewPassword77!"
+
+    def setUp(self):
+        from allauth.account.forms import default_token_generator
+        from allauth.account.utils import user_pk_to_url_str
+
+        self.user = User.objects.create_user(username="recheck", email="re@example.com", password=OLD_PASSWORD)
+        self.uid = user_pk_to_url_str(self.user)
+        self.token = default_token_generator.make_token(self.user)
+
+    def _change_elsewhere(self):
+        u = User.objects.get(pk=self.user.pk)
+        u.set_password("ChangedElsewhere99!")
+        u.save()
+        return u.password
+
+    def _serializer(self):
+        from accounts.serializers import VisibanPasswordResetConfirmSerializer
+
+        s = VisibanPasswordResetConfirmSerializer(
+            data={"uid": self.uid, "token": self.token, "new_password1": self.NEW, "new_password2": self.NEW},
+            context={"request": None},
+        )
+        self.assertTrue(s.is_valid(), s.errors)
+        return s
+
+    def _form(self, user=None):
+        from accounts.forms import VisibanResetPasswordKeyForm
+
+        form = VisibanResetPasswordKeyForm(
+            data={"password1": self.NEW, "password2": self.NEW},
+            user=user or User.objects.get(pk=self.user.pk),
+            temp_key=self.token,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        return form
+
+    def test_rest_save_refused_when_link_no_longer_valid(self):
+        from rest_framework.exceptions import ValidationError
+
+        s = self._serializer()
+        stored = self._change_elsewhere()
+        with self.assertRaises(ValidationError) as ctx:
+            s.save()
+        self.assertEqual(ctx.exception.detail, {"token": ["Invalid value"]})
+        self.assertEqual(User.objects.get(pk=self.user.pk).password, stored)
+
+    def test_rest_save_refused_when_user_no_longer_exists(self):
+        from rest_framework.exceptions import ValidationError
+
+        s = self._serializer()
+        User.objects.filter(pk=self.user.pk).delete()
+        with self.assertRaises(ValidationError) as ctx:
+            s.save()
+        self.assertEqual(ctx.exception.detail, {"token": ["Invalid value"]})
+
+    def test_html_save_refused_when_link_no_longer_valid(self):
+        from django.core.exceptions import PermissionDenied
+
+        form = self._form()
+        stored = self._change_elsewhere()
+        with self.assertRaises(PermissionDenied):
+            form.save()
+        self.assertEqual(User.objects.get(pk=self.user.pk).password, stored)
+
+    def test_html_save_refused_when_user_no_longer_exists(self):
+        from django.core.exceptions import PermissionDenied
+
+        form = self._form()
+        User.objects.filter(pk=self.user.pk).delete()
+        with self.assertRaises(PermissionDenied):
+            form.save()
+
+    def test_html_key_page_submit_refused_with_403_when_link_no_longer_valid(self):
+        from django.test import Client
+
+        client = Client()
+        r = client.get(f"/accounts/password/reset/key/{self.uid}-{self.token}/")
+        self.assertEqual(r.status_code, 302)
+        original = credentials.lock_user_row
+
+        def change_then_lock(user):
+            # Stands in for the link becoming invalid after the page's own checks.
+            self._change_elsewhere()
+            return original(user)
+
+        client.raise_request_exception = False
+        with patch.object(credentials, "lock_user_row", side_effect=change_then_lock):
+            r = client.post(r["Location"], {"password1": self.NEW, "password2": self.NEW})
+        self.assertEqual(r.status_code, 403)
+        # The refusal rolls back the save's transaction, so only the absence
+        # of the new password is asserted.
+        self.assertFalse(check_password(self.NEW, User.objects.get(pk=self.user.pk).password))
+
+    def test_html_save_keeps_original_instance_in_step_with_stored_row(self):
+        original = User.objects.get(pk=self.user.pk)
+        self._form(user=original).save()
+        self.assertEqual(original.password, User.objects.get(pk=self.user.pk).password)
+        self.assertTrue(check_password(self.NEW, original.password))
+
+    def test_rest_save_keeps_original_instance_in_step_with_stored_row(self):
+        s = self._serializer()
+        original = s.user
+        s.save()
+        self.assertEqual(original.password, User.objects.get(pk=self.user.pk).password)

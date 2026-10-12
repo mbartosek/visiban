@@ -166,6 +166,8 @@ canonical wording.
 | WebSocket ticket | `accounts/ws_auth.py` `consume_ws_ticket` | Single use decided by the return value of `cache.delete()` |
 | JSON, CSV and Trello import | `boards/views/import_export.py` | No consume-once token on this surface |
 | Admin actions | `accounts/admin_views.py` `AdminInviteLinkRevokeView.delete` | Revocation sets `revoked_at` on the link |
+| Password reset link (REST) | `accounts/serializers.py` `VisibanPasswordResetConfirmSerializer.save` | Single use, decided under the user row lock (`reset_link_still_valid` on the locked row) |
+| Password reset link (HTML) | `accounts/forms.py` `VisibanResetPasswordKeyForm.save` | Single use, decided under the user row lock; the page shows its invalid-link page for a link that no longer validates, and a submit that overlaps another is refused |
 
 ## Rule 5: User references in imports resolve only within the caller's scope
 
