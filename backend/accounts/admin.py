@@ -629,25 +629,36 @@ class VisibanUserAdmin(UserAdmin):
            (``lock_cards_for_cascade``).
         3. The target user rows, one pk-ordered ``FOR UPDATE``, then the
            refusals are judged again, so the owned-boards rule is checked on
-           boards committed up to this point. ``FOR UPDATE`` conflicts with
-           the ``FOR KEY SHARE`` a board insert takes on its owner: an insert
-           already in flight commits first and is seen by the re-check (the
-           delete is refused and the board kept), and one that starts later
-           waits for this transaction and then fails its foreign key because
-           the owner is gone. A board is never silently deleted by a delete
-           that did not check it.
+           boards committed up to this point.
 
-        Deadlock reasoning: a card writer holds a card row (``FOR NO KEY
-        UPDATE``) and then needs ``FOR KEY SHARE`` on a user row. This delete
-        takes the card rows before it takes ``FOR UPDATE`` on any user row, so
-        the cards the cascade writes are either already held by the writer
-        (this delete waits at statement 2 holding only ``FOR NO KEY UPDATE``
-        on users, which does not block the writer's ``KEY SHARE``) or locked
-        by this delete first (the writer waits on the card). There is no
-        user-then-card inversion for the card-scoped references listed in
-        ``_cards_to_lock``. Rows of tables that are not scoped to a card
-        (invite links, board export log, group rows and so on) are not locked
-        here and are not covered by this argument.
+        What this guarantees: the guard decisions (self, last site admin,
+        last superuser, actor standing and scope) are judged on rows locked
+        by statement 1, and a board is never silently deleted by a delete
+        that did not check it. A board insert that has already reached
+        COMMIT before statement 3 is seen by the re-check, so the delete is
+        refused and the board kept. The foreign key from a board to its owner
+        is deferred on PostgreSQL, so an insert still in flight takes its
+        ``FOR KEY SHARE`` on the owner only at COMMIT: it waits for this
+        transaction and then fails its foreign key because the owner is gone,
+        and the board is not created.
+
+        Lock order and its limit: a card writer holds a card row (``FOR NO
+        KEY UPDATE``) and needs ``FOR KEY SHARE`` on a user row, at COMMIT
+        for a deferred foreign key. Statement 1 is ``FOR NO KEY UPDATE``,
+        which does not block that ``KEY SHARE``, and statement 2 takes the
+        cards that carry a reference to a target before statement 3 takes the
+        target rows, so for the cards snapshotted by statement 2 the order is
+        card, then user, as a card writer's is. The snapshot is the limit: a
+        card that gains a reference to a target after statement 2 and before
+        statement 3 (it is assigned to the target, say) is not locked, and
+        the cascade's ``SET NULL`` update of it then runs after this
+        transaction already holds the target row ``FOR UPDATE``, while a
+        writer that holds that card needs ``KEY SHARE`` on the target.
+        PostgreSQL reports ``deadlock detected`` and aborts one side, which
+        can be this delete (a server error); nothing is lost and the delete
+        can be retried. Rows of tables that are not scoped to a card (invite
+        links, board export log, group rows and so on) are not locked here
+        and are not covered by this argument.
         """
         pk_list = list(pks)
         lock_cards_for_cascade(self._cards_to_lock(pk_list))
