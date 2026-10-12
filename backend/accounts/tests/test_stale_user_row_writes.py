@@ -10,7 +10,9 @@ that must survive whatever this request writes:
   and write the new hash to, the row read under ``credentials.lock_user_row``;
 - the REST reset-confirm serializer, allauth's password hook
   (``RegistrationAdapter.set_password``) and the Django admin change form
-  write only the columns they set.
+  write only the columns they set;
+- a social-account connect (allauth's ``process=connect``) saves only
+  ``last_login`` from a fresh read (``SocialRegistrationAdapter.pre_social_login``).
 
 ``StaleUserRowTests`` runs on every backend: the request is authenticated
 with a copy of the user loaded before the concurrent change, which is what
@@ -238,6 +240,73 @@ class StaleUserRowTests(TestCase):
         self.assertTrue(stored.check_password(NEW_PASSWORD))
         self.assertFalse(stored.is_active)
         self.assertTrue(stored.must_change_username)
+
+
+class SocialConnectStaleRowTests(TestCase):
+    """Connecting a provider does not write the request-start user row back (#1619)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="connector", email="connector@example.com", password=OLD_PASSWORD
+        )
+
+    def _connect(self, request_user):
+        from allauth.account.models import EmailAddress
+        from allauth.socialaccount.adapter import get_adapter
+        from allauth.socialaccount.internal.flows.login import complete_login
+        from allauth.socialaccount.models import SocialAccount, SocialLogin
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/accounts/github/login/callback/")
+        SessionMiddleware(lambda r: None).process_request(request)
+        request.session.save()
+        request._messages = FallbackStorage(request)
+        request.user = request_user
+        account = SocialAccount(provider="github", uid="gh-1619", extra_data={})
+        sociallogin = SocialLogin(
+            user=User(username="", email="idp@example.com"),
+            account=account,
+            email_addresses=[EmailAddress(email="idp@example.com", verified=True, primary=True)],
+        )
+        sociallogin.provider = get_adapter().get_provider(request, "github")
+        sociallogin.state = {"process": "connect"}
+        return complete_login(request, sociallogin)
+
+    def test_connect_keeps_concurrent_password_and_deactivation(self):
+        from allauth.socialaccount.models import SocialAccount
+
+        stale = User.objects.get(pk=self.user.pk)
+        _commit_concurrent_change(
+            self.user.pk, password=OTHER_PASSWORD, is_active=False, must_change_password=True
+        )
+        self._connect(stale)
+        self.assertTrue(
+            SocialAccount.objects.filter(user_id=self.user.pk, provider="github").exists()
+        )
+        stored = User.objects.get(pk=self.user.pk)
+        self.assertTrue(stored.check_password(OTHER_PASSWORD))
+        self.assertFalse(stored.is_active)
+        self.assertTrue(stored.must_change_password)
+
+    def test_connect_saves_only_last_login(self):
+        from django.db.models.signals import pre_save
+
+        written = []
+
+        def record(sender, instance, update_fields=None, **kwargs):
+            if instance.pk == self.user.pk:
+                written.append(set(update_fields or ()))
+
+        pre_save.connect(record, sender=User, dispatch_uid="test_1619_connect")
+        try:
+            response = self._connect(User.objects.get(pk=self.user.pk))
+        finally:
+            pre_save.disconnect(sender=User, dispatch_uid="test_1619_connect")
+        self.assertEqual(response.status_code, 302)
+        # Django passes the loaded fields of a deferred instance as update_fields.
+        self.assertEqual(written, [{"last_login"}])
 
 
 class DjangoAdminChangeFormStaleRowTests(TestCase):
