@@ -4197,6 +4197,11 @@ re-checks.</p>
 <td><code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code></td>
 <td>The per-user password form is refused for a non-superuser when the target is a superuser or site-admin account other than the actor's own. These limits apply to non-superuser staff only; superusers edit these fields and set these passwords</td>
 </tr>
+<tr>
+<td>Writes to the user row from a request-start copy</td>
+<td><code>accounts/serializers.py</code> <code>UserSerializer.update</code> (<code>/auth/me/</code>, <code>/auth/user/</code>); <code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code></td>
+<td>Account state is not overwritten from a request-start copy: profile updates save only the validated fields (<code>update_fields</code>); the two REST password-change routes re-read the row under <code>accounts/credentials.py</code> <code>lock_user_row</code> and save only <code>password</code>; reset-confirm and allauth's password hook save only <code>password</code>; a social-account connect hands allauth a fresh row with only <code>last_login</code> loaded (<code>_connect_target</code>), so allauth's save writes only that column; the Django admin change form takes the concrete (non-many-to-many) fields that are unchanged at submit time from the row read under the lock; it does not detect a change made between rendering and submitting the form (#1619, <code>accounts/tests/test_stale_user_row_writes.py</code>)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="rule-3-anything-that-grants-access-declares-what-revokes-it">Rule 3: Anything that grants access declares what revokes it<a class="headerlink" href="#rule-3-anything-that-grants-access-declares-what-revokes-it" title="Permanent link">&para;</a></h2>
@@ -4245,6 +4250,11 @@ access described in Rule 2.</p>
 <td>Django admin password</td>
 <td><code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code> (<code>/admin/accounts/user/&lt;id&gt;/password/</code>)</td>
 <td>When the stored hash changes on another user's account: <code>require_password_change_after_admin_set</code> sets <code>must_change_password</code> (when a usable password was set, not when password sign-in was disabled) and deletes the user's PATs and DRF <code>Token</code>; their sessions end because the session auth hash changes. On the actor's own account: <code>finalize_password_change</code>. A user created through the admin with a usable password is created with <code>must_change_password</code> set (<code>VisibanUserAdmin.save_model</code>). The <code>ensure_site_admin</code> management command, when it sets a password on an existing account, uses the same helper under the user-row lock</td>
+</tr>
+<tr>
+<td>Password and profile writes against a concurrent credential change</td>
+<td><code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code> (with <code>accounts/serializers.py</code> <code>VisibanPasswordChangeSerializer</code>); <code>UserSerializer.update</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code></td>
+<td>Password writes use the stored record: the two REST change routes verify the current password against, and write the new hash to, the row read under <code>lock_user_row</code>; profile updates, reset-confirm and allauth's password hook write only the columns they change; a social-account connect writes only <code>last_login</code>, from a fresh read; the Django admin change form takes the concrete (non-many-to-many) fields that are unchanged at submit time from the row read under the lock; it does not detect a change made between rendering and submitting the form (#1619, <code>accounts/tests/test_stale_user_row_writes.py</code>, whose interleaving cases run on PostgreSQL)</td>
 </tr>
 <tr>
 <td>Demo-site seed password</td>
