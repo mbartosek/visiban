@@ -297,7 +297,7 @@ blocking, whose `blocker_count` drops as a result.
 ## Archive
 
 ### `POST /api/v1/boards/{board_id}/cards/{id}/archive/`
-Soft-delete a card. Sets `archived_at` to the current timestamp. The card is removed from the active board view and excluded from WIP/weight counts. **Minimum role: Member.** Returns `404 Not Found` if the card was deleted concurrently; nothing is saved.
+Soft-delete a card. Sets `archived_at` to the current timestamp. The card is removed from the active board view and excluded from WIP/weight counts. **Minimum role: Member.** Returns `404 Not Found` if the card was deleted concurrently. If the delete lands after the archive committed, the archive stays applied but the response is still `404`, since there is no card left to return (#1585).
 
 > **Ownership gate:** Members may only archive cards they created. A member who did not create the card must have the `is_moderator` entitlement or be a board admin. Non-moderator members who did not create the card receive `403 Forbidden`.
 
@@ -308,7 +308,7 @@ If the card is already archived this is a no-op — `200 OK` is returned with th
 Broadcasts `card.archived` to all board WebSocket subscribers. Also broadcasts `card.updated` for every card this one was actively blocking, whose [`blocker_count`](#relations-since-12) changes when it leaves (or rejoins) the board.
 
 ### `POST /api/v1/boards/{board_id}/cards/{id}/unarchive/`
-Unarchive a card. Clears `archived_at`; the card re-enters its original column and swimlane at its original position. **Minimum role: Member.** Returns `404 Not Found` if the card was deleted concurrently; nothing is saved.
+Unarchive a card. Clears `archived_at`; the card re-enters its original column and swimlane at its original position. **Minimum role: Member.** Returns `404 Not Found` if the card was deleted concurrently (including a no-op restore of a card that vanished before the response was built, #1585); nothing is saved.
 
 > **Ownership gate:** Members may only unarchive cards they created. A member who did not create the card must have the `is_moderator` entitlement or be a board admin. Non-moderator members who did not create the card receive `403 Forbidden`.
 

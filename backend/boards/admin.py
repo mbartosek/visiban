@@ -5,6 +5,8 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from rest_framework.exceptions import NotFound
+
 from groups.broadcast import broadcast_group_event as _broadcast_group_event
 
 from . import broadcast as _broadcast
@@ -210,7 +212,9 @@ class CardAdmin(admin.ModelAdmin):
             super().save_model(request, obj, form, change)
         board = obj.board
         event = _broadcast.EVT_CARD_UPDATED if change else _broadcast.EVT_CARD_CREATED
-        card_data = _refetched_card_data(obj, request, board)
+        card_data = _refetched_card_data_or_none(obj, request, board)
+        if card_data is None:
+            return
         board_id = board.id
         _broadcast.record_board_event(board_id, event, card_data, actor_id=request.user.pk)
 
@@ -510,6 +514,21 @@ class BoardMembershipAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
         return {"user_id": obj.user_id}
 
 
+def _refetched_card_data_or_none(card, request, board):
+    """``_refetched_card_data``, or ``None`` when the card was deleted meanwhile.
+
+    The helper raises a DRF ``NotFound`` (#1584), which the Django admin does
+    not translate — it would surface as a 500 (#1585). In the admin the write
+    the caller just made has already been applied and there is no response body
+    to carry a 404, so a vanished card simply has nothing to broadcast: the
+    ``card.deleted`` frame from whoever deleted it already told clients.
+    """
+    try:
+        return _refetched_card_data(card, request, board)
+    except NotFound:
+        return None
+
+
 class _CardChildBroadcastAdminMixin:
     """Shared broadcast wiring for admin models that hang off a Card.
 
@@ -526,10 +545,11 @@ class _CardChildBroadcastAdminMixin:
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         card = obj.card
-        card_data = _refetched_card_data(card, request, card.board)
-        _broadcast.record_board_event(
-            card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
-        )
+        card_data = _refetched_card_data_or_none(card, request, card.board)
+        if card_data is not None:
+            _broadcast.record_board_event(
+                card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
+            )
 
     def delete_model(self, request, obj):
         # Capture the card before deleting obj — obj.card is a live FK lookup
@@ -538,10 +558,11 @@ class _CardChildBroadcastAdminMixin:
         # CardViewSet's comment/checklist endpoints use.
         card = obj.card
         super().delete_model(request, obj)
-        card_data = _refetched_card_data(card, request, card.board)
-        _broadcast.record_board_event(
-            card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
-        )
+        card_data = _refetched_card_data_or_none(card, request, card.board)
+        if card_data is not None:
+            _broadcast.record_board_event(
+                card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
+            )
 
     def delete_queryset(self, request, queryset):
         # Dedupe by card: a bulk delete can select several rows on the same
@@ -549,8 +570,16 @@ class _CardChildBroadcastAdminMixin:
         # its final state, not one per deleted row.
         cards = {o.card_id: o.card for o in queryset}
         super().delete_queryset(request, queryset)
-        for card in cards.values():
-            card_data = _refetched_card_data(card, request, card.board)
+        # Refetch every card first, then record: a card deleted part-way
+        # through is skipped, instead of leaving the earlier cards' events
+        # emitted and the later ones' never emitted (#1585).
+        refetched = [
+            (card, _refetched_card_data_or_none(card, request, card.board))
+            for card in cards.values()
+        ]
+        for card, card_data in refetched:
+            if card_data is None:
+                continue
             _broadcast.record_board_event(
                 card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
             )

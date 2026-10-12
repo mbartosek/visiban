@@ -518,9 +518,20 @@ class CardViewSet(viewsets.ModelViewSet):
         avoids a deferred ``card.board`` FK hit since board is not in
         ``select_related`` here.
         """
+        # The card can be hard-deleted between the service's write and this
+        # re-read (#1585). It is gone, so there is no card to return: answer
+        # 404 like ``_refetched_card_data`` does (#1584) rather than leak a
+        # bare ``DoesNotExist`` as a 500. For a render inside the service's
+        # atomic block the raise rolls the write back with no broadcast; for
+        # the post-commit renders of archive/unarchive the write is already
+        # durable, and 404 is still the truthful answer, since a 200 would have
+        # to invent a payload for a card that no longer exists.
+        try:
+            fresh = _card_queryset(Card.objects.filter(pk=card.pk)).get()
+        except Card.DoesNotExist:
+            raise CardNotFound() from None
         return CardSerializer(
-            _card_queryset(Card.objects.filter(pk=card.pk)).get(),
-            context={"request": self.request, "board": self._board()},
+            fresh, context={"request": self.request, "board": self._board()},
         ).data
 
     @action(detail=True, methods=["post"])
@@ -802,20 +813,28 @@ class CardViewSet(viewsets.ModelViewSet):
             # Re-fetch through _card_queryset so CardSerializer has every
             # prefetch populated — the instance the service holds was loaded for
             # locking and would otherwise trigger ~7 extra queries.
-            data = {
-                "card": CardSerializer(
-                    _card_queryset(Card.objects.filter(pk=card.pk)).get(),
-                    context={"request": request, "board": board},
-                ).data
-            }
-            if movement is not None:
-                # Re-fetch with FK relations loaded so CardMovementSerializer does
-                # not issue separate queries for moved_by, card.uid and card.title.
-                movement = CardMovement.objects.select_related(
-                    "moved_by", "card", "from_column", "to_column",
-                    "from_swimlane", "to_swimlane",
-                ).get(pk=movement.pk)
-                data["movement"] = CardMovementSerializer(movement).data
+            #
+            # A card hard-deleted between the move's write and this re-read (or
+            # the movement row with it, via cascade) answers 404, not a bare
+            # DoesNotExist 500 (#1585). We are inside the service's atomic
+            # block, so the raise rolls the move back and nothing is broadcast.
+            try:
+                data = {
+                    "card": CardSerializer(
+                        _card_queryset(Card.objects.filter(pk=card.pk)).get(),
+                        context={"request": request, "board": board},
+                    ).data
+                }
+                if movement is not None:
+                    # Re-fetch with FK relations loaded so CardMovementSerializer does
+                    # not issue separate queries for moved_by, card.uid and card.title.
+                    movement = CardMovement.objects.select_related(
+                        "moved_by", "card", "from_column", "to_column",
+                        "from_swimlane", "to_swimlane",
+                    ).get(pk=movement.pk)
+                    data["movement"] = CardMovementSerializer(movement).data
+            except (Card.DoesNotExist, CardMovement.DoesNotExist):
+                raise CardNotFound() from None
             return data
 
         result = card_services.move_card(
