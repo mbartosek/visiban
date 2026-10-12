@@ -4051,7 +4051,7 @@ write the same data over MCP, a socket, an invite link or an import.</p>
 <tr>
 <td>OAuth signup and connect</td>
 <td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.pre_social_login</code>, <code>save_user</code></td>
-<td>Signup creates the account in the same flow; existing-account matching in <code>_handle_email_collision</code> considers active users only (<code>visiban.authorization.principal_is_active</code>). A <code>process=connect</code> callback for an account with a forced change pending is refused (<code>visiban.authorization.account_state_denial</code> limited to <code>FORCED_CHANGE_GATES</code>) before anything is linked, with a redirect to the SPA</td>
+<td>Signup creates the account in the same flow; existing-account matching in <code>_handle_email_collision</code> considers active users only (<code>visiban.authorization.principal_is_active</code>). A <code>process=connect</code> callback for an inactive account, or one with a forced change pending, is refused (<code>visiban.authorization.account_state_denial</code>) before anything is linked, with a redirect to the SPA</td>
 </tr>
 <tr>
 <td>allauth session views</td>
@@ -4205,7 +4205,7 @@ re-checks.</p>
 <tr>
 <td>Writes to the user row from a request-start copy</td>
 <td><code>accounts/serializers.py</code> <code>UserSerializer.update</code> (<code>/auth/me/</code>, <code>/auth/user/</code>); <code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code></td>
-<td>Account state is not overwritten from a request-start copy: profile updates save only the validated fields (<code>update_fields</code>); the two REST password-change routes re-read the row under <code>accounts/credentials.py</code> <code>lock_user_row</code> and save only <code>password</code>; reset-confirm and allauth's password hook save only <code>password</code>; a social-account connect hands allauth a fresh row with only <code>last_login</code> loaded (<code>_connect_target</code>), so allauth's save writes only that column; the Django admin change form takes the concrete (non-many-to-many) fields that are unchanged at submit time from the row read under the lock; it does not detect a change made between rendering and submitting the form (#1619, <code>accounts/tests/test_stale_user_row_writes.py</code>)</td>
+<td>Account state is not overwritten from a request-start copy: profile updates save only the validated fields (<code>update_fields</code>); the two REST password-change routes re-read the row under <code>accounts/credentials.py</code> <code>lock_user_row</code> and save only <code>password</code>; reset-confirm and allauth's password hook save only <code>password</code>; a social-account connect judges account state on a separate fresh read and hands allauth a fresh row with only <code>last_login</code> loaded (<code>_connect_target</code>), so allauth's save writes only that column (#1624); the Django admin change form takes the concrete (non-many-to-many) fields that are unchanged at submit time from the row read under the lock; it does not detect a change made between rendering and submitting the form (#1619, <code>accounts/tests/test_stale_user_row_writes.py</code>)</td>
 </tr>
 </tbody>
 </table>

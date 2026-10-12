@@ -3953,7 +3953,7 @@ does not.</p>
 <tr>
 <td>Account state (Rule 1): inactive, or a forced password or username change pending</td>
 <td><code>authorize_account(user)</code> returns a bool; <code>account_state_denial(user)</code> returns the refusing <code>AccountGate</code> (with its <code>message</code> and <code>code</code>) or <code>None</code></td>
-<td>WebSocket handshake (<code>BoardConsumer.connect</code>, <code>GroupConsumer.connect</code>); WebSocket re-check (<code>accounts/ws_auth.py</code> <code>load_live_ws_user</code>); MCP (<code>mcp_server/auth.py</code> <code>_enforce_account_state</code>)</td>
+<td>WebSocket handshake (<code>BoardConsumer.connect</code>, <code>GroupConsumer.connect</code>); WebSocket re-check (<code>accounts/ws_auth.py</code> <code>load_live_ws_user</code>); MCP (<code>mcp_server/auth.py</code> <code>_enforce_account_state</code>); OAuth connect (<code>SocialRegistrationAdapter.pre_social_login</code>, connect branch)</td>
 </tr>
 <tr>
 <td>Account state, one gate at a time</td>
@@ -4020,7 +4020,7 @@ gains nothing a signed-out browser does not have (logout, the password-reset
 pages, the email-confirmation redirect, static result pages), or when it
 applies the forced-change gate itself: the SSO login and callback of each
 installed provider qualify because <code>SocialRegistrationAdapter.pre_social_login</code>
-refuses a <code>process=connect</code> callback for a pending account. A view that changes
+refuses a <code>process=connect</code> callback for an inactive account or one with a pending change. A view that changes
 the signed-in account (email addresses, connected providers, passwords) is
 never exempt.</p>
 <p>The admission rule above is documented policy. What the code enforces is a
