@@ -351,6 +351,60 @@ class AdminPatchUserTests(TestCase):
         self.assertTrue(self.target.is_site_admin)
         self.assertTrue(self.target.can_access_all_content)
 
+    def _actors_1614(self):
+        from accounts.models import SCOPE_ADMIN, SCOPE_WRITE, PersonalAccessToken
+
+        superuser = User.objects.create_superuser(
+            username="actor_su_1614", email="actor_su_1614@example.com", password="pw123456!x"
+        )
+        site_admin = make_admin(username="actor_sa_1614")
+        pat_owner = make_admin(username="actor_pat_1614")
+        _, raw = PersonalAccessToken.generate(
+            pat_owner, "t-1614", scopes=[SCOPE_ADMIN, SCOPE_WRITE]
+        )
+        return [
+            ("superuser", superuser, None),
+            ("site_admin", site_admin, None),
+            ("pat", None, raw),
+        ]
+
+    def test_all_content_rule_holds_for_every_actor_type(self):
+        for label, user, raw in self._actors_1614():
+            with self.subTest(actor=label):
+                su_target = make_user(username=f"su_target_{label}_1614")
+                User.objects.filter(pk=su_target.pk).update(is_superuser=True)
+                su_target.refresh_from_db()
+                su_target.save()
+                plain = make_user(username=f"plain_target_{label}_1614")
+                User.objects.filter(pk=plain.pk).update(can_access_all_content=True)
+                client = APIClient()
+                if raw:
+                    client.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+                else:
+                    client.force_authenticate(user)
+                r = client.patch(
+                    f"/api/v1/admin/users/{su_target.pk}/", {"can_access_all_content": False}
+                )
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+                su_target.refresh_from_db()
+                self.assertTrue(su_target.can_access_all_content)
+                r = client.patch(
+                    f"/api/v1/admin/users/{plain.pk}/", {"can_access_all_content": False}
+                )
+                self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+                plain.refresh_from_db()
+                self.assertFalse(plain.can_access_all_content)
+
+    def test_pat_without_admin_scope_cannot_patch_users(self):
+        from accounts.models import SCOPE_READ, SCOPE_WRITE, PersonalAccessToken
+
+        owner = make_admin(username="noscope_1614")
+        _, raw = PersonalAccessToken.generate(owner, "t-ns-1614", scopes=[SCOPE_READ, SCOPE_WRITE])
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+        r = client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"has_completed_tour": True})
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN, r.content)
+
     def test_all_content_clear_rechecks_superuser_on_the_locked_row(self):
         from unittest.mock import patch
 

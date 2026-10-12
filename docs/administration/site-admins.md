@@ -45,6 +45,7 @@ To manage the flags independently, use **Site Admin → Users** in the admin pan
 
 !!! note
     Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave `can_access_all_content` off on a superuser sets both flags again. Remove superuser status first (which also clears both flags).
+    Existing superusers that have `can_access_all_content` switched off regain it the next time their account is saved, for example at sign-in.
 
 ## First site admin
 

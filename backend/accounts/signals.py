@@ -1,6 +1,10 @@
+import logging
+
 from django.db import connection, transaction
 from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
+
+logger = logging.getLogger(__name__)
 
 
 def _connect_user_signals():
@@ -102,10 +106,21 @@ def _connect_user_signals():
         if instance.is_superuser and not (
             instance.is_site_admin and instance.can_access_all_content
         ):
-            sender.objects.filter(pk=instance.pk).update(
+            # Conditional on the stored row still being a superuser: this
+            # instance may be stale, and a demotion committed since it was
+            # loaded must not be undone by a re-grant (#1614).
+            granted = sender.objects.filter(pk=instance.pk, is_superuser=True).update(
                 is_site_admin=True,
                 can_access_all_content=True,
             )
-            # Refresh the in-memory instance so callers see the updated values.
-            instance.is_site_admin = True
-            instance.can_access_all_content = True
+            if granted:
+                logger.info(
+                    "Re-granted derived access flags on superuser pk=%s "
+                    "(is_site_admin %s->True, can_access_all_content %s->True)",
+                    instance.pk,
+                    instance.is_site_admin,
+                    instance.can_access_all_content,
+                )
+                # Refresh the in-memory instance so callers see the updated values.
+                instance.is_site_admin = True
+                instance.can_access_all_content = True
