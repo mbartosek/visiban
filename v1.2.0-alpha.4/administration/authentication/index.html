@@ -4050,7 +4050,8 @@ these paths accepted 8 characters, keep working and are asked for a 12-character
 next time they change it.</p>
 <p>Changing a password — through either <code>POST /api/v1/auth/change-password/</code> or
 <code>POST /api/v1/auth/password/change/</code> — requires the current password (except for OAuth-only
-accounts setting their first one), revokes all of the user's
+accounts setting their first one, which needs an interactive session: a request authenticated
+with a token alone is refused), revokes all of the user's
 <a href="../../features/personal-access-tokens/">personal access tokens</a> and the API token issued at
 login (a caller that authenticated with that token receives a replacement in the response; see
 <a href="../../api/authentication/#api-token-on-password-change">API token on password change</a>), and

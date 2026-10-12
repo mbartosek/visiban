@@ -5107,12 +5107,12 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"current_password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"current-password"</span><span class="p">,</span><span class="w"> </span><span class="nt">"new_password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new-password"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <ul>
-<li><code>current_password</code> is not required for social-only accounts (accounts with no usable password that are setting a password for the first time)</li>
+<li><code>current_password</code> is not required for social-only accounts (accounts with no usable password that are setting a password for the first time). Setting that first password is available from an interactive session only: a request authenticated with a token (a Personal Access Token or the login API token) is refused with <code>403 Forbidden</code> and nothing is changed</li>
 <li>Minimum 12 characters; standard Django complexity rules apply</li>
 <li>If <code>must_change_password</code> was set, it is cleared on success</li>
 <li>The API token issued by <code>POST /api/v1/auth/login/</code> is revoked on success; a caller that authenticated with that token receives a replacement in the response's optional <code>key</code> field — see <a href="#api-token-on-password-change">API token on password change</a> below</li>
 </ul>
-<p><strong>Response</strong> <code>200 OK { "detail": "Password changed successfully." }</code> on success; <code>400 Bad Request</code> with field errors on failure. When the request was authenticated with the login API token, the body also carries <code>key</code>, the replacement token:</p>
+<p><strong>Response</strong> <code>200 OK { "detail": "Password changed successfully." }</code> on success; <code>400 Bad Request</code> with field errors on failure; <code>403 Forbidden</code> when a token credential is used to set a first password on an account with no usable password. When the request was authenticated with the login API token, the body also carries <code>key</code>, the replacement token:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Password changed successfully."</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;new-api-token&gt;"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <h4 id="api-token-on-password-change">API token on password change<a class="headerlink" href="#api-token-on-password-change" title="Permanent link">&para;</a></h4>
@@ -5172,7 +5172,9 @@ as <code>/auth/change-password/</code> does with <code>current_password</code>. 
 deliberate, security-driven exception to the rule that new request fields
 are optional: an integration that omits <code>old_password</code> must be updated to
 send it. Social-only accounts (no usable password yet) may still omit it to
-set their first password, matching <code>/auth/change-password/</code>.</p>
+set their first password from a signed-in session, matching
+<code>/auth/change-password/</code>; a request authenticated with a token is refused
+with <code>403 Forbidden</code> in that case.</p>
 </div>
 <ul>
 <li><strong>Minimum 12 characters</strong> (changed in 1.2, #1258). Previously this endpoint
