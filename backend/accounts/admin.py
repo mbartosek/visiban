@@ -214,10 +214,12 @@ def user_deletion_refusals(targets, actor):
     the active site admins and superusers left outside the set must be
     non-empty, because two accounts that are each "not the last" can be the
     last two. The same rules apply to every actor, superusers included, as on
-    the change form. Callers that hold row locks (``delete_model`` and
-    ``delete_queryset``) call this under the lock so the counts cannot move
-    between check and delete. Board names are not shown, only a count, as on
-    the form.
+    the change form. ``delete_model`` and ``delete_queryset`` call this twice
+    under row locks (see ``VisibanUserAdmin._lock_and_check_admins`` and
+    ``_lock_cards_then_targets``): the administrator flags and counts cannot
+    move once the first lock is held, and the owned-boards rule is judged
+    again after the target rows are locked ``FOR UPDATE``. Board names are not
+    shown, only a count, as on the form.
     """
     from .admin_views import deactivation_refusal
 
@@ -539,16 +541,22 @@ class VisibanUserAdmin(UserAdmin):
         return HttpResponseRedirect(reverse("admin:accounts_user_changelist"))
 
     @staticmethod
-    def _locked_delete_targets(request, pks):
-        """Lock and re-check the delete targets; returns the locked target rows.
+    def _lock_and_check_admins(request, pks):
+        """Statement 1: lock the targets, the actor and the active administrators.
 
-        One pk-ordered statement locks the targets, the actor and every active
-        site admin and superuser (the order ``save_model`` uses), so concurrent
-        deletes serialize and two deletes of the last two administrators
-        cannot both pass the check. ``no_key`` keeps the lock from conflicting
-        with the ``FOR KEY SHARE`` that card foreign-key checks take, which
-        would otherwise form a lock cycle with card writes; two deletes still
-        conflict with each other (#1616).
+        One pk-ordered ``FOR NO KEY UPDATE`` over the targets, the actor and
+        every active site admin and superuser (the order ``save_model`` uses).
+        Row flags (``is_active``, ``is_site_admin``, ``is_superuser``) change
+        only through an UPDATE, which conflicts with this lock, and a second
+        delete conflicts with it too, so the last-administrator, actor and
+        actor-scope checks made here judge state that cannot move until this
+        transaction ends. ``FOR NO KEY UPDATE`` is deliberately not
+        ``FOR UPDATE``: it does not conflict with the ``FOR KEY SHARE`` that a
+        foreign key to the user takes (a card write recording its author, a
+        board insert naming its owner). That keeps a writer that already holds
+        a card row from being blocked on the user row while this delete waits
+        for that card (see ``_lock_cards_then_targets``). It also means this
+        statement does *not* protect the owned-boards rule; statement 3 does.
         """
         actor = request.user
         locked = list(
@@ -566,21 +574,97 @@ class VisibanUserAdmin(UserAdmin):
             raise PermissionDenied
         pk_set = set(pks)
         targets = [u for u in locked if u.pk in pk_set]
-        if not actor.is_superuser and any(t.is_superuser for t in targets):
-            # Promoted between the page load and the lock.
+        if not actor_row.is_superuser and any(t.is_superuser for t in targets):
+            # Judged on the locked row: a target promoted, or an actor demoted,
+            # since the request started.
             raise DeletionRefused(["A superuser account cannot be deleted by this administrator."])
         reasons = user_deletion_refusals(targets, actor)
         if reasons:
             raise DeletionRefused(reasons)
         return targets
 
+    @staticmethod
+    def _cards_to_lock(pks):
+        """Cards the delete will write: the owned boards' cards and every card
+        that carries a reference to a target.
+
+        The user delete sets those references to NULL (``Card.assignee`` and
+        ``created_by``, and the author, actor, uploader or creator on a card's
+        movements, comments, activity, checklists, attachments, relations and
+        notifications), which updates the card's rows. Locking the cards
+        first keeps the order card, then user, the order a card writer uses.
+        """
+        from boards.models import (
+            CardActivity,
+            CardAttachment,
+            CardChecklist,
+            CardComment,
+            CardMovement,
+            CardRelation,
+            Notification,
+        )
+
+        referenced = (
+            Q(created_by__in=pks)
+            | Q(assignee__in=pks)
+            | Q(pk__in=CardMovement.objects.filter(moved_by__in=pks).values("card_id"))
+            | Q(pk__in=CardComment.objects.filter(author__in=pks).values("card_id"))
+            | Q(pk__in=CardActivity.objects.filter(actor__in=pks).values("card_id"))
+            | Q(pk__in=CardChecklist.objects.filter(created_by__in=pks).values("card_id"))
+            | Q(pk__in=CardAttachment.objects.filter(uploaded_by__in=pks).values("card_id"))
+            | Q(pk__in=CardRelation.objects.filter(created_by__in=pks).values("from_card_id"))
+            | Q(pk__in=CardRelation.objects.filter(created_by__in=pks).values("to_card_id"))
+            | Q(
+                pk__in=Notification.objects.filter(Q(actor__in=pks) | Q(recipient__in=pks))
+                .exclude(card__isnull=True)
+                .values("card_id")
+            )
+        )
+        return Card.objects.filter(Q(board__owner__in=pks) | referenced)
+
+    def _lock_cards_then_targets(self, request, pks):
+        """Statements 2 and 3, in card, then user order.
+
+        2. The cards from ``_cards_to_lock``, one pk-ordered ``FOR UPDATE``
+           (``lock_cards_for_cascade``).
+        3. The target user rows, one pk-ordered ``FOR UPDATE``, then the
+           refusals are judged again, so the owned-boards rule is checked on
+           boards committed up to this point. ``FOR UPDATE`` conflicts with
+           the ``FOR KEY SHARE`` a board insert takes on its owner: an insert
+           already in flight commits first and is seen by the re-check (the
+           delete is refused and the board kept), and one that starts later
+           waits for this transaction and then fails its foreign key because
+           the owner is gone. A board is never silently deleted by a delete
+           that did not check it.
+
+        Deadlock reasoning: a card writer holds a card row (``FOR NO KEY
+        UPDATE``) and then needs ``FOR KEY SHARE`` on a user row. This delete
+        takes the card rows before it takes ``FOR UPDATE`` on any user row, so
+        the cards the cascade writes are either already held by the writer
+        (this delete waits at statement 2 holding only ``FOR NO KEY UPDATE``
+        on users, which does not block the writer's ``KEY SHARE``) or locked
+        by this delete first (the writer waits on the card). There is no
+        user-then-card inversion for the card-scoped references listed in
+        ``_cards_to_lock``. Rows of tables that are not scoped to a card
+        (invite links, board export log, group rows and so on) are not locked
+        here and are not covered by this argument.
+        """
+        pk_list = list(pks)
+        lock_cards_for_cascade(self._cards_to_lock(pk_list))
+        locked = list(
+            User.objects.select_for_update().filter(pk__in=pk_list).order_by("pk")
+        )
+        reasons = user_deletion_refusals(locked, request.user)
+        if reasons:
+            raise DeletionRefused(reasons)
+
     def delete_model(self, request, obj):
         # Board.owner is CASCADE, so deleting a user deletes their boards and
         # those boards' cards: lock the cards first, in one transaction held
         # across the delete (#1603; see lock_cards_for_cascade).
         with transaction.atomic():
-            self._locked_delete_targets(request, [obj.pk])
-            lock_cards_for_cascade(Card.objects.filter(board__owner_id=obj.pk))
+            self._lock_and_check_admins(request, [obj.pk])
+            self._lock_cards_then_targets(request, [obj.pk])
             super().delete_model(request, obj)
 
     def delete_queryset(self, request, queryset):
@@ -588,8 +672,8 @@ class VisibanUserAdmin(UserAdmin):
         # atomic so the locks outlive the delete (#1603).
         with transaction.atomic():
             pks = list(queryset.values_list("pk", flat=True))
-            self._locked_delete_targets(request, pks)
-            lock_cards_for_cascade(Card.objects.filter(board__owner__in=pks))
+            self._lock_and_check_admins(request, pks)
+            self._lock_cards_then_targets(request, pks)
             super().delete_queryset(request, queryset)
 
 

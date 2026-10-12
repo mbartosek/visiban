@@ -14,7 +14,7 @@ from django.contrib.admin.models import DELETION, LogEntry
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied
 from django.test import RequestFactory
-from django.db import connection, connections
+from django.db import connection, connections, transaction
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
@@ -305,6 +305,21 @@ class UserDeleteHardeningTests(TestCase):
             model_admin.delete_queryset(request, User.objects.filter(pk=self.victim.pk))
         self.assertTrue(User.objects.filter(pk=self.victim.pk).exists())
 
+    def test_actor_demoted_before_lock_loses_superuser_scope(self):
+        actor = _staff("demoted_1616", superuser=True, perms=("view_user", "delete_user"))
+        stale_copy = User.objects.get(pk=actor.pk)  # still is_superuser here
+        _staff("spare_root_1616", superuser=True)
+        target = _staff("target_root_1616", superuser=True)
+        User.objects.filter(pk=actor.pk).update(is_superuser=False)
+        request = RequestFactory().post("/")
+        request.user = stale_copy
+        model_admin = django_admin.site._registry[User]
+        with self.assertRaises(admin_module.DeletionRefused):
+            model_admin.delete_model(request, User.objects.get(pk=target.pk))
+        with self.assertRaises(admin_module.DeletionRefused):
+            model_admin.delete_queryset(request, User.objects.filter(pk=target.pk))
+        self.assertTrue(User.objects.filter(pk=target.pk).exists())
+
     def test_deleted_or_inactive_actor_under_lock_is_refused(self):
         request = RequestFactory().post("/")
         request.user = User.objects.get(pk=self.staff.pk)
@@ -362,10 +377,12 @@ class ConcurrentLastSiteAdminDeleteTests(TransactionTestCase):
                 c = Client()
                 c.force_login(actor)
                 barrier.wait(timeout=10)
-                c.post(
+                r = c.post(
                     reverse("admin:accounts_user_delete", args=[target_pk]), {"post": "yes"}
                 )
-                results.append(target_pk)
+                results.append(r.status_code)
+            except Exception as exc:  # a 500 surfaces as an exception in the test client
+                results.append(repr(exc))
             finally:
                 connections.close_all()
 
@@ -374,6 +391,7 @@ class ConcurrentLastSiteAdminDeleteTests(TransactionTestCase):
             t.start()
         for t in threads:
             t.join(30)
+        self.assertEqual(results, [302, 302], results)
         remaining = User.objects.filter(pk__in=[u.pk for u in admins]).count()
         self.assertEqual(remaining, 1)
 
@@ -385,13 +403,22 @@ class MutualSuperuserDeleteRaceTests(TransactionTestCase):
         a = _staff("mut_a_1616", superuser=True)
         b = _staff("mut_b_1616", superuser=True)
         barrier = threading.Barrier(2)
+        outcomes = []
 
         def worker(actor, target):
             try:
                 c = Client()
                 c.force_login(actor)
                 barrier.wait(timeout=10)
-                c.post(reverse("admin:accounts_user_delete", args=[target.pk]), {"post": "yes"})
+                r = c.post(
+                    reverse("admin:accounts_user_delete", args=[target.pk]),
+                    {"post": "yes"},
+                    follow=True,
+                )
+                text = " ".join(str(m) for m in (r.context["messages"] if r.context else []))
+                outcomes.append((r.status_code, "was deleted successfully" in text))
+            except Exception as exc:  # e.g. a deadlock abort surfacing as a 500
+                outcomes.append(("error", repr(exc)))
             finally:
                 connections.close_all()
 
@@ -403,4 +430,186 @@ class MutualSuperuserDeleteRaceTests(TransactionTestCase):
             t.start()
         for t in threads:
             t.join(30)
+        self.assertFalse([o for o in outcomes if o[0] == "error"], outcomes)
+        self.assertEqual(len(outcomes), 2, outcomes)
+        # Exactly one delete succeeded; the other was refused (or its actor was
+        # already gone and it was sent to sign in).
+        self.assertEqual(sum(1 for o in outcomes if o[1]), 1, outcomes)
         self.assertEqual(User.objects.filter(pk__in=[a.pk, b.pk]).count(), 1)
+
+
+@skipUnless(connection.vendor == "postgresql", "row locks are only observable on PostgreSQL")
+class DeleteLockSequenceTests(TransactionTestCase):
+    """Interleavings that pin the lock modes of the user delete (#1616)."""
+
+    WAIT = 10.0
+
+    def setUp(self):
+        from boards.models import (
+            Board,
+            BoardMembership,
+            Card,
+            CardComment,
+            Column,
+            Swimlane,
+        )
+
+        self.Board, self.Card, self.CardComment = Board, Card, CardComment
+        self.actor = User.objects.create_superuser(
+            username="lk_actor_1616", password=PW, email="lk_actor_1616@example.com"
+        )
+        self.target = User.objects.create_user(username="lk_target_1616", password=PW)
+        self.other_owner = User.objects.create_user(username="lk_owner_1616", password=PW)
+        self.other_board = Board.objects.create(name="Elsewhere", owner=self.other_owner)
+        BoardMembership.objects.create(
+            board=self.other_board, user=self.target, role=BoardMembership.Role.ADMIN
+        )
+        col = Column.objects.create(board=self.other_board, name="c", position=0)
+        lane = Swimlane.objects.create(board=self.other_board, name="s", position=0)
+        # A card on someone else's board that carries references to the target:
+        # the user delete must write it (SET_NULL).
+        self.other_card = Card.objects.create(
+            board=self.other_board, column=col, swimlane=lane, title="x",
+            created_by=self.target, position=0,
+        )
+        CardComment.objects.create(card=self.other_card, body="t", author=self.target)
+
+    def _request(self):
+        from django.test import RequestFactory
+
+        request = RequestFactory().post("/")
+        request.user = User.objects.get(pk=self.actor.pk)
+        return request
+
+    def _delete_thread(self, results, name="deleter"):
+        def run():
+            try:
+                django_admin.site._registry[User].delete_model(
+                    self._request(), User.objects.get(pk=self.target.pk)
+                )
+                results[name] = "deleted"
+            except admin_module.DeletionRefused as exc:
+                results[name] = ("refused", exc.messages)
+            except Exception as exc:
+                results[name] = exc
+            finally:
+                connections.close_all()
+
+        t = threading.Thread(target=run, name=name)
+        return t
+
+    def test_board_created_after_the_card_locks_is_never_silently_deleted(self):
+        paused, release = threading.Event(), threading.Event()
+        real = admin_module.lock_cards_for_cascade
+        results = {}
+
+        def hold_after_cards(qs):
+            out = real(qs)
+            if threading.current_thread().name == "deleter" and not paused.is_set():
+                paused.set()
+                release.wait(self.WAIT)
+            return out
+
+        created = {}
+
+        def creator():
+            try:
+                created["pk"] = self.Board.objects.create(name="late", owner_id=self.target.pk).pk
+            except Exception as exc:
+                created["err"] = exc
+            finally:
+                connections.close_all()
+
+        with mock.patch("accounts.admin.lock_cards_for_cascade", side_effect=hold_after_cards):
+            deleter = self._delete_thread(results)
+            deleter.start()
+            self.assertTrue(paused.wait(self.WAIT))
+            c = threading.Thread(target=creator)
+            c.start()
+            c.join(3)  # the delete holds no FOR UPDATE yet: the insert commits
+            release.set()
+            deleter.join(self.WAIT)
+            c.join(self.WAIT)
+        outcome = results["deleter"]
+        self.assertIsInstance(outcome, tuple, outcome)
+        self.assertEqual(outcome[0], "refused")
+        self.assertTrue(User.objects.filter(pk=self.target.pk).exists())
+        if "pk" in created:
+            self.assertTrue(self.Board.objects.filter(pk=created["pk"]).exists())
+
+    def test_board_insert_waits_for_the_exclusive_lock_and_then_fails(self):
+        paused, release = threading.Event(), threading.Event()
+        results, created = {}, {}
+        model_admin = django_admin.site._registry[User]
+        real = type(model_admin)._lock_cards_then_targets
+
+        def hold_after_locks(admin_self, request, pks):
+            real(admin_self, request, pks)
+            if threading.current_thread().name == "deleter":
+                paused.set()
+                release.wait(self.WAIT)
+
+        def creator():
+            try:
+                created["pk"] = self.Board.objects.create(name="late", owner_id=self.target.pk).pk
+            except Exception as exc:
+                created["err"] = exc
+            finally:
+                connections.close_all()
+
+        with mock.patch.object(type(model_admin), "_lock_cards_then_targets", hold_after_locks):
+            deleter = self._delete_thread(results)
+            deleter.start()
+            self.assertTrue(paused.wait(self.WAIT))
+            c = threading.Thread(target=creator)
+            c.start()
+            c.join(1.0)
+            blocked = c.is_alive()
+            release.set()
+            deleter.join(self.WAIT)
+            c.join(self.WAIT)
+        self.assertTrue(blocked, "the board insert was not blocked by the FOR UPDATE on its owner")
+        self.assertEqual(results["deleter"], "deleted")
+        self.assertIn("err", created)  # its owner is gone: the foreign key fails
+        self.assertFalse(self.Board.objects.filter(name="late").exists())
+
+    def test_card_writer_and_user_delete_do_not_deadlock(self):
+        """A writer holds a card row then needs the user row; the delete needs both.
+
+        Fails (a deadlock abort in one thread) if the first statement takes
+        ``FOR UPDATE`` instead of ``FOR NO KEY UPDATE``, or if the card rows
+        that carry references to the target are not locked before the target
+        row is.
+        """
+        from boards.services.cards import lock_card_for_write
+
+        holding, go = threading.Event(), threading.Event()
+        results = {}
+
+        def writer():
+            try:
+                with transaction.atomic():
+                    lock_card_for_write(self.other_card.pk)
+                    holding.set()
+                    go.wait(self.WAIT)
+                    self.CardComment.objects.create(
+                        card=self.other_card, body="again", author_id=self.target.pk
+                    )
+                results["writer"] = "ok"
+            except Exception as exc:
+                results["writer"] = exc
+            finally:
+                connections.close_all()
+
+        w = threading.Thread(target=writer, name="writer")
+        w.start()
+        self.assertTrue(holding.wait(self.WAIT))
+        deleter = self._delete_thread(results)
+        deleter.start()
+        deleter.join(1.5)  # blocked on the card the writer holds
+        go.set()
+        w.join(self.WAIT)
+        deleter.join(self.WAIT)
+        self.assertEqual(results.get("writer"), "ok", results)
+        self.assertEqual(results.get("deleter"), "deleted", results)
+        self.assertFalse(User.objects.filter(pk=self.target.pk).exists())
