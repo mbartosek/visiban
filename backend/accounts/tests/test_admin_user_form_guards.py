@@ -485,3 +485,30 @@ class AddViewAndEdgeTests(_Base):
         url = reverse("admin:auth_user_password_change", args=["not-a-number"])
         self.assertLess(self.client.get(url).status_code, 500)
         self.assertLess(self.client.post(url, {}).status_code, 500)
+
+
+@_PLAIN_STATIC
+class SuperuserAllContentFlagTests(TestCase):
+    """A form save cannot leave all-content access cleared on a superuser (#1614)."""
+
+    def test_form_save_regrants_flag_on_a_superuser(self):
+        root = User.objects.create_superuser(
+            username="root_1614", email="root_1614@example.com", password=PW
+        )
+        target = User.objects.create_superuser(
+            username="target_1614", email="target_1614@example.com", password=PW
+        )
+        # Legacy row: superuser with the derived flag cleared.
+        User.objects.filter(pk=target.pk).update(can_access_all_content=False)
+        target.refresh_from_db()
+        self.client.force_login(root)
+        r = self.client.post(
+            reverse("admin:accounts_user_change", args=[target.pk]),
+            _form_data(target, first_name="Changed", can_access_all_content=""),
+        )
+        self.assertEqual(r.status_code, 302, getattr(r, "context", None) and r.context["adminform"].form.errors)
+        target.refresh_from_db()
+        self.assertEqual(target.first_name, "Changed")
+        self.assertTrue(target.is_superuser)
+        self.assertTrue(target.can_access_all_content)
+        self.assertTrue(target.is_site_admin)

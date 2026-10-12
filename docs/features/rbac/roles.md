@@ -113,6 +113,6 @@ The board **Members** settings follow the same rule: for a board admin who is no
 Users with `can_access_all_content` see all boards and groups regardless of explicit membership — this is the flag that controls board-level omniscience. `is_site_admin` alone doesn't grant it.
 
 !!! note "Two flags, two purposes"
-    `is_site_admin` gates admin panel access and protection from demotion. `can_access_all_content` gates implicit board/group access. The `set_site_admin` management command sets both together, but they can be managed independently via the admin panel. See [Site Admins](../../administration/site-admins.md) for details.
+    `is_site_admin` gates admin panel access and protection from demotion. `can_access_all_content` gates implicit board/group access. The `set_site_admin` management command sets both together, but they can be managed independently via the admin panel for accounts that are not superusers (a superuser always has both). See [Site Admins](../../administration/site-admins.md) for details.
 
 See [Managing Roles](managing.md) for how to grant site admin status.

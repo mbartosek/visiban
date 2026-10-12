@@ -666,7 +666,7 @@ Returns the authenticated user's profile.
 | Field | Type | Description |
 |---|---|---|
 | `is_site_admin` | boolean | Whether the user can access the `/admin` admin panel and admin API. |
-| `can_access_all_content` | boolean | Whether the user has read/write access to every board and group regardless of membership. Independent of `is_site_admin` — see [Site Admins](../administration/site-admins.md). |
+| `can_access_all_content` | boolean | Whether the user has read/write access to every board and group regardless of membership. Independent of `is_site_admin` for non-superusers; a superuser always has it — see [Site Admins](../administration/site-admins.md). |
 | `uploads_enabled` | boolean | Instance-wide setting reflecting whether file attachment uploads are currently permitted. When `false`, the attachment UI is hidden and upload attempts return `403`. |
 | `git_lens_enabled` | boolean | Instance-wide setting reflecting whether the [Issue Board Lens](../features/issue-board-lens.md) is enabled (`GIT_LENS_ENABLED`). When `false`, the SPA hides the Lens tab, board settings, and related API surface entirely. Read-only. Added in 1.2. |
 | `maintenance_mode` | boolean | Instance-wide setting reflecting whether the instance is in read-only maintenance mode. When `true`, non-admin writes return `503` — see [Maintenance mode](admin.md#maintenance-mode). Read-only. Added in 1.2. |

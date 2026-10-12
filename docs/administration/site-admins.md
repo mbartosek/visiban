@@ -1,6 +1,6 @@
 # Site Admins
 
-Two independent flags control what a "site admin" can do on your instance: who can manage it, and who can see every board and group on it.
+Two flags, independent for accounts that are not superusers, control what a "site admin" can do on your instance: who can manage it, and who can see every board and group on it.
 
 ## What is a site admin?
 
@@ -11,7 +11,7 @@ Two independent flags control what a "site admin" can do on your instance: who c
 | `is_site_admin` | Access to the `/admin` admin panel and admin API (`/api/v1/admin/*`). Required to manage users, settings, and instance configuration. |
 | `can_access_all_content` | Read/write access to **every board and group** on the instance, regardless of membership. This is the "omniscient" content access. |
 
-Before Visiban 1.0.0 these two were coupled — `is_site_admin` implied content access. They are now independent so operators can grant admin panel access without also granting board/group omniscience, and vice versa.
+Before Visiban 1.0.0 these two were coupled — `is_site_admin` implied content access. They are now independent for accounts that are not superusers (see the note below), so operators can grant admin panel access without also granting board/group omniscience, and vice versa.
 
 !!! note
     Existing site admins are **automatically migrated**: the database migration sets `can_access_all_content=True` for every row where `is_site_admin=True`, so no access is lost on upgrade.
@@ -41,7 +41,11 @@ python manage.py set_site_admin <username>
 python manage.py set_site_admin <username> --revoke
 ```
 
-To manage the flags independently, use **Site Admin → Users** in the admin panel.
+To manage the flags independently for accounts that are not superusers, use **Site Admin → Users** in the admin panel.
+
+!!! note
+    Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave `can_access_all_content` off on a superuser sets both flags again. Remove superuser status first (which also clears both flags).
+    Existing superusers that have `can_access_all_content` switched off regain it the next time their account is saved, for example at sign-in.
 
 ## First site admin
 

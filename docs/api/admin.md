@@ -389,7 +389,7 @@ Update a user's account flags. Site admin only.
 |---|---|---|
 | `is_active` | boolean | `false` deactivates the account (blocks login without deleting data). Cannot deactivate your own account. |
 | `is_site_admin` | boolean | Grant or revoke admin panel access. Cannot demote yourself. Cannot demote the last active admin. |
-| `can_access_all_content` | boolean | Grant or revoke omniscient read/write access to all boards and groups. Independent of `is_site_admin` — see [Site Admins](../administration/site-admins.md). |
+| `can_access_all_content` | boolean | Grant or revoke omniscient read/write access to all boards and groups. Independent of `is_site_admin` for non-superusers — see [Site Admins](../administration/site-admins.md). Setting `false` on a superuser returns `400` with `can_access_all_content` and `detail` set to `Cannot remove all-content access from a superuser; remove superuser status first.` Superuser status implies this flag. |
 | `has_completed_tour` | boolean | Reset (`false`) to re-show the onboarding tour to this user on next login |
 | `must_change_password` | boolean | `true` forces a password reset on next login |
 
