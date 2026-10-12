@@ -39,6 +39,7 @@ from django.http import HttpResponse
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import include
 from django.urls import path as url_path
+from django.urls import re_path
 
 from accounts.checks import (
     check_pending_action_extra_exempt_views,
@@ -51,6 +52,8 @@ from visiban.demo import DEMO_READ_ONLY_CODE
 from visiban.middleware import (
     PENDING_ACTION_REFUSAL,
     PendingAccountActionMiddleware,
+    _regex_literal_prefix,
+    _valid_extra_gated_prefixes,
     _view_name_of,
     is_pending_action_exempt_view,
     is_well_formed_exempt_view,
@@ -281,6 +284,239 @@ class ExtraExemptViewsTests(SimpleTestCase):
     def test_default_is_empty_and_passes(self):
         self.assertEqual(tuple(settings.PENDING_ACTION_EXTRA_EXEMPT_VIEWS), ())
         self.assertEqual(check_pending_action_extra_exempt_views(None), [])
+
+
+# ---------------------------------------------------------------------------
+# The URL walk behind accounts.E007: non-literal mounts and extra prefixes (#1593)
+# ---------------------------------------------------------------------------
+
+# Mounts whose printed route does not start with a gated prefix but which can
+# serve paths under one, next to mounts that provably cannot.
+_mounts = types.ModuleType(f"{__name__}_mount_urls")
+_mounts.urlpatterns = [
+    # Regex alternation: serves /accounts/alt/ and /admin/alt/.
+    re_path(r"^(?:accounts|admin)/", include([url_path("alt/", _saml_acs, name="regex_alternation")])),
+    # Leading converter: <str:section> can be "accounts".
+    url_path("<str:section>/", include([url_path("conv/", _saml_acs, name="converter_include")])),
+    url_path("<slug:section>/leaf/", _saml_acs, name="converter_leaf"),
+    # An int or uuid cannot be "accounts" or "admin".
+    url_path("<int:pk>/num/", _saml_acs, name="int_leading"),
+    url_path("<uuid:pk>/u/", _saml_acs, name="uuid_leading"),
+    # A literal prefix that diverges from every gated prefix.
+    re_path(r"^sso/(?P<x>\w+)/$", _saml_acs, name="regex_elsewhere"),
+    re_path(r"^accountsx/$", _saml_acs, name="literal_lookalike"),
+    # A regex whose reach cannot be bounded without matching past the gated
+    # prefix: counted (fail safe), although this one cannot in fact serve it.
+    re_path(r"^[b-z]{8}/q/$", _saml_acs, name="unbounded_regex"),
+    # Unanchored: Django applies it with search(), so it can follow /accounts/.
+    re_path(r"anywhere/", include([url_path("x/", _saml_acs, name="unanchored")])),
+    # path converter: can span /accounts/.
+    url_path("<path:rest>/p/", _saml_acs, name="path_converter"),
+    # Slashless route: /admin is gated like /admin/.
+    url_path("admin", _saml_acs, name="slashless_admin"),
+    # Literal endpoint regexes with no end anchor: Django applies them with
+    # search(), so ^acc serves /accounts/x and ^admi serves /admin/x.
+    re_path(r"^acc", _saml_acs, name="open_literal_acc"),
+    re_path(r"^admi", _saml_acs, name="open_literal_admi"),
+    # Literals followed by a top-level alternation or a lookahead.
+    re_path(r"^ac|zz/$", _saml_acs, name="literal_then_alternation"),
+    re_path(r"^ad(?=min)(?:min)/x/$", _saml_acs, name="literal_then_lookahead"),
+]
+sys.modules[_mounts.__name__] = _mounts
+
+# A root URLconf with an extension point, like visiban/urls.py.
+_ext = types.ModuleType(f"{__name__}_ext_urls")
+_ext.extension_urlpatterns = [url_path("sso/acs/", _saml_acs, name="ext_acs")]
+_ext.urlpatterns = [
+    url_path("sso/oss/", _saml_acs, name="oss_under_sso"),
+    url_path("accounts/ext/", _saml_acs, name="oss_under_accounts"),
+    *_ext.extension_urlpatterns,
+    # Open-ended literal endpoint regex: serves /sso/anything (after ext_acs so
+    # it does not shadow /sso/acs/).
+    re_path(r"^ss", _saml_acs, name="oss_open_literal_ss"),
+    url_path("accounts/mine/", _saml_acs, name="ext_under_accounts"),
+]
+_ext.extension_urlpatterns.append(_ext.urlpatterns[-1])
+sys.modules[_ext.__name__] = _ext
+
+
+class GatedViewWalkTests(SimpleTestCase):
+    def setUp(self):
+        oss_gated_view_names.cache_clear()
+        self.addCleanup(oss_gated_view_names.cache_clear)
+
+    def test_regex_and_converter_mounts_that_can_serve_a_gated_path_are_named(self):
+        names = oss_gated_view_names(_mounts.__name__)
+        for name in (
+            "regex_alternation",
+            "converter_include",
+            "converter_leaf",
+            "unanchored",
+            "path_converter",
+            "slashless_admin",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(name, names)
+
+    def test_open_ended_literal_endpoint_regexes_are_named(self):
+        names = oss_gated_view_names(_mounts.__name__)
+        for name in (
+            "open_literal_acc",
+            "open_literal_admi",
+            "literal_then_alternation",
+            "literal_then_lookahead",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(name, names)
+
+    def test_open_ended_literal_endpoint_regexes_really_serve_gated_paths(self):
+        # Resolve order puts earlier mounts first, so use paths only these reach.
+        self.assertEqual(resolved_view_name("/accounts/x", _mounts.__name__), "open_literal_acc")
+        self.assertEqual(resolved_view_name("/admin/x", _mounts.__name__), "open_literal_admi")
+
+    def test_regex_parse_failure_fails_safe(self):
+        with mock.patch("re._parser.parse", side_effect=ValueError("boom")):
+            self.assertEqual(_regex_literal_prefix(r"^accountsx/$"), ("", False, False))
+
+    def test_regex_literal_prefix_reports_the_end_anchor(self):
+        self.assertEqual(_regex_literal_prefix(r"^accounts/x/$"), ("accounts/x/", True, True))
+        self.assertEqual(_regex_literal_prefix(r"^acc"), ("acc", True, False))
+        self.assertEqual(_regex_literal_prefix(r"^sso/(?P<x>\w+)/$"), ("sso/", False, False))
+
+    def test_mounts_that_cannot_serve_a_gated_path_are_not_named(self):
+        names = oss_gated_view_names(_mounts.__name__)
+        for name in ("int_leading", "uuid_leading", "regex_elsewhere", "literal_lookalike"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, names)
+
+    def test_a_regex_that_cannot_be_bounded_is_named_fail_safe(self):
+        self.assertIn("unbounded_regex", oss_gated_view_names(_mounts.__name__))
+
+    def test_the_named_mounts_really_resolve_under_a_gated_prefix(self):
+        for path, name in (
+            ("/accounts/alt/", "regex_alternation"),
+            ("/admin/alt/", "regex_alternation"),
+            ("/accounts/conv/", "converter_include"),
+            ("/admin/leaf/", "converter_leaf"),
+            ("/accounts/anywhere/x/", "unanchored"),
+            ("/accounts/deep/p/", "path_converter"),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(resolved_view_name(path, _mounts.__name__), name)
+
+    def test_default_urlconf_keeps_its_names_and_adds_no_api_routes(self):
+        names = oss_gated_view_names()
+        for name in ("account_email", "admin:index", "admin:accounts_user_change", "account_logout"):
+            with self.subTest(name=name):
+                self.assertIn(name, names)
+        # The API catch-alls are regexes with a diverging literal prefix.
+        for name in ("share-board", "schema", "rest_logout", "rest_resend_email", "saml_acs"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, names)
+        self.assertEqual(check_pending_action_extra_exempt_views_not_oss_gated(None), [])
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",))
+    def test_oss_routes_under_an_extra_prefix_are_named_and_extension_routes_are_not(self):
+        names = oss_gated_view_names(_ext.__name__)
+        self.assertIn("oss_under_sso", names)
+        self.assertNotIn("ext_acs", names)
+        # Under a built-in prefix the extension's own route still counts.
+        self.assertIn("ext_under_accounts", names)
+        self.assertIn("oss_under_accounts", names)
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",))
+    def test_open_ended_literal_regex_under_an_extra_prefix_is_named(self):
+        self.assertIn("oss_open_literal_ss", oss_gated_view_names(_ext.__name__))
+        self.assertEqual(resolved_view_name("/sso/anything", _ext.__name__), "oss_open_literal_ss")
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/", "no-slash", "/ext/"))
+    def test_extra_gated_prefixes_are_the_well_formed_setting_entries(self):
+        self.assertEqual(_valid_extra_gated_prefixes(), ("/sso/", "/ext/"))
+
+    def test_without_the_extra_prefix_neither_sso_route_is_named(self):
+        names = oss_gated_view_names(_ext.__name__)
+        self.assertNotIn("oss_under_sso", names)
+        self.assertNotIn("ext_acs", names)
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",))
+    def test_a_root_without_an_extension_point_marks_every_route_oss(self):
+        # This module's own URLconf declares no extension_urlpatterns.
+        self.assertIn("saml_acs", oss_gated_view_names(__name__))
+
+    @override_settings(
+        PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",),
+        PENDING_ACTION_EXTRA_EXEMPT_VIEWS=("oss_under_sso", "ext_acs"),
+    )
+    def test_e007_and_the_runtime_filter_apply_to_extra_prefixes(self):
+        with override_settings(ROOT_URLCONF=_ext.__name__):
+            oss_gated_view_names.cache_clear()
+            errors = check_pending_action_extra_exempt_views_not_oss_gated(None)
+            self.assertEqual([e.id for e in errors], ["accounts.E007"])
+            self.assertIn("oss_under_sso", errors[0].msg)
+            self.assertFalse(is_pending_action_exempt_view("/sso/oss/"))
+            self.assertTrue(is_pending_action_exempt_view("/sso/acs/"))
+
+    @override_settings(PENDING_ACTION_EXTRA_EXEMPT_VIEWS=("regex_alternation", "int_leading"))
+    def test_e007_reports_a_regex_mount_and_the_runtime_ignores_it(self):
+        with override_settings(ROOT_URLCONF=_mounts.__name__):
+            oss_gated_view_names.cache_clear()
+            errors = check_pending_action_extra_exempt_views_not_oss_gated(None)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("regex_alternation", errors[0].msg)
+            self.assertFalse(is_pending_action_exempt_view("/accounts/alt/"))
+            self.assertTrue(is_pending_action_exempt_view("/7/num/"))
+
+    def test_cache_is_keyed_on_the_extra_prefixes(self):
+        self.assertNotIn("oss_under_sso", oss_gated_view_names(_ext.__name__))
+        with override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",)):
+            self.assertIn("oss_under_sso", oss_gated_view_names(_ext.__name__))
+
+
+class ExtensionUrlpatternsWiringTests(SimpleTestCase):
+    """visiban/urls.py hands the walk the very objects it mounted (#1593)."""
+
+    def _reload_urls(self, enterprise_patterns=None):
+        import importlib
+
+        from django.urls import clear_url_caches
+
+        import visiban.urls
+
+        planted = {}
+        if enterprise_patterns is not None:
+            pkg = types.ModuleType("enterprise")
+            pkg.__path__ = []
+            mod = types.ModuleType("enterprise.urls")
+            mod.enterprise_urlpatterns = enterprise_patterns
+            pkg.urls = mod
+            planted = {"enterprise": pkg, "enterprise.urls": mod}
+        try:
+            with mock.patch.dict(sys.modules, planted):
+                if enterprise_patterns is None:
+                    # A None entry makes the import raise ImportError, so an
+                    # installed enterprise package cannot leak into the OSS case.
+                    with mock.patch.dict(sys.modules, {"enterprise": None, "enterprise.urls": None}):
+                        module = importlib.reload(visiban.urls)
+                else:
+                    module = importlib.reload(visiban.urls)
+                return list(module.extension_urlpatterns), list(module.urlpatterns)
+        finally:
+            # Restore the real module so no other test sees the planted routes.
+            importlib.reload(visiban.urls)
+            clear_url_caches()
+            oss_gated_view_names.cache_clear()
+
+    def test_extension_urlpatterns_holds_the_mounted_objects(self):
+        ext = [url_path("sso/acs/", _saml_acs, name="ext_acs")]
+        extension, urlpatterns = self._reload_urls(ext)
+        self.assertEqual(len(extension), 1)
+        self.assertIs(extension[0], ext[0])
+        self.assertTrue(any(p is ext[0] for p in urlpatterns))
+
+    def test_without_enterprise_extension_urlpatterns_is_empty(self):
+        extension, urlpatterns = self._reload_urls(None)
+        self.assertEqual(extension, [])
+        self.assertTrue(urlpatterns)
 
 
 # ---------------------------------------------------------------------------
