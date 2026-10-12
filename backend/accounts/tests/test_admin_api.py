@@ -335,6 +335,60 @@ class AdminPatchUserTests(TestCase):
         r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": True})
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
 
+    def test_clearing_all_content_access_on_a_superuser_is_refused(self):
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        self.target.refresh_from_db()
+        self.target.save()  # superuser promotion derives the flags
+
+        r = self.client.patch(
+            f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": False}
+        )
+
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        self.assertIn("can_access_all_content", r.json())
+        self.assertIn("superuser", r.json()["detail"])
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_site_admin)
+        self.assertTrue(self.target.can_access_all_content)
+
+    def test_all_content_clear_rechecks_superuser_on_the_locked_row(self):
+        from unittest.mock import patch
+
+        from accounts import admin_views
+
+        User.objects.filter(pk=self.target.pk).update(can_access_all_content=True)
+        real_lock = admin_views.lock_user_row
+
+        def lock_after_concurrent_grant(pk):
+            User.objects.filter(pk=pk).update(is_superuser=True)
+            return real_lock(pk)
+
+        with patch.object(admin_views, "lock_user_row", side_effect=lock_after_concurrent_grant):
+            r = self.client.patch(
+                f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": False}
+            )
+
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        self.assertIn("can_access_all_content", r.json())
+        self.assertIn("superuser", r.json()["detail"])
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.can_access_all_content)
+
+    def test_all_content_grant_and_non_superuser_clear_still_work(self):
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        r = self.client.patch(
+            f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": True}
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        other = make_user(username="plain_1614")
+        User.objects.filter(pk=other.pk).update(can_access_all_content=True)
+        r = self.client.patch(
+            f"/api/v1/admin/users/{other.pk}/", {"can_access_all_content": False}
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        other.refresh_from_db()
+        self.assertFalse(other.can_access_all_content)
+
     def test_demoting_a_non_superuser_site_admin_succeeds(self):
         User.objects.filter(pk=self.target.pk).update(is_site_admin=True)
         r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"is_site_admin": False})

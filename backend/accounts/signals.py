@@ -64,12 +64,14 @@ def _connect_user_signals():
 
     @receiver(post_save, sender=User, dispatch_uid="accounts.ensure_superuser_is_site_admin")
     def ensure_superuser_is_site_admin(sender, instance, **kwargs):
-        """Keep is_site_admin in sync with is_superuser.
+        """Keep is_site_admin and can_access_all_content in sync with is_superuser.
 
         When a superuser is created (e.g. via createsuperuser or the ensure_site_admin
         management command) they should automatically hold the is_site_admin flag so
         the admin API is accessible from the first login, without requiring a separate
-        step.  We use update_fields to avoid a recursive save loop.
+        step.  We use update_fields to avoid a recursive save loop. A save that
+        leaves either derived flag false on a superuser re-grants both (#1614),
+        so no route can leave all-content access cleared on a superuser.
 
         The reverse also holds (#1579): removing superuser status removes the
         two flags derived from it, and runs the same access-loss housekeeping
@@ -97,7 +99,9 @@ def _connect_user_signals():
                     instance, None, {**prior, "is_active": instance.is_active}
                 )
             return
-        if instance.is_superuser and not instance.is_site_admin:
+        if instance.is_superuser and not (
+            instance.is_site_admin and instance.can_access_all_content
+        ):
             sender.objects.filter(pk=instance.pk).update(
                 is_site_admin=True,
                 can_access_all_content=True,

@@ -43,6 +43,9 @@ python manage.py set_site_admin <username> --revoke
 
 To manage the flags independently, use **Site Admin → Users** in the admin panel.
 
+!!! note
+    Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave `can_access_all_content` off on a superuser sets both flags again. Remove superuser status first (which also clears both flags).
+
 ## First site admin
 
 On first boot, the `ensure_site_admin` management command creates an admin account automatically and prints a one-time password. See [First Boot](../getting-started/first-boot.md).
