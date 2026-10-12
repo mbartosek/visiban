@@ -19,6 +19,7 @@ PostgreSQL only. To see the bug, make ``lock_cards_for_cascade`` a no-op in
 """
 
 import threading
+from contextlib import nullcontext
 from unittest import skipUnless
 from unittest.mock import patch
 
@@ -92,10 +93,18 @@ class AdminDeleteCascadeLockTests(TransactionTestCase):
         model_admin, model, pk = self._target(kind)
         request = RequestFactory().post("/")
         request.user = self.staff
-        if mode == "model":
-            model_admin.delete_model(request, model.objects.get(pk=pk))
-        else:
-            model_admin.delete_queryset(request, model.objects.filter(pk=pk))
+        # A board owner's delete is refused by the user-delete guard (#1616,
+        # tested in accounts); this test is about the card lock the cascade
+        # takes, so the guard is stubbed out for the user kind only.
+        guard = (
+            patch("accounts.admin.user_deletion_refusals", return_value=[])
+            if kind == "user" else nullcontext()
+        )
+        with guard:
+            if mode == "model":
+                model_admin.delete_model(request, model.objects.get(pk=pk))
+            else:
+                model_admin.delete_queryset(request, model.objects.filter(pk=pk))
         return None
 
     def _write(self, client):
