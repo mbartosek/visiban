@@ -202,7 +202,13 @@ class RegistrationAdapter(DefaultAccountAdapter):
         from .credentials import finalize_password_change
 
         with transaction.atomic():
-            super().set_password(user, password)
+            # allauth's own hook is ``user.set_password(); user.save()``. Only
+            # the password column is written here (#1619): *user* is the copy
+            # the flow loaded when the request started, and a full save would
+            # write its other columns (``is_active``, the forced-change flags)
+            # back over changes committed since.
+            user.set_password(password)
+            user.save(update_fields=["password"])
             finalize_password_change(user)
 
     def clean_username(self, username, shallow=False):
@@ -308,6 +314,27 @@ class RegistrationAdapter(DefaultAccountAdapter):
         """
         frontend_url = (getattr(django_settings, "LOGIN_REDIRECT_URL", None) or "http://localhost:5173").rstrip("/")
         return f"{frontend_url}/confirm-email/{emailconfirmation.key}"
+
+
+def _connect_target(user):
+    """The user a social-account connect is attached to, re-read with one column loaded (#1619).
+
+    allauth's connect flow (``SocialLogin.connect`` -> ``SocialLogin.save``)
+    calls ``user.save()`` with no ``update_fields`` on ``request.user``, which
+    was loaded before the provider round trip. Saving that copy would write
+    every column back, including a password hash or ``is_active`` changed by
+    another request in the meantime.
+
+    Django saves only the loaded fields of an instance fetched with deferred
+    fields, so handing allauth a fresh row with only ``last_login`` loaded
+    narrows its save to that column (written back with the value just read).
+    Any other attribute read later is loaded from the stored row on access.
+    Connecting a provider changes nothing on the user row itself; the link
+    is the ``SocialAccount`` row.
+    """
+    from django.contrib.auth import get_user_model
+
+    return get_user_model().objects.only("last_login").get(pk=user.pk)
 
 
 class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
@@ -420,6 +447,7 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
                 raise ImmediateHttpResponse(HttpResponseRedirect(
                     self._settings_url(connect_error="provider_already_connected", provider=provider)
                 ))
+            request.user = _connect_target(request.user)
             return
 
         if process == AuthProcess.REDIRECT or sociallogin.is_existing:

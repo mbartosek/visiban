@@ -206,15 +206,6 @@ class VisibanUserAdmin(UserAdmin):
                 .order_by("pk")
             )
             stored = next((u for u in locked if u.pk == obj.pk), None)
-            if stored is not None:
-                # The form's checks ran before this lock was taken; repeat them
-                # against the locked rows.
-                if (stored.is_active and not obj.is_active and deactivation_refusal(
-                    stored, request.user, include_last_site_admin=True
-                )) or (stored.is_superuser and not obj.is_superuser and demotion_refusal(
-                    stored, request.user
-                )):
-                    raise PermissionDenied
             if stored is not None and form is not None:
                 # The form wrote its values onto the instance Django loaded
                 # earlier in this request. Between that load and the lock
@@ -222,9 +213,31 @@ class VisibanUserAdmin(UserAdmin):
                 # does not carry (a demotion, a pending password-change
                 # flag); those fields must come from the locked row, or this
                 # save would write the older values back.
+                #
+                # The same holds for a field the form carries but the
+                # administrator did not change (#1619): the form re-submits
+                # every value it rendered, including the read-only password
+                # hash, so only the fields in ``changed_data`` take the
+                # submitted value. An unbound form (no submission) has no
+                # ``changed_data`` to go by, so only the first rule applies.
+                changed = set(form.changed_data) if getattr(form, "is_bound", False) else None
                 for field in User._meta.concrete_fields:
-                    if field.name not in form.fields:
+                    if field.name not in form.fields or (
+                        changed is not None and field.name not in changed
+                    ):
                         setattr(obj, field.attname, getattr(stored, field.attname))
+            if stored is not None:
+                # The form's checks ran before this lock was taken; repeat them
+                # against the locked rows. They run after the values above are
+                # taken from the locked row, so they judge what this save will
+                # write: a stale rendered value the administrator left alone is
+                # not a deactivation or demotion.
+                if (stored.is_active and not obj.is_active and deactivation_refusal(
+                    stored, request.user, include_last_site_admin=True
+                )) or (stored.is_superuser and not obj.is_superuser and demotion_refusal(
+                    stored, request.user
+                )):
+                    raise PermissionDenied
             super().save_model(request, obj, form, change)
             if stored is not None:
                 apply_access_loss_revocations(obj, request.user, access_state(stored))

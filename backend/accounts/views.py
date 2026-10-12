@@ -697,24 +697,30 @@ class ChangePasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Social-only accounts have no usable password — skip the current
-        # password check so they can set one for the first time.
-        if request.user.has_usable_password():
-            if not request.user.check_password(current_password):
-                return Response(
-                    {"detail": "Current password is incorrect."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
         with transaction.atomic():
-            request.user.set_password(new_password)
-            request.user.save(update_fields=["password"])
-            finalize_password_change(request.user)
+            # #1619: the current password is checked against, and the new
+            # hash written to, the row read under the user-row lock, not the
+            # copy loaded when the request started. A password change or
+            # reset committed by another request in between is then checked
+            # against instead of being silently replaced, and only the
+            # password column is written.
+            user = credentials.lock_user_row(request.user)
+            # Social-only accounts have no usable password — skip the current
+            # password check so they can set one for the first time.
+            if user.has_usable_password():
+                if not user.check_password(current_password):
+                    return Response(
+                        {"detail": "Current password is incorrect."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            user.set_password(new_password)
+            user.save(update_fields=["password"])
+            finalize_password_change(user)
             body = {"detail": "Password changed successfully."}
             body.update(_reissued_auth_token(request))
         # Keep the current session alive after the password rotation so the
         # user does not get logged out and left with a broken session state.
-        update_session_auth_hash(request, request.user)
+        update_session_auth_hash(request, user)
         return Response(body)
 
 
@@ -1086,12 +1092,26 @@ class TokenRevokingPasswordChangeView(DjRestAuthPasswordChangeView):
         # Without the override above, drf-spectacular falls back to introspecting
         # PASSWORD_CHANGE_SERIALIZER (VisibanPasswordChangeSerializer, the
         # *request* shape: new_password1/new_password2) for the response too.
+        #
+        # #1619: the user row is locked and re-read before the serializer
+        # runs, and the serializer checks the current password against and
+        # writes the new one to that row (see get_serializer_context), so a
+        # password change or deactivation committed by another request since
+        # this one started is neither checked past nor written back.
         with transaction.atomic():
+            self._locked_user = credentials.lock_user_row(request.user)
             response = super().post(request, *args, **kwargs)
             if response.status_code == status.HTTP_200_OK:
-                finalize_password_change(request.user)
+                finalize_password_change(self._locked_user)
                 response.data.update(_reissued_auth_token(request))
         return response
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        locked_user = getattr(self, "_locked_user", None)
+        if locked_user is not None:
+            context["locked_user"] = locked_user
+        return context
 
 
 class WSTicketThrottle(UserRateThrottle):
