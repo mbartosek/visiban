@@ -4069,6 +4069,11 @@ write the same data over MCP, a socket, an invite link or an import.</p>
 <td>Each stock admin is re-registered with the mixin, so view, add, change, delete and the module entry are limited to active superusers regardless of the model permissions a staff account holds (<code>accounts/tests/test_admin_third_party_restrictions.py</code>)</td>
 </tr>
 <tr>
+<td>Django admin (Sites)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code>; admin for <code>django.contrib.sites</code> <code>Site</code></td>
+<td>The Sites admin is re-registered with the mixin, so view, add, change, delete and the module entry are limited to active superusers regardless of the model permissions a staff account holds (#1621; <code>accounts/tests/test_admin_sites_restrictions.py</code>)</td>
+</tr>
+<tr>
 <td>Admin API</td>
 <td><code>accounts/admin_views.py</code> <code>AdminUserDetailView</code>, <code>AdminUserDeactivateView</code></td>
 <td><code>_ADMIN_PERMISSIONS</code></td>
