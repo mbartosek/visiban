@@ -8,6 +8,7 @@ connection) at the moment the render re-reads it.
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.http import Http404
 from django.test import RequestFactory
 from rest_framework.test import APITestCase
 
@@ -183,13 +184,29 @@ class AdminVsDeleteTests(_Base):
                 adm.save_model(self._request(), self.card, None, change=True)
         self.assertEqual(BoardEvent.objects.count(), events_before)
 
-    def test_child_admin_save_model_skips_broadcast_when_card_gone(self):
+    def test_child_admin_save_model_card_gone_is_404(self):
+        # Card already gone when the admin saves a child: Http404, nothing saved.
         adm = CardCommentAdmin(CardComment, AdminSite())
         comment = CardComment(card=self.card, author=self.user, body="x")
+        Card.objects.filter(pk=self.card.pk).delete()
+        with self.assertRaises(Http404):
+            adm.save_model(self._request(), comment, None, change=False)
+        self.assertEqual(CardComment.objects.count(), 0)
+
+    def test_child_admin_delete_hooks_tolerate_stale_card(self):
+        # The admin loaded the child row, then the card (and, by cascade, the
+        # row) vanished: the hooks must not touch the lazy ``obj.card``.
+        adm = CardChecklistAdmin(CardChecklist, AdminSite())
+        item = CardChecklist.objects.create(
+            card=self.card, text="t", created_by=self.user, position=0,
+        )
+        stale = CardChecklist.objects.get(pk=item.pk)
+        qs = CardChecklist.objects.filter(pk=item.pk)
+        rows = list(qs)  # loaded before the card vanishes
+        Card.objects.filter(pk=self.card.pk).delete()
         events_before = BoardEvent.objects.count()
-        with self.captureOnCommitCallbacks(execute=True):
-            with _deleting(self.card.pk, self.HELPER_QS):
-                adm.save_model(self._request(), comment, None, change=False)
+        adm.delete_model(self._request(), stale)
+        adm.delete_queryset(self._request(), CardChecklist.objects.filter(pk__in=[r.pk for r in rows]))
         self.assertEqual(BoardEvent.objects.count(), events_before)
 
     def test_child_admin_delete_model_skips_broadcast_when_card_gone(self):

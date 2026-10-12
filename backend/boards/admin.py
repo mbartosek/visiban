@@ -4,6 +4,7 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.http import Http404
 
 from rest_framework.exceptions import NotFound
 
@@ -20,9 +21,10 @@ from .serializers import (
 )
 from .permissions import SITE_ADMIN
 from .services.cards import (
-    enforce_column_limits, lock_card_cell_entry, lock_card_row, lock_cards_for_cascade,
+    enforce_column_limits, lock_card_cell_entry, lock_card_for_write, lock_card_row,
+    lock_cards_for_cascade,
 )
-from .services.errors import WeightLimitExceeded, WipHardBlocked, WipLimitExceeded
+from .services.errors import CardNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded
 from .views._helpers import _refetched_card_data
 
 
@@ -543,8 +545,25 @@ class _CardChildBroadcastAdminMixin:
     """
 
     def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        card = obj.card
+        # Lock the parent card row for the rest of the transaction, as the REST
+        # comment/checklist endpoints do (#1587). The child's card foreign key is
+        # DEFERRABLE INITIALLY DEFERRED on PostgreSQL, so without the lock a card
+        # delete committing before this transaction's COMMIT fails the FK check
+        # there, as a 500. A card that is already gone answers 404 instead; the
+        # admin's changeform transaction rolls the unsaved row back.
+        with transaction.atomic():
+            try:
+                lock_card_for_write(obj.card_id)
+            except CardNotFound:
+                raise Http404("Card not found.") from None
+            super().save_model(request, obj, form, change)
+        card = Card.objects.select_related("board").filter(pk=obj.card_id).first()
+        if card is not None:
+            self._broadcast_card(request, card)
+
+    @staticmethod
+    def _broadcast_card(request, card):
+        """Re-broadcast ``card.updated``, or nothing if the card has vanished."""
         card_data = _refetched_card_data_or_none(card, request, card.board)
         if card_data is not None:
             _broadcast.record_board_event(
@@ -552,30 +571,31 @@ class _CardChildBroadcastAdminMixin:
             )
 
     def delete_model(self, request, obj):
-        # Capture the card before deleting obj — obj.card is a live FK lookup
-        # that still resolves pre-delete. The refetch happens after the
-        # delete so the broadcast reflects the item's removal, same ordering
-        # CardViewSet's comment/checklist endpoints use.
-        card = obj.card
+        # Capture the card before deleting obj. It is looked up by id rather
+        # than through ``obj.card``, whose lazy FK read raises if the card was
+        # deleted since the admin loaded ``obj`` (#1585); a vanished card has
+        # nothing to broadcast. The refetch happens after the delete so the
+        # broadcast reflects the item's removal, same ordering CardViewSet's
+        # comment/checklist endpoints use.
+        card = Card.objects.select_related("board").filter(pk=obj.card_id).first()
         super().delete_model(request, obj)
-        card_data = _refetched_card_data_or_none(card, request, card.board)
-        if card_data is not None:
-            _broadcast.record_board_event(
-                card.board_id, _broadcast.EVT_CARD_UPDATED, card_data, actor_id=request.user.pk
-            )
+        if card is not None:
+            self._broadcast_card(request, card)
 
     def delete_queryset(self, request, queryset):
         # Dedupe by card: a bulk delete can select several rows on the same
         # card, and each card only needs one post-delete broadcast reflecting
-        # its final state, not one per deleted row.
-        cards = {o.card_id: o.card for o in queryset}
+        # its final state, not one per deleted row. Cards are looked up by id so
+        # a card deleted since the admin loaded the rows is skipped, not a 500.
+        card_ids = {o.card_id for o in queryset}
+        cards = list(Card.objects.select_related("board").filter(pk__in=card_ids))
         super().delete_queryset(request, queryset)
         # Refetch every card first, then record: a card deleted part-way
         # through is skipped, instead of leaving the earlier cards' events
         # emitted and the later ones' never emitted (#1585).
         refetched = [
             (card, _refetched_card_data_or_none(card, request, card.board))
-            for card in cards.values()
+            for card in cards
         ]
         for card, card_data in refetched:
             if card_data is None:
