@@ -66,7 +66,7 @@ def finalize_password_change(user):
 
 
 FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE = (
-    "Setting a first password requires a signed-in session, not a Personal Access Token."
+    "Setting a first password is available from an interactive session only."
 )
 
 
@@ -74,10 +74,12 @@ def first_password_requires_session(request, user) -> bool:
     """True when *request* may not set *user*'s first password (#1609).
 
     An account with no usable password (social or SSO sign-in only) may set
-    one without a current password, but only from an interactive session. A
-    request authenticated with a Personal Access Token is refused. A caller
-    that proves a current password is unaffected, so this is false whenever
-    ``user.has_usable_password()`` is true.
+    one without a current password, but only from an interactive session.
+    Fails closed: a session leaves ``request.auth`` as ``None``, so any
+    request that carries a non-``None`` credential object (a Personal Access
+    Token, the DRF auth ``Token``, or an authenticator added later) is
+    refused. A caller that proves a current password is unaffected, so this
+    is false whenever ``user.has_usable_password()`` is true.
 
     Shared by both REST password-change routes
     (``accounts.views.ChangePasswordView`` and
@@ -85,11 +87,9 @@ def first_password_requires_session(request, user) -> bool:
     cannot drift between them. *user* should be the row read under
     ``lock_user_row``.
     """
-    from .models import PersonalAccessToken
-
     if user.has_usable_password():
         return False
-    return isinstance(getattr(request, "auth", None), PersonalAccessToken)
+    return getattr(request, "auth", None) is not None
 
 
 def revoke_auth_token(user):

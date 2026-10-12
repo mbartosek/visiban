@@ -334,7 +334,7 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
     Social-only accounts (no usable password) are exempt, matching
     ``ChangePasswordView``: they have no current password to prove, and this is
     how they set their first one. That exemption applies to an interactive
-    session only: a request authenticated with a Personal Access Token is
+    session only: a request authenticated with any token credential is
     refused with 403 (#1609, ``accounts.credentials.first_password_requires_session``).
     """
 

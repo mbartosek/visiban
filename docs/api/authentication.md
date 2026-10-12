@@ -524,12 +524,12 @@ Change the authenticated user's password. Requires authentication.
 { "current_password": "current-password", "new_password": "new-password" }
 ```
 
-- `current_password` is not required for social-only accounts (accounts with no usable password that are setting a password for the first time). Setting that first password requires a signed-in session: a request authenticated with a Personal Access Token is refused with `403 Forbidden` and nothing is changed
+- `current_password` is not required for social-only accounts (accounts with no usable password that are setting a password for the first time). Setting that first password is available from an interactive session only: a request authenticated with a token (a Personal Access Token or the login API token) is refused with `403 Forbidden` and nothing is changed
 - Minimum 12 characters; standard Django complexity rules apply
 - If `must_change_password` was set, it is cleared on success
 - The API token issued by `POST /api/v1/auth/login/` is revoked on success; a caller that authenticated with that token receives a replacement in the response's optional `key` field — see [API token on password change](#api-token-on-password-change) below
 
-**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a Personal Access Token is used to set a first password on an account with no usable password. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
+**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a token credential is used to set a first password on an account with no usable password. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
 
 ```json
 { "detail": "Password changed successfully.", "key": "<new-api-token>" }
@@ -579,8 +579,8 @@ not accept the same body — but since 1.2 they enforce the same rules.
     are optional: an integration that omits `old_password` must be updated to
     send it. Social-only accounts (no usable password yet) may still omit it to
     set their first password from a signed-in session, matching
-    `/auth/change-password/`; a request authenticated with a Personal Access
-    Token is refused with `403 Forbidden` in that case.
+    `/auth/change-password/`; a request authenticated with a token is refused
+    with `403 Forbidden` in that case.
 
 - **Minimum 12 characters** (changed in 1.2, #1258). Previously this endpoint
   accepted 8, Django's default. The minimum now comes from the instance-wide
