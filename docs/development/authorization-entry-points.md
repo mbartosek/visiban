@@ -94,6 +94,16 @@ prefix. A root URLconf without `extension_urlpatterns` (a project that replaces
 such a project must declare `extension_urlpatterns` in its root module for its
 own views under an extra prefix to be exemptible.
 
+Extension routes are identified by object identity: a top-level pattern counts
+as the extension's own only if it is the same object listed in
+`enterprise_urlpatterns` (and so in `extension_urlpatterns`). An extension must
+register the very pattern objects it exposes. Wrapping or copying them, or
+listing an OSS pattern object in `enterprise_urlpatterns`, mislabels routes, and
+an OSS `include()` wrapped inside an extension's own include is treated as
+extension routes in full. A literal endpoint regex without an end anchor
+(`^acc`) is matched with `search()` by Django and so counts as open-ended: it can
+serve `/accounts/x`.
+
 REST keeps DRF permission classes. They evaluate the same gate objects as the
 other transports, one gate per class, so that an endpoint a pending user must
 reach to clear the flag (for example `ChooseUsernameView`) can leave out exactly

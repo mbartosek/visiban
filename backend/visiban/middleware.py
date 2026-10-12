@@ -603,10 +603,20 @@ def pending_action_gated_prefixes() -> tuple[str, ...]:
     ``accounts.E004`` system check, so a typo cannot widen the gate to every
     path.
     """
+    return PENDING_ACTION_GATED_PREFIXES + _valid_extra_gated_prefixes()
+
+
+def _valid_extra_gated_prefixes() -> tuple[str, ...]:
+    """The well-formed entries of ``settings.PENDING_ACTION_EXTRA_GATED_PREFIXES``.
+
+    Shared by the gate and the E007 URL walk so the walk never derives the
+    extra prefixes by slicing the combined tuple, which would silently drop
+    them if that tuple were ever reordered or deduplicated (#1593).
+    """
     extra = getattr(settings, "PENDING_ACTION_EXTRA_GATED_PREFIXES", ()) or ()
     if isinstance(extra, str):
         extra = (extra,)
-    return PENDING_ACTION_GATED_PREFIXES + tuple(p for p in extra if is_well_formed_gated_prefix(p))
+    return tuple(p for p in extra if is_well_formed_gated_prefix(p))
 
 
 def is_pending_action_gated_path(path: str) -> bool:
@@ -658,14 +668,18 @@ def _slash_free_converters() -> tuple[type, ...]:
     return (IntConverter, SlugConverter, StringConverter, UUIDConverter)
 
 
-def _regex_literal_prefix(source: str) -> tuple[str, bool]:
-    """``(prefix, fully_literal)`` for a regex source such as ``^sso/(?P<x>\\w+)/$``.
+def _regex_literal_prefix(source: str) -> tuple[str, bool, bool]:
+    """``(prefix, fully_literal, end_anchored)`` for a regex source such as ``^sso/(?P<x>\\w+)/$``.
 
     *prefix* is the literal text every match of the regex starts with
-    (``sso/``); *fully_literal* is True when the regex matches only that text
-    (``^accounts/3rdparty/signup/$``). Anything the parser cannot read, or a
-    case-insensitive regex, gives ``("", False)``: no known prefix, so the
-    caller cannot rule the route out.
+    (``sso/``); *fully_literal* is True when nothing but end anchors follows
+    that text; *end_anchored* is True when such an anchor (``$``, ``\\Z``) is
+    present. ``^accounts/3rdparty/signup/$`` matches only its text, while
+    ``^acc`` is fully literal but open-ended: as an endpoint Django applies
+    it with ``search()``, so it also serves ``/accounts/x``. Anything the
+    parser cannot read, or a case-insensitive regex, gives
+    ``("", False, False)``: no known prefix, so the caller cannot rule the
+    route out.
     """
     try:
         from re import _parser as sre_parse  # Python 3.11+
@@ -673,13 +687,13 @@ def _regex_literal_prefix(source: str) -> tuple[str, bool]:
         try:
             import sre_parse  # type: ignore[no-redef]
         except ImportError:
-            return "", False
+            return "", False, False
     try:
         parsed = sre_parse.parse(source)
     except Exception:  # noqa: BLE001 - any parse failure means "unknown", never "safe"
-        return "", False
+        return "", False, False
     if parsed.state.flags & re.IGNORECASE:
-        return "", False
+        return "", False, False
     ops = list(parsed)
     i = 0
     while i < len(ops) and ops[i][0] == sre_parse.AT and ops[i][1] in (
@@ -691,10 +705,11 @@ def _regex_literal_prefix(source: str) -> tuple[str, bool]:
     while i < len(ops) and ops[i][0] == sre_parse.LITERAL:
         chars.append(chr(ops[i][1]))
         i += 1
+    tail = ops[i:]
     fully_literal = all(
-        op == sre_parse.AT and arg in (sre_parse.AT_END, sre_parse.AT_END_STRING) for op, arg in ops[i:]
+        op == sre_parse.AT and arg in (sre_parse.AT_END, sre_parse.AT_END_STRING) for op, arg in tail
     )
-    return "".join(chars), fully_literal
+    return "".join(chars), fully_literal, fully_literal and bool(tail)
 
 
 def _pattern_tokens(pattern, is_endpoint: bool) -> list[tuple]:
@@ -731,8 +746,13 @@ def _pattern_tokens(pattern, is_endpoint: bool) -> list[tuple]:
         anchored = source.startswith(("^", r"\A")) or (is_endpoint and source.endswith("$"))
         if not anchored:
             return [("any",)]
-        prefix, fully_literal = _regex_literal_prefix(source)
-        if fully_literal:
+        prefix, fully_literal, end_anchored = _regex_literal_prefix(source)
+        # A resolver (include) hands the rest of the path to its children, so
+        # its literal regex is exactly its text. An endpoint without an end
+        # anchor is applied with search() and serves any longer path too
+        # (``^acc`` serves ``/accounts/x``), so it stays an open-ended regex
+        # token, which _can_serve_under fails safe on.
+        if fully_literal and (end_anchored or not is_endpoint):
             return [("lit", prefix)]
         return [("re", pattern.regex, prefix, False)]
     return [("any",)]
@@ -771,10 +791,6 @@ def _can_serve_under(tokens: list[tuple], rem: str) -> bool:
         if regex.fullmatch(rem[:k]) and _can_serve_under(rest, rem[k:]):
             return True
     return not slash_free
-
-
-def _extra_gated_prefixes() -> tuple[str, ...]:
-    return pending_action_gated_prefixes()[len(PENDING_ACTION_GATED_PREFIXES) :]
 
 
 @functools.lru_cache(maxsize=8)
@@ -833,7 +849,7 @@ def oss_gated_view_names(urlconf=None) -> frozenset[str]:
     call ``oss_gated_view_names.cache_clear()`` after changing URL patterns in
     a test.
     """
-    return _oss_gated_view_names(urlconf or settings.ROOT_URLCONF, _extra_gated_prefixes())
+    return _oss_gated_view_names(urlconf or settings.ROOT_URLCONF, _valid_extra_gated_prefixes())
 
 
 oss_gated_view_names.cache_clear = _oss_gated_view_names.cache_clear  # type: ignore[attr-defined]

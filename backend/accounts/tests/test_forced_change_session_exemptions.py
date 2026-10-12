@@ -52,6 +52,8 @@ from visiban.demo import DEMO_READ_ONLY_CODE
 from visiban.middleware import (
     PENDING_ACTION_REFUSAL,
     PendingAccountActionMiddleware,
+    _regex_literal_prefix,
+    _valid_extra_gated_prefixes,
     _view_name_of,
     is_pending_action_exempt_view,
     is_well_formed_exempt_view,
@@ -312,6 +314,13 @@ _mounts.urlpatterns = [
     url_path("<path:rest>/p/", _saml_acs, name="path_converter"),
     # Slashless route: /admin is gated like /admin/.
     url_path("admin", _saml_acs, name="slashless_admin"),
+    # Literal endpoint regexes with no end anchor: Django applies them with
+    # search(), so ^acc serves /accounts/x and ^admi serves /admin/x.
+    re_path(r"^acc", _saml_acs, name="open_literal_acc"),
+    re_path(r"^admi", _saml_acs, name="open_literal_admi"),
+    # Literals followed by a top-level alternation or a lookahead.
+    re_path(r"^ac|zz/$", _saml_acs, name="literal_then_alternation"),
+    re_path(r"^ad(?=min)(?:min)/x/$", _saml_acs, name="literal_then_lookahead"),
 ]
 sys.modules[_mounts.__name__] = _mounts
 
@@ -322,6 +331,9 @@ _ext.urlpatterns = [
     url_path("sso/oss/", _saml_acs, name="oss_under_sso"),
     url_path("accounts/ext/", _saml_acs, name="oss_under_accounts"),
     *_ext.extension_urlpatterns,
+    # Open-ended literal endpoint regex: serves /sso/anything (after ext_acs so
+    # it does not shadow /sso/acs/).
+    re_path(r"^ss", _saml_acs, name="oss_open_literal_ss"),
     url_path("accounts/mine/", _saml_acs, name="ext_under_accounts"),
 ]
 _ext.extension_urlpatterns.append(_ext.urlpatterns[-1])
@@ -345,6 +357,31 @@ class GatedViewWalkTests(SimpleTestCase):
         ):
             with self.subTest(name=name):
                 self.assertIn(name, names)
+
+    def test_open_ended_literal_endpoint_regexes_are_named(self):
+        names = oss_gated_view_names(_mounts.__name__)
+        for name in (
+            "open_literal_acc",
+            "open_literal_admi",
+            "literal_then_alternation",
+            "literal_then_lookahead",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(name, names)
+
+    def test_open_ended_literal_endpoint_regexes_really_serve_gated_paths(self):
+        # Resolve order puts earlier mounts first, so use paths only these reach.
+        self.assertEqual(resolved_view_name("/accounts/x", _mounts.__name__), "open_literal_acc")
+        self.assertEqual(resolved_view_name("/admin/x", _mounts.__name__), "open_literal_admi")
+
+    def test_regex_parse_failure_fails_safe(self):
+        with mock.patch("re._parser.parse", side_effect=ValueError("boom")):
+            self.assertEqual(_regex_literal_prefix(r"^accountsx/$"), ("", False, False))
+
+    def test_regex_literal_prefix_reports_the_end_anchor(self):
+        self.assertEqual(_regex_literal_prefix(r"^accounts/x/$"), ("accounts/x/", True, True))
+        self.assertEqual(_regex_literal_prefix(r"^acc"), ("acc", True, False))
+        self.assertEqual(_regex_literal_prefix(r"^sso/(?P<x>\w+)/$"), ("sso/", False, False))
 
     def test_mounts_that_cannot_serve_a_gated_path_are_not_named(self):
         names = oss_gated_view_names(_mounts.__name__)
@@ -386,6 +423,15 @@ class GatedViewWalkTests(SimpleTestCase):
         # Under a built-in prefix the extension's own route still counts.
         self.assertIn("ext_under_accounts", names)
         self.assertIn("oss_under_accounts", names)
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/",))
+    def test_open_ended_literal_regex_under_an_extra_prefix_is_named(self):
+        self.assertIn("oss_open_literal_ss", oss_gated_view_names(_ext.__name__))
+        self.assertEqual(resolved_view_name("/sso/anything", _ext.__name__), "oss_open_literal_ss")
+
+    @override_settings(PENDING_ACTION_EXTRA_GATED_PREFIXES=("/sso/", "no-slash", "/ext/"))
+    def test_extra_gated_prefixes_are_the_well_formed_setting_entries(self):
+        self.assertEqual(_valid_extra_gated_prefixes(), ("/sso/", "/ext/"))
 
     def test_without_the_extra_prefix_neither_sso_route_is_named(self):
         names = oss_gated_view_names(_ext.__name__)
