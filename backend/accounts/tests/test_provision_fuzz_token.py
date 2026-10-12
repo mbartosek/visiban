@@ -135,11 +135,13 @@ class ProvisionFuzzTokenTests(TestCase):
         self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
         self.assertNotIn("random, unrecorded password", out.getvalue())
 
-    def test_without_flag_a_password_change_revokes_the_token(self):
-        """The #1607 failure mode, which --set-random-password exists to prevent.
+    def test_without_flag_a_token_cannot_set_a_first_password(self):
+        """Since #1609 a token-only caller cannot set a first password.
 
-        A password-less user's change route needs no current password, and the
-        change revokes every PAT, so the fuzz token locks itself out.
+        Before it, a password-less user's change route needed no current
+        password and the change revoked every PAT, so the fuzz token locked
+        itself out (#1607). The route now refuses a token-only caller, so the
+        token keeps working; ``--set-random-password`` remains as defense in depth.
         """
         social = User.objects.create_user(username="social")
         social.set_unusable_password()
@@ -161,10 +163,12 @@ class ProvisionFuzzTokenTests(TestCase):
             content_type="application/json",
             HTTP_AUTHORIZATION=auth,
         )
-        self.assertEqual(resp.status_code, 200, resp.content)
-        self.assertFalse(PersonalAccessToken.objects.filter(user=social).exists())
+        self.assertEqual(resp.status_code, 403, resp.content)
+        social.refresh_from_db()
+        self.assertFalse(social.has_usable_password())
+        self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
         resp = self.client.get("/api/v1/auth/me/", HTTP_AUTHORIZATION=auth)
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
     def test_existing_password_is_left_alone_with_or_without_flag(self):
         before = User.objects.get(pk=self.member.pk).password
