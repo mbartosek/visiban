@@ -124,15 +124,15 @@ The last active site admin on the instance cannot be demoted.
 
 > **Added in 1.0**
 
-Controls the `can_access_all_content` flag independently of admin status. When enabled, the user can read and write every board and group on the instance regardless of membership.
+Controls the `can_access_all_content` flag independently of admin status (for accounts that are not superusers). When enabled, the user can read and write every board and group on the instance regardless of membership.
 
 - **Grant all-content** gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.
-- **Revoke all-content** removes that access. The user will only see boards and groups they are explicitly a member of.
+- **Revoke all-content** removes that access. The user will only see boards and groups they are explicitly a member of. It is refused for a superuser account, because superuser status implies all-content access; remove superuser status first.
 
-These two flags — `is_site_admin` (admin panel access) and `can_access_all_content` (board/group omniscience) — are fully independent. See [Site Admins](site-admins.md) for a detailed explanation of the two-flag model and examples of common configurations.
+These two flags — `is_site_admin` (admin panel access) and `can_access_all_content` (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See [Site Admins](site-admins.md) for a detailed explanation of the two-flag model and examples of common configurations.
 
 !!! tip
-    The `set_site_admin` management command sets **both** flags together for convenience. To manage them independently, use the admin panel toggles described here, or edit the user directly in the [Django admin](django-admin.md) at `/admin/accounts/user/`.
+    The `set_site_admin` management command sets **both** flags together for convenience. To manage them independently for accounts that are not superusers, use the admin panel toggles described here, or edit the user directly in the [Django admin](django-admin.md) at `/admin/accounts/user/`.
 
 #### Force password reset
 
