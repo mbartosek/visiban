@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.admin.utils import unquote
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.models import Group as AuthGroup
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -307,3 +308,32 @@ class SiteSettingAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(
             reverse("admin:accounts_sitesetting_change", args=[obj.pk])
         )
+
+
+# Django's stock Group admin edits permission sets directly, so it is limited to
+# active superusers (#1617).
+admin.site.unregister(AuthGroup)
+
+
+@admin.register(AuthGroup)
+class SuperuserOnlyGroupAdmin(GroupAdmin):
+    """Django's ``GroupAdmin`` (keeps its permission widgets), superuser-only."""
+
+    @staticmethod
+    def _superuser_only(request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_module_permission(self, request):
+        return self._superuser_only(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._superuser_only(request)
+
+    def has_add_permission(self, request):
+        return self._superuser_only(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._superuser_only(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._superuser_only(request)
