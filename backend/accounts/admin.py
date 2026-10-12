@@ -205,45 +205,51 @@ def user_deletion_refusals(targets, actor):
 
     Deleting a user cascades to the boards they own (``Board.owner`` is
     CASCADE), so the deactivation rules apply to a delete as well: no
-    self-deletion, no deleting a board owner before the boards are
-    transferred, and never the last active site admin (#1616). The rules come
-    from ``deactivation_refusal`` so this route cannot drift from the form and
-    the admin API.
+    self-deletion and no deleting a board owner before the boards are
+    transferred (``deactivation_refusal``, the rule the form and the admin API
+    share), and never the last active site admin or the last active
+    superuser, mirroring ``demotion_refusal`` (#1616).
 
-    A bulk delete is judged as one set: each account is checked on its own and
-    the active site admins left outside the set must be non-empty, because two
-    accounts that are each "not the last" can be the last two. The same rules
-    apply to every actor, superusers included, as on the change form. Callers
-    that hold row locks (``delete_model``/``delete_queryset``) call this under
-    the lock so the counts cannot move between check and delete.
+    A bulk delete is judged as a set: each account is checked on its own, and
+    the active site admins and superusers left outside the set must be
+    non-empty, because two accounts that are each "not the last" can be the
+    last two. The same rules apply to every actor, superusers included, as on
+    the change form. Callers that hold row locks (``delete_model`` and
+    ``delete_queryset``) call this under the lock so the counts cannot move
+    between check and delete. Board names are not shown, only a count, as on
+    the form.
     """
     from .admin_views import deactivation_refusal
 
     targets = list(targets)
     reasons = []
-    target_pks = {t.pk for t in targets}
     for target in targets:
-        refusal = deactivation_refusal(
-            target, actor, include_last_site_admin=target.is_active
-        )
+        refusal = deactivation_refusal(target, actor)
         if refusal is None:
             continue
-        detail = refusal.body.get("detail", "")
-        reason = str(detail).replace("deactivat", "delet").replace("Cannot delet ", "Cannot delete ")
         if refusal.body.get("code") == "owned_boards":
-            names = ", ".join(b["name"] for b in refusal.body["owned_boards"])
-            reason = f"User owns boards that must be transferred before deletion ({names})."
+            count = len(refusal.body.get("owned_boards", []))
+            reason = (
+                "User owns boards that must be transferred before deletion "
+                f"(owned boards: {count})."
+            )
         elif target.pk == actor.pk:
             reason = "You cannot delete your own account."
-        elif "last active site admin" in reason:
-            reason = "Cannot delete the last active site admin."
+        else:
+            reason = "This account cannot be deleted."
         reasons.append(f"{target}: {reason}")
-    if not reasons and any(t.is_site_admin and t.is_active for t in targets):
-        remaining = User.objects.filter(is_site_admin=True, is_active=True).exclude(
-            pk__in=target_pks
-        )
-        if not remaining.exists():
-            reasons.append("Cannot delete every active site admin.")
+    target_pks = {t.pk for t in targets}
+    single = len(targets) == 1
+    for flag, singular, plural in (
+        ("is_site_admin", "the last active site admin", "every active site admin"),
+        ("is_superuser", "the last active superuser", "every active superuser"),
+    ):
+        if any(getattr(t, flag) and t.is_active for t in targets):
+            outside = User.objects.filter(**{flag: True, "is_active": True}).exclude(
+                pk__in=target_pks
+            )
+            if not outside.exists():
+                reasons.append(f"Cannot delete {singular if single else plural}.")
     return reasons
 
 
@@ -253,21 +259,23 @@ def guarded_delete_selected(modeladmin, request, queryset):
     Atomic by design: when any selected account is refused, nothing is deleted
     and every reason is shown, so a partial delete never leaves the
     administrator guessing what happened. Checked before the confirmation page
-    and again on the confirming POST.
+    and again on the confirming POST. The stock action runs in one
+    transaction so the deletion log entries Django writes roll back with a
+    refusal raised under the row lock.
     """
+    if not modeladmin.has_delete_permission(request):
+        raise PermissionDenied
     reasons = user_deletion_refusals(queryset, request.user)
-    if reasons:
-        for reason in reasons:
-            modeladmin.message_user(request, reason, messages.ERROR)
-        modeladmin.message_user(request, "No accounts were deleted.", messages.ERROR)
-        return None
-    try:
-        return delete_selected(modeladmin, request, queryset)
-    except DeletionRefused as exc:
-        for reason in exc.messages:
-            modeladmin.message_user(request, reason, messages.ERROR)
-        modeladmin.message_user(request, "No accounts were deleted.", messages.ERROR)
-        return None
+    if not reasons:
+        try:
+            with transaction.atomic():
+                return delete_selected(modeladmin, request, queryset)
+        except DeletionRefused as exc:
+            reasons = exc.messages
+    for reason in reasons:
+        modeladmin.message_user(request, reason, messages.ERROR)
+    modeladmin.message_user(request, "No accounts were deleted.", messages.ERROR)
+    return None
 
 
 functools.update_wrapper(guarded_delete_selected, delete_selected)
@@ -531,29 +539,47 @@ class VisibanUserAdmin(UserAdmin):
         return HttpResponseRedirect(reverse("admin:accounts_user_changelist"))
 
     @staticmethod
-    def _lock_for_delete(pks):
-        """Lock the targets and every active site admin in one pk-ordered statement.
+    def _locked_delete_targets(request, pks):
+        """Lock and re-check the delete targets; returns the locked target rows.
 
-        Same lock order as ``save_model``, so concurrent deletes and saves
-        serialize instead of deadlocking, and two deletes of the last two site
-        admins cannot both pass the check (#1616).
+        One pk-ordered statement locks the targets, the actor and every active
+        site admin and superuser (the order ``save_model`` uses), so concurrent
+        deletes serialize and two deletes of the last two administrators
+        cannot both pass the check. ``no_key`` keeps the lock from conflicting
+        with the ``FOR KEY SHARE`` that card foreign-key checks take, which
+        would otherwise form a lock cycle with card writes; two deletes still
+        conflict with each other (#1616).
         """
-        return list(
-            User.objects.select_for_update()
-            .filter(Q(pk__in=pks) | Q(is_site_admin=True, is_active=True))
+        actor = request.user
+        locked = list(
+            User.objects.select_for_update(no_key=True)
+            .filter(
+                Q(pk__in=pks)
+                | Q(pk=actor.pk)
+                | Q(is_site_admin=True, is_active=True)
+                | Q(is_superuser=True, is_active=True)
+            )
             .order_by("pk")
         )
+        actor_row = next((u for u in locked if u.pk == actor.pk), None)
+        if actor_row is None or not actor_row.is_active:
+            raise PermissionDenied
+        pk_set = set(pks)
+        targets = [u for u in locked if u.pk in pk_set]
+        if not actor.is_superuser and any(t.is_superuser for t in targets):
+            # Promoted between the page load and the lock.
+            raise DeletionRefused(["A superuser account cannot be deleted by this administrator."])
+        reasons = user_deletion_refusals(targets, actor)
+        if reasons:
+            raise DeletionRefused(reasons)
+        return targets
 
     def delete_model(self, request, obj):
         # Board.owner is CASCADE, so deleting a user deletes their boards and
         # those boards' cards: lock the cards first, in one transaction held
         # across the delete (#1603; see lock_cards_for_cascade).
         with transaction.atomic():
-            locked = self._lock_for_delete([obj.pk])
-            targets = [u for u in locked if u.pk == obj.pk]
-            reasons = user_deletion_refusals(targets, request.user)
-            if reasons:
-                raise DeletionRefused(reasons)
+            self._locked_delete_targets(request, [obj.pk])
             lock_cards_for_cascade(Card.objects.filter(board__owner_id=obj.pk))
             super().delete_model(request, obj)
 
@@ -562,11 +588,7 @@ class VisibanUserAdmin(UserAdmin):
         # atomic so the locks outlive the delete (#1603).
         with transaction.atomic():
             pks = list(queryset.values_list("pk", flat=True))
-            locked = self._lock_for_delete(pks)
-            targets = [u for u in locked if u.pk in set(pks)]
-            reasons = user_deletion_refusals(targets, request.user)
-            if reasons:
-                raise DeletionRefused(reasons)
+            self._locked_delete_targets(request, pks)
             lock_cards_for_cascade(Card.objects.filter(board__owner__in=pks))
             super().delete_queryset(request, queryset)
 
