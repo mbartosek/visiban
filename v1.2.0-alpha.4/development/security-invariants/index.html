@@ -4376,6 +4376,16 @@ canonical wording.</p>
 <td><code>accounts/admin_views.py</code> <code>AdminInviteLinkRevokeView.delete</code></td>
 <td>Revocation sets <code>revoked_at</code> on the link</td>
 </tr>
+<tr>
+<td>Password reset link (REST)</td>
+<td><code>accounts/serializers.py</code> <code>VisibanPasswordResetConfirmSerializer.save</code></td>
+<td>Single use, decided under the user row lock (<code>reset_link_still_valid</code> on the locked row)</td>
+</tr>
+<tr>
+<td>Password reset link (HTML)</td>
+<td><code>accounts/forms.py</code> <code>VisibanResetPasswordKeyForm.save</code></td>
+<td>Single use, decided under the user row lock; the page shows its invalid-link page for a link that no longer validates, and a submit that overlaps another is refused</td>
+</tr>
 </tbody>
 </table>
 <h2 id="rule-5-user-references-in-imports-resolve-only-within-the-callers-scope">Rule 5: User references in imports resolve only within the caller's scope<a class="headerlink" href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" title="Permanent link">&para;</a></h2>

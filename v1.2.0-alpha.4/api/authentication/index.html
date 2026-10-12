@@ -5094,6 +5094,7 @@
 </tbody>
 </table>
 <p><strong>Response</strong> <code>200 OK { "detail": "Password has been reset with the new password." }</code> on success; <code>400 Bad Request</code> on invalid/expired token or mismatched passwords.</p>
+<p>A reset link is accepted once; later use is refused as invalid (this endpoint responds <code>400</code> with the invalid-token body, allauth's HTML page shows its invalid-link page, and a submit that overlaps another is refused).</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><em>Changed in 1.2.</em> A successful reset deletes the API token issued by <code>POST /api/v1/auth/login/</code> and all of the account's Personal Access Tokens, and clears a pending forced password change (<code>must_change_password</code>). Existing sessions end because the password changed. allauth's own reset page at <code>/accounts/password/reset/key/&lt;uid&gt;-&lt;token&gt;/</code> does the same.</p>
