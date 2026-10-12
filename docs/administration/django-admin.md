@@ -44,7 +44,7 @@ Clearing **Active** on a user deletes their Personal Access Tokens and revokes t
 - **Site settings** — instance-wide configuration (registration mode, file uploads, [maintenance mode](maintenance-mode.md)); clicking the entry goes directly to the settings form — there is always exactly one row
 - **Boards, columns, swimlanes** — direct database access for debugging
 - **Board memberships** — view and correct membership records
-- **Social accounts** — inspect OAuth-linked accounts
+- **Email addresses, social accounts, social tokens, social apps and API tokens** — available to superusers only. Staff accounts do not see these entries.
 
 ## Production note
 
