@@ -12,7 +12,7 @@ from django.test import RequestFactory
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from boards.admin import CardChecklistAdmin, CardCommentAdmin
+from boards.admin import CardAdmin, CardChecklistAdmin, CardCommentAdmin
 from boards.models import (
     Board, BoardEvent, BoardMembership, Card, CardChecklist, CardComment, CardMovement,
     Column, Swimlane,
@@ -67,6 +67,28 @@ class ViewRenderVsDeleteTests(_Base):
         self.assertEqual(self.card.column_id, self.col.pk)
         self.assertEqual(CardMovement.objects.filter(card=self.card).count(), 0)
 
+    def test_move_render_movement_row_gone_returns_404_and_rolls_back(self):
+        # Only the CardMovement row vanishes (the card survives), exercising the
+        # CardMovement.DoesNotExist branch of the move render.
+        events_before = BoardEvent.objects.count()
+        real_qs = _real_card_queryset
+
+        def drop_movement(qs):
+            CardMovement.objects.filter(card_id=self.card.pk).delete()
+            return real_qs(qs)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            with patch(self.VIEW_QS, side_effect=drop_movement):
+                resp = self.client.post(
+                    f"{self.base}/move/",
+                    {"column_id": self.col2.pk, "swimlane_id": self.swim.pk, "position": 0},
+                    format="json",
+                )
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.column_id, self.col.pk)
+
     def test_unraced_move_still_200(self):
         resp = self.client.post(
             f"{self.base}/move/",
@@ -105,6 +127,24 @@ class ViewRenderVsDeleteTests(_Base):
         self.assertEqual(self.client.post(f"{self.base}/unarchive/").status_code, 200)
 
 
+class ArchiveStaysAppliedTests(_Base):
+    def test_archived_at_is_set_when_card_vanishes_after_commit(self):
+        # Delete the card only on the render's re-read, then restore a row
+        # snapshot check: the archive write must already be durable at that
+        # point, so capture archived_at as the render starts.
+        seen = {}
+
+        def racing(qs):
+            seen["archived_at"] = Card.objects.get(pk=self.card.pk).archived_at
+            Card.objects.filter(pk=self.card.pk).delete()
+            return _real_card_queryset(qs)
+
+        with patch("boards.views.cards._card_queryset", side_effect=racing):
+            resp = self.client.post(f"{self.base}/archive/")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIsNotNone(seen["archived_at"])
+
+
 class AdminVsDeleteTests(_Base):
     HELPER_QS = "boards.views._helpers._card_queryset"
 
@@ -112,6 +152,15 @@ class AdminVsDeleteTests(_Base):
         request = RequestFactory().post("/admin/")
         request.user = self.user
         return request
+
+    def test_card_admin_save_model_skips_broadcast_when_card_gone(self):
+        adm = CardAdmin(Card, AdminSite())
+        self.card.title = "edited"
+        events_before = BoardEvent.objects.count()
+        with self.captureOnCommitCallbacks(execute=True):
+            with _deleting(self.card.pk, self.HELPER_QS):
+                adm.save_model(self._request(), self.card, None, change=True)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
 
     def test_child_admin_save_model_skips_broadcast_when_card_gone(self):
         adm = CardCommentAdmin(CardComment, AdminSite())

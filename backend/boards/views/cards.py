@@ -534,6 +534,12 @@ class CardViewSet(viewsets.ModelViewSet):
             fresh, context={"request": self.request, "board": self._board()},
         ).data
 
+    @extend_schema(
+        responses={
+            200: CardSerializer,
+            404: OpenApiResponse(description="Card was deleted concurrently."),
+        },
+    )
     @action(detail=True, methods=["post"])
     def archive(self, request, board_pk=None, pk=None):
         """Soft-delete a card by setting archived_at to now.
@@ -567,6 +573,7 @@ class CardViewSet(viewsets.ModelViewSet):
         responses={
             200: CardSerializer,
             403: _force_denied_response("CardRestorePermissionDenied"),
+            404: OpenApiResponse(description="Card was deleted concurrently."),
             409: _limit_conflict_response("CardRestoreLimitConflict", _ENTER_COLUMN_409),
         },
     )
@@ -756,6 +763,7 @@ class CardViewSet(viewsets.ModelViewSet):
                     fields={"code": serializers.CharField(required=False), "detail": serializers.CharField()},
                 ),
             ),
+            404: OpenApiResponse(description="Card was deleted concurrently."),
             409: OpenApiResponse(
                 description=(
                     "`version_conflict` — the card was modified since the client's version; "

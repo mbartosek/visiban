@@ -361,7 +361,7 @@ Check whether a card exists and whether it is archived. Used by the deep-link ha
 ## Move
 
 ### `POST /api/v1/boards/{board_id}/cards/{id}/move/`
-Move a card to a new column/swimlane/position. Creates a `CardMovement` record if column or swimlane changes. Requires member or above.
+Move a card to a new column/swimlane/position. Creates a `CardMovement` record if column or swimlane changes. Requires member or above. Returns `404 Not Found` if the card was deleted concurrently; the move is not saved (#1585).
 
 > **Ownership gate:** Members can freely move unassigned cards, cards assigned to themselves, and cards they created. Moving a card that is assigned to a different user and that the member did not create requires the `is_moderator` entitlement or Admin role. In that case, non-moderator members receive `403 Forbidden` with body `{"code": "permission_denied", "detail": "Moving a card assigned to another member requires Moderator or Admin access — ask a board admin."}`.
 

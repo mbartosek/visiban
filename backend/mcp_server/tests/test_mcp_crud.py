@@ -414,6 +414,103 @@ class MoveCardTests(CrudToolsTestCase):
         self.assertEqual(result["error"]["code"], "card_not_found")
 
 
+class RefetchVsDeleteTests(CrudToolsTestCase):
+    """A card deleted between the service's write and the tool's re-read is a
+    clean card_not_found error with no broadcast, never an unhandled
+    Card.DoesNotExist (#1585)."""
+
+    def _delete_on_refetch(self, pk):
+        from unittest.mock import patch
+
+        from boards.serializers import _card_queryset as real
+
+        def racing(qs):
+            Card.objects.filter(pk=pk).delete()
+            return real(qs)
+
+        return patch("mcp_server.tools._card_queryset", side_effect=racing)
+
+    def test_create_card_refetch_gone(self):
+        from boards.models import BoardEvent
+
+        before = BoardEvent.objects.count()
+        from unittest.mock import patch
+
+        from boards.serializers import _card_queryset as real
+
+        def racing(qs):
+            Card.objects.all().delete()
+            return real(qs)
+
+        with patch("mcp_server.tools._card_queryset", side_effect=racing):
+            result = self._call(
+                "create_card", self.write_token, board_id=self.board.id,
+                column_id=self.column.id, swimlane_id=self.swimlane.id, title="Gone",
+            )
+        self.assertEqual(result["error"]["code"], "card_not_found")
+        self.assertEqual(BoardEvent.objects.count(), before)
+
+    def test_create_card_with_position_refetch_gone(self):
+        from unittest.mock import patch
+
+        from boards.models import BoardEvent
+        from boards.serializers import _card_queryset as real
+
+        calls = {"n": 0}
+
+        def racing(qs):
+            calls["n"] += 1
+            if calls["n"] == 2:  # the position-move's render, not create's
+                Card.objects.all().delete()
+            return real(qs)
+
+        before = BoardEvent.objects.count()
+        _make_card(self.column, self.swimlane, title="Sibling")
+        with patch("mcp_server.tools._card_queryset", side_effect=racing):
+            result = self._call(
+                "create_card", self.write_token, board_id=self.board.id,
+                column_id=self.column.id, swimlane_id=self.swimlane.id, title="Gone",
+                position=0,
+            )
+        self.assertEqual(result["error"]["code"], "card_not_found")
+        self.assertGreaterEqual(calls["n"], 2)
+        self.assertEqual(BoardEvent.objects.count(), before)
+
+    def test_move_card_refetch_gone(self):
+        from boards.models import BoardEvent
+
+        card = _make_card(self.column, self.swimlane, title="Doomed")
+        before = BoardEvent.objects.count()
+        with self._delete_on_refetch(card.pk):
+            result = self._call(
+                "move_card", self.write_token, card_id=card.id,
+                to_column_id=self.other_column.id,
+            )
+        self.assertEqual(result["error"]["code"], "card_not_found")
+        self.assertEqual(BoardEvent.objects.count(), before)
+
+    def test_update_card_refetch_gone(self):
+        from boards.models import BoardEvent
+
+        card = _make_card(self.column, self.swimlane, title="Doomed")
+        before = BoardEvent.objects.count()
+        with self._delete_on_refetch(card.pk):
+            result = self._call("update_card", self.write_token, card_id=card.id, title="New")
+        self.assertEqual(result["error"]["code"], "card_not_found")
+        self.assertEqual(BoardEvent.objects.count(), before)
+
+    def test_get_card_refetch_gone_raises_value_error(self):
+        from unittest.mock import patch
+
+        from mcp_server import tools
+
+        card = _make_card(self.column, self.swimlane, title="Doomed")
+        with patch("mcp_server.tools.get_current_user", return_value=self.user):
+            with self._delete_on_refetch(card.pk):
+                with self.assertRaises(ValueError):
+                    tools.card_detail(card_id=card.id)
+
+
 class UpdateCardTests(CrudToolsTestCase):
     def test_updates_fields_and_records_activity(self):
         card = _make_card(self.column, self.swimlane, title="Old title", priority=Card.Priority.LOW)
