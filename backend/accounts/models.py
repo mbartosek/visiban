@@ -2,6 +2,8 @@ import hashlib
 import logging
 import secrets
 
+from asgiref.sync import sync_to_async
+from django.contrib.auth.hashers import acheck_password, check_password
 from django.contrib.auth.models import AbstractUser
 from django.core.cache import cache
 from django.core.validators import MaxLengthValidator
@@ -515,6 +517,45 @@ class User(AbstractUser):
         related_name="+",
         db_index=False,
     )
+
+    # --- Login-time password hash upgrade (#1601) ---------------------------
+    # Django's check_password() rewrites the stored hash when it was made with a
+    # hasher or work factor that is no longer the preferred one. Its stock
+    # setter saves unconditionally. These overrides make that write
+    # conditional on the row still holding the hash the upgrade was derived
+    # from, so a password set, reset or change committed by another transaction
+    # is never replaced by an upgraded copy of the hash it superseded. Every
+    # caller (ModelBackend, EmailBackend, the change-password and allauth
+    # flows) goes through these methods, so the rule holds in one place.
+
+    def _upgrade_password_hash(self, raw_password, stored_hash):
+        self.set_password(raw_password)
+        # A hash upgrade is not a password change.
+        self._password = None
+        updated = type(self)._default_manager.filter(pk=self.pk, password=stored_hash).update(
+            password=self.password
+        )
+        if not updated:
+            # The row moved on: keep the instance on the hash it was read with,
+            # so callers that compare it with a fresh read (the login re-check
+            # under lock_user_row) see that the row changed.
+            self.password = stored_hash
+
+    def check_password(self, raw_password):
+        stored_hash = self.password
+
+        def setter(raw_password):
+            self._upgrade_password_hash(raw_password, stored_hash)
+
+        return check_password(raw_password, stored_hash, setter)
+
+    async def acheck_password(self, raw_password):
+        stored_hash = self.password
+
+        async def setter(raw_password):
+            await sync_to_async(self._upgrade_password_hash)(raw_password, stored_hash)
+
+        return await acheck_password(raw_password, stored_hash, setter)
 
     class Meta:
         db_table = "users"
