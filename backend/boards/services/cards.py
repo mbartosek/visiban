@@ -315,10 +315,16 @@ def _board_scoped(model, pk, board, error):
     A row on another board raises the same not-found error as a row that does
     not exist, so the API never confirms that an id the caller guessed exists
     somewhere they cannot see (IDOR).
+
+    ``pk`` is often the raw client value (``column_id``/``swimlane_id`` in a
+    request body), so it may not be an integer at all. The ORM raises
+    ``ValueError``/``TypeError`` on the lookup for such a value; that is a row that
+    does not exist, answered 404 like any other miss, not an unhandled 500
+    (#1585 — the schema fuzzer sends exactly this to ``move/``).
     """
     try:
         return model.objects.get(pk=pk, board=board)
-    except model.DoesNotExist:
+    except (model.DoesNotExist, ValueError, TypeError):
         raise error() from None
 
 

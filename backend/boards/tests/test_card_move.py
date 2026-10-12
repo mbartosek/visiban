@@ -225,6 +225,21 @@ class CardMoveTests(TestCase):
         move = next(m for m in movements if m["to_column"] is None and m["to_column_name"] == col_b_name)
         self.assertEqual(move["to_column_name"], col_b_name)
 
+    def test_non_numeric_target_ids_answer_404_not_500(self):
+        # The schema fuzzer sends a string where column_id/swimlane_id must be an
+        # integer; the lookup raised ValueError and surfaced as a 500 (#1585).
+        payloads = (
+            {"column_id": "\u00dbD\u00eb{\u0984", "swimlane_id": -2142},
+            {"column_id": self.col_b.pk, "swimlane_id": "abc"},
+            {"column_id": {"a": 1}, "swimlane_id": self.swim_x.pk},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                resp = self.client.post(self._move_url(), payload, format="json")
+                self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.column, self.col_a)
+
 
 class CardMoveNonObjectBodyTests(TestCase):
     """A JSON body that isn't an object must 400, never 500 (#1120).
