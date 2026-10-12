@@ -972,7 +972,7 @@ def _exempt(reason: str) -> str:
     return f"exempt: {reason}"
 
 
-_SSO = "SSO sign-in round trip; process=connect is refused for a pending user by SocialRegistrationAdapter.pre_social_login."
+_SSO = "SSO sign-in round trip; process=connect is refused for an inactive user or one with a pending change by SocialRegistrationAdapter.pre_social_login."
 _ANON = "reachable signed out with the same effect, so a pending session gains nothing."
 
 #: The forced-change decision for every route under the middleware's gated

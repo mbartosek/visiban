@@ -421,19 +421,15 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
                 # allauth would bounce this to the connect redirect, which
                 # would then claim "Connected." once someone signs in.
                 self._redirect_with_error(request, "oauth_failed")
-            # Judge a fresh read of the account: ``request.user`` was loaded
-            # before the provider round trip (#1624). The gate reads the very
-            # fields a deferred-load instance would then write back on save,
-            # so it gets its own instance, and allauth gets the
-            # ``last_login``-only one (#1619).
-            fresh = type(request.user).objects.get(pk=request.user.pk)
-            request.user = _connect_target(request.user)
-            if account_state_denial(fresh) is not None:
+            # Judge a fresh read of the account; allauth gets the last_login-only instance.
+            fresh = type(request.user).objects.filter(pk=request.user.pk).first()
+            if fresh is None or account_state_denial(fresh) is not None:
                 # Adding a sign-in method waits until the account is active
                 # and any pending change is done. Same answer as the
                 # forced-change middleware: back to the SPA, without saying
                 # which state applies. Nothing is linked.
                 raise ImmediateHttpResponse(HttpResponseRedirect(django_settings.FRONTEND_URL))
+            request.user = _connect_target(request.user)
             pending = get_pending_connect_data(request, request.user)
             if pending and pending.get("provider") == provider:
                 # The prompt is answered either way this attempt ends.

@@ -23,7 +23,7 @@ does not.
 
 | Rule | Function | Called from |
 |---|---|---|
-| Account state (Rule 1): inactive, or a forced password or username change pending | `authorize_account(user)` returns a bool; `account_state_denial(user)` returns the refusing `AccountGate` (with its `message` and `code`) or `None` | WebSocket handshake (`BoardConsumer.connect`, `GroupConsumer.connect`); WebSocket re-check (`accounts/ws_auth.py` `load_live_ws_user`); MCP (`mcp_server/auth.py` `_enforce_account_state`) |
+| Account state (Rule 1): inactive, or a forced password or username change pending | `authorize_account(user)` returns a bool; `account_state_denial(user)` returns the refusing `AccountGate` (with its `message` and `code`) or `None` | WebSocket handshake (`BoardConsumer.connect`, `GroupConsumer.connect`); WebSocket re-check (`accounts/ws_auth.py` `load_live_ws_user`); MCP (`mcp_server/auth.py` `_enforce_account_state`); OAuth connect (`SocialRegistrationAdapter.pre_social_login`, connect branch) |
 | Account state, one gate at a time | The `AccountGate` objects `INACTIVE`, `PENDING_PASSWORD_CHANGE`, `PENDING_USERNAME_CHANGE` | REST permission classes `MustNotHavePendingPasswordChange` and `MustNotHavePendingUsernameChange` (each holds its gate as `gate`); `PATAuthentication` through `resolve_personal_access_token` (`INACTIVE`); WebSocket ticket redemption `_resolve_ticket_user` (`INACTIVE`) |
 | Active principal | `principal_is_active(user)` | Every gate above; the OAuth adapter's existing-account match (`_handle_email_collision`); the board, group and site invite creator rules (`sender_may_admit_accounts`) |
 | Invite creator standing (Rule 2) | `invite_creator_is_valid(link, board=None)` | `JoinBoardView.get` and `.post`; `JoinGroupView.get` and `.post`; registration through a board or group invite (`_sender_still_admits` in `boards/invites.py` and `groups/invite_registration.py`); registration through a site invite (`accounts/invite_utils.py` `validate_invite_token`), and the admin site invite list and caps (`effective_site_invite_status`, `live_site_invite_count`) |
@@ -61,7 +61,7 @@ gains nothing a signed-out browser does not have (logout, the password-reset
 pages, the email-confirmation redirect, static result pages), or when it
 applies the forced-change gate itself: the SSO login and callback of each
 installed provider qualify because `SocialRegistrationAdapter.pre_social_login`
-refuses a `process=connect` callback for a pending account. A view that changes
+refuses a `process=connect` callback for an inactive account or one with a pending change. A view that changes
 the signed-in account (email addresses, connected providers, passwords) is
 never exempt.
 

@@ -290,19 +290,32 @@ class SocialConnectStaleRowTests(TestCase):
         from django.conf import settings as django_settings
 
         stale = User.objects.get(pk=self.user.pk)
+        last_login = stale.last_login
         _commit_concurrent_change(self.user.pk, **change)
         response = self._connect(stale)  # allauth turns the refusal into a redirect
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], django_settings.FRONTEND_URL)
         self.assertFalse(SocialAccount.objects.filter(provider="github").exists())
+        self.assertEqual(User.objects.get(pk=self.user.pk).last_login, last_login)
 
-    def test_connect_refused_when_deactivated_after_request_start(self):
+    def test_connect_refused_when_user_deleted(self):
+        from allauth.socialaccount.models import SocialAccount
+        from django.conf import settings as django_settings
+
+        stale = User.objects.get(pk=self.user.pk)
+        User.objects.filter(pk=self.user.pk).delete()
+        response = self._connect(stale)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], django_settings.FRONTEND_URL)
+        self.assertFalse(SocialAccount.objects.filter(provider="github").exists())
+
+    def test_connect_refused_when_deactivated(self):
         self._assert_connect_refused(is_active=False)
 
-    def test_connect_refused_when_password_change_forced_after_request_start(self):
+    def test_connect_refused_when_password_change_forced(self):
         self._assert_connect_refused(must_change_password=True)
 
-    def test_connect_refused_when_username_change_forced_after_request_start(self):
+    def test_connect_refused_when_username_change_forced(self):
         self._assert_connect_refused(must_change_username=True)
 
     def test_connect_saves_only_last_login(self):
