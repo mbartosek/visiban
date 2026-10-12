@@ -473,8 +473,14 @@ class RefetchVsDeleteTests(CrudToolsTestCase):
                 position=0,
             )
         self.assertEqual(result["error"]["code"], "card_not_found")
-        self.assertGreaterEqual(calls["n"], 2)
-        self.assertEqual(BoardEvent.objects.count(), before)
+        self.assertEqual(calls["n"], 2)
+        # create_card's own transaction committed first (its render was call 1,
+        # which succeeded), so its card.created row is recorded synchronously and
+        # stays. Only the follow-up move's savepoint rolled back, so no
+        # card.moved event exists.
+        self.assertEqual(BoardEvent.objects.count(), before + 1)
+        self.assertEqual(BoardEvent.objects.filter(event="card.created").count(), 1)
+        self.assertFalse(BoardEvent.objects.filter(event="card.moved").exists())
 
     def test_move_card_refetch_gone(self):
         from boards.models import BoardEvent

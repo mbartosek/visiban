@@ -116,6 +116,27 @@ class ViewRenderVsDeleteTests(_Base):
         # Restore rolled back with the 404 (the delete rolled back with it).
         self.assertIsNotNone(Card.objects.get(pk=self.card.pk).archived_at)
 
+    def test_unarchive_concurrent_restore_noop_render_returns_404(self):
+        # The card is archived at the service's first read, restored by someone
+        # else before the lock is granted, so unarchive becomes the in-atomic
+        # no-op and its render finds the card deleted.
+        from boards.services import cards as card_services
+
+        Card.objects.filter(pk=self.card.pk).update(archived_at="2026-01-01T00:00:00Z")
+        real_lock = card_services.lock_card_for_write
+
+        def restore_then_lock(card_id):
+            Card.objects.filter(pk=card_id).update(archived_at=None)
+            return real_lock(card_id)
+
+        events_before = BoardEvent.objects.count()
+        with self.captureOnCommitCallbacks(execute=True):
+            with patch("boards.services.cards.lock_card_for_write", side_effect=restore_then_lock):
+                with _deleting(self.card.pk, self.VIEW_QS):
+                    resp = self.client.post(f"{self.base}/unarchive/")
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
+
     def test_unarchive_noop_render_returns_404(self):
         # Not archived: the no-op path renders after nothing was written.
         with _deleting(self.card.pk, self.VIEW_QS):
