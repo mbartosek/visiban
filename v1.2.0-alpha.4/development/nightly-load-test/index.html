@@ -4049,6 +4049,10 @@ nearest-rank (no interpolation), so every reported number was an actually-observ
 a synthetic average of two samples. The job fails (<code>sys.exit(1)</code>) if any endpoint's measured p95
 exceeds its budget, and always writes the full per-endpoint results as a CI artifact
 (<code>nightly-load-test-results.json</code>, kept 90 days) regardless of pass/fail.</p>
+<p>The Django <code>runserver</code> output is not written to the job log (a noisy run could hit GitLab's
+16 MB log cap). It goes to the <code>nightly-load-test-server.log</code> artifact, which shares the results
+file's 90-day expiry and is restricted to developers. On failure the job log prints the last
+200 lines of it.</p>
 <p>Like every bespoke gate script in this repo, it ships a <code>--self-test</code> mode
 (<code>python scripts/nightly_load_test.py --self-test</code>) that proves the percentile calculation and
 budget-comparison logic still fire on a known-bad and known-good input, run in CI immediately

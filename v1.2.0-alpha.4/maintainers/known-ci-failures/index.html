@@ -3962,6 +3962,10 @@ that the IPv4-literal substitution wasn't reverted.</p>
 <code>except Exception: pass</code>, so every failure mode looked identical, and someone had already
 raised the timeout 120→240s on the (wrong) slow-boot assumption before the real cause was
 found.</p>
+<p><strong>Where the Django server output is:</strong> <code>oidc-smoke</code> redirects <code>runserver</code> output to the
+<code>oidc-smoke-server.log</code> job artifact (developer-only, 1 week) rather than the job log, and
+prints the last 200 lines of it on failure (#1611). Check the artifact if the smoke test
+reports a callback or session error that the job log does not explain.</p>
 <h2 id="docker-push-cannot-connect-to-the-docker-daemon-at-unixvarrundockersock">Docker push: <code>Cannot connect to the Docker daemon at unix:///var/run/docker.sock</code><a class="headerlink" href="#docker-push-cannot-connect-to-the-docker-daemon-at-unixvarrundockersock" title="Permanent link">&para;</a></h2>
 <p><strong>Signature:</strong> <code>backend-docker-push</code> or <code>frontend-docker-push</code> fails with this Docker daemon
 connection error.</p>
