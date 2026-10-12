@@ -3914,7 +3914,7 @@
 
 
 <h1 id="site-admins">Site Admins<a class="headerlink" href="#site-admins" title="Permanent link">&para;</a></h1>
-<p>Two independent flags control what a "site admin" can do on your instance: who can manage it, and who can see every board and group on it.</p>
+<p>Two flags, independent for accounts that are not superusers, control what a "site admin" can do on your instance: who can manage it, and who can see every board and group on it.</p>
 <h2 id="what-is-a-site-admin">What is a site admin?<a class="headerlink" href="#what-is-a-site-admin" title="Permanent link">&para;</a></h2>
 <p>"Site admin" covers two distinct privileges, tracked by separate flags:</p>
 <table>
@@ -3935,7 +3935,7 @@
 </tr>
 </tbody>
 </table>
-<p>Before Visiban 1.0.0 these two were coupled — <code>is_site_admin</code> implied content access. They are now independent so operators can grant admin panel access without also granting board/group omniscience, and vice versa.</p>
+<p>Before Visiban 1.0.0 these two were coupled — <code>is_site_admin</code> implied content access. They are now independent for accounts that are not superusers (see the note below), so operators can grant admin panel access without also granting board/group omniscience, and vice versa.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Existing site admins are <strong>automatically migrated</strong>: the database migration sets <code>can_access_all_content=True</code> for every row where <code>is_site_admin=True</code>, so no access is lost on upgrade.</p>
@@ -3956,7 +3956,12 @@
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Revoke both flags</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>python<span class="w"> </span>manage.py<span class="w"> </span>set_site_admin<span class="w"> </span>&lt;username&gt;<span class="w"> </span>--revoke
 </code></pre></div>
-<p>To manage the flags independently, use <strong>Site Admin → Users</strong> in the admin panel.</p>
+<p>To manage the flags independently for accounts that are not superusers, use <strong>Site Admin → Users</strong> in the admin panel.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave <code>can_access_all_content</code> off on a superuser sets both flags again. Remove superuser status first (which also clears both flags).
+Existing superusers that have <code>can_access_all_content</code> switched off regain it the next time their account is saved, for example at sign-in.</p>
+</div>
 <h2 id="first-site-admin">First site admin<a class="headerlink" href="#first-site-admin" title="Permanent link">&para;</a></h2>
 <p>On first boot, the <code>ensure_site_admin</code> management command creates an admin account automatically and prints a one-time password. See <a href="../../getting-started/first-boot/">First Boot</a>.</p>
 <h2 id="granting-site-admin">Granting site admin<a class="headerlink" href="#granting-site-admin" title="Permanent link">&para;</a></h2>

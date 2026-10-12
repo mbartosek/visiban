@@ -4804,7 +4804,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>can_access_all_content</code></td>
 <td>boolean</td>
-<td>Grant or revoke omniscient read/write access to all boards and groups. Independent of <code>is_site_admin</code> — see <a href="../../administration/site-admins/">Site Admins</a>.</td>
+<td>Grant or revoke omniscient read/write access to all boards and groups. Independent of <code>is_site_admin</code> for non-superusers — see <a href="../../administration/site-admins/">Site Admins</a>. Setting <code>false</code> on a superuser returns <code>400</code> with <code>can_access_all_content</code> and <code>detail</code> set to <code>Cannot remove all-content access from a superuser; remove superuser status first.</code> Superuser status implies this flag.</td>
 </tr>
 <tr>
 <td><code>has_completed_tour</code></td>

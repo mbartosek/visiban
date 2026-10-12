@@ -4304,15 +4304,15 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <blockquote>
 <p><strong>Added in 1.0</strong></p>
 </blockquote>
-<p>Controls the <code>can_access_all_content</code> flag independently of admin status. When enabled, the user can read and write every board and group on the instance regardless of membership.</p>
+<p>Controls the <code>can_access_all_content</code> flag independently of admin status (for accounts that are not superusers). When enabled, the user can read and write every board and group on the instance regardless of membership.</p>
 <ul>
 <li><strong>Grant all-content</strong> gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.</li>
-<li><strong>Revoke all-content</strong> removes that access. The user will only see boards and groups they are explicitly a member of.</li>
+<li><strong>Revoke all-content</strong> removes that access. The user will only see boards and groups they are explicitly a member of. It is refused for a superuser account, because superuser status implies all-content access; remove superuser status first.</li>
 </ul>
-<p>These two flags — <code>is_site_admin</code> (admin panel access) and <code>can_access_all_content</code> (board/group omniscience) — are fully independent. See <a href="../site-admins/">Site Admins</a> for a detailed explanation of the two-flag model and examples of common configurations.</p>
+<p>These two flags — <code>is_site_admin</code> (admin panel access) and <code>can_access_all_content</code> (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See <a href="../site-admins/">Site Admins</a> for a detailed explanation of the two-flag model and examples of common configurations.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>The <code>set_site_admin</code> management command sets <strong>both</strong> flags together for convenience. To manage them independently, use the admin panel toggles described here, or edit the user directly in the <a href="../django-admin/">Django admin</a> at <code>/admin/accounts/user/</code>.</p>
+<p>The <code>set_site_admin</code> management command sets <strong>both</strong> flags together for convenience. To manage them independently for accounts that are not superusers, use the admin panel toggles described here, or edit the user directly in the <a href="../django-admin/">Django admin</a> at <code>/admin/accounts/user/</code>.</p>
 </div>
 <h4 id="force-password-reset">Force password reset<a class="headerlink" href="#force-password-reset" title="Permanent link">&para;</a></h4>
 <p>Sets <code>must_change_password = true</code> on the user. The next time they log in, they are presented with a password-change dialog before accessing the application. Useful after a suspected credential compromise.</p>

@@ -4175,7 +4175,7 @@ re-checks.</p>
 <tr>
 <td>Superuser status change (model save)</td>
 <td><code>accounts/signals.py</code> <code>capture_prior_superuser_state</code>, <code>ensure_superuser_is_site_admin</code></td>
-<td>Superuser status, <code>is_site_admin</code> and <code>can_access_all_content</code> stay consistent: a stored <code>is_superuser</code> true to false change clears the other two and calls <code>apply_access_loss_revocations</code>; <code>VisibanUserAdmin.get_readonly_fields</code> makes <code>is_superuser</code> read-only for non-superusers (#1579)</td>
+<td>Superuser status, <code>is_site_admin</code> and <code>can_access_all_content</code> stay consistent: a stored <code>is_superuser</code> true to false change clears the other two and calls <code>apply_access_loss_revocations</code>; a save of a superuser that leaves either derived flag false sets both again (#1614), and <code>AdminPatchUserSerializer</code> refuses clearing either flag on a superuser, rechecked on the locked row in <code>AdminUserDetailView.patch</code> (#1597, #1614); the Django admin user form is covered by the model-save signal, so a form save cannot leave <code>can_access_all_content</code> cleared on a superuser (#1614); <code>VisibanUserAdmin.get_readonly_fields</code> makes <code>is_superuser</code> read-only for non-superusers (#1579)</td>
 </tr>
 <tr>
 <td>Django admin (email, login identity and API token models)</td>
