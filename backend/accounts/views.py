@@ -705,6 +705,14 @@ class ChangePasswordView(APIView):
             # against instead of being silently replaced, and only the
             # password column is written.
             user = credentials.lock_user_row(request.user)
+            # #1609: that first password may only be set from an interactive
+            # session; a request carrying any token credential is refused
+            # before anything is written.
+            if credentials.first_password_requires_session(request, user):
+                return Response(
+                    {"detail": credentials.FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             # Social-only accounts have no usable password — skip the current
             # password check so they can set one for the first time.
             if user.has_usable_password():

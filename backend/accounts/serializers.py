@@ -333,7 +333,9 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
 
     Social-only accounts (no usable password) are exempt, matching
     ``ChangePasswordView``: they have no current password to prove, and this is
-    how they set their first one.
+    how they set their first one. That exemption applies to an interactive
+    session only: a request authenticated with any token credential is
+    refused with 403 (#1609, ``accounts.credentials.first_password_requires_session``).
     """
 
     def __init__(self, *args, **kwargs):
@@ -359,6 +361,20 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
                     "Your old password was entered incorrectly. Please enter it again."
                 )
         return value
+
+    def validate(self, attrs):
+        from rest_framework.exceptions import PermissionDenied
+
+        from . import credentials as credentials_module
+
+        # #1609: raised as PermissionDenied (403), not a field error, so both
+        # password-change routes answer the same way. Runs against the row the
+        # view read under the lock when one was passed in.
+        if self.user is not None and credentials_module.first_password_requires_session(
+            self.request, self.user
+        ):
+            raise PermissionDenied(credentials_module.FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE)
+        return super().validate(attrs)
 
     def save(self):
         """dj-rest-auth's ``save``, writing only the password column (#1619).

@@ -26,7 +26,8 @@ next time they change it.
 
 Changing a password — through either `POST /api/v1/auth/change-password/` or
 `POST /api/v1/auth/password/change/` — requires the current password (except for OAuth-only
-accounts setting their first one), revokes all of the user's
+accounts setting their first one, which needs an interactive session: a request authenticated
+with a token alone is refused), revokes all of the user's
 [personal access tokens](../features/personal-access-tokens.md) and the API token issued at
 login (a caller that authenticated with that token receives a replacement in the response; see
 [API token on password change](../api/authentication.md#api-token-on-password-change)), and

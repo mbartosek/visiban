@@ -98,13 +98,15 @@ open. That needs a `FUZZ_DEEP_API_TOKEN` (or `KAIZEN_API_TOKEN`) CI variable wit
 scope. Without one, the job log shows what would have been filed.
 
 **The fuzz user keeps its token for the whole run (#1607).** The seeded `demo2` account has
-no usable password (social-only). For such an account, both password-change routes
-(`/auth/password/change/`, `/auth/change-password/`) skip the current-password check, and a
-successful change revokes every Personal Access Token. The MR budget never generated a
-matching, valid new-password pair. On 2026-10-11 the deep budget did, and every request
-after it returned `401`. Both fuzz jobs therefore run `provision_fuzz_token
---set-random-password`, which gives a password-less target a random password that is never
-recorded, so those routes answer `400` to the fuzzer. The flag is off by default and is for
+no usable password (social-only). Both password-change routes
+(`/auth/password/change/`, `/auth/change-password/`) skip the current-password check for such
+an account, but only from an interactive session; a request authenticated with the fuzz token
+is refused with `403` and nothing changes (#1609). Before that, the deep budget generated a
+matching, valid new-password pair on 2026-10-11, the change revoked every Personal Access
+Token, and every request after it returned `401` (#1607). Both fuzz jobs still run
+`provision_fuzz_token --set-random-password` as defense in depth: it gives a password-less
+target a random password that is never recorded, so those routes also require a current
+password the fuzzer cannot supply and answer `400`. The flag is off by default and is for
 throwaway CI databases only. On a real social-only account, a usable password would lift the
 verified-email gate on password reset. A run
 of `401`s in a fuzz job means the token stopped authenticating. It is not an API finding.
