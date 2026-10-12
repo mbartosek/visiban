@@ -249,7 +249,7 @@ def check_pending_action_extra_exempt_views(app_configs, **kwargs):
 
 @checks.register(checks.Tags.security)
 def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs):
-    """Fail on a PENDING_ACTION_EXTRA_EXEMPT_VIEWS entry that names an OSS-gated view (#1589).
+    """Fail on a PENDING_ACTION_EXTRA_EXEMPT_VIEWS entry that names an OSS-gated view (#1589, #1593).
 
     The setting exists for an extension package's OWN views. Exempting an
     OSS session view (the admin index, allauth's email management) would let
@@ -257,7 +257,11 @@ def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs)
     operator's typo or a careless extension must fail at startup, not widen
     the gate silently. Views already exempt in OSS are harmless to repeat and
     are allowed. Admission rule: a view may be exempt only if anonymous users
-    reach it with the same effect, or it gates itself.
+    reach it with the same effect, or it gates itself. "OSS-gated" covers
+    every view that can serve a path under ``/accounts/`` or ``/admin/``
+    (regex and converter mounts included) and every OSS view under a
+    ``PENDING_ACTION_EXTRA_GATED_PREFIXES`` entry; see
+    ``visiban.middleware.oss_gated_view_names``.
     """
     from django.conf import settings
 
@@ -277,12 +281,14 @@ def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs)
     oss_gated = oss_gated_view_names() - PENDING_ACTION_EXEMPT_VIEWS
     return [
         checks.Error(
-            f"PENDING_ACTION_EXTRA_EXEMPT_VIEWS entry {name!r} names a view under an OSS-gated prefix.",
+            f"PENDING_ACTION_EXTRA_EXEMPT_VIEWS entry {name!r} names a gated view that is not the extension's own.",
             hint=(
                 "Only an extension's own views may be exempt, and only if an anonymous visitor "
                 "reaches them with the same effect or they apply the forced-change gate themselves. "
-                "A name shared with an OSS gated view is rejected even when your view is mounted "
-                "elsewhere; rename your URL. See docs/development/authorization-entry-points.md."
+                "A name shared with a view under /accounts/ or /admin/, or with an OSS view under "
+                "an extra gated prefix, is rejected even when your view is mounted elsewhere; "
+                "rename your URL, and register it through the root URLconf's extension point "
+                "(extension_urlpatterns). See docs/development/authorization-entry-points.md."
             ),
             id="accounts.E007",
         )

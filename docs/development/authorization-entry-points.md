@@ -65,14 +65,44 @@ refuses a `process=connect` callback for an inactive account or one with a pendi
 the signed-in account (email addresses, connected providers, passwords) is
 never exempt.
 
-The admission rule above is documented policy. What the code enforces is the
-OSS-prefix subset: the middleware ignores, and system check `accounts.E007`
-reports, when a `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` entry names any view
-mounted under the built-in `/accounts/` or `/admin/` prefixes (including admin
-model views whose routes take arguments), other than a view already exempt in
-OSS. The setting is for an extension's own views only. Prefixes added through
-`PENDING_ACTION_EXTRA_GATED_PREFIXES` are not part of that set, so an extension
-can exempt its own view under its own prefix.
+The admission rule above is documented policy. What the code enforces is a
+subset (`visiban.middleware.oss_gated_view_names`): the middleware ignores, and
+system check `accounts.E007` reports, a `PENDING_ACTION_EXTRA_EXEMPT_VIEWS`
+entry that names, other than a view already exempt in OSS,
+
+- any view that can serve a path under the built-in `/accounts/` or `/admin/`
+  prefixes, whoever mounted it (including admin model views whose routes take
+  arguments); or
+- any OSS view that can serve a path under a `PENDING_ACTION_EXTRA_GATED_PREFIXES`
+  entry.
+
+"Can serve" is decided on each URL pattern's matching rules, not on its printed
+route (#1593): a regex alternation such as `^(?:accounts|admin)/`, a leading
+converter such as `<str:section>/` (which can be `accounts`), a `path`
+converter and an unanchored regex (Django applies it with `search()`) all
+count. A route whose reach the walk cannot bound (a regex that would have to
+match past the end of the gated prefix, a custom converter, an unknown pattern
+class such as `LocalePrefixPattern`) is counted, so the check fails safe and may
+reject a name that could not in fact reach a gated path; rename that URL.
+
+An extension's own views are the top-level patterns the root URLconf took from
+its extension point: `visiban/urls.py` keeps them in `extension_urlpatterns`
+(filled from `enterprise.urls.enterprise_urlpatterns`). Those count only under
+the built-in prefixes, so an extension can exempt its own view under its own
+prefix. A root URLconf without `extension_urlpatterns` (a project that replaces
+`ROOT_URLCONF` instead of using the extension point) marks every route as OSS;
+such a project must declare `extension_urlpatterns` in its root module for its
+own views under an extra prefix to be exemptible.
+
+Extension routes are identified by object identity: a top-level pattern counts
+as the extension's own only if it is the same object listed in
+`enterprise_urlpatterns` (and so in `extension_urlpatterns`). An extension must
+register the very pattern objects it exposes. Wrapping or copying them, or
+listing an OSS pattern object in `enterprise_urlpatterns`, mislabels routes, and
+an OSS `include()` wrapped inside an extension's own include is treated as
+extension routes in full. A literal endpoint regex without an end anchor
+(`^acc`) is matched with `search()` by Django and so counts as open-ended: it can
+serve `/accounts/x`.
 
 REST keeps DRF permission classes. They evaluate the same gate objects as the
 other transports, one gate per class, so that an endpoint a pending user must
@@ -226,8 +256,9 @@ when it is installed and skips it when it is not. The module may define:
   gated prefix. An exempt route's view name must also be in the Django setting
   `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` (default `()`; exact view names only,
   checked by `accounts.E006` and `accounts.E007`), which is what the middleware
-  reads. Views under `/accounts/` and `/admin/` cannot be exempted by this
-  setting. The route must
+  reads. Views under `/accounts/` and `/admin/`, and OSS views under the
+  extension's prefix, cannot be exempted by this setting; the extension's own
+  views are the routes it adds through `enterprise_urlpatterns`. The route must
   meet the rule under "Which views may be exempt" above. An
   OSS route cannot be redefined.
 - `ACTIVE_CHECKING_AUTHENTICATORS`: a tuple of additional authenticator classes

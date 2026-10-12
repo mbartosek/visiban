@@ -353,15 +353,15 @@ class SuperuserOnlyGroupAdmin(GroupAdmin):
 
 
 # ---------------------------------------------------------------------------
-# Third-party admins that carry a user's email, login identity or API token
-# (#1618)
+# Third-party admins that carry a user's email, login identity or API token,
+# plus the Sites admin (#1618, #1621)
 #
-# These admins hold sign-in identities and credentials, so access is limited to
-# superusers regardless of model permissions. They stay registered for
-# break-glass use.
+# These admins hold sign-in identities, credentials or site-wide configuration,
+# so access is limited to superusers regardless of model permissions. They stay
+# registered for break-glass use.
 #
-# `allauth` and `rest_framework.authtoken` precede `accounts` in
-# INSTALLED_APPS, so their admin modules have already registered by the time
+# `allauth`, `django.contrib.sites` and `rest_framework.authtoken` precede
+# `accounts` in INSTALLED_APPS, so their admin modules have already registered by the time
 # this module is imported. If that ordering changes, or an app is removed,
 # startup fails loudly instead of leaving a stock admin unrestricted.
 # ---------------------------------------------------------------------------
@@ -401,9 +401,10 @@ def _restrict_to_superusers(model):
 def _restrict_third_party_admins():
     from allauth.account.models import EmailAddress
     from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
+    from django.contrib.sites.models import Site
     from rest_framework.authtoken.models import TokenProxy
 
-    for model in (EmailAddress, SocialAccount, SocialToken, SocialApp, TokenProxy):
+    for model in (EmailAddress, SocialAccount, SocialToken, SocialApp, TokenProxy, Site):
         _restrict_to_superusers(model)
 
 
