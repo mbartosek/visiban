@@ -4064,6 +4064,11 @@ write the same data over MCP, a socket, an invite link or an import.</p>
 <td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page. The Group admin (<code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>) is limited to active superusers for list, view, add, change, delete and app-index visibility (#1617; <code>accounts/tests/test_admin_group_restrictions.py</code>)</td>
 </tr>
 <tr>
+<td>Django admin (email, login identity and API token models)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code>; admins for allauth <code>EmailAddress</code>, <code>SocialAccount</code>, <code>SocialToken</code>, <code>SocialApp</code> and DRF <code>TokenProxy</code></td>
+<td>Each stock admin is re-registered with the mixin, so view, add, change, delete and the module entry are limited to active superusers regardless of the model permissions a staff account holds (<code>accounts/tests/test_admin_third_party_restrictions.py</code>)</td>
+</tr>
+<tr>
 <td>Admin API</td>
 <td><code>accounts/admin_views.py</code> <code>AdminUserDetailView</code>, <code>AdminUserDeactivateView</code></td>
 <td><code>_ADMIN_PERMISSIONS</code></td>
@@ -4166,6 +4171,11 @@ re-checks.</p>
 <td>Superuser status change (model save)</td>
 <td><code>accounts/signals.py</code> <code>capture_prior_superuser_state</code>, <code>ensure_superuser_is_site_admin</code></td>
 <td>Superuser status, <code>is_site_admin</code> and <code>can_access_all_content</code> stay consistent: a stored <code>is_superuser</code> true to false change clears the other two and calls <code>apply_access_loss_revocations</code>; <code>VisibanUserAdmin.get_readonly_fields</code> makes <code>is_superuser</code> read-only for non-superusers (#1579)</td>
+</tr>
+<tr>
+<td>Django admin (email, login identity and API token models)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code></td>
+<td>The admins that can change another account's email addresses, social accounts or API tokens are limited to active superusers (#1618)</td>
 </tr>
 <tr>
 <td>Django admin</td>
