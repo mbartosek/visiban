@@ -153,3 +153,71 @@ class ReissueAuthTokenTests(APITestCase):
         key = credentials.reissue_auth_token(user)
 
         self.assertEqual(Token.objects.get(user=user).key, key)
+
+
+class _FirstPasswordSessionOnlyCases:
+    """An account with no usable password sets a first password from a session only (#1609)."""
+
+    url = None
+
+    def body(self):
+        raise NotImplementedError
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username="firstpw", email="firstpw@example.com")
+        self.user.set_unusable_password()
+        self.user.save()
+        self.assertFalse(self.user.has_usable_password())
+
+    def test_pat_only_caller_is_refused_and_nothing_changes(self):
+        _, raw = PersonalAccessToken.generate(self.user, "cli")
+        before = User.objects.get(pk=self.user.pk).password
+
+        r = _token_client(raw).post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, before)
+        self.assertFalse(self.user.has_usable_password())
+        self.assertTrue(PersonalAccessToken.objects.filter(user=self.user).exists())
+
+    def test_session_caller_sets_first_password(self):
+        client = APIClient()
+        client.force_login(self.user)
+
+        r = client.post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(NEW))
+
+    def test_pat_caller_with_usable_password_is_unchanged(self):
+        user = User.objects.create_user(username="haspw", email="haspw@example.com", password=CURRENT)
+        _, raw = PersonalAccessToken.generate(user, "cli")
+        body = self.body()
+        body[self.current_field] = CURRENT
+
+        r = _token_client(raw).post(self.url, body, format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password(NEW))
+
+
+class ChangePasswordViewFirstPasswordTests(_FirstPasswordSessionOnlyCases, APITestCase):
+    url = SPA_CHANGE
+    current_field = "current_password"
+
+    def body(self):
+        return {"new_password": NEW}
+
+
+class TokenRevokingPasswordChangeViewFirstPasswordTests(
+    _FirstPasswordSessionOnlyCases, APITestCase
+):
+    url = DJ_REST_AUTH_CHANGE
+    current_field = "old_password"
+
+    def body(self):
+        return {"new_password1": NEW, "new_password2": NEW}
