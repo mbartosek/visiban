@@ -472,6 +472,53 @@ class GatedViewWalkTests(SimpleTestCase):
             self.assertIn("oss_under_sso", oss_gated_view_names(_ext.__name__))
 
 
+class ExtensionUrlpatternsWiringTests(SimpleTestCase):
+    """visiban/urls.py hands the walk the very objects it mounted (#1593)."""
+
+    def _reload_urls(self, enterprise_patterns=None):
+        import importlib
+
+        from django.urls import clear_url_caches
+
+        import visiban.urls
+
+        planted = {}
+        if enterprise_patterns is not None:
+            pkg = types.ModuleType("enterprise")
+            pkg.__path__ = []
+            mod = types.ModuleType("enterprise.urls")
+            mod.enterprise_urlpatterns = enterprise_patterns
+            pkg.urls = mod
+            planted = {"enterprise": pkg, "enterprise.urls": mod}
+        try:
+            with mock.patch.dict(sys.modules, planted):
+                if enterprise_patterns is None:
+                    # A None entry makes the import raise ImportError, so an
+                    # installed enterprise package cannot leak into the OSS case.
+                    with mock.patch.dict(sys.modules, {"enterprise": None, "enterprise.urls": None}):
+                        module = importlib.reload(visiban.urls)
+                else:
+                    module = importlib.reload(visiban.urls)
+                return list(module.extension_urlpatterns), list(module.urlpatterns)
+        finally:
+            # Restore the real module so no other test sees the planted routes.
+            importlib.reload(visiban.urls)
+            clear_url_caches()
+            oss_gated_view_names.cache_clear()
+
+    def test_extension_urlpatterns_holds_the_mounted_objects(self):
+        ext = [url_path("sso/acs/", _saml_acs, name="ext_acs")]
+        extension, urlpatterns = self._reload_urls(ext)
+        self.assertEqual(len(extension), 1)
+        self.assertIs(extension[0], ext[0])
+        self.assertTrue(any(p is ext[0] for p in urlpatterns))
+
+    def test_without_enterprise_extension_urlpatterns_is_empty(self):
+        extension, urlpatterns = self._reload_urls(None)
+        self.assertEqual(extension, [])
+        self.assertTrue(urlpatterns)
+
+
 # ---------------------------------------------------------------------------
 # System check: the middleware cannot be dropped silently
 # ---------------------------------------------------------------------------
