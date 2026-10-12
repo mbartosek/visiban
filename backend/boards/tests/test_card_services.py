@@ -837,6 +837,17 @@ class CrossBoardRejectionTests(CardServiceTestBase):
         with self.assertRaises(SwimlaneNotFound):
             self._move(target_swimlane_id=self.other_lane.pk)
 
+    def test_move_to_a_non_numeric_column_is_not_found(self):
+        # A non-integer id is a row that does not exist: 404, never a ValueError 500.
+        for bad in ("abc", "\ud9f7\udecf\u00dbD", "", {"a": 1}, [1]):
+            with self.subTest(column_id=bad), self.assertRaises(ColumnNotFound):
+                self._move(target_column_id=bad)
+
+    def test_move_to_a_non_numeric_swimlane_is_not_found(self):
+        for bad in ("abc", "", {"a": 1}, [1]):
+            with self.subTest(swimlane_id=bad), self.assertRaises(SwimlaneNotFound):
+                self._move(target_swimlane_id=bad)
+
     def test_moving_a_foreign_card_is_rejected(self):
         with self.assertRaises(CardNotFound):
             self._move(card_id=self.other_card.pk)

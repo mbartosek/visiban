@@ -393,7 +393,22 @@ def _refetch_and_serialize(card):
     here is the same fix applied the same way, once, rather than adding a
     parallel prefetch chain that could drift from it.
     """
-    return _serialize_card(_card_queryset(Card.objects.filter(pk=card.pk)).get())
+    return _serialize_card(_fetch_card_or_not_found(card))
+
+
+def _fetch_card_or_not_found(card):
+    """Re-read ``card`` through the shared prefetch chain, or raise ``CardNotFound``.
+
+    A hard delete can commit between the service's write and this re-read
+    (#1585). A bare ``Card.DoesNotExist`` is not a ``CardServiceError``, so the
+    tools' handlers would let it escape as an unhandled exception; ``CardNotFound``
+    is, and renders as the tools' usual ``card_not_found`` error. Callers run
+    inside the service's transaction, so the raise also rolls the write back.
+    """
+    try:
+        return _card_queryset(Card.objects.filter(pk=card.pk)).get()
+    except Card.DoesNotExist:
+        raise CardNotFound() from None
 
 
 def _serialize_movement(movement):
@@ -859,7 +874,11 @@ def card_detail(*, card_id):
 
     # Re-fetch with the shared prefetch chain so labels/checklist_items/
     # movements are already loaded rather than queried lazily one at a time.
-    card = _card_queryset(Card.objects.filter(pk=card.pk)).get()
+    try:
+        card = _fetch_card_or_not_found(card)
+    except CardServiceError as exc:
+        # Raised, not returned, like the resolver failure above (#1585).
+        raise ValueError(exc.body()["detail"]) from None
 
     data = _serialize_card(card)
     data["archived_at"] = card.archived_at.isoformat() if card.archived_at else None

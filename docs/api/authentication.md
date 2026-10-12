@@ -507,6 +507,8 @@ Set a new password using the token from the reset email. **No authentication req
 
 **Response** `200 OK { "detail": "Password has been reset with the new password." }` on success; `400 Bad Request` on invalid/expired token or mismatched passwords.
 
+A reset link is accepted once; later use is refused as invalid (this endpoint responds `400` with the invalid-token body, allauth's HTML page shows its invalid-link page, and a submit that overlaps another is refused).
+
 !!! note
     *Changed in 1.2.* A successful reset deletes the API token issued by `POST /api/v1/auth/login/` and all of the account's Personal Access Tokens, and clears a pending forced password change (`must_change_password`). Existing sessions end because the password changed. allauth's own reset page at `/accounts/password/reset/key/<uid>-<token>/` does the same.
 

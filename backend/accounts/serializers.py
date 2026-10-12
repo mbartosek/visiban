@@ -3,6 +3,7 @@ from dj_rest_auth.serializers import LoginSerializer as DjRestAuthLoginSerialize
 from dj_rest_auth.serializers import PasswordChangeSerializer as DjRestAuthPasswordChangeSerializer
 from dj_rest_auth.serializers import PasswordResetConfirmSerializer as DjRestAuthPasswordResetConfirmSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import EmailValidator
 from django.db import transaction
@@ -275,6 +276,7 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
         attrs = super().validate(attrs)
         if not password_reset_still_allowed(self.user):
             raise DRFValidationError({"token": ["Invalid value"]})
+        self._reset_token = attrs["token"]
         return attrs
 
     def save(self):
@@ -286,12 +288,27 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
         save and those writes share one transaction so they commit together;
         the lockout is cleared only once they have.
         """
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        from . import credentials as credentials_module
+        from .forms import reset_link_still_valid
+
         with transaction.atomic():
-            # Only the password column is written (#1619): ``self.user`` was
-            # read in ``validate()``, and the stock ``SetPasswordForm.save()``
-            # would write every column of that copy back.
+            # The reset link is re-validated under the user row lock (#1623).
+            try:
+                locked = credentials_module.lock_user_row(self.user)
+            except get_user_model().DoesNotExist:
+                raise DRFValidationError({"token": ["Invalid value"]}) from None
+            if not reset_link_still_valid(locked, self._reset_token):
+                raise DRFValidationError({"token": ["Invalid value"]})
+            original = self.user
+            self.user = locked
+            self.set_password_form.user = locked
+            # Only the password column is written (#1619): the stock
+            # ``SetPasswordForm.save()`` would write every column back.
             result = self.set_password_form.save(commit=False)
             self.user.save(update_fields=["password"])
+            original.password = locked.password
             finalize_password_reset(self.user)
         clear_login_lockout(self.context["request"], self.user)
         return result

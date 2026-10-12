@@ -1,5 +1,6 @@
 from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from allauth.account.adapter import get_adapter
@@ -107,6 +108,19 @@ def password_reset_still_allowed(user) -> bool:
     return EmailAddress.objects.filter(user=user, verified=True).exists()
 
 
+def reset_link_still_valid(user, token) -> bool:
+    """Whether *token* may set *user*'s password, judged on the row passed in (#1623).
+
+    Redemption paths call this on the row they hold the lock on, immediately
+    before writing. Uses the project's configured generator (the one allauth
+    and dj-rest-auth both read).
+    """
+
+    from allauth.account.forms import default_token_generator
+
+    return default_token_generator.check_token(user, token) and password_reset_still_allowed(user)
+
+
 class VisibanResetPasswordKeyForm(ResetPasswordKeyForm):
     """allauth's HTML set-new-password form, with the #1314 use-time re-check.
 
@@ -124,8 +138,23 @@ class VisibanResetPasswordKeyForm(ResetPasswordKeyForm):
         return cleaned
 
     def save(self):
+        from django.core.exceptions import PermissionDenied
+
         with transaction.atomic():
+            # The reset link is re-validated under the user row lock (#1623).
+            # A refusal is a 403 rather than a form error because allauth's
+            # ``form_valid`` cannot express a refusal after ``save()``.
+            try:
+                locked = credentials.lock_user_row(self.user)
+            except get_user_model().DoesNotExist:
+                raise PermissionDenied("This password reset link is no longer valid.") from None
+            if not reset_link_still_valid(locked, self.temp_key):
+                raise PermissionDenied("This password reset link is no longer valid.")
+            original = self.user
+            self.user = locked
             super().save()
+            # Keep the view's own instance consistent with the stored row.
+            original.password = locked.password
             credentials.finalize_password_reset(self.user)
 
 
