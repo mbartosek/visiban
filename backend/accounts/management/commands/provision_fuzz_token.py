@@ -20,11 +20,13 @@ For throwaway CI databases only. ``--set-random-password`` (off by default)
 gives a password-less target a random password that is never recorded (#1607).
 The seeded members are social-only, and both password-change routes
 (``/auth/password/change/``, ``/auth/change-password/``) skip the
-current-password check for such an account so it can set its first password. A
-fuzzer that generates two matching, valid new passwords therefore changes the
-password, which revokes every PAT, and every later request in the run answers
-401. With a password nobody holds, those routes require a current password the
-fuzzer cannot supply. The flag is opt-in because on a real social-only or
+current-password check for such an account so it can set its first password,
+but only from an interactive session: a request authenticated with the fuzz
+token is refused with 403 and nothing changes (#1609). This flag is therefore
+defense in depth rather than what keeps the fuzzer working: with a password
+nobody holds, those routes also require a current password the fuzzer cannot
+supply, so the token stays valid even if the session requirement changes. The
+flag is opt-in because on a real social-only or
 SSO-only account a usable password also lifts the verified-email gate on
 password reset (``accounts/forms.py``), so whoever controls the stored mailbox
 could set a password and sign in.

@@ -194,6 +194,23 @@ class _FirstPasswordSessionOnlyCases:
         self.assertFalse(self.user.has_usable_password())
         self.assertTrue(Token.objects.filter(user=self.user, key=key).exists())
 
+    def test_session_cookie_with_pat_header_is_refused(self):
+        # PATAuthentication runs before SessionAuthentication, so the request
+        # authenticates as the PAT (request.auth set) and is refused even
+        # though a valid session cookie rides along.
+        _, raw = PersonalAccessToken.generate(self.user, "cli")
+        client = APIClient()
+        client.force_login(self.user)
+        client.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+        before = User.objects.get(pk=self.user.pk).password
+
+        r = client.post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, before)
+        self.assertFalse(self.user.has_usable_password())
+
     def test_pat_caller_with_invalid_body_gets_documented_status(self):
         _, raw = PersonalAccessToken.generate(self.user, "cli")
         body = {k: "short" for k in self.body()}
