@@ -1646,8 +1646,11 @@ oidc-smoke:
     - python scripts/oidc_provision.py --keycloak-url "${KEYCLOAK_BASE}" --wait-timeout 240
     # Run migrations
     - cd backend && python manage.py migrate --noinput
-    # Start the backend in the background; give it a few seconds to bind
-    - python manage.py runserver 0.0.0.0:8000 &
+    # Start the backend in the background; give it a few seconds to bind.
+    # Server output goes to an artifact, not the job log (#1611), same as
+    # backend-schema-fuzz (#1607): per-request access / "Unauthorized:" lines
+    # can fill GitLab's 16 MB log cap. after_script tails it on failure.
+    - python manage.py runserver 0.0.0.0:8000 > "${CI_PROJECT_DIR}/oidc-smoke-server.log" 2>&1 &
     # Poll the liveness endpoint instead of a fixed sleep — faster on warm
     # runners, reliable on slow ones. Gives up after 30 seconds.
     # Uses python requests (already installed) — no curl in python:3.12-slim.
@@ -1664,6 +1667,19 @@ oidc-smoke:
         --username testuser
         --password testpassword
         --expected-email testuser@example.com
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ] && [ -f oidc-smoke-server.log ]; then
+        echo "Last 200 lines of server output (full log: artifact oidc-smoke-server.log, #1611):"
+        tail -n 200 oidc-smoke-server.log
+      fi
+  artifacts:
+    paths:
+      - oidc-smoke-server.log
+    # Server log can carry request bodies in tracebacks; keep it to developers.
+    access: developer
+    when: always
+    expire_in: 1 week
 
 # ─── Helm — lint ─────────────────────────────────────────────────────────────
 #
@@ -4652,7 +4668,9 @@ nightly-load-test:
     # load profile does not change passwords today, but the token must not be
     # revocable by one. Throwaway CI database only.
     - python manage.py provision_fuzz_token --username demo2 --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}" --set-random-password
-    - python manage.py runserver 0.0.0.0:8000 &
+    # Server output goes to an artifact, not the job log (#1611), same as
+    # backend-schema-fuzz (#1607). after_script tails it on failure.
+    - python manage.py runserver 0.0.0.0:8000 > "${CI_PROJECT_DIR}/nightly-load-test-server.log" 2>&1 &
     # Poll liveness instead of a fixed sleep, same pattern as oidc-smoke /
     # backend-schema-fuzz.
     - |
@@ -4675,11 +4693,21 @@ nightly-load-test:
         --iterations "${LOAD_TEST_ITERATIONS}"
         --warmup "${LOAD_TEST_WARMUP}"
         --output nightly-load-test-results.json
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "failed" ] && [ -f nightly-load-test-server.log ]; then
+        echo "Last 200 lines of server output (full log: artifact nightly-load-test-server.log, #1611):"
+        tail -n 200 nightly-load-test-server.log
+      fi
   artifacts:
     when: always
+    # One artifacts block per job, so the server log shares the results file's
+    # 90-day expiry and developer-only access (#1611).
+    access: developer
     expire_in: 90 days
     paths:
       - nightly-load-test-results.json
+      - nightly-load-test-server.log
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $LOAD_TEST_SCHEDULE == "true"'
     - when: manual

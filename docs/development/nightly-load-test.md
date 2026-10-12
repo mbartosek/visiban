@@ -94,6 +94,11 @@ a synthetic average of two samples. The job fails (`sys.exit(1)`) if any endpoin
 exceeds its budget, and always writes the full per-endpoint results as a CI artifact
 (`nightly-load-test-results.json`, kept 90 days) regardless of pass/fail.
 
+The Django `runserver` output is not written to the job log (a noisy run could hit GitLab's
+16 MB log cap). It goes to the `nightly-load-test-server.log` artifact, which shares the results
+file's 90-day expiry and is restricted to developers. On failure the job log prints the last
+200 lines of it.
+
 Like every bespoke gate script in this repo, it ships a `--self-test` mode
 (`python scripts/nightly_load_test.py --self-test`) that proves the percentile calculation and
 budget-comparison logic still fire on a known-bad and known-good input, run in CI immediately
