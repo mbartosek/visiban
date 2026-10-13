@@ -1,7 +1,7 @@
 # Visiban
 
 !!! warning "Pre-release"
-    **1.2.0-alpha.4** is a pre-release development build of the upcoming release — expect bugs and breaking changes. [Report issues](https://gitlab.com/visiban/visiban/-/issues) or see the [installation guide](getting-started/installation.md) if you want to try it early.
+    **1.2.0-beta.1** is a pre-release development build of the upcoming release — expect bugs and breaking changes. [Report issues](https://gitlab.com/visiban/visiban/-/issues) or see the [installation guide](getting-started/installation.md) if you want to try it early.
 
 An open-source Kanban board where every row is an entity and every move is on the record. Each swimlane is a customer, account, or project, with typed fields of its own, WIP limits, card aging and dwell-time analytics, and a permanent audit trail of every card movement. An API and [MCP server](features/mcp-server.md) let you connect your own tools.
 
