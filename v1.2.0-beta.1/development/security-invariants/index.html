@@ -1,0 +1,4531 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Open-source Kanban board where every row is an entity and every move is on the record — documentation">
+      
+      
+      
+        <link rel="canonical" href="https://docs.visiban.com/v1.2.0-beta.1/development/security-invariants/">
+      
+      
+        <link rel="prev" href="../suppressions/">
+      
+      
+        <link rel="next" href="../authorization-entry-points/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Security Invariants - Visiban</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#security-invariants-registry" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Visiban" class="md-header__button md-logo" aria-label="Visiban" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Visiban
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Security Invariants
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://gitlab.com/visiban/visiban" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    visiban/visiban
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../features/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Features
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../administration/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Administration
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../maintainers/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Maintainers
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Visiban" class="md-nav__button md-logo" aria-label="Visiban" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Visiban
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://gitlab.com/visiban/visiban" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    visiban/visiban
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/why-visiban/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why Visiban
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/kubernetes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kubernetes (Helm)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-boot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Boot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/oauth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OAuth Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/board-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Board Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/sample-boards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample Boards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/onboarding-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Onboarding Tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../features/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/board/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Board & Cards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/trello-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import from Trello
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/card-archiving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Card Archiving
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/card-descriptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Card Descriptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/saved-filters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Saved Filters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/custom-fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/card-relations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Card Relations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/card-links/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pull & Merge Request Links
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/realtime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Real-time Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/card-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Card History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/stable-uids/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stable UIDs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/groups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Groups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/navigation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Navigation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/keyboard-shortcuts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard Shortcuts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/appearance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appearance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/personal-access-tokens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Personal Access Tokens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Board Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/feature-toggles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Feature Toggles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/issue-board-lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue Board Lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../features/rbac/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roles & Permissions
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_24">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Roles & Permissions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/rbac/roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/rbac/inheritance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group Inheritance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../features/rbac/managing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managing Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/boards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/cards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/groups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Groups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notifications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/admin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Admin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/git-lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue Board Lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSockets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Change Feed
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/health/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Health Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/version/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Version
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../architecture/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/service-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service Layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/open-core-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Open-Core Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/api-versioning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Versioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/field-enforcement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Field Enforcement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technology Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mutation-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mutation Testing Baseline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../database-migrations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Migrations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dependency-lock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backend Dependency Lock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-gates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Gate Self-Tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serializer-ts-parity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serializer ↔ TypeScript Parity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rbac-and-broadcast-gates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RBAC & Broadcast Gates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../suppressions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Suppression Markers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Invariants
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-read-a-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to read a rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-1-account-state-gates-apply-to-every-transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 1: Account-state gates apply to every transport
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-2-a-deactivated-removed-or-demoted-principal-loses-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 2: A deactivated, removed or demoted principal loses access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-3-anything-that-grants-access-declares-what-revokes-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 3: Anything that grants access declares what revokes it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-4-consume-once-tokens-are-consumed-at-the-gate-under-a-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 4: Consume-once tokens are consumed at the gate, under a lock
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 5: User references in imports resolve only within the caller's scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to add a rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authorization-entry-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Entry Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sonarcloud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SonarCloud
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kaizen-yield-watch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kaizen Yield Watch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websocket-event-contract/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    WebSocket Event Contract
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nightly-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Load Test
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../load-test-version-benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Load Test Version Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../administration/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administration
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administration
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/site-admins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Site Admins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/admin-panel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Admin Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/maintenance-mode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Mode
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/issue-board-lens-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue Board Lens Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/scheduled-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scheduled Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/demo-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/django-admin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Django Admin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/media-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Media Storage Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/container-image-retention/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Container Image Retention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/image-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verifying Release Images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/secret-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secret Rotation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/zero-downtime-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Zero-Downtime Upgrade Playbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../maintainers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintainers
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Maintainers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/ci-runners/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Runners
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/tokens-and-rotation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tokens and Rotation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/known-ci-failures/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known CI Failures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/demo-deploy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hosted Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/sonarcloud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SonarCloud Runbook
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/security-deferred-label/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deferred Security Follow-ups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintainers/security-scanners/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Scanners
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="security-invariants-registry">Security Invariants Registry<a class="headerlink" href="#security-invariants-registry" title="Permanent link">&para;</a></h1>
+<p>Some security rules apply on more than one transport. A fix on one transport
+(for example REST) is incomplete until every other surface that must enforce
+the same rule has been checked. This page lists each rule and every surface that
+must enforce it, so a reviewer of a change that touches a rule can walk the
+whole row instead of only the surface in the diff.</p>
+<p>The <code>security-review</code>, <code>rbac-check</code>, <code>completeness-check</code> and <code>architect</code> agents
+read this page. For any diff that touches a listed rule, they verify every
+surface in that rule's table and report a surface that does not enforce the rule
+as a finding.</p>
+<p>The <code>threat-model</code> skill (<code>.claude/skills/threat-model/SKILL.md</code>) is the
+architecture-stage counterpart: it runs before <code>architect</code> on a feature that adds
+an auth path, an authorization boundary change, external data ingress, an
+OSS-to-enterprise extension point or an anonymous read surface, and walks this
+registry's rows as part of its method. It reasons about design; the agents above
+audit code.</p>
+<h2 id="how-to-read-a-rule">How to read a rule<a class="headerlink" href="#how-to-read-a-rule" title="Permanent link">&para;</a></h2>
+<p>Each rule has a statement, the reason it exists, and a table:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Surface</td>
+<td>The transport or flow through which the rule can be reached</td>
+</tr>
+<tr>
+<td>Entry point</td>
+<td>The file and function (or class) where a request on that surface starts</td>
+</tr>
+<tr>
+<td>Enforced via</td>
+<td>The code that applies the rule on that surface today</td>
+</tr>
+</tbody>
+</table>
+<p>Entry points use file and function names, not line numbers, so the table
+survives edits. Paths are relative to <code>backend/</code>. Where a rule has a shared
+implementation, it lives in <code>visiban/authorization.py</code> and the "Enforced via"
+column names it. <code>accounts/tests/test_auth_entry_points.py</code> enforces Rules 1
+and 2: it discovers every routed REST and non-DRF view, every routed WebSocket
+consumer, the MCP transport, every invite-link model, and every function that
+looks an invite up by its token, and fails when one skips the shared function.
+It also checks that each top-level path segment with a route is either gated by
+<code>PendingAccountActionMiddleware</code> or recorded as serving no session HTML, and
+that every route under the gated prefixes, Django admin views included, has a
+recorded forced-change decision (<code>gated</code> or <code>exempt: &lt;reason&gt;</code>) that the
+middleware keeps for each pending flag.
+It also pins the registration and OAuth adapter call sites to the shared
+functions and to <code>registration_token_kind</code> (Rule 4 dispatch). It does not
+enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
+does not test locking; the concurrent tests for each consume-once path do.
+<a href="../authorization-entry-points/">Authorization Entry Points</a> says what each
+entry point calls and how that test finds them.</p>
+<h2 id="rule-1-account-state-gates-apply-to-every-transport">Rule 1: Account-state gates apply to every transport<a class="headerlink" href="#rule-1-account-state-gates-apply-to-every-transport" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> An account with a forced change pending (<code>must_change_password</code>,
+<code>must_change_username</code>) or that is inactive is refused on every transport, not
+only REST.</p>
+<p><strong>Why.</strong> The gates are easy to add as DRF permission classes and forget
+everywhere else. A client that cannot call REST should not be able to read or
+write the same data over MCP, a socket, an invite link or an import.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REST</td>
+<td><code>visiban/settings.py</code> <code>REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"]</code></td>
+<td><code>visiban.permissions.MustNotHavePendingPasswordChange</code> and <code>MustNotHavePendingUsernameChange</code> come from the defaults; each delegates to its shared gate (<code>visiban.authorization.PENDING_PASSWORD_CHANGE</code>, <code>PENDING_USERNAME_CHANGE</code>). Documented exceptions that declare their own <code>permission_classes</code> so a forced-change user can reach them: <code>CurrentUserView</code>, <code>ChangePasswordView</code>, <code>ChooseUsernameView</code>, <code>/auth/user/</code> and <code>/auth/password/change/</code> (<code>visiban/urls.py</code>). Every <code>/api/v1/auth/</code> route is registered explicitly and anchored in <code>visiban/urls.py</code>, matching both slash forms, so each resolves to an explicitly chosen view (the project's override, or a deliberately kept stock view: logout, resend-email); dj-rest-auth's urlconfs are not included (<code>accounts/tests/test_auth_routes.py</code>). The OpenAPI schema views (<code>visiban/urls.py</code>) declare <code>IsAuthenticated, TokenHasScope</code>. <code>boards/views/boards.py</code> <code>BoardViewSet</code> and <code>accounts/views.py</code> <code>WSTicketView</code> declare an explicit list that includes both gates</td>
+</tr>
+<tr>
+<td>REST authentication</td>
+<td><code>accounts/authentication.py</code> <code>PATAuthentication</code>; DRF <code>SessionAuthentication</code> and <code>TokenAuthentication</code> (<code>DEFAULT_AUTHENTICATION_CLASSES</code>)</td>
+<td><code>resolve_personal_access_token</code> rejects a PAT whose user is inactive (<code>visiban.authorization.INACTIVE</code>); <code>SessionAuthentication</code> and DRF's <code>TokenAuthentication</code> check <code>user.is_active</code></td>
+</tr>
+<tr>
+<td>Login and session issuance</td>
+<td><code>accounts/views.py</code> <code>ThrottledLoginView</code>; <code>accounts/backends.py</code> <code>EmailBackend</code>; <code>accounts/adapter.py</code> <code>SocialRegistrationAdapter</code></td>
+<td><code>ModelBackend</code> and <code>EmailBackend.authenticate</code> call <code>user_can_authenticate</code> (inactive users are refused); <code>ThrottledLoginView</code> mints the DRF <code>Token</code> only after authentication succeeds; for existing social accounts allauth's <code>respond_user_inactive</code> handles an inactive user</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td><code>mcp_server/auth.py</code> <code>BearerAuthMiddleware</code></td>
+<td><code>_authenticate_and_authorize</code> calls <code>_enforce_account_state</code>, which calls <code>visiban.authorization.account_state_denial</code> and returns the gate's message and code</td>
+</tr>
+<tr>
+<td>WebSocket ticket mint</td>
+<td><code>accounts/views.py</code> <code>WSTicketView</code></td>
+<td>Explicit <code>permission_classes</code>: <code>IsAuthenticated</code>, both pending-change gates, <code>TokenHasScope</code></td>
+</tr>
+<tr>
+<td>WebSocket handshake</td>
+<td><code>accounts/ws_auth.py</code> <code>TicketAuthMiddleware</code>, <code>_resolve_ticket_user</code>; Channels <code>AuthMiddlewareStack</code></td>
+<td><code>_resolve_ticket_user</code> refuses an inactive user at redemption (<code>visiban.authorization.INACTIVE</code>); <code>AuthMiddlewareStack</code> resolves the session user through Django's auth backends</td>
+</tr>
+<tr>
+<td>WebSocket (board)</td>
+<td><code>boards/consumers.py</code> <code>BoardConsumer.connect</code>, <code>_check_access</code></td>
+<td><code>connect</code> refuses an unauthenticated scope user or one with no recorded credential, then calls <code>visiban.authorization.authorize_account</code>; the periodic re-check runs <code>accounts/ws_auth.py</code> <code>load_live_ws_user</code>, which calls <code>authorize_account</code> on a freshly loaded row</td>
+</tr>
+<tr>
+<td>WebSocket (group)</td>
+<td><code>groups/consumers.py</code> <code>GroupConsumer.connect</code>, <code>_check_access</code></td>
+<td>Same as the board consumer: same <code>connect</code> refusal and <code>authorize_account</code> call; periodic re-check runs <code>load_live_ws_user</code></td>
+</tr>
+<tr>
+<td>Invite link redemption</td>
+<td><code>boards/views/invites.py</code> <code>JoinBoardView</code>; <code>groups/views.py</code> <code>JoinGroupView</code></td>
+<td>POST declares <code>IsAuthenticated</code>, both pending-change gates and <code>TokenHasScope</code>; GET is <code>AllowAny</code></td>
+</tr>
+<tr>
+<td>JSON, CSV and Trello import</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin.import_board</code>, <code>import_trello</code></td>
+<td>Served by <code>BoardViewSet</code>, so its explicit permission list</td>
+</tr>
+<tr>
+<td>OAuth signup and connect</td>
+<td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.pre_social_login</code>, <code>save_user</code></td>
+<td>Signup creates the account in the same flow; existing-account matching in <code>_handle_email_collision</code> considers active users only (<code>visiban.authorization.principal_is_active</code>). A <code>process=connect</code> callback for an inactive account, or one with a forced change pending, is refused (<code>visiban.authorization.account_state_denial</code>) before anything is linked, with a redirect to the SPA</td>
+</tr>
+<tr>
+<td>allauth session views</td>
+<td><code>/accounts/</code> (<code>visiban/urls.py</code>, allauth's urlconf and the project's overrides)</td>
+<td><code>visiban/middleware.py</code> <code>PendingAccountActionMiddleware</code>, which evaluates <code>visiban.authorization.account_state_denial</code> limited to <code>FORCED_CHANGE_GATES</code>: an authenticated account with a forced change pending is redirected to <code>FRONTEND_URL</code> on GET and HEAD and refused with 403 on any other method. Exceptions are decided on the resolved view, not the path, and are listed in <code>PENDING_ACTION_EXEMPT_VIEWS</code>: logout, the password-reset pages, the email-confirmation redirect, static result pages, and each installed provider's SSO login and callback (connect is refused by the adapter, row above). Every exception is a view an anonymous visitor reaches with the same effect, or one that applies the gate itself. <code>/accounts/password/change/</code> and <code>/accounts/password/set/</code> redirect to the SPA's Settings page. Prefixes in <code>PENDING_ACTION_EXTRA_GATED_PREFIXES</code> and view names in <code>PENDING_ACTION_EXTRA_EXEMPT_VIEWS</code> (both default empty; the extension point for an installed extension package) extend the gate and its exceptions; malformed entries fail the <code>accounts.E004</code> and <code>accounts.E006</code> system checks, an exempt-view entry naming a view that can serve a path under <code>/accounts/</code> or <code>/admin/</code> (regex and converter mounts included; unboundable routes count), or an OSS view (not one from the root URLconf's <code>extension_urlpatterns</code>) under an extra gated prefix, is reported by <code>accounts.E007</code> and ignored by the middleware at runtime (checks do not run under gunicorn/ASGI), and <code>accounts.E005</code> fails startup if <code>MIDDLEWARE</code> drops the middleware or places it before <code>AuthenticationMiddleware</code>. Unauthenticated requests pass, so sign-in works; inactive accounts are refused by the auth backends and allauth's <code>respond_user_inactive</code></td>
+</tr>
+<tr>
+<td>Django admin</td>
+<td><code>/admin/</code> (<code>django.contrib.admin.site</code>); <code>accounts/admin.py</code> <code>VisibanUserAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code></td>
+<td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page. The Group admin (<code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>) is limited to active superusers for list, view, add, change, delete and app-index visibility (#1617; <code>accounts/tests/test_admin_group_restrictions.py</code>)</td>
+</tr>
+<tr>
+<td>Django admin (email, login identity and API token models)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code>; admins for allauth <code>EmailAddress</code>, <code>SocialAccount</code>, <code>SocialToken</code>, <code>SocialApp</code> and DRF <code>TokenProxy</code></td>
+<td>Each stock admin is re-registered with the mixin, so view, add, change, delete and the module entry are limited to active superusers regardless of the model permissions a staff account holds (<code>accounts/tests/test_admin_third_party_restrictions.py</code>)</td>
+</tr>
+<tr>
+<td>Django admin (Sites)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code>; admin for <code>django.contrib.sites</code> <code>Site</code></td>
+<td>The Sites admin is re-registered with the mixin, so view, add, change, delete and the module entry are limited to active superusers regardless of the model permissions a staff account holds (#1621; <code>accounts/tests/test_admin_sites_restrictions.py</code>)</td>
+</tr>
+<tr>
+<td>Admin API</td>
+<td><code>accounts/admin_views.py</code> <code>AdminUserDetailView</code>, <code>AdminUserDeactivateView</code></td>
+<td><code>_ADMIN_PERMISSIONS</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="rule-2-a-deactivated-removed-or-demoted-principal-loses-access">Rule 2: A deactivated, removed or demoted principal loses access<a class="headerlink" href="#rule-2-a-deactivated-removed-or-demoted-principal-loses-access" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> A principal who is deactivated, removed from a board or group, or
+demoted loses access everywhere, including open connections and credentials
+already issued. Access is re-derived from current state, not from state captured
+when the credential was issued.</p>
+<p><strong>Why.</strong> Credentials outlive the decision that granted them. A cached role, an
+open socket or a previously minted token keeps working unless the surface
+re-checks.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REST</td>
+<td><code>boards/permissions.py</code> <code>get_board_role</code>; <code>groups/models.py</code> <code>get_accessible_group_ids</code></td>
+<td>Role resolved from current membership on every request</td>
+</tr>
+<tr>
+<td>REST authentication</td>
+<td><code>PATAuthentication</code>; DRF <code>SessionAuthentication</code>, <code>TokenAuthentication</code></td>
+<td>Each checks <code>user.is_active</code> on every request</td>
+</tr>
+<tr>
+<td>Login and session issuance</td>
+<td><code>accounts/views.py</code> <code>ThrottledLoginView</code>; <code>accounts/backends.py</code> <code>EmailBackend</code></td>
+<td><code>user_can_authenticate</code> refuses inactive users at login; allauth <code>respond_user_inactive</code> handles existing social accounts</td>
+</tr>
+<tr>
+<td>Personal access tokens</td>
+<td><code>accounts/admin_views.py</code> <code>AdminUserDeactivateView._revoke_invite_links</code></td>
+<td>Deletes the user's PATs; invoked by <code>AdminUserDeactivateView.post</code> and by <code>AdminUserDetailView.patch</code> when <code>is_active</code> becomes false</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td><code>mcp_server/auth.py</code> <code>BearerAuthMiddleware</code>; <code>mcp_server/tools.py</code></td>
+<td><code>resolve_personal_access_token</code> rejects inactive users; tools import <code>get_board_role</code> and <code>get_board_roles</code></td>
+</tr>
+<tr>
+<td>WebSocket handshake</td>
+<td><code>accounts/ws_auth.py</code> <code>_resolve_ticket_user</code>; Channels <code>AuthMiddlewareStack</code></td>
+<td>Ticket redemption refuses an inactive user; the session handshake uses Django's auth backends</td>
+</tr>
+<tr>
+<td>WebSocket (board)</td>
+<td><code>boards/consumers.py</code> <code>BoardConsumer</code></td>
+<td>Periodic and per-frame re-check: <code>_refresh_role</code> calls <code>load_live_ws_user</code> (<code>authorize_account</code> on a fresh row, live credential) and <code>_lookup_role</code> resolves the current role with <code>get_board_role</code>; a failed check closes with 4003</td>
+</tr>
+<tr>
+<td>WebSocket (group)</td>
+<td><code>groups/consumers.py</code> <code>GroupConsumer</code></td>
+<td>Periodic re-check: <code>_refresh_access</code> calls <code>load_live_ws_user</code>; <code>_has_access</code> uses <code>get_accessible_group_ids</code></td>
+</tr>
+<tr>
+<td>Site invite links</td>
+<td><code>accounts/invite_utils.py</code> <code>validate_invite_token</code>, <code>site_invite_creator_admits</code>, <code>revoke_site_invite_links</code></td>
+<td><code>visiban.authorization.invite_creator_is_valid</code> (the site rule is <code>site_invite_creator_admits</code>, which calls <code>sender_may_admit_accounts</code>: an active site admin) is evaluated at redemption under the row lock, for REST and OAuth signup alike, so a creator deactivated, deleted or demoted by any route stops admitting accounts; <code>revoke_site_invite_links</code> sets <code>revoked_at</code> on the creator's unused links on deactivation (<code>AdminUserDeactivateView.post</code>, <code>AdminUserDetailView.patch</code> with <code>is_active</code> false) on user deletion (<code>accounts/signals.py</code> <code>revoke_site_invites_of_deleted_creator</code>, a <code>pre_delete</code> receiver covering every deletion path), and on loss of site admin (<code>AdminUserDetailView.patch</code> with <code>is_site_admin</code> false, <code>set_site_admin --revoke</code> (both refuse an account that is still a superuser, since superuser status implies site admin), and a superuser-status change that removes the account's site-admin access); the Django admin user form revokes on deactivation (<code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code> through <code>accounts/admin_views.py</code> <code>apply_access_loss_revocations</code>) and, because its superuser change keeps <code>is_site_admin</code> and <code>can_access_all_content</code> consistent (<code>accounts/signals.py</code>), on loss of site-admin access</td>
+</tr>
+<tr>
+<td>Board invite links</td>
+<td><code>boards/views/invites.py</code> <code>JoinBoardView.get</code>, <code>JoinBoardView.post</code>; <code>boards/invites.py</code> <code>sender_is_board_admin</code></td>
+<td><code>visiban.authorization.invite_creator_is_valid</code> (the board rule is <code>sender_is_board_admin</code>) is evaluated at preview and at join; <code>_revoke_pending_board_invites</code> revokes on deactivation, including from the Django admin user form (<code>VisibanUserAdmin.save_model</code>); <code>boards/models.py</code> <code>revoke_board_invite_links_of_deleted_creator</code> (a <code>pre_delete</code> receiver covering every deletion path) revokes on user delete</td>
+</tr>
+<tr>
+<td>Group invite links</td>
+<td><code>groups/invite_registration.py</code> <code>_sender_still_admits</code>; <code>groups/views.py</code> <code>sender_is_group_admin</code>, <code>_revoke_lapsed_admin_invite_links</code>; <code>groups/views.py</code> <code>_revoke_lapsed_subtree_invite_links</code> (re-parent); <code>groups/models.py</code> <code>revoke_invite_links_of_deleted_creator</code> (user delete); <code>accounts/admin_views.py</code> <code>AdminUserDeactivateView._revoke_group_invite_links</code></td>
+<td>Sender standing is evaluated at preview and redemption through <code>visiban.authorization.invite_creator_is_valid</code> (the group rule is <code>sender_is_group_admin</code>), and at registration also <code>sender_may_admit_accounts</code>; links are revoked when the sender is deactivated (including from the Django admin user form, <code>VisibanUserAdmin.save_model</code>), deleted, or their admin rights lapse (including by the group being re-parented; links lapsed before #1513 are backfilled by migration <code>groups/0017</code>) (<code>_revoke_lapsed_admin_invite_links</code> is revocation housekeeping, not the access decision; see <a href="../authorization-entry-points/#advisory-copies-of-the-creator-rule">advisory copies</a>)</td>
+</tr>
+<tr>
+<td>JSON, CSV and Trello import</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin</code></td>
+<td>Runs as an authenticated REST request, so role is read from current state</td>
+</tr>
+<tr>
+<td>OAuth signup</td>
+<td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter</code></td>
+<td><code>_handle_email_collision</code> considers active users only</td>
+</tr>
+<tr>
+<td>Django admin</td>
+<td><code>boards/admin.py</code> <code>BoardMembershipAdmin</code></td>
+<td>Membership changes made in the admin emit the <code>EVT_MEMBER_ADDED</code>, <code>EVT_MEMBER_UPDATED</code> and <code>EVT_MEMBER_REMOVED</code> board events through <code>_BoardEventAdminMixin</code></td>
+</tr>
+<tr>
+<td>Admin API</td>
+<td><code>accounts/admin_views.py</code> <code>AdminUserDetailView.patch</code>, <code>AdminUserDeactivateView.post</code></td>
+<td>Deactivation revokes PATs and pending invites in the same operation</td>
+</tr>
+<tr>
+<td>Superuser status change (model save)</td>
+<td><code>accounts/signals.py</code> <code>capture_prior_superuser_state</code>, <code>ensure_superuser_is_site_admin</code></td>
+<td>Superuser status, <code>is_site_admin</code> and <code>can_access_all_content</code> stay consistent: a stored <code>is_superuser</code> true to false change clears the other two and calls <code>apply_access_loss_revocations</code>; a save of a superuser that leaves either derived flag false sets both again (#1614), and <code>AdminPatchUserSerializer</code> refuses clearing either flag on a superuser, rechecked on the locked row in <code>AdminUserDetailView.patch</code> (#1597, #1614); the Django admin user form is covered by the model-save signal, so a form save cannot leave <code>can_access_all_content</code> cleared on a superuser (#1614); <code>VisibanUserAdmin.get_readonly_fields</code> makes <code>is_superuser</code> read-only for non-superusers (#1579)</td>
+</tr>
+<tr>
+<td>Django admin (email, login identity and API token models)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyAdminMixin</code></td>
+<td>The admins that can change another account's email addresses, social accounts or API tokens are limited to active superusers (#1618)</td>
+</tr>
+<tr>
+<td>Django admin</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code></td>
+<td>Calls <code>accounts/admin_views.py</code> <code>apply_access_loss_revocations</code>, the helper <code>AdminUserDetailView.patch</code> uses, in the same transaction as the save</td>
+</tr>
+<tr>
+<td>Django admin (user form account guards)</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserChangeForm</code>, <code>VisibanUserAdmin.save_model</code></td>
+<td>For every actor, superusers included, the form refuses deactivating the actor's own account or a board owner (<code>accounts/admin_views.py</code> <code>deactivation_refusal</code>, the helper <code>AdminUserDetailView.patch</code> also uses; #1577) and removing the actor's own superuser status (<code>demotion_refusal</code>). The last-active-site-admin refusal on deactivation, and the last-active-superuser and last-active-site-admin refusals on removing superuser status, are specific to the form; the API path does not use those branches. The guards run on an active-to-inactive or superuser-to-non-superuser transition only, so saving an already-inactive account is not refused (an intentional difference from the API, which evaluates every <code>is_active=false</code> request). <code>save_model</code> repeats the checks under one pk-ordered lock on the target and the active site-admin and superuser rows. The shell and management commands are the only unguarded routes. In the admin API, a site admin who is not a superuser can deactivate a superuser account (existing behavior, unchanged)</td>
+</tr>
+<tr>
+<td>Django admin (user delete)</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin.delete_view</code>, <code>guarded_delete_selected</code> (the <code>delete_selected</code> action), <code>delete_model</code>, <code>delete_queryset</code>, <code>_lock_and_check_admins</code>, <code>_lock_cards_then_targets</code>; <code>user_deletion_refusals</code></td>
+<td>A delete applies the account guards to every actor, superusers included: not the actor's own account, not a board owner (<code>Board.owner</code> is CASCADE, so the boards and their cards would go too; the refusal shows a count, not board names; <code>accounts/admin_views.py</code> <code>deactivation_refusal</code>, #1616), and not the last active site admin or last active superuser. The delete view and the bulk action refuse with an error message and delete nothing; a bulk delete is judged as a set, is all-or-nothing, and also refuses a selection that would remove every active site admin or superuser; the bulk action runs in one transaction so a refusal leaves no deletion log entries. <code>delete_model</code> and <code>delete_queryset</code> judge the rules again under three locks, in this order: (1) the targets, the actor and the active site-admin and superuser rows, one pk-ordered <code>FOR NO KEY UPDATE</code> (the flag-based rules and the actor's standing, including a target promoted or an actor demoted since the request started, are judged on these locked rows; <code>FOR NO KEY UPDATE</code> does not block the <code>FOR KEY SHARE</code> a card write or board insert takes on a user row); (2) every card the delete will write (the owned boards' cards and the cards carrying a reference to a target), one pk-ordered <code>FOR UPDATE</code>; (3) the target rows, one pk-ordered <code>FOR UPDATE</code>, after which the refusals are judged again, so the owned-boards rule is checked against boards committed up to that point. The guard decisions are judged on locked rows and a board is never silently deleted by a delete that did not check it: a board insert that has reached COMMIT before step (3) is seen by the re-check and the delete is refused; an insert still in flight takes its foreign-key lock on the owner only at COMMIT (the key is deferred), so it waits for the delete and then fails its foreign key. Cards are locked before the target rows, the order a card writer uses, for the cards snapshotted at step (2). The limit: a card that gains a reference to a target between steps (2) and (3) is not locked, and the cascade's update of it can deadlock with a writer holding that card; PostgreSQL aborts one side, which can be the delete, and nothing is lost. Tables not scoped to a card (invite links, export log, group rows) are not locked. The cascade to groups a user owns (<code>Group.owner</code> is CASCADE) is accepted, not guarded: Django's confirm page lists it, and it is tracked separately. The shell and management commands are the only unguarded routes</td>
+</tr>
+<tr>
+<td>Django admin (user form fields and visibility)</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin.get_readonly_fields</code>, <code>get_queryset</code></td>
+<td>For a non-superuser: <code>is_staff</code>, <code>is_superuser</code>, <code>groups</code> and <code>user_permissions</code> are read-only; <code>email</code> and <code>username</code> of a superuser or site-admin account other than the actor's own are read-only; superuser accounts are not listed or editable (these limits apply to non-superuser staff only). <code>get_fieldsets</code> (which adds the hidden <code>row_version</code>), <code>row_version</code> and <code>save_related</code> do not alter these field and visibility limits: read-only fields stay out of the form and of <code>row_version</code>, and <code>save_related</code> writes only many-to-many fields the form carries (#1622)</td>
+</tr>
+<tr>
+<td>Django admin (user password form)</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code></td>
+<td>The per-user password form is refused for a non-superuser when the target is a superuser or site-admin account other than the actor's own. These limits apply to non-superuser staff only; superusers edit these fields and set these passwords</td>
+</tr>
+<tr>
+<td>Writes to the user row from a request-start copy</td>
+<td><code>accounts/serializers.py</code> <code>UserSerializer.update</code> (<code>/auth/me/</code>, <code>/auth/user/</code>); <code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code>, <code>VisibanUserAdmin.save_related</code>, <code>VisibanUserChangeForm.clean</code></td>
+<td>Account state is not overwritten from a request-start copy: profile updates save only the validated fields (<code>update_fields</code>); the two REST password-change routes re-read the row under <code>accounts/credentials.py</code> <code>lock_user_row</code> and save only <code>password</code>; reset-confirm and allauth's password hook save only <code>password</code>; a social-account connect judges account state on a separate fresh read and hands allauth a fresh row with only <code>last_login</code> loaded (<code>_connect_target</code>), so allauth's save writes only that column (#1624); the Django admin change form takes the concrete fields that are unchanged at submit time from the row read under the lock, and <code>VisibanUserAdmin.save_related</code> writes only the many-to-many fields (<code>groups</code>, <code>user_permissions</code>) the administrator changed; the form renders a hidden <code>row_version</code> (a keyed digest of the stored values of the fields it writes, groups and permissions included), and a submission made against an older state of the account is refused: <code>VisibanUserChangeForm.clean</code> compares it with the row read when the submission arrives (form error), <code>save_model</code> compares it again with the row and its groups and permissions read under the lock, and <code>save_related</code> re-reads the groups and permissions before writing them (a refusal at either step rolls the save back and redirects to the change page with an error message); a submission without <code>row_version</code> skips the comparisons and still keeps the stored value of every field left alone (#1619, #1622, <code>accounts/tests/test_stale_user_row_writes.py</code>, <code>accounts/tests/test_admin_user_form_concurrent_edits.py</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rule-3-anything-that-grants-access-declares-what-revokes-it">Rule 3: Anything that grants access declares what revokes it<a class="headerlink" href="#rule-3-anything-that-grants-access-declares-what-revokes-it" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> Every mechanism that grants access (socket, invite link, token,
+session) has a stated revocation path covering the relevant events:
+deactivation, role removal, password change, logout and creator removal. A new
+grant mechanism lists those events in its docstring and in the table below
+before it merges.</p>
+<p><strong>Why.</strong> A grant with no declared revocation is the source of the standing
+access described in Rule 2.</p>
+<table>
+<thead>
+<tr>
+<th>Grant</th>
+<th>Entry point</th>
+<th>Revoked by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Session</td>
+<td>Django session (<code>SessionAuthentication</code>)</td>
+<td>Logout, a password change (the session auth hash is an HMAC of the password hash), deactivation (<code>ModelBackend</code> refuses inactive users)</td>
+</tr>
+<tr>
+<td>DRF auth <code>Token</code></td>
+<td>dj-rest-auth login via <code>accounts/views.py</code> <code>ThrottledLoginView</code>; <code>TokenAuthentication</code></td>
+<td>Logout (dj-rest-auth <code>LogoutView</code> deletes <code>request.user.auth_token</code>); every password change, reset and admin-set password (<code>accounts/credentials.py</code> <code>revoke_auth_token</code>, called from <code>finalize_password_change</code> and <code>require_password_change_after_admin_set</code>, so every caller in the next three rows revokes it); on the REST change routes (<code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>) a request authenticated with the <code>Token</code> gets a replacement in the response's optional <code>key</code> field (<code>reissue_auth_token</code>, same transaction and user-row lock), while a session caller stays signed in through <code>update_session_auth_hash</code>; <code>TokenAuthentication</code> checks <code>user.is_active</code> on each request; an open socket minted from it re-checks the key digest in <code>accounts/ws_auth.py</code> <code>_credential_ref_is_live</code>. Issuance at login (<code>ThrottledLoginView.login</code>) and those helpers are serialized on the user row (<code>accounts/credentials.py</code> <code>lock_user_row</code>); login re-reads the row under the lock and issues the <code>Token</code> only while the stored password hash is the one the credentials were verified against and the account is active (<code>accounts/tests/test_credential_row_lock.py</code>)</td>
+</tr>
+<tr>
+<td>Personal access token</td>
+<td><code>accounts/models.py</code> <code>PersonalAccessToken</code>; <code>accounts/authentication.py</code> <code>resolve_personal_access_token</code></td>
+<td>Explicit delete (<code>PersonalAccessTokenDeleteView</code>), expiry (<code>pat_is_expired</code>), deactivation (<code>_revoke_invite_links</code>, also from <code>VisibanUserAdmin.save_model</code> through <code>apply_access_loss_revocations</code>), and a password change or reset through the web interface, the API or the Django admin, through the helpers in <code>accounts/credentials.py</code> (see the next three rows), which delete all of the user's PATs. Token creation (<code>PersonalAccessTokenListCreateView.post</code>) and those helpers are serialized on the user row (<code>accounts/credentials.py</code> <code>lock_user_row</code>); creation re-reads its credential under the lock (<code>accounts/tests/test_credential_row_lock.py</code>)</td>
+</tr>
+<tr>
+<td>Password change sources</td>
+<td><code>accounts/credentials.py</code> <code>finalize_password_change</code>, called by <code>accounts/views.py</code> <code>ChangePasswordView</code> and <code>TokenRevokingPasswordChangeView</code>, by <code>accounts/forms.py</code> <code>VisibanChangePasswordForm</code> and <code>VisibanSetPasswordForm</code>, which stay configured as allauth's change and set forms and finalize in the same transaction as the save wherever allauth's own views are mounted (an extension or test URLconf), with <code>accounts/password_signals.py</code> receivers for allauth's <code>password_changed</code> and <code>password_set</code> signals as an idempotent backstop, and by <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code> (the hook allauth's change, set and reset-from-key flows store the password through; the save and the finalize step share one transaction, so a failed finalize rolls the password back), and by <code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code> when staff set their own password. On the two REST change routes, setting a first password on an account with no usable password requires an interactive session: <code>accounts/credentials.py</code> <code>first_password_requires_session</code> refuses any request that carries a token credential (<code>request.auth</code> is not <code>None</code>; sessions leave it unset) with 403 before any write (#1609; <code>accounts/tests/test_password_change_auth_token.py</code>). allauth's change and set views are session-only and redirect to the SPA. Django's <code>check_password</code> hasher upgrade does not call any of these; <code>accounts/models.py</code> <code>User.check_password</code> and <code>acheck_password</code> write the upgraded hash only while the row still holds the hash it was derived from (a conditional <code>UPDATE</code> checked by row count), so every caller (<code>ModelBackend</code>, <code>EmailBackend</code>, the change-password and allauth flows) leaves a password set by another transaction in place, and the REST login re-check under <code>lock_user_row</code> then refuses the login (<code>accounts/tests/test_credential_row_lock.py</code>, #1601)</td>
+<td>Clears <code>must_change_password</code> and deletes the user's PATs and DRF <code>Token</code>; the two REST views reissue the <code>Token</code> to a caller that authenticated with it. The project routes <code>/accounts/password/change/</code>, <code>/accounts/password/set/</code> and the admin's own <code>/admin/password_change/</code> redirect to the SPA's Settings page (<code>AdminPasswordChangeRedirectView</code>)</td>
+</tr>
+<tr>
+<td>Password reset</td>
+<td><code>accounts/views.py</code> <code>ThrottledPasswordResetConfirmView</code>; <code>accounts/serializers.py</code> <code>VisibanPasswordResetConfirmSerializer</code>; allauth's <code>/accounts/password/reset/key/</code> page (<code>accounts/forms.py</code> <code>VisibanResetPasswordKeyForm</code>; <code>password_reset</code> signal receiver as a backstop)</td>
+<td><code>validate</code> refuses a link when the account no longer has a verified address (<code>password_reset_still_allowed</code>); both routes call <code>accounts/credentials.py</code> <code>finalize_password_reset</code> in the same transaction as the password save, which clears <code>must_change_password</code> and deletes the user's PATs and DRF <code>Token</code>; the REST <code>save</code> also clears the login lockout; the new password hash changes the session auth hash that sessions and open sockets compare</td>
+</tr>
+<tr>
+<td>Django admin password</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin.user_change_password</code> (<code>/admin/accounts/user/&lt;id&gt;/password/</code>)</td>
+<td>When the stored hash changes on another user's account: <code>require_password_change_after_admin_set</code> sets <code>must_change_password</code> (when a usable password was set, not when password sign-in was disabled) and deletes the user's PATs and DRF <code>Token</code>; their sessions end because the session auth hash changes. On the actor's own account: <code>finalize_password_change</code>. A user created through the admin with a usable password is created with <code>must_change_password</code> set (<code>VisibanUserAdmin.save_model</code>). The <code>ensure_site_admin</code> management command, when it sets a password on an existing account, uses the same helper under the user-row lock</td>
+</tr>
+<tr>
+<td>Password and profile writes against a concurrent credential change</td>
+<td><code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code> (with <code>accounts/serializers.py</code> <code>VisibanPasswordChangeSerializer</code>); <code>UserSerializer.update</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code>, <code>VisibanUserAdmin.save_related</code>, <code>VisibanUserChangeForm.clean</code></td>
+<td>Password writes use the stored record: the two REST change routes verify the current password against, and write the new hash to, the row read under <code>lock_user_row</code> (the first-password session requirement is evaluated against that same row); profile updates, reset-confirm and allauth's password hook write only the columns they change; a social-account connect writes only <code>last_login</code>, from a fresh read; the Django admin change form takes the concrete fields that are unchanged at submit time from the row read under the lock, writes only the many-to-many fields the administrator changed (<code>VisibanUserAdmin.save_related</code>), and refuses a submission made against an older state of the account, comparing the rendered <code>row_version</code> in <code>VisibanUserChangeForm.clean</code> and again under the row lock in <code>save_model</code> and <code>save_related</code> (#1619, #1622, <code>accounts/tests/test_stale_user_row_writes.py</code> and <code>accounts/tests/test_admin_user_form_concurrent_edits.py</code>, whose interleaving cases run on PostgreSQL)</td>
+</tr>
+<tr>
+<td>Demo-site seed password</td>
+<td><code>boards/management/commands/seed_demo_data.py</code> <code>_ensure_demo_site_users</code> (<code>--demo-site</code>)</td>
+<td>When the account already exists, the re-set takes <code>lock_user_row</code>, then deletes the user's PATs and DRF <code>Token</code> (<code>revoke_auth_token</code>) in the same <code>transaction.atomic()</code> as the password save (#1600). A new account has nothing to revoke. <code>must_change_password</code> is deliberately not set (the passwords are published for visitors), so this surface does not use <code>require_password_change_after_admin_set</code> (<code>boards/tests/test_seed_demo_data.py</code>)</td>
+</tr>
+<tr>
+<td>WebSocket ticket</td>
+<td><code>accounts/ws_auth.py</code> <code>issue_ws_ticket</code>, <code>consume_ws_ticket</code>, <code>_resolve_ticket_user</code></td>
+<td>Single use, <code>WS_TICKET_TTL</code> expiry, refused for an inactive user or a minting credential that is no longer live</td>
+</tr>
+<tr>
+<td>Open WebSocket</td>
+<td><code>accounts/ws_auth.py</code> <code>ws_credential_is_live</code>, <code>load_live_ws_user</code></td>
+<td>Recorded credential no longer live, password changed since handshake (<code>auth_hash</code>), account inactive (4003 at the next re-check)</td>
+</tr>
+<tr>
+<td>Public board share link</td>
+<td><code>boards/views/share.py</code> <code>ShareBoardView</code>; <code>boards/models.py</code> <code>Board.share_token</code>, <code>share_token_expires_at</code></td>
+<td>Clearing <code>share_token</code> on the board (<code>boards/views/boards.py</code>), <code>share_token_expires_at</code> (the view returns 410 once it has passed)</td>
+</tr>
+<tr>
+<td>Site invite link</td>
+<td><code>accounts/invite_utils.py</code> <code>validate_invite_token</code>, <code>consume_invite_token</code></td>
+<td><code>revoked_at</code>, <code>expires_at</code>, <code>used_at</code>; <code>site_invite_creator_admits</code> re-evaluated at redemption; <code>revoke_site_invite_links</code> for links a deactivated or demoted creator made</td>
+</tr>
+<tr>
+<td>Board invite link</td>
+<td><code>boards/views/invites.py</code> <code>JoinBoardView</code>; <code>boards/models.py</code> <code>BoardInviteLink</code></td>
+<td><code>revoked_at</code>, <code>expires_at</code>, <code>used_at</code>; <code>sender_is_board_admin</code> re-evaluated at preview and join</td>
+</tr>
+<tr>
+<td>Group invite link</td>
+<td><code>groups/views.py</code> <code>JoinGroupView</code>; <code>groups/models.py</code> <code>GroupInviteLink</code></td>
+<td><code>is_active</code>, <code>expires_at</code>, <code>used_at</code>; sender standing re-evaluated by <code>_sender_still_admits</code> and <code>sender_is_group_admin</code></td>
+</tr>
+<tr>
+<td>OAuth pending invite</td>
+<td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.is_open_for_signup</code></td>
+<td>Invalid or expired token clears <code>PENDING_INVITE_SESSION_KEY</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="rule-4-consume-once-tokens-are-consumed-at-the-gate-under-a-lock">Rule 4: Consume-once tokens are consumed at the gate, under a lock<a class="headerlink" href="#rule-4-consume-once-tokens-are-consumed-at-the-gate-under-a-lock" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> A single-use invite or token is claimed atomically
+(<code>select_for_update()</code> or a conditional <code>UPDATE ... WHERE used_at IS NULL</code>
+checked by row count) at the point of validation, not validated at one step and
+redeemed best-effort at a later one. The gap between the two lets concurrent
+requests both pass. Tests for these paths run concurrently and assert that two
+simultaneous redemptions of one token yield exactly one success.</p>
+<p><strong>Why.</strong> See the "Secure code" section of the root <code>CLAUDE.md</code>, which holds the
+canonical wording.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Site invite (registration)</td>
+<td><code>accounts/invite_utils.py</code> <code>validate_invite_token</code>, <code>consume_invite_token</code></td>
+<td><code>select_for_update()</code> on validation; conditional <code>used_at IS NULL</code> update checked by row count</td>
+</tr>
+<tr>
+<td>Group invite (registration)</td>
+<td><code>groups/invite_registration.py</code> <code>validate_group_registration_token</code>, <code>redeem_group_registration_token</code></td>
+<td><code>select_for_update()</code> on validation; conditional <code>used_at</code> update checked by row count</td>
+</tr>
+<tr>
+<td>Board invite (join)</td>
+<td><code>boards/views/invites.py</code> <code>JoinBoardView.post</code></td>
+<td><code>select_for_update()</code> on the link row inside the request transaction</td>
+</tr>
+<tr>
+<td>Group invite (join)</td>
+<td><code>groups/views.py</code> <code>JoinGroupView.post</code></td>
+<td><code>select_for_update()</code> on the link row inside the request transaction</td>
+</tr>
+<tr>
+<td>Board invite (registration)</td>
+<td><code>boards/invites.py</code> <code>validate_board_registration_token</code>, <code>redeem_board_registration_token</code></td>
+<td><code>select_for_update()</code> on validation; conditional update on <code>used_at IS NULL, revoked_at IS NULL</code> checked by row count</td>
+</tr>
+<tr>
+<td>Registration dispatch</td>
+<td><code>accounts/registration_tokens.py</code> <code>registration_token_kind</code></td>
+<td>Routes to the site, group or board validate and redeem functions above</td>
+</tr>
+<tr>
+<td>Email and password signup</td>
+<td><code>accounts/views.py</code> <code>InviteRegisterView.post</code></td>
+<td>Runs in <code>transaction.atomic</code>; validates and redeems through <code>registration_token_kind</code></td>
+</tr>
+<tr>
+<td>OAuth signup</td>
+<td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.save_user</code>, <code>_redeem_invite</code></td>
+<td>Validate and redeem in one transaction</td>
+</tr>
+<tr>
+<td>WebSocket ticket</td>
+<td><code>accounts/ws_auth.py</code> <code>consume_ws_ticket</code></td>
+<td>Single use decided by the return value of <code>cache.delete()</code></td>
+</tr>
+<tr>
+<td>JSON, CSV and Trello import</td>
+<td><code>boards/views/import_export.py</code></td>
+<td>No consume-once token on this surface</td>
+</tr>
+<tr>
+<td>Admin actions</td>
+<td><code>accounts/admin_views.py</code> <code>AdminInviteLinkRevokeView.delete</code></td>
+<td>Revocation sets <code>revoked_at</code> on the link</td>
+</tr>
+<tr>
+<td>Password reset link (REST)</td>
+<td><code>accounts/serializers.py</code> <code>VisibanPasswordResetConfirmSerializer.save</code></td>
+<td>Single use, decided under the user row lock (<code>reset_link_still_valid</code> on the locked row)</td>
+</tr>
+<tr>
+<td>Password reset link (HTML)</td>
+<td><code>accounts/forms.py</code> <code>VisibanResetPasswordKeyForm.save</code></td>
+<td>Single use, decided under the user row lock; the page shows its invalid-link page for a link that no longer validates, and a submit that overlaps another is refused</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rule-5-user-references-in-imports-resolve-only-within-the-callers-scope">Rule 5: User references in imports resolve only within the caller's scope<a class="headerlink" href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> When an import file names users (assignee, actor, mover), the names
+resolve only against users the importer can already see: the importer,
+co-members of their boards and groups, and the target group. A name outside that
+pool is dropped, so the import neither assigns to nor confirms the existence of
+any other account.</p>
+<p><strong>Why.</strong> The uploader controls the file. Resolving against all users turns the
+matched count into an existence oracle for every account on the instance.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSON import</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin._import_json</code></td>
+<td><code>_resolve_import_users</code></td>
+</tr>
+<tr>
+<td>CSV import</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin._import_csv</code></td>
+<td><code>_resolve_import_users</code></td>
+</tr>
+<tr>
+<td>Trello import</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin.import_trello</code></td>
+<td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code></td>
+</tr>
+<tr>
+<td>Invite emails and member add</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.members</code>; <code>groups/views.py</code> <code>GroupViewSet.members</code></td>
+<td>Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td><code>mcp_server/tools.py</code></td>
+<td>No import tool; user references resolve through the caller's accessible boards</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-to-add-a-rule">How to add a rule<a class="headerlink" href="#how-to-add-a-rule" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Write the rule as a statement of behavior, not an implementation: what must
+   be true, on which principals, and why it is a rule.</li>
+<li>Enumerate every surface that can reach the protected behavior. Start from this
+   list and add any new transport: REST, MCP, WebSocket, invite links, JSON and
+   CSV import, Trello import, OAuth signup, admin actions, personal access
+   tokens.</li>
+<li>For each surface, read the code and record the entry point (file and function
+   or class, no line numbers) and the code that enforces the rule today. Do not
+   record a surface as enforcing the rule from memory; open the file.</li>
+<li>Add the new rule as its own section above, with a table in the same format.</li>
+<li>If the rule has a shared implementation, put it in
+   <code>backend/visiban/authorization.py</code> and extend
+   <code>backend/accounts/tests/test_auth_entry_points.py</code> so the test discovers
+   every surface in the rule's table (see
+   <a href="../authorization-entry-points/">Authorization Entry Points</a>). A surface listed
+   here and not checked by the test, or the reverse, is a defect in one of the
+   two. Exception: Rule 5 already resolves every import format's names through
+   one shared function, <code>boards/services/trello_import.py</code> <code>visible_users</code>
+   (JSON and CSV reach it through <code>_resolve_import_users</code>), and every format
+   enters through the one import mixin. With no second transport for a copy to
+   drift on, it is intentionally outside the enumeration;
+   <code>boards/tests/test_import_user_scope.py</code> covers it.</li>
+<li>Keep gap tracking out of this page. A surface that needs work is an issue,
+   not a row annotation.</li>
+</ol>
+<p>When a change adds a new transport or entry point, add it to the table of every
+rule that applies to it in the same change.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.breadcrumbs", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
