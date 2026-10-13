@@ -663,8 +663,8 @@ repository and import one from **Dashboard → Import**. See [Sample Boards](sam
 helm upgrade visiban helm/visiban \
   --namespace visiban \
   -f helm/visiban/values.secret.yaml \
-  --set backend.image.tag=v1.2.0-alpha.4 \
-  --set frontend.image.tag=v1.2.0-alpha.4
+  --set backend.image.tag=v1.2.0-beta.1 \
+  --set frontend.image.tag=v1.2.0-beta.1
 ```
 
 Each new backend pod runs the `migrate` init container before its application container starts, so migrations are applied automatically and no pod serves traffic against a schema it has not migrated. See the [Upgrade guide](../administration/upgrade.md) for version-specific notes and rollback procedures.
