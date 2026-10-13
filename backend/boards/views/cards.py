@@ -295,6 +295,12 @@ _CARD_UPDATE_SCHEMA = extend_schema(
         responses={
             201: CardSerializer,
             403: _force_denied_response("CardCreatePermissionDenied"),
+            404: OpenApiResponse(
+                description=(
+                    "The target column or swimlane was deleted while the create "
+                    "waited for it (#1602)."
+                ),
+            ),
             409: _limit_conflict_response("CardCreateLimitConflict", _ENTER_COLUMN_409),
         },
     ),
@@ -763,7 +769,12 @@ class CardViewSet(viewsets.ModelViewSet):
                     fields={"code": serializers.CharField(required=False), "detail": serializers.CharField()},
                 ),
             ),
-            404: OpenApiResponse(description="Card was deleted concurrently."),
+            404: OpenApiResponse(
+                description=(
+                    "The card, or the target column or swimlane (#1602), was deleted "
+                    "concurrently."
+                ),
+            ),
             409: OpenApiResponse(
                 description=(
                     "`version_conflict` — the card was modified since the client's version; "

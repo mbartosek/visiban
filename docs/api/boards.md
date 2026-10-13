@@ -70,6 +70,8 @@ Update board fields. Both `PUT` and `PATCH` are accepted — all fields are opti
 ### `DELETE /api/v1/boards/{id}/`
 Delete board. Requires board owner or site admin. Deletes every card on the board, **including archived cards** — see `archived_card_count` above.
 
+Since 1.2, if cards keep being created in, or moved into, the board while it is being deleted, the delete gives up after a bounded number of internal retries and returns `409 Conflict` with `{"code": "container_changed", "detail": "Cards were added while this was being deleted. Please try again."}`. Nothing is deleted; retry the request (#1602). A create or move that targets the board while it is being deleted waits for the delete and then returns `404`. Other requests that write to the board while it is being deleted also wait for the delete and then return `404` with nothing written: board `PATCH`/`PUT`, share link enable and revoke, move-group, column and swimlane create, update, reorder and set-collapsed, card and swimlane custom-field definition create, update and delete, label create, update and delete, saved-filter create, star and unstar, member add, role change and removal, and invite link create and send. A delete of a board, column or swimlane that waits behind another delete of the same object also waits and then returns `404`; the deletion event is sent once. A `PATCH` of a board that waits behind another write to the same board (for example a share link change or a move to a group) applies only the fields it sends: the fields it did not send keep the other request's committed values. While a column or swimlane is being deleted, an update of that column or swimlane waits and then returns `404`; other column and swimlane requests wait for it and then proceed (a column reorder that still lists the deleted column returns `400`).
+
 ### `GET /api/v1/boards/{id}/full/`
 Full board state — columns, swimlanes, cards, labels, members, `current_user_role`, and `capabilities`. All objects include their `uid` field. Also includes `share_token` (the board's public share UUID, returned only to `admin` and `site_admin` role members — `null` is returned to lower roles when no share link exists) and `share_token_expires_at` (ISO-8601 timestamp of the share link's expiry, or `null` for no expiry; admin-only, mirrors `share_token` visibility — added in 1.1, #804). The `capabilities` object contains boolean feature flags for enterprise-registered extension points (all `false` in OSS).
 
@@ -1412,6 +1414,8 @@ Update a column. Requires board admin.
 ### `DELETE /api/v1/boards/{id}/columns/{col_id}/`
 Delete a column. Requires board admin.
 
+Since 1.2, if cards keep being created in, or moved into, the column while it is being deleted, the delete gives up after a bounded number of internal retries and returns `409 Conflict` with `{"code": "container_changed", "detail": "Cards were added while this was being deleted. Please try again."}`. Nothing is deleted; retry the request (#1602). A create or move that targets the column while it is being deleted waits for the delete and then returns `404`.
+
 ### `POST /api/v1/boards/{id}/columns/reorder/`
 Reorder columns. Requires board admin.
 
@@ -1481,6 +1485,8 @@ Update a swimlane. Requires board admin.
 
 ### `DELETE /api/v1/boards/{id}/swimlanes/{swimlane_id}/`
 Delete a swimlane. Requires board admin.
+
+Since 1.2, if cards keep being created in, or moved into, the swimlane while it is being deleted, the delete gives up after a bounded number of internal retries and returns `409 Conflict` with `{"code": "container_changed", "detail": "Cards were added while this was being deleted. Please try again."}`. Nothing is deleted; retry the request (#1602). A create or move that targets the swimlane while it is being deleted waits for the delete and then returns `404`.
 
 ### `PATCH /api/v1/boards/{id}/swimlanes/{swimlane_id}/set-collapsed/`
 Toggle the default collapsed state of a swimlane. Requires admin or site admin role — members, collaborators, and viewers are rejected.

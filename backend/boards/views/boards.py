@@ -25,9 +25,8 @@ from visiban.permissions import (
 )
 
 from .. import broadcast as _broadcast
-from ..services import cards as card_services
 from ..models import (
-    BoardEvent, BoardFavorite, BoardMembership, Notification, SavedFilter, Swimlane,
+    Board, BoardEvent, BoardFavorite, BoardMembership, Column, Notification, SavedFilter, Swimlane,
 )
 from ..permissions import get_board_role, SITE_ADMIN
 from ..serializers import (
@@ -36,7 +35,10 @@ from ..serializers import (
 )
 from ..services.notifications import create_notifications
 from ..utils import create_template_columns, resolve_board_template
-from ._helpers import get_board_for_user, get_accessible_boards_queryset
+from ._helpers import (
+    CONTAINER_CHANGED_409, get_board_for_user, get_accessible_boards_queryset,
+    lock_board_row_or_404, lock_container_cascade, require_present_or_404,
+)
 from .analytics import BoardAnalyticsMixin
 from .import_export import BoardImportExportMixin
 from .invites import BoardInviteLinksMixin
@@ -246,6 +248,15 @@ class BoardViewSet(
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied("Only board admins can edit board settings.")
         with transaction.atomic():
+            # Board row first (#1602): a board delete holds it from the start
+            # of its cascade, and a PATCH queued behind one must answer 404,
+            # not let save() fall back to an INSERT that resurrects the board.
+            lock_board_row_or_404(board, no_key=True)
+            # save() writes every column, and ``board`` is the snapshot read
+            # before the lock. Reload the row under the lock so the PATCH
+            # applies only the fields the request sent; fields another
+            # request changed while this one waited keep their values.
+            board.refresh_from_db()
             serializer.save()
             board = serializer.instance
             board_id = board.id
@@ -264,6 +275,7 @@ class BoardViewSet(
                     _broadcast_group_event(gid, _broadcast.EVT_BOARD_UPDATED, bd)
             transaction.on_commit(_broadcast_updated)
 
+    @extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409})
     def destroy(self, request, *args, **kwargs):
         board = self.get_object()
         role = get_board_role(request.user, board)
@@ -276,16 +288,21 @@ class BoardViewSet(
         board_id = board.id
         board_uid = board.uid
         group_id = board.group_id
-        logger.info(
-            "board.deleted board_id=%d board_name=%s deleted_by=%d deleted_by_username=%s",
-            board.id, board.name, request.user.pk, request.user.username,
-        )
+        board_name = board.name
         with transaction.atomic():
-            # Lock the board's cards before Django collects the cascade
-            # (#1599): a card child write that commits mid-cascade otherwise
-            # fails this delete's deferred FK check at COMMIT (500). See
-            # lock_cards_for_cascade for the lock order.
-            card_services.lock_cards_for_cascade(board.cards.all())
+            # Lock the board's cards, then its columns, before Django
+            # collects the cascade (#1599, #1602): a card child write, or a
+            # card created or moved into the board, that commits mid-cascade
+            # otherwise fails this delete's deferred FK check at COMMIT (500).
+            # See lock_cards_for_cascade for the lock order.
+            lock_container_cascade(
+                board.cards.all(),
+                entry_columns=Column.objects.filter(board_id=board.pk),
+                boards=Board.objects.filter(pk=board.pk),
+            )
+            # Queued behind another delete of this board: nothing is left to
+            # delete, so answer 404 rather than a second board.deleted.
+            require_present_or_404(Board.objects.filter(pk=board.pk))
             board.delete()
             # board_uid is the stable identifier for terminal events (#979).
             # All deletion events (card/column/swimlane/label/saved_filter)
@@ -302,6 +319,12 @@ class BoardViewSet(
                 if gid is not None:
                     _broadcast_group_event(gid, _broadcast.EVT_BOARD_DELETED, pl)
             transaction.on_commit(_broadcast_deleted)
+        # Logged only once the delete has committed: a ContainerChanged 409
+        # (#1602) raises out of the block above with nothing deleted.
+        logger.info(
+            "board.deleted board_id=%d board_name=%s deleted_by=%d deleted_by_username=%s",
+            board_id, board_name, request.user.pk, request.user.username,
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post", "delete"], url_path="star")
@@ -309,6 +332,10 @@ class BoardViewSet(
         """Star or unstar a board for the requesting user."""
         board = self.get_object()
         with transaction.atomic():
+            # Board row first (#1602): a favorite committed between a board
+            # delete's cascade read and its DELETE fails the delete's deferred
+            # FK check at COMMIT. Queued behind the delete this answers 404.
+            lock_board_row_or_404(board, no_key=True)
             if request.method == "POST":
                 BoardFavorite.objects.get_or_create(user=request.user, board=board)
                 is_starred = True
@@ -408,6 +435,10 @@ class BoardViewSet(
         # copy and docs ("Expire in 7/30/90 days / never") stay authoritative.
         ALLOWED_TTL_DAYS = {7, 30, 90}
         with transaction.atomic():
+            # Board row first (#1602): a share toggle queued behind a board
+            # delete answers 404 instead of a 500 from save(update_fields=...)
+            # matching no row.
+            lock_board_row_or_404(board, no_key=True)
             if request.method == "POST":
                 body = request.data
                 # A JSON body that parses to a non-object (e.g. `true` or a bare
@@ -476,7 +507,6 @@ class BoardViewSet(
         if board.owner != request.user and role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
 
-        old_group_id = board.group_id
         group_id = request.data.get("group_id")  # None = move to personal
         if group_id is not None:
             group = get_object_or_404(Group, pk=group_id)
@@ -491,7 +521,17 @@ class BoardViewSet(
             board.group = None
 
         with transaction.atomic():
-            board.save()
+            # Board row first (#1602): a move queued behind a board delete
+            # answers 404 rather than re-inserting the board. update_fields so
+            # the write is an UPDATE only and cannot overwrite settings with
+            # the snapshot read before the lock.
+            locked = lock_board_row_or_404(board, no_key=True)
+            # The group the board is leaving, read from the locked row: the
+            # snapshot above may predate a move that committed while this one
+            # queued, which would send board.deleted to a group the board had
+            # already left and leave the real old group unnotified.
+            old_group_id = locked.group_id
+            board.save(update_fields=["group", "updated_at"])
             board_id = board.id
             # Re-fetch through get_queryset() so the response and broadcast include
             # annotations (_member_count, _card_count, _is_starred) rather than
@@ -750,6 +790,8 @@ class BoardViewSet(
         user_id = request.user.id
         try:
             with transaction.atomic():
+                # Board row first (#1602), for the same reason as star().
+                lock_board_row_or_404(board, no_key=True)
                 saved = SavedFilter.objects.create(
                     user=request.user,
                     board=board,
@@ -864,6 +906,10 @@ class BoardViewSet(
         if is_moderator is not None:
             defaults["is_moderator"] = is_moderator
         with transaction.atomic():
+            # Board row first (#1602): serializes with remove_member and a
+            # board delete. Without it, a role update queued behind a board
+            # delete fell back to an INSERT whose board FK failed at COMMIT.
+            lock_board_row_or_404(board, no_key=True)
             membership, created = BoardMembership.objects.get_or_create(
                 board=board, user=target_user, defaults=defaults
             )
@@ -924,6 +970,10 @@ class BoardViewSet(
         board_id = board.id
         removed_user_id = target_user.id
         with transaction.atomic():
+            # Board row first (#1602): queues with a concurrent role update
+            # (members) and a board delete, and answers 404 once the board is
+            # gone instead of persisting an event row for it.
+            lock_board_row_or_404(board, no_key=True)
             BoardMembership.objects.filter(board=board, user=target_user).delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_MEMBER_REMOVED, {"user_id": removed_user_id}, actor_id=request.user.id)
         return Response(status=status.HTTP_204_NO_CONTENT)

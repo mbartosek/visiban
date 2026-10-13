@@ -219,6 +219,26 @@ class VersionConflict(CardServiceError):
         }
 
 
+class ContainerChanged(CardServiceError):
+    """A column, swimlane or board delete kept gaining cards while it locked
+    them (#1602).
+
+    ``lock_cards_for_cascade`` retries when a card enters the container
+    between its card lock and its column lock; this is raised only when every
+    bounded attempt lost that race, so the caller gets a clean conflict to
+    retry rather than a 500 at COMMIT. Nothing has been deleted.
+    """
+
+    status = 409
+    detail = "Cards were added while this was being deleted. Please try again."
+
+    def __init__(self):
+        super().__init__(self.detail)
+
+    def body(self) -> dict:
+        return {"code": "container_changed", "detail": self.detail}
+
+
 # ---------------------------------------------------------------------------
 # Limit enforcement
 # ---------------------------------------------------------------------------

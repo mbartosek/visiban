@@ -93,6 +93,8 @@ Create a card. Requires member or above. The target column must have `allow_card
 
 The target column's WIP and weight limits are enforced exactly as on a [move](#wip-weight-limit-enforcement) into it: `409` with `wip_limit_exceeded`, `wip_hard_blocked`, or `weight_limit_exceeded`, and a board admin may pass the optional `?force=true` query parameter to override a soft limit (a non-admin gets `403`; hard mode has no override). *Changed in 1.2 (#1428): creates were not checked before.*
 
+Since 1.2, a create returns `404 Not Found` (nothing is written) when its target column or swimlane, or the board, was deleted while the request was in flight (#1602).
+
 **Request**
 ```json
 {
@@ -361,7 +363,7 @@ Check whether a card exists and whether it is archived. Used by the deep-link ha
 ## Move
 
 ### `POST /api/v1/boards/{board_id}/cards/{id}/move/`
-Move a card to a new column/swimlane/position. Creates a `CardMovement` record if column or swimlane changes. Requires member or above. Returns `404 Not Found` if the card was deleted concurrently; the move is not saved (#1585).
+Move a card to a new column/swimlane/position. Creates a `CardMovement` record if column or swimlane changes. Requires member or above. Returns `404 Not Found` if the card was deleted concurrently; the move is not saved (#1585). Since 1.2 it also returns `404` when the destination column or swimlane, or the board, was deleted while the request was in flight (#1602).
 
 > **Ownership gate:** Members can freely move unassigned cards, cards assigned to themselves, and cards they created. Moving a card that is assigned to a different user and that the member did not create requires the `is_moderator` entitlement or Admin role. In that case, non-moderator members receive `403 Forbidden` with body `{"code": "permission_denied", "detail": "Moving a card assigned to another member requires Moderator or Admin access — ask a board admin."}`.
 

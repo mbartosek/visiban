@@ -39,6 +39,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from accounts.models import User
+from boards.services.cards import delete_boards_locked
 from boards.models import (
     Board,
     BoardMembership,
@@ -3525,7 +3526,9 @@ class Command(BaseCommand):
         board_name = data["board_name"]
 
         if options["wipe"]:
-            deleted, _ = Board.objects.filter(name=board_name).delete()
+            # With the container-delete locks (#1602): the demo cronjob runs
+            # --wipe against a live instance.
+            deleted, _ = delete_boards_locked(Board.objects.filter(name=board_name))
             if deleted:
                 self.stdout.write(f"Deleted existing '{board_name}'.")
 

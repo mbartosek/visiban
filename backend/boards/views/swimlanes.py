@@ -8,7 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from accounts.permissions import TokenHasScope
 from visiban.permissions import (
@@ -17,15 +17,19 @@ from visiban.permissions import (
 )
 
 from .. import broadcast as _broadcast
-from ..services import cards as card_services
-from ..models import Board, BoardMembership, Swimlane
+from ..models import Board, BoardMembership, Column, Swimlane, SwimlaneCustomFieldDefinition
 from ..permissions import SITE_ADMIN
 from ..serializers import (
     SwimlaneSerializer, SwimlaneAdminSerializer, _swimlane_custom_field_prefetch,
     _PARKED_SWIMLANE_CUSTOM_FIELD_VALUES,
 )
 from ..services.custom_fields import apply_swimlane_custom_field_values
-from ._helpers import get_board_for_user, validate_full_reorder_order
+from ._helpers import (
+    CONTAINER_CHANGED_409, get_board_for_user, lock_board_and_row_or_404, lock_board_row_or_404,
+    lock_container_cascade,
+    require_present_or_404,
+    validate_full_reorder_order,
+)
 
 
 def _refetch_swimlane(swimlane):
@@ -45,6 +49,9 @@ def _refetch_swimlane(swimlane):
     )
 
 
+@extend_schema_view(
+    destroy=extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409}),
+)
 class SwimlaneViewSet(viewsets.ModelViewSet):
     """CRUD endpoints for swimlanes on a board; write operations require admin role."""
 
@@ -112,7 +119,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             # Lock the board row for the same reason as ColumnViewSet.perform_create —
             # concurrent swimlane creation could race on Max(position).
             with transaction.atomic():
-                Board.objects.select_for_update().get(pk=board.pk)
+                lock_board_row_or_404(board)
                 _max = board.swimlanes.aggregate(m=Max("position"))["m"]
                 max_pos = 0 if _max is None else _max + 1
                 swimlane = serializer.save(board=board, position=max_pos)
@@ -136,12 +143,39 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_update(self, serializer):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         field_pairs = serializer.validated_data.pop("custom_field_values", None)
         try:
             with transaction.atomic():
+                # Board row, then the swimlane (#1602; see
+                # lock_board_and_row_or_404).
+                lock_board_and_row_or_404(board, Swimlane, serializer.instance.pk)
+                # Reload under the lock (see ColumnViewSet.perform_update):
+                # a rename queued behind a reorder must keep the new position.
+                serializer.instance.refresh_from_db()
+                if field_pairs:
+                    # The definitions were resolved before the lock. One that a
+                    # concurrent delete removed while this request queued is
+                    # reported exactly as the serializer reports an unknown
+                    # definition (400), and nothing is written.
+                    live = set(
+                        SwimlaneCustomFieldDefinition.objects.filter(
+                            pk__in=[definition.pk for definition, _ in field_pairs]
+                        ).values_list("pk", flat=True)
+                    )
+                    missing = sorted(
+                        {definition.pk for definition, _ in field_pairs} - live
+                    )
+                    if missing:
+                        raise ValidationError({
+                            "custom_field_values": [
+                                "Unknown swimlane custom field(s) for this board: "
+                                + ", ".join(str(pk) for pk in missing)
+                                + "."
+                            ]
+                        })
                 swimlane = serializer.save()
                 if field_pairs:
                     apply_swimlane_custom_field_values(
@@ -173,11 +207,22 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         board_id = instance.board_id
         swimlane_uid = instance.uid
         with transaction.atomic():
-            # Lock the swimlane's cards before Django collects the cascade
-            # (#1599): a card child write that commits mid-cascade otherwise
-            # fails this delete's deferred FK check at COMMIT (500). See
-            # lock_cards_for_cascade for the lock order.
-            card_services.lock_cards_for_cascade(instance.cards.all())
+            # Lock the swimlane's cards, then every column of the board,
+            # before Django collects the cascade (#1599, #1602): a card child
+            # write, or a card created or moved into the swimlane (through any
+            # column), that commits mid-cascade otherwise fails this delete's
+            # deferred FK check at COMMIT (500). See lock_cards_for_cascade.
+            lock_container_cascade(
+                instance.cards.all(),
+                entry_columns=Column.objects.filter(board_id=instance.board_id),
+                boards=Board.objects.filter(pk=instance.board_id),
+            )
+            # Queued behind a board delete or another delete of this
+            # swimlane: answer 404 and emit nothing (see columns.py).
+            require_present_or_404(
+                Board.objects.filter(pk=instance.board_id),
+                Swimlane.objects.filter(pk=instance.pk),
+            )
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_SWIMLANE_DELETED, {"swimlane_uid": swimlane_uid}, actor_id=self.request.user.id)
 
@@ -231,6 +276,9 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             raise ValidationError({"is_collapsed": "This field must be a boolean."})
         swimlane.is_collapsed = is_collapsed
         with transaction.atomic():
+            # Board row, then the swimlane (#1602): queued behind a delete,
+            # this answers 404 rather than a 500 from save(update_fields=...).
+            lock_board_and_row_or_404(board, Swimlane, swimlane.pk)
             swimlane.save(update_fields=["is_collapsed"])
             # Fetched once and reused for both the broadcast payload and the
             # response: get_serializer() picks the admin/public class by role,
@@ -278,7 +326,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             # it authorizes, and so two concurrent reorder requests can't
             # interleave their UPDATE statements into an inconsistent position
             # sequence (#1302).
-            Board.objects.select_for_update().get(pk=board.pk)
+            lock_board_row_or_404(board)
             existing_ids = set(Swimlane.objects.filter(board=board).values_list("id", flat=True))
             order_ints = validate_full_reorder_order(
                 order, existing_ids, item_label="swimlane", scope_label="this board",

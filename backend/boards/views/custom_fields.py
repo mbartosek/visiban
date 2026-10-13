@@ -31,10 +31,14 @@ from visiban.permissions import (
 )
 
 from .. import broadcast as _broadcast
-from ..models import Board, BoardMembership, CustomFieldDefinition
+from ..models import BoardMembership, CustomFieldDefinition
 from ..permissions import SITE_ADMIN
 from ..serializers import CustomFieldDefinitionSerializer, assert_definition_caps
-from ._helpers import get_board_for_user
+from ._helpers import (
+    get_board_for_user,
+    lock_board_and_row_or_404,
+    lock_board_row_or_404,
+)
 
 
 class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
@@ -102,7 +106,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             # would read the same Max(position) and collide on
             # unique_together(board, position). Same lock ColumnViewSet takes
             # for the same two reasons.
-            Board.objects.select_for_update().get(pk=board.pk)
+            lock_board_row_or_404(board)
             assert_definition_caps(
                 board,
                 show_on_card=serializer.validated_data.get("show_on_card", False),
@@ -123,7 +127,14 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         board = self._require_admin()
         with transaction.atomic():
-            Board.objects.select_for_update().get(pk=board.pk)
+            # Board row, then the definition row (#1602): a PATCH queued behind
+            # a DELETE of the same definition UPDATEd 0 rows and fell back to
+            # an INSERT under the same pk, resurrecting it. Now it answers 404.
+            lock_board_and_row_or_404(board, CustomFieldDefinition, serializer.instance.pk)
+            # Reload under the lock: save() writes every column and the
+            # instance predates the lock (a rename queued behind a reorder
+            # must keep the new position).
+            serializer.instance.refresh_from_db()
             assert_definition_caps(
                 board,
                 instance=serializer.instance,
@@ -143,10 +154,14 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             )
 
     def perform_destroy(self, instance):
-        self._require_admin()
+        board = self._require_admin()
         board_id = instance.board_id
         field_uid = instance.uid
         with transaction.atomic():
+            # Board row, then the definition row, the order update takes, so a
+            # delete queued behind an update (or another delete) serializes
+            # and answers 404 instead of broadcasting a second deletion.
+            lock_board_and_row_or_404(board, CustomFieldDefinition, instance.pk)
             # CASCADE removes every CustomFieldValue for this definition — the
             # values are meaningless without the schema that types them, and
             # keeping orphans would resurrect them if a field of the same name

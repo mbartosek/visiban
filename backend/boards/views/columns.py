@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from accounts.permissions import TokenHasScope
 from visiban.permissions import (
@@ -16,13 +16,20 @@ from visiban.permissions import (
 )
 
 from .. import broadcast as _broadcast
-from ..services import cards as card_services
 from ..models import Board, BoardMembership, Column
 from ..permissions import SITE_ADMIN
 from ..serializers import ColumnSerializer
-from ._helpers import get_board_for_user, validate_full_reorder_order
+from ._helpers import (
+    CONTAINER_CHANGED_409, get_board_for_user, lock_board_and_row_or_404, lock_board_row_or_404,
+    lock_container_cascade,
+    require_present_or_404,
+    validate_full_reorder_order,
+)
 
 
+@extend_schema_view(
+    destroy=extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409}),
+)
 class ColumnViewSet(viewsets.ModelViewSet):
     """CRUD endpoints for columns on a board; write operations require admin role."""
 
@@ -74,7 +81,7 @@ class ColumnViewSet(viewsets.ModelViewSet):
             # condition where two concurrent requests both read the same Max(position) and
             # attempt to insert two columns with the same value, violating unique_together.
             with transaction.atomic():
-                Board.objects.select_for_update().get(pk=board.pk)
+                lock_board_row_or_404(board)
                 _max = board.columns.aggregate(m=Max("position"))["m"]
                 max_pos = 0 if _max is None else _max + 1
                 column = serializer.save(board=board, position=max_pos)
@@ -91,11 +98,19 @@ class ColumnViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_update(self, serializer):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         try:
             with transaction.atomic():
+                # Board row, then the column (#1602; see
+                # lock_board_and_row_or_404): a PATCH queued behind a delete
+                # answers 404 instead of save() re-inserting the column.
+                lock_board_and_row_or_404(board, Column, serializer.instance.pk)
+                # Reload under the lock: save() writes every column, and the
+                # instance predates the lock, so a rename that queued behind
+                # a reorder would write the old position back.
+                serializer.instance.refresh_from_db()
                 column = serializer.save()
                 column_data = ColumnSerializer(column).data
                 board_id = column.board_id
@@ -115,11 +130,22 @@ class ColumnViewSet(viewsets.ModelViewSet):
         board_id = instance.board_id
         column_uid = instance.uid
         with transaction.atomic():
-            # Lock the column's cards before Django collects the cascade
-            # (#1599): a card child write that commits mid-cascade otherwise
-            # fails this delete's deferred FK check at COMMIT (500). See
-            # lock_cards_for_cascade for the lock order.
-            card_services.lock_cards_for_cascade(instance.cards.all())
+            # Lock the column's cards, then the column row itself, before
+            # Django collects the cascade (#1599, #1602): a card child write,
+            # or a card created or moved into the column, that commits
+            # mid-cascade otherwise fails this delete's deferred FK check at
+            # COMMIT (500). See lock_cards_for_cascade for the lock order.
+            lock_container_cascade(
+                instance.cards.all(),
+                entry_columns=Column.objects.filter(pk=instance.pk),
+                boards=Board.objects.filter(pk=instance.board_id),
+            )
+            # Queued behind a board delete or another delete of this column:
+            # nothing is left to delete, so answer 404 and emit nothing.
+            require_present_or_404(
+                Board.objects.filter(pk=instance.board_id),
+                Column.objects.filter(pk=instance.pk),
+            )
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=self.request.user.id)
 
@@ -167,7 +193,7 @@ class ColumnViewSet(viewsets.ModelViewSet):
             # UPDATE, which is every other board-row lock (column/swimlane/
             # custom-field create, invite caps) and a second reorder, so the
             # serialization #1302 needs is unchanged.
-            Board.objects.select_for_update(no_key=True).get(pk=board.pk)
+            lock_board_row_or_404(board, no_key=True)
             existing_ids = set(Column.objects.filter(board=board).values_list("id", flat=True))
             order_ints = validate_full_reorder_order(
                 order, existing_ids, item_label="column", scope_label="this board",

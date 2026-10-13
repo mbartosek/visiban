@@ -15,7 +15,11 @@ from .. import broadcast as _broadcast
 from ..models import BoardMembership, Label
 from ..permissions import SITE_ADMIN
 from ..serializers import LabelSerializer
-from ._helpers import get_board_for_user
+from ._helpers import (
+    get_board_for_user,
+    lock_board_and_row_or_404,
+    lock_board_row_or_404,
+)
 
 
 class LabelViewSet(viewsets.ModelViewSet):
@@ -66,6 +70,12 @@ class LabelViewSet(viewsets.ModelViewSet):
             raise PermissionDenied
         try:
             with transaction.atomic():
+                # Board row first (#1602): a label committed between a board
+                # delete's cascade read and its DELETE fails the delete's
+                # deferred FK check at COMMIT, and one created after it
+                # reported "name already exists". Queued behind the delete it
+                # now answers 404.
+                lock_board_row_or_404(board, no_key=True)
                 label = serializer.save(board=board)
                 label_data = LabelSerializer(label).data
                 board_id = board.id
@@ -80,11 +90,20 @@ class LabelViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_update(self, serializer):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         try:
             with transaction.atomic():
+                # Board row, then the label row (#1602): a PATCH queued behind
+                # a DELETE of the same label UPDATEd 0 rows and fell back to an
+                # INSERT under the same pk, resurrecting it without its card
+                # associations; behind a board delete the INSERT's board FK
+                # failure was reported as a misleading 400. Now both are 404.
+                lock_board_and_row_or_404(board, Label, serializer.instance.pk)
+                # Reload under the lock: save() writes every column and the
+                # instance predates the lock.
+                serializer.instance.refresh_from_db()
                 label = serializer.save()
                 label_data = LabelSerializer(label).data
                 board_id = label.board_id
@@ -96,11 +115,14 @@ class LabelViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_destroy(self, instance):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         board_id = instance.board_id
         label_uid = instance.uid
         with transaction.atomic():
+            # Same order as perform_update (#1602): a second delete, or a
+            # delete after an update, serializes and answers 404.
+            lock_board_and_row_or_404(board, Label, instance.pk)
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_LABEL_DELETED, {"label_uid": label_uid}, actor_id=self.request.user.id)
