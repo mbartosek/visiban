@@ -48,6 +48,8 @@ Clearing **Active** on a user deletes their Personal Access Tokens and revokes t
 - **Board memberships** — view and correct membership records
 - **Email addresses, social accounts, social tokens, social apps, API tokens and Sites** — available to superusers only. Staff accounts do not see these entries.
 
+The change forms for users, groups, site settings, boards and board memberships save only the fields you changed; a field you left alone keeps its current stored value. If the record changed after you opened its form, the save is refused with a message asking you to reload the page and make your changes again.
+
 ## Production note
 
 **Restricted to loopback by default** — both the bundled Nginx config and

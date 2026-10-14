@@ -86,7 +86,10 @@ def lock_board_row_or_404(board, *, no_key=False):
     Every view that serializes on the board row goes through here: column and
     swimlane create and reorder, card and swimlane custom-field definition
     create, label create, saved-filter create, star, member add and removal,
-    and the invite caps (shareable link and emailed invite create). Updates
+    the invite caps (shareable link and emailed invite create), and the
+    invite join (``JoinBoardView.post``, before the invite row, #1631; the
+    registration path takes the same lock through
+    ``boards.invites.lock_invite_board``). Updates
     and deletes of one column, swimlane, label or definition take this lock
     ``FOR NO KEY UPDATE`` and then their own row, through
     ``lock_board_and_row_or_404``. A board delete holds that row from the start of its

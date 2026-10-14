@@ -113,7 +113,7 @@ its own when the frame never arrives.
 enterprise add-ons, and it is not the WebSocket surface. The two agree on five card event
 names and deliberately diverge on one: unarchiving a card broadcasts `card.unarchived`
 over the socket but fires the hook event `card.restored`. Both strings are frozen
-independently; neither may be "corrected" to match the other. Hook handlers run after commit; a raising handler is logged and swallowed and cannot veto or roll back the write. The mapping table in
+independently; neither may be "corrected" to match the other. Hook handlers run after commit; a raising handler is logged and swallowed and cannot veto or roll back the write. `card.deleted` hooks fire only from `services.cards.delete_card`; admin card deletes and container cascades fire no hook; consume the [change feed](../api/events.md) to observe them (see [Deleting a container deletes its cards](../api/websockets.md#deleting-a-container-deletes-its-cards)). The mapping table in
 `hooks.py` is the only place that correspondence is written down.
 
 The gate also does not check payload *shapes* — only names. A docs row whose `data` column

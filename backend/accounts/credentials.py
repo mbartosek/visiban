@@ -89,7 +89,47 @@ def first_password_requires_session(request, user) -> bool:
     """
     if user.has_usable_password():
         return False
-    return getattr(request, "auth", None) is not None
+    return not request_is_interactive_session(request)
+
+
+def request_is_interactive_session(request) -> bool:
+    """True when *request* was authenticated by an interactive session.
+
+    The one definition of "interactive session" for the account-credential
+    rules that require one (``first_password_requires_session`` above and
+    ``email_change_requires_session`` below). DRF's ``SessionAuthentication``
+    leaves ``request.auth`` as ``None``; the token authenticators configured
+    in ``DEFAULT_AUTHENTICATION_CLASSES`` (a Personal Access Token, the DRF
+    auth ``Token``) set it to the credential object. A token authenticator
+    added later is refused here without being listed, provided it follows the
+    DRF convention of returning its credential as ``request.auth``; one that
+    returns ``(user, None)`` would be treated as a session, so such an
+    authenticator must not be added without revisiting this check.
+    """
+    return getattr(request, "auth", None) is None
+
+
+EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE = (
+    "Changing the email address is available from an interactive session only."
+)
+
+
+def email_change_requires_session(request, current_email, requested_email) -> bool:
+    """True when *request* may not change the account email to *requested_email*.
+
+    Changing the account email, or asking for a change to be confirmed, is
+    limited to an interactive session, like setting a first password. A request that omits
+    the email, or sends back the stored value unchanged, is not a change: a
+    token client that round-trips the whole profile keeps working. Any other
+    value, including a case-only difference or a blank, counts as a change.
+    *request* may be ``None`` (a serializer used outside a request), which is
+    not refused here because no remote credential is involved.
+    """
+    if request is None:
+        return False
+    if (requested_email or "") == (current_email or ""):
+        return False
+    return not request_is_interactive_session(request)
 
 
 def revoke_auth_token(user):
