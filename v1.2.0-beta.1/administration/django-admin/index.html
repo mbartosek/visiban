@@ -3942,6 +3942,7 @@ by design — Nginx and the SPA router tell them apart by the trailing slash.</p
 <li><strong>Board memberships</strong> — view and correct membership records</li>
 <li><strong>Email addresses, social accounts, social tokens, social apps, API tokens and Sites</strong> — available to superusers only. Staff accounts do not see these entries.</li>
 </ul>
+<p>The change forms for users, groups, site settings, boards and board memberships save only the fields you changed; a field you left alone keeps its current stored value. If the record changed after you opened its form, the save is refused with a message asking you to reload the page and make your changes again.</p>
 <h2 id="production-note">Production note<a class="headerlink" href="#production-note" title="Permanent link">&para;</a></h2>
 <p><strong>Restricted to loopback by default</strong> — both the bundled Nginx config and
 <code>AdminIPRestrictionMiddleware</code> block any client IP that isn't <code>127.0.0.1</code> or

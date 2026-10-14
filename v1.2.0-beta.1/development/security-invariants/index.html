@@ -4165,7 +4165,7 @@ re-checks.</p>
 <tr>
 <td>Django admin</td>
 <td><code>boards/admin.py</code> <code>BoardMembershipAdmin</code></td>
-<td>Membership changes made in the admin emit the <code>EVT_MEMBER_ADDED</code>, <code>EVT_MEMBER_UPDATED</code> and <code>EVT_MEMBER_REMOVED</code> board events through <code>_BoardEventAdminMixin</code></td>
+<td>Membership changes made in the admin emit the <code>EVT_MEMBER_ADDED</code>, <code>EVT_MEMBER_UPDATED</code> and <code>EVT_MEMBER_REMOVED</code> board events through <code>_BoardEventAdminMixin</code>; a save writes only the fields the administrator changed and is refused when the form was rendered against an older state of the membership (see the Django admin change forms row below)</td>
 </tr>
 <tr>
 <td>Admin API</td>
@@ -4211,6 +4211,11 @@ re-checks.</p>
 <td>Writes to the user row from a request-start copy</td>
 <td><code>accounts/serializers.py</code> <code>UserSerializer.update</code> (<code>/auth/me/</code>, <code>/auth/user/</code>); <code>accounts/views.py</code> <code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>; <code>VisibanPasswordResetConfirmSerializer.save</code>; <code>accounts/adapter.py</code> <code>RegistrationAdapter.set_password</code>, <code>SocialRegistrationAdapter.pre_social_login</code> (social-account connect); <code>accounts/admin.py</code> <code>VisibanUserAdmin.save_model</code>, <code>VisibanUserAdmin.save_related</code>, <code>VisibanUserChangeForm.clean</code></td>
 <td>Account state is not overwritten from a request-start copy: profile updates save only the validated fields (<code>update_fields</code>); the two REST password-change routes re-read the row under <code>accounts/credentials.py</code> <code>lock_user_row</code> and save only <code>password</code>; reset-confirm and allauth's password hook save only <code>password</code>; a social-account connect judges account state on a separate fresh read and hands allauth a fresh row with only <code>last_login</code> loaded (<code>_connect_target</code>), so allauth's save writes only that column (#1624); the Django admin change form takes the concrete fields that are unchanged at submit time from the row read under the lock, and <code>VisibanUserAdmin.save_related</code> writes only the many-to-many fields (<code>groups</code>, <code>user_permissions</code>) the administrator changed; the form renders a hidden <code>row_version</code> (a keyed digest of the stored values of the fields it writes, groups and permissions included), and a submission made against an older state of the account is refused: <code>VisibanUserChangeForm.clean</code> compares it with the row read when the submission arrives (form error), <code>save_model</code> compares it again with the row and its groups and permissions read under the lock, and <code>save_related</code> re-reads the groups and permissions before writing them (a refusal at either step rolls the save back and redirects to the change page with an error message); a submission without <code>row_version</code> skips the comparisons and still keeps the stored value of every field left alone (#1619, #1622, <code>accounts/tests/test_stale_user_row_writes.py</code>, <code>accounts/tests/test_admin_user_form_concurrent_edits.py</code>)</td>
+</tr>
+<tr>
+<td>Django admin change forms for privilege-bearing records</td>
+<td><code>visiban/admin_row_version.py</code> <code>RowVersionFormMixin</code>, <code>RowVersionAdminMixin</code>; <code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code> (<code>GroupAdminForm</code>), <code>SiteSettingAdmin</code> (<code>SiteSettingAdminForm</code>), <code>VisibanUserAdmin</code>; <code>boards/admin.py</code> <code>BoardAdmin</code> (<code>BoardAdminForm</code>), <code>BoardMembershipAdmin</code> (<code>BoardMembershipAdminForm</code>)</td>
+<td>A save writes only the fields the administrator changed: every other concrete field is taken from the row read under the row lock (<code>keep_unchanged_fields</code>), and <code>save_related</code> writes only the many-to-many fields that changed (a group's <code>permissions</code>). Each change form renders a hidden <code>row_version</code>, a keyed digest of the stored values of the fields it writes (many-to-many included), and a submission made against an older state is refused: the form's <code>clean</code> compares it with the row read when the submission arrives (form error), <code>save_model</code> compares it again with the row read under the lock (<code>check_row_version</code>), and <code>save_related</code> re-reads the many-to-many values before writing them. A refusal under the lock rolls the save back, together with any board event and <code>transaction.on_commit</code> broadcast it queued, and redirects to the change page with an error message. <code>SiteSettingAdmin</code> takes the merged values and the audit snapshot from the same locked row, so the audit diff and the save describe the same transition. A submission without <code>row_version</code> skips the comparisons and still keeps the stored value of every field left alone. Extension point: a subclass that writes further fields extends the form's <code>row_version_fields</code> (#1622, <code>accounts/tests/test_admin_group_sitesetting_concurrent_edits.py</code>, <code>boards/tests/test_admin_board_concurrent_edits.py</code>, whose interleaving cases run on PostgreSQL)</td>
 </tr>
 </tbody>
 </table>
@@ -4310,6 +4315,11 @@ access described in Rule 2.</p>
 <td>OAuth pending invite</td>
 <td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.is_open_for_signup</code></td>
 <td>Invalid or expired token clears <code>PENDING_INVITE_SESSION_KEY</code></td>
+</tr>
+<tr>
+<td>Grants edited in the Django admin (group permissions, board membership <code>role</code> and <code>is_moderator</code>, board <code>owner</code> and <code>group</code>, site settings)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>, <code>SiteSettingAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code>, <code>BoardAdmin</code></td>
+<td>A revocation committed by any route (the REST API, another admin form) is not undone by a later save of a form rendered before it: the save writes only the fields the administrator changed, and a form whose <code>row_version</code> no longer matches the stored record is refused (<code>visiban/admin_row_version.py</code>)</td>
 </tr>
 </tbody>
 </table>
