@@ -1,0 +1,95 @@
+# Kaizen fast-path proposal
+
+The fast-path table (which change class runs which gates) used to change only when someone
+noticed a pattern by hand: the "Settings sub-page wiring" row exists because kaizen finding
+#682 showed `architect` and `ux-design` finding nothing on repeated form-to-serializer
+sub-pages. Since the [yield watch](kaizen-yield-watch.md) (#1144) keeps a running
+per-gate, per-diff-shape streak of `0 findings` runs, the table's evidence can come from that
+data instead of from memory (#1145).
+
+`scripts/kaizen_fastpath_proposal.py` reads the yield state and **proposes** table edits. It
+never edits the table. It prints a unified diff and a ready-to-paste MR-description section
+that cites the evidence, and the change goes through a normal reviewed MR. This changes where
+the table's evidence comes from, not how a table change is reviewed.
+
+## Running it
+
+The table lives in the global `~/.claude/CLAUDE.md`, which is not in this repository, so pass
+its path. Without `--table` the script searches the repository's `CLAUDE.md` files and exits 2
+if none holds the table.
+
+```bash
+python3 scripts/kaizen_fastpath_proposal.py --table ~/.claude/CLAUDE.md \
+  --evidence-out /tmp/fastpath-evidence.md > /tmp/fastpath.diff
+patch ~/.claude/CLAUDE.md < /tmp/fastpath.diff      # only after review
+python3 scripts/kaizen_fastpath_proposal.py --self-test
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--state FILE` | `.claude/kaizen-yield-state.json` | Yield state from the watch. Use the nightly job's `kaizen-yield-state.json` artifact for the newest data. |
+| `--declined FILE` | `.claude/kaizen-declined.json` | Gates declined as `<gate>:fast-path-candidate` are not proposed. |
+| `--table FILE` | search repo `CLAUDE.md` files | The file holding the table. Read only. |
+| `--evidence-out FILE` | stderr | Where the `## Fast-path evidence` section goes. Must not be the table file. |
+
+Stdout is only the diff, so it can be redirected straight into a file for `patch`. An empty
+diff means nothing reached the threshold. File paths follow the
+[path containment rules](ci-gates.md#path-containment-for-cli-arguments); `--table` may also
+live under `~/.claude/`.
+
+## What it proposes
+
+A **candidate** is a (gate, diff shape) pair whose streak reached the state's threshold
+(10 consecutive `0 findings` runs, `/kaizen`'s `MIN_RUNS_FOR_VERDICT`) and that is not
+declined. `n/a` and `skipped` lines never count, as in the watch. A pair the watch already
+filed an issue for is still proposed: the issue and the table edit are separate steps.
+
+Diff shape is the branch prefix, mapped to table rows by the start of the "Change class" cell:
+
+| Shape | Rows |
+|---|---|
+| `fix` | Pure bugfix |
+| `docs` | Docs-only |
+| `chore` | Chore / CI config, Dependency bump |
+| `feat` | Backend-only feature, Frontend-only feature, Settings sub-page wiring, New user-visible feature |
+| `other` | none |
+
+Because `feat` covers every feature row, a `feat` streak is evidence about all of them
+together. The reviewer decides whether the narrowing holds for each row.
+
+For each candidate:
+
+- **Gate named in a mapped row** (for example `` `ux-design` `` in "Frontend-only feature"):
+  the diff removes that item from the row, including its qualifier text. The ledger name `voc`
+  matches the table's `voice-of-customer`.
+- **Gate covered only by "batched pre-MR gate cluster"**: no diff. The evidence section lists
+  it as a hand edit, because the cluster's applicability list is prose.
+- **No mapped row names the gate**, or the shape is `other`: no diff, listed with the reason.
+  A streak on a gate the table does not require for that shape means it was run outside the
+  table, so there is nothing to narrow.
+
+**Adding a row is out of reach of this data.** A branch prefix cannot tell a sub-class of
+`feat` (like Settings sub-page wiring) from the rest, so new rows still come from `/kaizen` and
+human review.
+
+## The evidence section
+
+The `## Fast-path evidence` section goes into the MR description as-is. It names the state
+file and its watermark, the threshold, and for each candidate the gate, diff shape,
+consecutive 0-finding runs, lifetime runs (with how many had findings), the MRs in the streak
+(the most recent 10 the state keeps), and the rows narrowed or the reason no edit was made.
+The table's rationale stays auditable the same way the #682 citation is.
+
+A streak is absence of evidence. Before merging, confirm the gate was not only run on
+trivially safe diffs. Narrow a trigger; never delete a gate.
+
+## `/kaizen` stays the fallback
+
+Manual `/kaizen` runs (`.claude/skills/kaizen/SKILL.md`) are not deprecated. They read a
+window of merged MRs directly, report adoption, phantom gates and load-bearing gates, and are
+the cross-check when the proposal looks wrong or the state file is stale.
+
+## Tests
+
+`bash scripts/tests/kaizen_fastpath_proposal.test.sh` (no network; fixture state and table in
+`scripts/tests/fixtures/kaizen/`). The nightly `kaizen-yield-watch` job runs `--self-test`.

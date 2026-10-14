@@ -7,7 +7,8 @@ problem the memory-discipline rules describe: a signal that only has value if so
 remembers to read it.
 
 It changes nothing on its own. It never edits `CLAUDE.md` or the fast-path table; that stays a
-reviewed change (deriving the table from this data is #1145).
+reviewed change. [Kaizen fast-path proposal](kaizen-fastpath-proposal.md) (#1145) turns this
+state into a proposed table diff with cited evidence for that review.
 
 ## What it counts
 
