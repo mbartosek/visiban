@@ -9,12 +9,16 @@ import { INVITE_STATUS_STYLES } from '../constants/invites'
 const css = readFileSync('src/index.css', 'utf8')
 const darkBlock = css.slice(css.indexOf(':root,'), css.indexOf('[data-theme="light"] {'))
 const lightBlock = css.slice(css.indexOf('[data-theme="light"] {'))
-const tokens = ['danger', 'warning', 'success', 'info', 'muted']
+const tokens = ['danger', 'warning', 'success', 'info', 'muted', 'urgent']
 
 describe('on-tint text tokens', () => {
   it.each(tokens)('%s-on-tint is declared in both the dark and light theme blocks', (t) => {
     expect(darkBlock).toContain(`--${t}-on-tint:`)
     expect(lightBlock).toContain(`--${t}-on-tint:`)
+    if (t === 'urgent') {
+      expect(darkBlock).toContain('--urgent:')
+      expect(lightBlock).toContain('--urgent:')
+    }
   })
 
   it.each(tokens)('%s-on-tint is exposed in the tailwind config', (t) => {

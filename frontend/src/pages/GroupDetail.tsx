@@ -1048,13 +1048,13 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     const effectivePriorities = group.allowed_priorities.length > 0 ? group.allowed_priorities : (["low", "medium", "high", "urgent"] as Priority[]);
                     const active = effectivePriorities.includes(p);
                     // #1592: mirror the board's escalation (medium=orange, high=red, urgent=dark red).
-                    // Only four on-tint families exist, so urgent shares high's red and is set apart
-                    // by a full-strength border; the label text carries the rest.
+                    // #1594: urgent has its own dark-red token pair (red-700 / on-tint), so it no
+                    // longer needs a heavier border to differ from high.
                     const colorMap: Record<Priority, string> = {
                       low: "bg-info/20 border-info/60 text-info-on-tint",
                       medium: "bg-warning/20 border-warning/60 text-warning-on-tint",
                       high: "bg-danger/20 border-danger/60 text-danger-on-tint",
-                      urgent: "bg-danger/20 border-danger text-danger-on-tint font-semibold",
+                      urgent: "bg-urgent/20 border-urgent/60 text-urgent-on-tint",
                     };
                     return (
                       <button
