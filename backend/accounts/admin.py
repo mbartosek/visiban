@@ -22,7 +22,8 @@ from .models import (
     record_site_setting_changes,
     snapshot_site_setting,
 )
-from boards.models import Card
+from boards.models import Board, Card, Column
+from boards.admin_mixins import ContainerChangedAdminMixin
 from boards.services.cards import lock_cards_for_cascade
 
 from .credentials import finalize_password_change, require_password_change_after_admin_set
@@ -284,7 +285,7 @@ functools.update_wrapper(guarded_delete_selected, delete_selected)
 
 
 @admin.register(User)
-class VisibanUserAdmin(UserAdmin):
+class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
     """Django's ``UserAdmin`` with the project's password rules applied (#1551).
 
     A password set through the admin's per-user password form has the same
@@ -625,8 +626,12 @@ class VisibanUserAdmin(UserAdmin):
     def _lock_cards_then_targets(self, request, pks):
         """Statements 2 and 3, in card, then user order.
 
-        2. The cards from ``_cards_to_lock``, one pk-ordered ``FOR UPDATE``
-           (``lock_cards_for_cascade``).
+        2. The owned boards' rows (``FOR NO KEY UPDATE``), then the cards from
+           ``_cards_to_lock`` (one pk-ordered ``FOR UPDATE``), then the owned
+           boards' entry columns, all in ``lock_cards_for_cascade``: the
+           board -> card -> column order every container delete takes (#1602),
+           so this delete and a REST column, swimlane or board delete queue
+           rather than invert.
         3. The target user rows, one pk-ordered ``FOR UPDATE``, then the
            refusals are judged again, so the owned-boards rule is checked on
            boards committed up to this point.
@@ -661,7 +666,11 @@ class VisibanUserAdmin(UserAdmin):
         and are not covered by this argument.
         """
         pk_list = list(pks)
-        lock_cards_for_cascade(self._cards_to_lock(pk_list))
+        lock_cards_for_cascade(
+            self._cards_to_lock(pk_list),
+            entry_columns=Column.objects.filter(board__owner__in=pk_list),
+            boards=Board.objects.filter(owner__in=pk_list),
+        )
         locked = list(
             User.objects.select_for_update().filter(pk__in=pk_list).order_by("pk")
         )
@@ -671,8 +680,9 @@ class VisibanUserAdmin(UserAdmin):
 
     def delete_model(self, request, obj):
         # Board.owner is CASCADE, so deleting a user deletes their boards and
-        # those boards' cards: lock the cards first, in one transaction held
-        # across the delete (#1603; see lock_cards_for_cascade).
+        # those boards' cards: lock the cards first, then those boards'
+        # columns so no card enters them mid-cascade, in one transaction held
+        # across the delete (#1603, #1602; see lock_cards_for_cascade).
         with transaction.atomic():
             self._lock_and_check_admins(request, [obj.pk])
             self._lock_cards_then_targets(request, [obj.pk])

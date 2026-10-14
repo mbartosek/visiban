@@ -503,8 +503,8 @@ class DeleteLockSequenceTests(TransactionTestCase):
         real = admin_module.lock_cards_for_cascade
         results = {}
 
-        def hold_after_cards(qs):
-            out = real(qs)
+        def hold_after_cards(qs, **kwargs):
+            out = real(qs, **kwargs)
             if threading.current_thread().name == "deleter" and not paused.is_set():
                 paused.set()
                 release.wait(self.WAIT)

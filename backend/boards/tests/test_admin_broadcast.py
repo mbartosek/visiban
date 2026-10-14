@@ -34,7 +34,14 @@ from groups.models import Group
 
 
 class _DummyForm:
-    """Minimal stand-in for a ModelForm; ModelAdmin.save_model ignores it here."""
+    """Minimal stand-in for a bound ModelForm: it carries the ``fields``,
+    ``is_bound`` and ``changed_data`` a real form has, so BoardAdmin's merge of
+    non-form fields from the locked row runs in these tests. The other admins'
+    ``save_model`` ignores the form."""
+
+    fields = {"name": None}
+    is_bound = True
+    changed_data = ["name"]
 
 
 def _make_request(user):
@@ -361,6 +368,8 @@ class BoardAdminBroadcastTests(TestCase):
         board = Board.objects.create(name="Admin Board", owner=self.admin_user, group=self.group)
         request = _make_request(self.admin_user)
         board.name = "Renamed via admin"
+        # A field the form does not carry, changed after ``board`` was read.
+        Board.objects.filter(pk=board.pk).update(card_density="compact")
         with patch("boards.broadcast.broadcast_board_event") as mock_broadcast, \
              patch("boards.admin._broadcast_group_event") as mock_group:
             with self.captureOnCommitCallbacks(execute=True):
@@ -369,6 +378,12 @@ class BoardAdminBroadcastTests(TestCase):
             _, event_type, payload = mock_broadcast.call_args[0]
             self.assertEqual(event_type, "board.updated")
             mock_group.assert_called_once_with(self.group.id, "board.updated", payload)
+        # The merge ran: the changed form field was saved and the rest of the
+        # row is the locked row's.
+        board.refresh_from_db()
+        self.assertEqual(board.name, "Renamed via admin")
+        self.assertEqual(board.group_id, self.group.id)
+        self.assertEqual(board.card_density, "compact")
 
     def test_delete_model_broadcasts_board_deleted_with_uid(self):
         board = Board.objects.create(name="Admin Board To Delete", owner=self.admin_user, group=self.group)

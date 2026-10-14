@@ -97,6 +97,7 @@ from accounts.credentials import lock_user_row, revoke_auth_token
 from accounts.models import SiteSetting, User
 from boards.notifications_email import suppress_notification_email
 from boards.serializers import _normalize_custom_field_value
+from boards.services.cards import delete_boards_locked
 from boards.services.notifications import quoted_card_verb
 from boards.models import (
     Board,
@@ -709,7 +710,9 @@ class Command(BaseCommand):
         board_name = BOARD_NAME if scale == 1 else LOAD_TEST_BOARD_NAME
 
         if options["wipe"]:
-            deleted, _ = Board.objects.filter(name=board_name).delete()
+            # With the container-delete locks (#1602): the demo cronjob runs
+            # --wipe against a live instance.
+            deleted, _ = delete_boards_locked(Board.objects.filter(name=board_name))
             if board_name == BOARD_NAME:
                 # Board.group uses on_delete=SET_NULL, so deleting the board does
                 # NOT cascade to the demo Group created by _create_demo_group()

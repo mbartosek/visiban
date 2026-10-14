@@ -296,4 +296,5 @@ class ContainerDeleteVsCardWriteLockTests(TransactionTestCase):
         self.assertEqual(len(ctx.captured_queries), 1)
         sql = ctx.captured_queries[0]["sql"]
         self.assertIn("ORDER BY", sql)
-        self.assertTrue(sql.rstrip().endswith("FOR UPDATE"), sql)
+        # OF "cards": a joined filter must not lock board rows (#1602).
+        self.assertRegex(sql.rstrip(), r'FOR UPDATE OF "cards"$')

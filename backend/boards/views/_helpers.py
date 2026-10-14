@@ -26,7 +26,11 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import Count, IntegerField, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django_filters import DateTimeFilter, NumberFilter
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError as _DRFValidationError
+from drf_spectacular.utils import OpenApiResponse, inline_serializer
+from rest_framework import serializers as _drf_serializers
+from rest_framework.exceptions import (
+    APIException, NotFound, PermissionDenied, ValidationError as _DRFValidationError,
+)
 
 from ..models import Board, BoardFavorite, BoardMembership, Card
 from ..permissions import (
@@ -35,6 +39,8 @@ from ..permissions import (
     get_board_role,
 )
 from ..serializers import CardSerializer, _card_queryset
+from ..services import cards as _card_services
+from ..services.errors import ContainerChanged
 from ..utils import _get_effective_member_ids, _get_assignable_member_ids
 
 logger = logging.getLogger(__name__)
@@ -45,6 +51,115 @@ logger = logging.getLogger(__name__)
 # range, so bounding a NumberFilter to it is a pure robustness fix.
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
+
+
+class _ContainerChangedConflict(APIException):
+    """DRF carrier for ``ContainerChanged``: a ``409`` with its exact body."""
+
+    status_code = 409
+
+    def __init__(self, exc):
+        super().__init__(detail=exc.body())
+
+
+# The 409 a column, swimlane or board DELETE answers when lock_container_cascade
+# exhausts its retries (#1602). One shared object so the three endpoints
+# declare the same ``ContainerChangedConflict`` component.
+CONTAINER_CHANGED_409 = OpenApiResponse(
+    description=(
+        "`container_changed` — cards kept being created in, or moved into, the "
+        "container while it was being deleted. Nothing was deleted; retry."
+    ),
+    response=inline_serializer(
+        name="ContainerChangedConflict",
+        fields={
+            "code": _drf_serializers.CharField(),
+            "detail": _drf_serializers.CharField(),
+        },
+    ),
+)
+
+
+def lock_board_row_or_404(board, *, no_key=False):
+    """Lock ``board``'s row for a board-scoped write, or answer 404 if it is gone.
+
+    Every view that serializes on the board row goes through here: column and
+    swimlane create and reorder, card and swimlane custom-field definition
+    create, label create, saved-filter create, star, member add and removal,
+    and the invite caps (shareable link and emailed invite create). Updates
+    and deletes of one column, swimlane, label or definition take this lock
+    ``FOR NO KEY UPDATE`` and then their own row, through
+    ``lock_board_and_row_or_404``. A board delete holds that row from the start of its
+    cascade (#1602), so a request queued on it finds the row deleted once it
+    is granted. A bare ``.get()`` turned that into ``Board.DoesNotExist`` (a
+    500), and a bare ``.first()`` let the request go on to insert a row
+    whose deferred board foreign key then failed at COMMIT (also a 500).
+    The caller keeps its own lock mode through ``no_key``.
+    """
+    locked = Board.objects.select_for_update(no_key=no_key).filter(pk=board.pk).first()
+    if locked is None:
+        raise NotFound()
+    return locked
+
+
+def lock_board_and_row_or_404(board, model, pk):
+    """Lock the board row, then one of its column, swimlane, label or custom
+    field definition rows, for an UPDATE or DELETE of that row; answer 404 if
+    either is gone or the row is not on this board (#1602).
+
+    Board -> row, the order column reorder takes. Every container delete
+    holds the board row from its start, so an UPDATE writer queued behind
+    one finds the board (or the deleted column/swimlane) gone once granted.
+    Without the locks it waited on the row itself and then either fell back
+    to an INSERT (``serializer.save()`` when the UPDATE matched no row:
+    a resurrected row, or an IntegrityError reported as a misleading 400)
+    or raised on ``save(update_fields=...)`` (a 500). ``FOR NO KEY UPDATE``
+    on both: it is the mode the UPDATE itself takes, so it adds no new
+    conflict, and it never blocks a card insert's ``FOR KEY SHARE``.
+    """
+    lock_board_row_or_404(board, no_key=True)
+    rows = model.objects.select_for_update(no_key=True).filter(pk=pk)
+    # Scope the row to the board (defense in depth): a pk that belongs to
+    # another board answers 404 rather than locking, and then writing, a row
+    # this board does not own.
+    if any(f.name == "board" for f in model._meta.concrete_fields):
+        rows = rows.filter(board_id=board.pk)
+    if rows.first() is None:
+        raise NotFound()
+
+
+def require_present_or_404(*querysets):
+    """Answer 404 when any of ``querysets`` matches no row (#1602).
+
+    Called after a container delete has taken its locks. A delete that queued
+    behind another delete of the same board, column or swimlane is granted
+    its locks once that delete committed; ``instance.delete()`` then removes
+    nothing, and without this check the request would answer 204 and store and
+    broadcast a second deletion event. Raising inside the transaction rolls
+    everything back.
+    """
+    for qs in querysets:
+        if not qs.exists():
+            raise NotFound()
+
+
+def lock_container_cascade(cards, entry_columns, boards):
+    """Take a column, swimlane or board delete's cascade locks (#1599, #1602).
+
+    The REST adapter over ``lock_cards_for_cascade``: it passes the container's
+    board row (``boards``, locked first so the delete queues with column
+    create and reorder in the board -> column order) and ``entry_columns`` so a card created or moved into the container mid-delete
+    is locked too, and turns the bounded-retry exhaustion (``ContainerChanged``)
+    into a ``409`` instead of letting it surface as a ``500``. Called through
+    the module attribute so the race tests can wrap the service function.
+    Must run inside the delete's ``transaction.atomic()``.
+    """
+    try:
+        _card_services.lock_cards_for_cascade(
+            cards, entry_columns=entry_columns, boards=boards,
+        )
+    except ContainerChanged as exc:
+        raise _ContainerChangedConflict(exc) from None
 
 
 class BoundedIdFilter(NumberFilter):

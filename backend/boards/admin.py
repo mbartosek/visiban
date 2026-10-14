@@ -20,11 +20,14 @@ from .serializers import (
     SwimlaneSerializer,
 )
 from .permissions import SITE_ADMIN
+from .admin_mixins import ContainerChangedAdminMixin
 from .services.cards import (
     enforce_column_limits, lock_card_cell_entry, lock_card_for_write, lock_card_row,
-    lock_cards_for_cascade,
+    lock_cards_for_cascade, require_swimlane_exists,
 )
-from .services.errors import CardNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded
+from .services.errors import (
+    CardNotFound, SwimlaneNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded,
+)
 from .views._helpers import _refetched_card_data
 
 
@@ -70,6 +73,40 @@ def _limit_error_message(exc):
         f"({exc.current_weight} + {exc.card_weight} > {exc.weight_limit}). Raise the "
         "limit, or override it as a board admin through the API with ?force=true."
     )
+
+
+def _require_present_for_admin(*querysets):
+    """``require_present_or_404`` for the admin: ``Http404`` instead of the
+    DRF ``NotFound``, so an admin delete that queued behind another delete of
+    the same object answers the admin's own 404 and records nothing (#1602).
+    ``delete_view`` runs inside one transaction, so the deletion log entry
+    Django wrote before ``delete_model`` rolls back with it."""
+    for qs in querysets:
+        if not qs.exists():
+            raise Http404("This object was deleted.")
+
+
+def _lock_board_for_admin_save(board_id, model=None, pk=None):
+    """Lock a board row, then optionally one of its rows, before an admin
+    save; raise ``Http404`` if either is gone (#1602).
+
+    Every container delete holds the board row ``FOR NO KEY UPDATE`` from
+    the start of its cascade. An admin save queued behind one would
+    otherwise re-insert the deleted board, column or swimlane (``save()``
+    falls back to an INSERT when its UPDATE matches no row) or insert a row
+    whose deferred board foreign key fails at COMMIT (a 500). Board -> row
+    is column reorder's order; both locks are ``FOR NO KEY UPDATE``, the
+    mode the UPDATE takes anyway, so a card insert's ``FOR KEY SHARE`` is
+    never blocked. ``changeform_view``'s transaction holds them until the
+    save commits. ``Http404``, as the card-child admin hooks answer, because
+    the admin cannot return a DRF 404.
+    """
+    if Board.objects.select_for_update(no_key=True).filter(pk=board_id).first() is None:
+        raise Http404("This board was deleted.")
+    if pk is not None and (
+        model.objects.select_for_update(no_key=True).filter(pk=pk).first() is None
+    ):
+        raise Http404("This object was deleted.")
 
 
 class CardAdminForm(forms.ModelForm):
@@ -167,9 +204,25 @@ class CardAdminForm(forms.ModelForm):
         if cell_entry or enforce:
             # Columns after the card row, source and target in one pk-ordered
             # statement — move_card's order. The card row is already held.
-            lock_card_cell_entry(
+            locked_columns = lock_card_cell_entry(
                 card_id=None, column_ids={source_column_id, column.pk} - {None},
             )
+            # A column, swimlane or board delete holds these column rows
+            # across its cascade (#1602). A form that waited on one finds its
+            # target gone once the lock is granted: refuse it as a form error
+            # rather than save into a deleted column or swimlane and fail the
+            # card's deferred foreign-key check at COMMIT (a 500). A swimlane
+            # or board delete holds every column of the board, so the swimlane
+            # read here sees one that was deleted.
+            if column.pk not in locked_columns:
+                raise ValidationError({"column": "This column was deleted. Choose another."})
+            if cell_entry and swimlane_id is not None:
+                try:
+                    require_swimlane_exists(swimlane_id)
+                except SwimlaneNotFound:
+                    raise ValidationError(
+                        {"swimlane": "This swimlane was deleted. Choose another."}
+                    ) from None
         if not enforce:
             # An archived card does not count toward a column's limits, and an
             # edit that neither enters a column nor grows a card is unchecked.
@@ -270,10 +323,17 @@ class CardAdmin(admin.ModelAdmin):
 
 
 @admin.register(Column)
-class ColumnAdmin(admin.ModelAdmin):
+class ColumnAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
     """Admin for Column that broadcasts mutations (see CardAdmin for rationale)."""
 
     def save_model(self, request, obj, form, change):
+        # Lock the (target) board row first, as ColumnViewSet.perform_create
+        # does (#1602): a swimlane or board delete holds it across its
+        # cascade, so no column can appear in the board — added here, or
+        # re-pointed at it by an edit of its ``board`` — after the delete has
+        # snapshotted the columns a card could enter through.
+        # changeform_view's transaction holds the lock until the save commits.
+        _lock_board_for_admin_save(obj.board_id, Column, obj.pk if change else None)
         super().save_model(request, obj, form, change)
         event = _broadcast.EVT_COLUMN_UPDATED if change else _broadcast.EVT_COLUMN_CREATED
         column_data = ColumnSerializer(obj).data
@@ -283,9 +343,18 @@ class ColumnAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         board_id = obj.board_id
         column_uid = obj.uid
-        # Cards first, then the column (#1603; see lock_cards_for_cascade).
+        # Cards first, then the column row (#1603, #1602; see
+        # lock_cards_for_cascade): the column lock keeps a card created or
+        # moved into it from committing mid-cascade.
         with transaction.atomic():
-            lock_cards_for_cascade(Card.objects.filter(column_id=obj.pk))
+            lock_cards_for_cascade(
+                Card.objects.filter(column_id=obj.pk),
+                entry_columns=Column.objects.filter(pk=obj.pk),
+                boards=Board.objects.filter(pk=obj.board_id),
+            )
+            _require_present_for_admin(
+                Board.objects.filter(pk=obj.board_id), Column.objects.filter(pk=obj.pk)
+            )
             super().delete_model(request, obj)
             _broadcast.record_board_event(
                 board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
@@ -294,7 +363,11 @@ class ColumnAdmin(admin.ModelAdmin):
     def delete_queryset(self, request, queryset):
         # One outer atomic across lock + delete (#1603).
         with transaction.atomic():
-            lock_cards_for_cascade(Card.objects.filter(column__in=queryset.values("pk")))
+            lock_cards_for_cascade(
+                Card.objects.filter(column__in=queryset.values("pk")),
+                entry_columns=Column.objects.filter(pk__in=queryset.values("pk")),
+                boards=Board.objects.filter(pk__in=queryset.values("board_id")),
+            )
             deleted = [(c.board_id, c.uid) for c in queryset]
             super().delete_queryset(request, queryset)
             for board_id, column_uid in deleted:
@@ -360,6 +433,11 @@ class _BoardEventAdminMixin:
         _broadcast.record_board_event(board_id, event, payload, actor_id=request.user.pk)
 
     def save_model(self, request, obj, form, change):
+        # Board row, then (on change) the row itself (#1602; see
+        # _lock_board_for_admin_save).
+        _lock_board_for_admin_save(
+            self._board_id(obj), type(obj), obj.pk if change else None,
+        )
         super().save_model(request, obj, form, change)
         event = self.event_updated if change else self.event_created
         self._emit(self._board_id(obj), event, self._payload(obj, request), request)
@@ -370,16 +448,36 @@ class _BoardEventAdminMixin:
         it so its delete takes the card-row lock first (#1603)."""
         return None
 
+    def _entry_columns_for(self, queryset):
+        """Column rows whose lock keeps a card from entering what ``queryset``
+        cascades to (#1602); only meaningful with ``_cards_cascaded_by``."""
+        return None
+
+    def _boards_for(self, queryset):
+        """Board rows a cascading delete of ``queryset`` locks first (#1602)."""
+        return None
+
     def _lock_cascade(self, queryset):
         cards = self._cards_cascaded_by(queryset)
         if cards is not None:
-            lock_cards_for_cascade(cards)
+            lock_cards_for_cascade(
+                cards, entry_columns=self._entry_columns_for(queryset),
+                boards=self._boards_for(queryset),
+            )
 
     def delete_model(self, request, obj):
         board_id = self._board_id(obj)
         payload = self._delete_payload(obj)
         with transaction.atomic():
-            self._lock_cascade(type(obj).objects.filter(pk=obj.pk))
+            qs = type(obj).objects.filter(pk=obj.pk)
+            if self._cards_cascaded_by(qs) is None:
+                # No card cascade (label, membership): take the board row and
+                # the row itself, so a delete queued behind another delete of
+                # it answers 404 rather than recording a second event.
+                _lock_board_for_admin_save(board_id, type(obj), obj.pk)
+            else:
+                self._lock_cascade(qs)
+                _require_present_for_admin(Board.objects.filter(pk=board_id), qs)
             super().delete_model(request, obj)
             self._emit(board_id, self.event_deleted, payload, request)
 
@@ -396,7 +494,7 @@ class _BoardEventAdminMixin:
 
 
 @admin.register(Swimlane)
-class SwimlaneAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
+class SwimlaneAdmin(ContainerChangedAdminMixin, _BoardEventAdminMixin, admin.ModelAdmin):
     """Admin for Swimlane that broadcasts mutations (see CardAdmin for rationale)."""
 
     event_created = _broadcast.EVT_SWIMLANE_CREATED
@@ -420,6 +518,14 @@ class SwimlaneAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
     def _cards_cascaded_by(self, queryset):
         return Card.objects.filter(swimlane__in=queryset.values("pk"))
 
+    def _entry_columns_for(self, queryset):
+        # A card enters a swimlane through any column of its board, and every
+        # such writer holds that column's row (#1602).
+        return Column.objects.filter(board__in=queryset.values("board_id"))
+
+    def _boards_for(self, queryset):
+        return Board.objects.filter(pk__in=queryset.values("board_id"))
+
 
 @admin.register(Label)
 class LabelAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
@@ -440,7 +546,7 @@ class LabelAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(Board)
-class BoardAdmin(admin.ModelAdmin):
+class BoardAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
     """Admin for Board that broadcasts mutations to both the board channel and
     the board's group channel.
 
@@ -458,6 +564,24 @@ class BoardAdmin(admin.ModelAdmin):
     """
 
     def save_model(self, request, obj, form, change):
+        if change:
+            # Board row first (#1602; see _lock_board_for_admin_save).
+            _lock_board_for_admin_save(obj.pk)
+            if form is not None:
+                # BoardAdmin.save_model re-reads fields that are not on the
+                # form from the locked row (and form fields the administrator
+                # did not change), so a concurrent change to them is not
+                # reverted by the earlier read held in ``obj``. The share-link
+                # fields are editable=False, so they are never on the form.
+                stored = Board.objects.get(pk=obj.pk)
+                changed = (
+                    set(form.changed_data) if getattr(form, "is_bound", False) else None
+                )
+                for field in Board._meta.concrete_fields:
+                    if field.name not in form.fields or (
+                        changed is not None and field.name not in changed
+                    ):
+                        setattr(obj, field.attname, getattr(stored, field.attname))
         super().save_model(request, obj, form, change)
         event = _broadcast.EVT_BOARD_UPDATED if change else _broadcast.EVT_BOARD_CREATED
         # No request in context: BoardSerializer.get_group_detail() reads
@@ -475,9 +599,15 @@ class BoardAdmin(admin.ModelAdmin):
         board_id = obj.id
         board_uid = obj.uid
         group_id = obj.group_id
-        # Cards first, then the board (#1603; see lock_cards_for_cascade).
+        # Cards first, then the board's columns, then the board (#1603,
+        # #1602; see lock_cards_for_cascade).
         with transaction.atomic():
-            lock_cards_for_cascade(Card.objects.filter(board_id=obj.pk))
+            lock_cards_for_cascade(
+                Card.objects.filter(board_id=obj.pk),
+                entry_columns=Column.objects.filter(board_id=obj.pk),
+                boards=Board.objects.filter(pk=obj.pk),
+            )
+            _require_present_for_admin(Board.objects.filter(pk=obj.pk))
             super().delete_model(request, obj)
             _record_board_and_group_event(
                 board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
@@ -487,7 +617,11 @@ class BoardAdmin(admin.ModelAdmin):
     def delete_queryset(self, request, queryset):
         # One outer atomic across lock + delete (#1603).
         with transaction.atomic():
-            lock_cards_for_cascade(Card.objects.filter(board__in=queryset.values("pk")))
+            lock_cards_for_cascade(
+                Card.objects.filter(board__in=queryset.values("pk")),
+                entry_columns=Column.objects.filter(board__in=queryset.values("pk")),
+                boards=Board.objects.filter(pk__in=queryset.values("pk")),
+            )
             # Capture identifiers before delete — post-delete each instance's pk is cleared.
             deleted = [(b.id, b.uid, b.group_id) for b in queryset]
             super().delete_queryset(request, queryset)

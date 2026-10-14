@@ -36,7 +36,7 @@ from visiban.utils import get_client_ip
 
 from .. import broadcast as _broadcast
 from .. import invites as _invites
-from ..models import Board, BoardInviteLink, BoardInviteRedemption, BoardMembership
+from ..models import BoardInviteLink, BoardInviteRedemption, BoardMembership
 from ..permissions import SITE_ADMIN, get_board_role
 from ..serializers import (
     BoardInviteLinkCreateBadRequestSerializer,
@@ -45,7 +45,7 @@ from ..serializers import (
     BoardInviteLinkEmailSerializer,
     BoardInviteLinkSerializer,
 )
-from ._helpers import get_board_for_user
+from ._helpers import get_board_for_user, lock_board_row_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class BoardInviteLinksMixin:
         validated = serializer.validated_data
 
         with transaction.atomic():
-            Board.objects.select_for_update().filter(pk=board.pk).first()
+            lock_board_row_or_404(board)
             active = _invites.live_invite_count(board, delivery=BoardInviteLink.Delivery.LINK)
             if active >= BOARD_MAX_ACTIVE_SHAREABLE_LINKS:
                 return Response(
@@ -218,7 +218,7 @@ class BoardInviteLinksMixin:
 
         with transaction.atomic():
             # Lock the board row so two concurrent sends cannot both read 49.
-            Board.objects.select_for_update().filter(pk=board.pk).first()
+            lock_board_row_or_404(board)
             # Invites whose sender was deleted or is no longer a board admin
             # are dead (they list as revoked) and must not hold cap slots.
             pending = _invites.live_invite_count(board, delivery=BoardInviteLink.Delivery.EMAIL)

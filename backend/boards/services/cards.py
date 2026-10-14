@@ -68,7 +68,7 @@ from ..serializers import _card_labels
 from ..utils import notify_new_mentions
 from .notifications import create_notifications
 from .errors import (
-    CardCreationNotAllowed, CardNotFound, ColumnNotFound, ForceNotPermitted,
+    CardCreationNotAllowed, CardNotFound, ColumnNotFound, ContainerChanged, ForceNotPermitted,
     InvalidPosition, InvalidVersion, MoveNotPermitted, NotPermitted, SwimlaneNotFound,
     UseMoveEndpoint, VersionConflict, WeightLimitExceeded, WipHardBlocked,
     WipLimitExceeded,
@@ -466,7 +466,18 @@ def create_card(
         # concurrent creates in the same (column, swimlane) cell cannot both
         # observe the same max position and assign a duplicate. Same column-row
         # lock the move transition takes for its WIP check (#1050).
-        Column.objects.select_for_update(no_key=True).get(pk=column.pk)
+        #
+        # A column, swimlane or board delete holds this column row across its
+        # cascade (#1602), so a create that waited on it finds its target gone:
+        # answer 404 here rather than 500 on Column.DoesNotExist or on the
+        # card's deferred swimlane FK check at COMMIT.
+        locked_column = (
+            Column.objects.select_for_update(no_key=True)
+            .filter(pk=column.pk).values_list("pk", flat=True).first()
+        )
+        if locked_column is None:
+            raise ColumnNotFound()
+        require_swimlane_exists(swimlane.pk)
         max_pos = Card.objects.filter(board=board, column=column, swimlane=swimlane).count()
         card = save(position=max_pos)
         # The column row is already locked above, so the helper does not lock
@@ -958,12 +969,29 @@ def _lock_move_columns(column_ids):
     locks that FK inserts referencing the column take — see
     ``enforce_column_limits``. ColumnViewSet.reorder locks the board's columns
     in the same pk order.
+
+    Returns the pks of the rows locked, so a caller can tell that a column
+    was deleted while it waited (#1602).
     """
-    list(
-        Column.objects.filter(pk__in=sorted(column_ids))
+    return frozenset(
+        column.pk
+        for column in Column.objects.filter(pk__in=sorted(column_ids))
         .order_by("pk")
         .select_for_update(no_key=True)
     )
+
+
+def require_swimlane_exists(swimlane_id):
+    """Raise ``SwimlaneNotFound`` when the swimlane was deleted (#1602).
+
+    Called once the caller holds its target column row: a swimlane or board
+    delete holds every column of the board until it commits, so by the time
+    the column lock is granted such a delete has committed and this plain read
+    sees it. Without the check the card's deferred swimlane FK fails at COMMIT
+    with a 500.
+    """
+    if not Swimlane.objects.filter(pk=swimlane_id).exists():
+        raise SwimlaneNotFound()
 
 
 def lock_card_cell_entry(*, card_id, column_ids):
@@ -989,10 +1017,15 @@ def lock_card_cell_entry(*, card_id, column_ids):
     to decide which columns to lock (every current caller in ``admin.py``
     does one or the other). Must run inside the transaction that saves the
     card: the locks protect nothing once it commits.
+
+    Returns the pks of the column rows locked: a column missing from it was
+    deleted while this waited (a container delete holds the column across
+    its cascade, #1602), and the caller must refuse the save rather than
+    fail the card's deferred foreign-key check at COMMIT.
     """
     if card_id is not None:
         lock_card_row(card_id)
-    _lock_move_columns({pk for pk in column_ids if pk is not None})
+    return _lock_move_columns({pk for pk in column_ids if pk is not None})
 
 
 def lock_card_row(card_id):
@@ -1013,7 +1046,7 @@ def lock_card_row(card_id):
     )
 
 
-def lock_cards_for_cascade(cards):
+def lock_cards_for_cascade(cards, *, entry_columns=None, boards=None):
     """Lock every card in ``cards`` ``FOR UPDATE``, pk-ordered, in one
     statement, before a column, swimlane or board delete cascades to them
     (#1599).
@@ -1034,21 +1067,158 @@ def lock_cards_for_cascade(cards):
     retrying: the error surfaces at COMMIT, after the view's work and
     broadcasts were queued, and a retry loop would only repeat the race.
 
-    Lock order: card rows, all in **one** statement ordered by pk — the same
-    shape as ``move_card``'s card lock, so the two queue rather than deadlock
-    — and before any column, swimlane or board row the delete takes (the
-    collector's ``DELETE`` of the container row comes after), keeping the
-    card -> column order. ``FOR UPDATE`` because the rows are about to be
+    Lock order for a container delete: board rows (``boards``) -> card rows
+    -> entry column rows (``entry_columns``); the collector's ``DELETE`` of
+    the container comes after. The card rows go in **one** statement ordered
+    by pk — the same shape as ``move_card``'s card lock, so the two queue
+    rather than deadlock — and before any column row, keeping the card ->
+    column order. ``FOR UPDATE`` because the rows are about to be
     deleted, which ``FOR NO KEY UPDATE`` would not cover. One query however
     many cards; only pks are read. Archived cards are included: they cascade
     too, so pass an unfiltered queryset. Must run inside the transaction that
     deletes the container. On SQLite the lock clause is a no-op.
 
-    Not covered: a card *created* or *moved into* the container after this
-    lock is taken is not locked by it (#1599 is scoped to child writes on the
-    container's existing cards).
+    ``of=("self",)`` keeps the lock on card rows even when ``cards`` joins
+    (the user admin filters on ``board__owner``): a board row locked
+    ``FOR UPDATE`` here would block the ``FOR KEY SHARE`` a concurrent
+    ``create_card`` needs on it at COMMIT while that create holds the column
+    row this helper then waits for — a deadlock.
+
+    Cards that *enter* the container (#1602). The statement locks the rows of
+    its snapshot, so a card ``create_card`` inserts into the container, or
+    ``move_card`` moves into an empty cell of it, could commit after it and
+    before the collector's card ``DELETE`` — the same COMMIT-time 500. Pass
+    ``entry_columns``, the column rows whose lock every such writer holds
+    until it commits (the deleted column; every column of the board for a
+    swimlane or board delete). They are locked after the cards, in one
+    pk-ordered ``FOR NO KEY UPDATE`` statement, exactly like
+    ``_lock_move_columns``, so the card -> column order is kept rather than
+    inverted. Once they are held no service path can put another card into
+    the container, and any that entered before has committed, so the
+    container's cards are re-read: if one is not among the rows locked, the
+    attempt is rolled back to a savepoint — which releases its row locks —
+    and repeated, the same shape as ``move_card``'s ``_require_cells_locked``
+    (#1567). Locking the newcomer in a second statement instead would take a
+    card row after a column row, and could deadlock with a move of that card
+    that holds it and waits on the column. A container that gains a card on
+    every one of ``_CASCADE_LOCK_ATTEMPTS`` attempts raises
+    ``ContainerChanged`` (409) with nothing deleted. Django admin card adds
+    and edits take the same column lock (``lock_card_cell_entry``, #1588);
+    board import and the seed commands create cards only in a board they are
+    creating, so nothing can delete it concurrently.
+
+    The board row first (``boards``, #1602). Column create, swimlane create
+    and swimlane reorder take the board row ``FOR UPDATE`` and column reorder
+    takes it ``FOR NO KEY UPDATE`` (#1566) *before* any column row. Holding
+    the entry columns without the board row inverted that: a board delete
+    held the columns and then needed the board row for its ``DELETE``, while
+    a column reorder held the board row and waited on a column — a deadlock
+    (#1604's shape, made reachable earlier by the column lock). So a
+    container delete takes its board row(s) first, pk-ordered, ``FOR NO KEY
+    UPDATE``: that conflicts with every board-row lock above, so those
+    requests queue behind the whole delete (or it behind them) in the same
+    board -> column order, and it also stops a column being created in the
+    board mid-delete, so the ``entry_columns`` statement sees every column a
+    card could enter through. It must not be ``FOR UPDATE``: a
+    ``create_card`` holding a column needs ``FOR KEY SHARE`` on the board at
+    COMMIT, which ``FOR UPDATE`` would block while this delete waits on that
+    column. Taken once, outside the retry savepoint, since nothing it guards
+    changes between attempts. No path takes a board-row lock after a card or
+    column lock (``docs/architecture/service-layer.md`` lists the order).
+
+    The retry needs a transaction to roll back into, so with
+    ``entry_columns`` or ``boards`` the helper refuses to run outside one
+    (``RuntimeError``) rather than silently committing its locks away.
     """
-    list(cards.order_by("pk").select_for_update().values_list("pk", flat=True))
+    if (entry_columns is not None or boards is not None) and not (
+        transaction.get_connection().in_atomic_block
+    ):
+        raise RuntimeError("lock_cards_for_cascade must run inside transaction.atomic()")
+    if boards is not None:
+        _lock_cascade_boards(boards)
+    if entry_columns is None:
+        _lock_cascade_cards(cards)
+        return
+    for _attempt in range(_CASCADE_LOCK_ATTEMPTS):
+        try:
+            with transaction.atomic():
+                locked = _lock_cascade_cards(cards)
+                _lock_entry_columns(entry_columns)
+                if not _cascade_card_pks(cards) <= locked:
+                    raise _ContainerGainedCard()
+            return
+        except _ContainerGainedCard:
+            continue
+    raise ContainerChanged()
+
+
+def delete_boards_locked(boards):
+    """Delete ``boards`` with the container-delete locks, in one transaction.
+
+    For callers outside a view or admin, such as the seed commands' ``--wipe``,
+    which the demo cronjob runs against a live instance (#1602). Takes the
+    board rows, their cards and their columns exactly as ``BoardViewSet``'s
+    destroy does, so a concurrent card create, move or child write queues
+    instead of failing the delete at COMMIT. Returns ``QuerySet.delete()``'s
+    result. May raise ``ContainerChanged``, with nothing deleted.
+    """
+    with transaction.atomic():
+        # Resolve the set once, inside the transaction, and use these pks for
+        # every statement: with a lazy name filter, a board created with the
+        # same name between the lock statements and the final DELETE would be
+        # deleted without ever being locked.
+        board_pks = list(boards.values_list("pk", flat=True))
+        locked = boards.model.objects.filter(pk__in=board_pks)
+        lock_cards_for_cascade(
+            Card.objects.filter(board_id__in=board_pks),
+            entry_columns=Column.objects.filter(board_id__in=board_pks),
+            boards=locked,
+        )
+        return locked.delete()
+
+
+# How many times lock_cards_for_cascade re-takes its locks when a card entered
+# the container between its card lock and its column lock. One retry covers
+# the ordinary race; the bound only exists so a container under constant
+# inserts ends in a 409, not a loop.
+_CASCADE_LOCK_ATTEMPTS = 3
+
+
+class _ContainerGainedCard(Exception):
+    """Internal: a card entered the container after the card-row lock."""
+
+
+def _lock_cascade_boards(boards):
+    """Lock ``boards`` pk-ordered, ``FOR NO KEY UPDATE``, in one statement —
+    the first lock a container delete takes (see ``lock_cards_for_cascade``)."""
+    list(
+        boards.order_by("pk")
+        .select_for_update(no_key=True, of=("self",))
+        .values_list("pk", flat=True)
+    )
+
+
+def _lock_cascade_cards(cards):
+    """The card-row statement of ``lock_cards_for_cascade``; returns the pks."""
+    return frozenset(
+        cards.order_by("pk").select_for_update(of=("self",)).values_list("pk", flat=True)
+    )
+
+
+def _lock_entry_columns(columns):
+    """Lock ``columns`` pk-ordered, ``FOR NO KEY UPDATE``, in one statement —
+    the mode and order of ``_lock_move_columns``, so a container delete queues
+    with moves, creates and column reorders instead of deadlocking."""
+    list(
+        columns.order_by("pk")
+        .select_for_update(no_key=True, of=("self",))
+        .values_list("pk", flat=True)
+    )
+
+
+def _cascade_card_pks(cards):
+    """The container's current card pks, read without a lock (#1602)."""
+    return set(cards.values_list("pk", flat=True))
 
 
 def lock_card_for_write(card_id):
@@ -1186,7 +1356,19 @@ def _move_card_attempt(
         # before this move commits, which is what makes the membership
         # re-check below conclusive. Django admin card edits take it too, via
         # lock_card_cell_entry (#1588).
-        _lock_move_columns({card.column_id, target_column.pk})
+        locked_columns = _lock_move_columns({card.column_id, target_column.pk})
+        # A column, swimlane or board delete holds these column rows across
+        # its cascade (#1602). A move that waited on one finds the target
+        # gone once it is granted: answer 404 rather than fail the
+        # CardMovement's and card's deferred FK checks at COMMIT with a 500.
+        # A container the card is already in cannot vanish here: its delete
+        # locks the card first, and the card lock above answers that. So the
+        # swimlane is only re-read when the move leaves it, keeping a
+        # same-cell reorder within its query budget.
+        if target_column.pk not in locked_columns:
+            raise ColumnNotFound()
+        if swimlane_changed:
+            require_swimlane_exists(target_swimlane.pk)
         _require_cells_locked(
             board=board, card_id=card.pk, cells=cells, locked_pks=locked_pks,
             current_version=locked.version,
