@@ -2378,9 +2378,57 @@ class CardSerializer(serializers.ModelSerializer):
     # `card.updated` / `card.created` broadcast already reflects them — the
     # payload is re-rendered through _card_queryset() after this returns.
 
+    @staticmethod
+    def _require_live_referents(validated_data, pairs):
+        """Re-read the labels and custom-field definitions this write names (#1632).
+
+        Both were resolved at validation, before the request's transaction. A
+        label or definition DELETE that committed in between left the M2M or
+        value row this write inserts pointing at a missing row: a 500 from the
+        deferred foreign key at COMMIT. The card service holds the board row
+        ``FOR SHARE`` by the time this runs (``lock_board_for_card_write``,
+        the first lock of ``create_card`` and ``update_card``), and every
+        label or definition delete takes that row ``FOR NO KEY UPDATE``
+        first, so no delete can commit between this read and this write's
+        COMMIT. A row a delete already removed answers 400, exactly as a
+        request naming an unknown id always did (see ``label_ids`` and
+        ``CustomFieldValuesField``). Plain reads, no row locks: locking the
+        label and definition rows here took them after the card row on update
+        but after the column row on create, and the two deadlocked.
+        """
+        labels = validated_data.get("labels")
+        if labels:
+            wanted = {label.pk for label in labels}
+            live = set(
+                Label.objects.filter(pk__in=wanted).values_list("pk", flat=True)
+            )
+            if wanted - live:
+                missing = sorted(wanted - live)
+                raise serializers.ValidationError({
+                    "label_ids": [
+                        f'Invalid pk "{pk}" - object does not exist.' for pk in missing
+                    ]
+                })
+        if pairs:
+            wanted = {definition.pk for definition, _ in pairs}
+            live = set(
+                CustomFieldDefinition.objects.filter(pk__in=wanted).values_list(
+                    "pk", flat=True
+                )
+            )
+            if wanted - live:
+                raise serializers.ValidationError({
+                    "custom_field_values": [
+                        "Unknown custom field(s) for this board: "
+                        + ", ".join(str(pk) for pk in sorted(wanted - live))
+                        + "."
+                    ]
+                })
+
     def create(self, validated_data):
         pairs = validated_data.pop("custom_field_values", None)
         external_ref = validated_data.pop("external_ref", _OMITTED)
+        self._require_live_referents(validated_data, pairs)
         card = super().create(validated_data)
         # A brand-new instance never carries a parked labels list, but this
         # keeps create() and update() symmetric with the pop below (#1223).
@@ -2392,6 +2440,7 @@ class CardSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         pairs = validated_data.pop("custom_field_values", None)
         external_ref = validated_data.pop("external_ref", _OMITTED)
+        self._require_live_referents(validated_data, pairs)
         card = super().update(instance, validated_data)
         # super().update() sets the labels M2M directly (label_ids has
         # source="labels"), which knows nothing about the to_attr list

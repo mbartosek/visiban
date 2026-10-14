@@ -1575,8 +1575,9 @@ class AdminUserDeactivateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # All transfers valid — execute in bulk.
-        for t in transfers:
+        # All transfers valid — execute in bulk. In board pk order, the order
+        # every multi-board lock takes (#1632).
+        for t in sorted(transfers, key=lambda t: t["board_id"]):
             Board.objects.filter(id=t["board_id"], owner=target).update(
                 owner_id=t["transfer_to"]
             )
@@ -1586,7 +1587,17 @@ class AdminUserDeactivateView(APIView):
     @transaction.atomic
     def post(self, request, pk):
         try:
-            target = User.objects.select_for_update().get(pk=pk)
+            # FOR NO KEY UPDATE, not FOR UPDATE (#1632), as the user admin
+            # delete locks its targets (#1616). A card write by this user holds
+            # its board row FOR SHARE and needs FOR KEY SHARE on this row at
+            # COMMIT (its activity, created_by and assignee foreign keys).
+            # FOR UPDATE blocks that, while the owner transfer below UPDATEs
+            # the board row and so waits on the card write's FOR SHARE: a
+            # deadlock. FOR NO KEY UPDATE still serializes concurrent
+            # deactivations and access changes of this user (it conflicts
+            # with itself and with FOR UPDATE) and is the mode the is_active
+            # UPDATE takes anyway.
+            target = User.objects.select_for_update(no_key=True).get(pk=pk)
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 

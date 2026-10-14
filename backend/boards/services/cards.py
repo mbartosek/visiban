@@ -53,7 +53,7 @@ exact HTTP status and body the endpoint returned before the extraction.
 import logging
 from dataclasses import dataclass
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F, Max, Q, Sum, prefetch_related_objects
 from django.utils import timezone
 
@@ -462,6 +462,13 @@ def create_card(
 
     board_id = board.id
     with transaction.atomic():
+        # Board row FOR SHARE first (#1632): the labels and custom-field
+        # definitions save() writes were resolved before this transaction, and
+        # the serializer re-reads them under this lock. Before the column row:
+        # board -> column, the order every container delete takes. A create
+        # queued behind a board delete finds the board, and so its column, gone.
+        if not lock_board_for_card_write(board_id):
+            raise ColumnNotFound()
         # Lock the target column row before reading the cell's card count so two
         # concurrent creates in the same (column, swimlane) cell cannot both
         # observe the same max position and assign a duplicate. Same column-row
@@ -618,7 +625,14 @@ def update_card(*, actor, board, card, submitted, apply, render, role=None, forc
 
     board_id = card.board_id
     with transaction.atomic():
-        # Card row first (#1587): without it a delete committing between the
+        # Board row FOR SHARE before anything else (#1632; see
+        # lock_board_for_card_write): apply() writes labels and custom-field
+        # values resolved before this transaction, and the serializer re-reads
+        # them under this lock. Board -> card -> column, the container
+        # delete's order. A board deleted meanwhile took the card with it.
+        if not lock_board_for_card_write(board_id):
+            raise CardNotFound()
+        # Card row next (#1587): without it a delete committing between the
         # caller's read and apply() makes serializer.save()'s UPDATE match no
         # row, and Django falls back to an INSERT that re-creates the card.
         # Taken before enforce_column_limits below locks the column, keeping
@@ -1219,6 +1233,79 @@ def _lock_entry_columns(columns):
 def _cascade_card_pks(cards):
     """The container's current card pks, read without a lock (#1602)."""
     return set(cards.values_list("pk", flat=True))
+
+
+# Static literals, not built from Board._meta: the table name is pinned by
+# Board.Meta.db_table and the lock-order tests assert this exact statement.
+# Django's select_for_update() has no FOR SHARE mode, hence the raw statement;
+# the only value is the bound board id.
+_BOARD_SHARE_LOCK_SQL = {
+    "postgresql": 'SELECT 1 FROM "boards" WHERE "id" = %s FOR SHARE',
+    None: 'SELECT 1 FROM "boards" WHERE "id" = %s',
+}
+
+
+def lock_board_for_card_write(board_id):
+    """Hold the card's board row ``FOR SHARE`` for the rest of the caller's
+    transaction; return ``False`` when the board is already gone (#1632).
+
+    Why: a card create or update resolves the labels (``label_ids``) and
+    custom-field definitions (``custom_field_values``) it names at
+    validation, before its transaction. A label or definition DELETE that
+    committed in between, or that commits before the card write does, left
+    the M2M or value row the card write inserts pointing at a missing row:
+    a ``500`` from the deferred foreign key at COMMIT. Every deleter of a
+    label or definition (the REST ``DELETE``s and admin deletes through
+    ``lock_board_and_row_or_404``/``_lock_board_for_admin_save``, the
+    container and user deletes through ``lock_cards_for_cascade(boards=...)``)
+    takes the board row ``FOR NO KEY UPDATE`` first, which conflicts with
+    ``FOR SHARE``. So once this lock is granted no such delete is in flight
+    and none can start before this transaction ends, and
+    ``CardSerializer._require_live_referents`` re-reads the named rows: one
+    that a delete removed answers ``400``, as a request naming an unknown id
+    always did.
+
+    Why the board row and this mode: ``FOR SHARE`` does not conflict with
+    itself or with ``FOR KEY SHARE``, so card writes on one board do not
+    queue behind each other (``FOR NO KEY UPDATE`` would serialize every card
+    write on the board) and the ``FOR KEY SHARE`` a card insert takes on the
+    board at COMMIT is unaffected. It does conflict with every board-row lock
+    a structure writer takes (``FOR NO KEY UPDATE``/``FOR UPDATE``), so those
+    and a card write queue whole, in either order. Locking the label and
+    definition rows instead (the first attempt at #1632) put them between the
+    card row and the column row on update and after the column row on
+    create, and a create and a weight-raising update naming the same label
+    deadlocked on it.
+
+    Lock order: the board row is the first lock of the card transaction,
+    before the card row (``lock_card_for_write``) and any column row, and
+    the transaction then holds it while it waits for anything else. No path
+    takes a board-row lock after a card or column lock
+    (``docs/architecture/service-layer.md``). One more edge exists: at
+    COMMIT the card write takes ``FOR KEY SHARE`` on the user rows its
+    foreign keys name (activity actor, ``created_by``, ``assignee``). So a
+    transaction that holds a user row ``FOR UPDATE`` and then locks or
+    UPDATEs a board row would close a cycle. The only such path was the
+    user deactivation's board transfer, which now locks the user ``FOR NO
+    KEY UPDATE`` (it does not block ``FOR KEY SHARE``), like the user admin
+    delete (#1616). No other path takes a board, card or column lock after
+    a user-row ``FOR UPDATE``: the credential, login, access-change and
+    email-change paths and the user admin save take none at all, and the
+    user admin delete locks its targets ``FOR NO KEY UPDATE``, then the
+    owned boards and the cards, and only then the targets ``FOR UPDATE``
+    (``_lock_cards_then_targets``), so it waits at the board row while
+    holding nothing that blocks ``FOR KEY SHARE``. Nothing in a card create or update writes
+    the board row, so two writers holding ``FOR SHARE`` never upgrade into
+    each other. There is no lock timeout: a card write waits for a
+    board-row writer (and the reverse) for as long as that transaction
+    runs, which for a large container delete is the whole cascade. On
+    SQLite there is no row lock and only the existence check remains. Must
+    be called inside ``transaction.atomic()``.
+    """
+    sql = _BOARD_SHARE_LOCK_SQL.get(connection.vendor, _BOARD_SHARE_LOCK_SQL[None])
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [board_id])
+        return cursor.fetchone() is not None
 
 
 def lock_card_for_write(card_id):
