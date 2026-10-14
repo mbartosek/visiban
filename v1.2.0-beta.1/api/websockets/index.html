@@ -2249,6 +2249,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#deleting-a-container-deletes-its-cards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a container deletes its cards
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#member-events" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4322,7 +4333,7 @@ build. If you are adding an event, see
 </tr>
 <tr>
 <td><code>board.deleted</code></td>
-<td>Board was deleted</td>
+<td>Board was deleted, with everything on it. No <code>card.deleted</code> or <code>column.deleted</code> frames are sent for the cascade; see <a href="#deleting-a-container-deletes-its-cards">Deleting a container deletes its cards</a></td>
 <td><code>{ "board_uid": &lt;string&gt; }</code></td>
 </tr>
 <tr>
@@ -4364,7 +4375,7 @@ build. If you are adding an event, see
 </tr>
 <tr>
 <td><code>column.deleted</code></td>
-<td>Column deleted</td>
+<td>Column deleted, with every card in it (archived cards included). No <code>card.deleted</code> frames are sent for those cards; see <a href="#deleting-a-container-deletes-its-cards">Deleting a container deletes its cards</a></td>
 <td><code>{ "column_uid": &lt;string&gt; }</code></td>
 </tr>
 <tr>
@@ -4396,7 +4407,7 @@ build. If you are adding an event, see
 </tr>
 <tr>
 <td><code>swimlane.deleted</code></td>
-<td>Swimlane deleted</td>
+<td>Swimlane deleted, with every card in it (archived cards included). No <code>card.deleted</code> frames are sent for those cards; see <a href="#deleting-a-container-deletes-its-cards">Deleting a container deletes its cards</a></td>
 <td><code>{ "swimlane_uid": &lt;string&gt; }</code></td>
 </tr>
 <tr>
@@ -4575,6 +4586,31 @@ a blocker that is no longer on the board.</p>
 <p>A client that applies <code>card.updated</code> by replacing the card with that id
 needs no special handling for either case.</p>
 </div>
+<h3 id="deleting-a-container-deletes-its-cards">Deleting a container deletes its cards<a class="headerlink" href="#deleting-a-container-deletes-its-cards" title="Permanent link">&para;</a></h3>
+<p>A card belongs to exactly one column and one swimlane. Deleting a column,
+swimlane, or board deletes every card in it, archived cards included, along with
+their comments, checklist items, attachments, movements, and relations. The
+server announces the container, not each card: a column delete publishes one
+<code>column.deleted</code>, a swimlane delete one <code>swimlane.deleted</code>, and a board delete
+one <code>board.deleted</code>. There is no <code>card.deleted</code> frame for a card that went with
+its container, and none for the archived ones either. The same holds for a
+delete made in the Django admin, and for the <a href="../events/">change feed</a>, which
+records the same single event.</p>
+<p>A client that keeps cards locally must therefore treat a container delete as
+the delete of its cards:</p>
+<ul>
+<li>On <code>column.deleted</code>, drop every card whose <code>column</code> is the deleted column's
+  <code>id</code>. The frame carries only <code>column_uid</code>, so look the column up by <code>uid</code> in
+  the state you already hold (from <code>/full/</code> or an earlier <code>column.created</code>) to
+  find its <code>id</code>. Do this before removing the column itself.</li>
+<li>On <code>swimlane.deleted</code>, do the same with each card's <code>swimlane</code>.</li>
+<li>On <code>board.deleted</code>, discard the board's state; nothing on it remains.</li>
+</ul>
+<p>This is the contract, not a gap that later releases will fill with per-card
+frames: a column of thousands of cards is one frame, not thousands. Deleting a
+user account in the Django admin does not delete cards: an account that still
+owns boards cannot be deleted until its boards are transferred, and a card's
+<code>created_by</code> and <code>assignee</code> are cleared, not cascaded.</p>
 <h3 id="member-events">Member events<a class="headerlink" href="#member-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -4903,29 +4939,34 @@ sees it appear or disappear without a reload.</p>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"card.deleted"</span><span class="o">:</span>
 <a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">      </span><span class="c1">// remove card from local state by data.card_uid</span>
 <a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">      </span><span class="k">break</span><span class="p">;</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"card.moved"</span><span class="o">:</span>
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">      </span><span class="c1">// update card position and record movement</span>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">      </span><span class="k">break</span><span class="p">;</span>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">    </span><span class="k">default</span><span class="o">:</span>
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">      </span><span class="c1">// ignore unknown event types for forward compatibility</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="p">};</span>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="c1">// Remember the newest event_id you processed; on reconnect, replay from it via</span>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="c1">// GET /api/v1/boards/&lt;id&gt;/events/?after=&lt;lastEventId&gt; instead of re-fetching /full/.</span>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="c1">// See the Change Feed page for the cursor and 410 re-sync rules.</span>
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>
-<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="nx">ws</span><span class="p">.</span><span class="nx">onclose</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">code</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">4001</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">    </span><span class="c1">// not authenticated — redirect to login</span>
-<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">code</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">4003</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="w">    </span><span class="c1">// no access to this board — at the handshake, or mid-stream after access</span>
-<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a><span class="w">    </span><span class="c1">// was lost or the server's access re-check failed (see "Access re-check</span>
-<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="w">    </span><span class="c1">// and eviction"). Do not auto-retry. A later, user-initiated reconnect can</span>
-<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="w">    </span><span class="c1">// succeed if the cause was a failed re-check.</span>
-<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="w">  </span><span class="c1">// otherwise: reconnect logic and re-fetch full board state</span>
-<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="p">};</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"column.deleted"</span><span class="o">:</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"swimlane.deleted"</span><span class="o">:</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">      </span><span class="c1">// remove the column or swimlane AND every card in it (no card.deleted</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">      </span><span class="c1">// is sent for them; see "Deleting a container deletes its cards")</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">      </span><span class="k">break</span><span class="p">;</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="s2">"card.moved"</span><span class="o">:</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">      </span><span class="c1">// update card position and record movement</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">      </span><span class="k">break</span><span class="p">;</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">    </span><span class="k">default</span><span class="o">:</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">      </span><span class="c1">// ignore unknown event types for forward compatibility</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="p">};</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="c1">// Remember the newest event_id you processed; on reconnect, replay from it via</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="c1">// GET /api/v1/boards/&lt;id&gt;/events/?after=&lt;lastEventId&gt; instead of re-fetching /full/.</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="c1">// See the Change Feed page for the cursor and 410 re-sync rules.</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a><span class="nx">ws</span><span class="p">.</span><span class="nx">onclose</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">code</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">4001</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="w">    </span><span class="c1">// not authenticated — redirect to login</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a><span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">code</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">4003</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="w">    </span><span class="c1">// no access to this board — at the handshake, or mid-stream after access</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="w">    </span><span class="c1">// was lost or the server's access re-check failed (see "Access re-check</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="w">    </span><span class="c1">// and eviction"). Do not auto-retry. A later, user-initiated reconnect can</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="w">    </span><span class="c1">// succeed if the cause was a failed re-check.</span>
+<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="w">  </span><span class="c1">// otherwise: reconnect logic and re-fetch full board state</span>
+<a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a><span class="p">};</span>
 </code></pre></div>
 <p>Token-authenticated clients (since 1.2) — a fresh ticket per connection, including
 every reconnect, because each one is single-use:</p>
