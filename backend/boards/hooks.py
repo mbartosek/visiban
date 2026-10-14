@@ -56,6 +56,10 @@ ANALYTICS_EXTENSIONS: list = []
 # ws-event-reachability CI gate reads the WebSocket registry only, so nothing
 # here is reachable from it; this table is the only place the mapping is stated.
 #
+# ``card.deleted`` hooks fire only from ``services.cards.delete_card``; admin
+# card deletes and container cascades (a column, swimlane or board delete,
+# #1615) fire no hook; consume the change feed to observe them.
+#
 # Register via: from boards.hooks import CARD_MUTATION_HOOKS
 #               CARD_MUTATION_HOOKS.append(my_handler)
 # Called inside transaction.on_commit — all related data is already committed when

@@ -43,6 +43,9 @@ export default {
         "success-on-tint": "rgb(var(--success-on-tint) / <alpha-value>)",
         "info-on-tint": "rgb(var(--info-on-tint) / <alpha-value>)",
         "muted-on-tint": "rgb(var(--muted-on-tint) / <alpha-value>)",
+        // Urgent priority (#1594) — dark-red fill/border and its on-tint text, distinct from danger
+        urgent: "rgb(var(--urgent) / <alpha-value>)",
+        "urgent-on-tint": "rgb(var(--urgent-on-tint) / <alpha-value>)",
 
         // Interactive — primary (Visiban brand blue)
         primary: "rgb(var(--primary) / <alpha-value>)",

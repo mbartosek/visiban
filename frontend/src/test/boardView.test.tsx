@@ -110,13 +110,14 @@ vi.mock('../components/Board/ColumnHeader', () => ({
 // existing per-board write gate) so tests can assert on it without rendering the
 // real SwimlaneRow tree.
 vi.mock('../components/Board/SwimlaneRow', () => ({
-  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number }) => {
+  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth, onToggleCardSelection }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number; onToggleCardSelection?: (cardId: number) => void }) => {
     return (
       <div data-testid={`swim-${swimlane.id}`} data-focused={String(isFocused ?? false)} data-compact={String(compact ?? false)} data-can-edit={String(canEdit ?? false)} data-hide-row-chip-names={String(hideRowChipFieldNames ?? false)} data-sidebar-width={String(sidebarWidth)}>
         {swimlane.name}
         <button data-testid={`focus-btn-${swimlane.id}`} onClick={() => onFocus?.(swimlane.id)}>Focus</button>
         <button data-testid={`exit-focus-btn-${swimlane.id}`} onClick={() => onExitFocus?.()}>ExitFocusMock</button>
         {onEditFieldOrder && <button data-testid={`edit-order-${swimlane.id}`} onClick={onEditFieldOrder}>EditOrderMock</button>}
+        {onToggleCardSelection && <button data-testid={`select-card-1-${swimlane.id}`} onClick={() => onToggleCardSelection(1)}>SelectCardMock</button>}
       </div>
     )
   },
@@ -125,7 +126,7 @@ vi.mock('../components/Card/CardItem', () => ({
   default: ({ card, compact }: { card: { title: string }; compact?: boolean }) => <div data-compact={String(compact ?? false)}>{card.title}</div>,
 }))
 vi.mock('../components/Card/CardDetail', () => ({
-  default: ({ card, onClose }: { card: { title: string }; onClose: () => void }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button></div>,
+  default: ({ card, onClose, onDeleted }: { card: { id: number; title: string }; onClose: () => void; onDeleted?: (id: number) => void }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button><button onClick={() => onDeleted?.(card.id)}>Delete From Detail</button></div>,
 }))
 vi.mock('../components/Board/AddColumnModal', () => ({
   default: ({ onAdded }: { onAdded: (col: { id: number; name: string; position: number; color: string; wip_limit: null; weight_limit: null; allow_card_creation: true; is_done: false }) => void }) => (
@@ -1034,6 +1035,118 @@ describe('BoardView', () => {
 
     // Focus banner should be gone since the focused swimlane no longer exists
     expect(screen.queryByText('Focused on:')).not.toBeInTheDocument()
+  })
+
+  // A card can leave board.cards with no card.deleted for it: a column or
+  // swimlane delete cascades to its cards and the server sends only the
+  // container event (#1615). Nothing may keep acting on such a card.
+  describe('a card that leaves the board while open or selected', () => {
+    const card = {
+      id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Doomed Card',
+      description: '', priority: 'medium' as const, assignee: null,
+      labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: "user1", display_name: "User 1", avatar_url: "" },
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      last_moved_at: null, attachment_count: 0, checklist_total: 0,
+      checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+      custom_field_values: [],
+      blocker_count: 0, external_ref: null,
+    }
+
+    it('closes CardDetail when the open card is evicted', () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+
+      // evictColumn dropped the column and, with it, its cards.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [], columns: makeBoard().columns.slice(1) }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      // Closed with a reason, not silently: an unsaved draft went with it.
+      expect(screen.getByText('The card you had open was deleted or archived, so it was closed.')).toBeInTheDocument()
+    })
+
+    it('closes CardDetail with the notice in the analytics view too', async () => {
+      mockSearchParams = new URLSearchParams('view=analytics')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      // AnalyticsView mock opens card 1.
+      await userEvent.setup().click(screen.getByTestId('open-card-btn'))
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('analytics-view')).toBeInTheDocument()
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('The card you had open was deleted or archived, so it was closed.')
+    })
+
+    it('the notice clears itself after 4 seconds', () => {
+      vi.useFakeTimers()
+      try {
+        mockSearchParams = new URLSearchParams('card=1')
+        mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+        const { rerender } = render(<BoardView {...defaultProps()} />)
+        mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+        rerender(<BoardView {...defaultProps()} />)
+        expect(screen.getByText(/so it was closed/)).toBeInTheDocument()
+        act(() => { vi.advanceTimersByTime(4000) })
+        expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('shows no notice when this user deletes the card from the panel', async () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      const removeCard = vi.fn()
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }), removeCard })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByText('Delete From Detail'))
+      expect(removeCard).toHaveBeenCalledWith(1)
+      // removeCard has now dropped the card from state.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }), removeCard })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+    })
+
+    it('shows no notice when cards leave the board and none is open', () => {
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+    })
+
+    it('keeps CardDetail open while the card is still on the board', () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [{ ...card, title: 'Renamed' }] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+    })
+
+    it('drops an evicted card from the bulk selection (existing prune effect)', async () => {
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByTestId('select-card-1-20'))
+      expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument()
+
+      // Another user deleted the card's column: the card is gone, the
+      // swimlane row (and so BoardView's tree) is unchanged.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [], columns: makeBoard().columns.slice(1) }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('bulk-toolbar')).not.toBeInTheDocument()
+    })
   })
 
   describe('toolbar zone layout', () => {
