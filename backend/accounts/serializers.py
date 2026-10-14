@@ -485,7 +485,23 @@ class UserSerializer(serializers.ModelSerializer):
         change *to* blank is refused, so an account that already has no address
         (e.g. SSO without an email claim) can still save the rest of its profile.
         """
+        from rest_framework.exceptions import PermissionDenied
+
+        from . import credentials as credentials_module
         from .email_change import email_verification_mandatory
+
+        # Changing the address (or requesting a confirmed change under
+        # ``mandatory``) needs an interactive session, like setting a first
+        # password. Checked first, before the format and
+        # collision checks, so a token caller gets the same 403 whatever the
+        # address. Raised as PermissionDenied (403), not a field error, the
+        # same shape as the first-password session rule. Covers both
+        # ``PATCH``/``PUT /auth/user/`` and ``PATCH /auth/me/``, which share
+        # this serializer.
+        if self.instance is not None and credentials_module.email_change_requires_session(
+            self.context.get("request"), self.instance.email, value
+        ):
+            raise PermissionDenied(credentials_module.EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE)
 
         value = validate_optional_email_format(value)
         if (
@@ -578,6 +594,13 @@ class UserSerializer(serializers.ModelSerializer):
                 # Setting the email back to the current address withdraws a
                 # change that is still awaiting confirmation.
                 cancel_pending = True
+
+        # An email equal to the stored value is not a change (that is how a
+        # token client round-trips the profile past validate_email), so it is
+        # not written: rewriting it from this request's copy of the row could
+        # put back an address another request has changed in the meantime.
+        if "email" in validated_data and validated_data["email"] == (instance.email or ""):
+            validated_data.pop("email")
 
         try:
             with transaction.atomic():
