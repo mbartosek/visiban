@@ -129,6 +129,11 @@ Two consequences worth knowing:
   so a consumer holding a cursor learns the board is gone rather than simply
   losing access mid-stream. Its own board is of course no longer readable, so
   fetch it from the cursor you already hold, not from a fresh call.
+- **A container delete is one event.** Deleting a column, swimlane, or board
+  deletes its cards too, and the feed records only the `column.deleted`,
+  `swimlane.deleted`, or `board.deleted` row, with no `card.deleted` row per
+  card. Treat it as the delete of every card in that container. See
+  [Deleting a container deletes its cards](websockets.md#deleting-a-container-deletes-its-cards).
 
 ### Fields that depend on who is reading
 

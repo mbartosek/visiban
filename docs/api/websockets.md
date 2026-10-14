@@ -120,7 +120,7 @@ Board and group `board.*` event payloads never carry the share-link fields (`sha
 |---|---|---|
 | `board.created` | New board created (only emitted to subscribers already connected to the board channel) | Full `BoardSerializer` object (`is_starred` is the creator's value and deprecated here; use `board.star_changed`, #1559). On a Visiban JSON/CSV import ([`POST /api/v1/boards/import/`](boards.md#post-apiv1boardsimport)) it also carries `import_options` — all five resolved booleans (`labels`, `cards`, `comments`, `checklist`, `history`; added in 1.2), plus `shift_dates_from` (a `YYYY-MM-DD` string; added in 1.2) when the import sent it. The same payload goes to the group channel when the import sets `group_id`. `import_options` is absent on ordinary board creation, Trello imports, and group-move events. |
 | `board.updated` | Board name, description, or settings changed | Full `BoardSerializer` object. `is_starred` in this payload reflects the user who made the change, not the receiving client, and is deprecated in `board.created` / `board.updated` payloads; clients must ignore it and use `board.star_changed` (#1559). |
-| `board.deleted` | Board was deleted | `{ "board_uid": <string> }` |
+| `board.deleted` | Board was deleted, with everything on it. No `card.deleted` or `column.deleted` frames are sent for the cascade; see [Deleting a container deletes its cards](#deleting-a-container-deletes-its-cards) | `{ "board_uid": <string> }` |
 | `board.star_changed` | Board starred or unstarred. Per-user state; clients should filter on `user_id === me` and ignore events for other users | `{ "uid": <string>, "user_id": <int>, "is_starred": <bool> }` |
 | `saved_filter.created` | Saved filter created (the private `state_json` is intentionally not broadcast — only the creating user receives the full filter via the REST response) | `{ "filter_id": <int>, "user_id": <int> }` |
 | `saved_filter.deleted` | Saved filter deleted | `{ "filter_id": <int>, "user_id": <int> }` |
@@ -131,7 +131,7 @@ Board and group `board.*` event payloads never carry the share-link fields (`sha
 |---|---|---|
 | `column.created` | New column created | Full `ColumnSerializer` object |
 | `column.updated` | Column renamed, recolored, or settings changed | Full `ColumnSerializer` object |
-| `column.deleted` | Column deleted | `{ "column_uid": <string> }` |
+| `column.deleted` | Column deleted, with every card in it (archived cards included). No `card.deleted` frames are sent for those cards; see [Deleting a container deletes its cards](#deleting-a-container-deletes-its-cards) | `{ "column_uid": <string> }` |
 | `column.reordered` | Column order changed (since 1.1) | `{ "columns": [<ColumnSerializer>, ...] }` — all columns in new order |
 
 ### Swimlane events
@@ -140,7 +140,7 @@ Board and group `board.*` event payloads never carry the share-link fields (`sha
 |---|---|---|
 | `swimlane.created` | New swimlane created | `SwimlaneSerializer` object (public fields only — `contact_email` and `notes` are omitted regardless of role) |
 | `swimlane.updated` | Swimlane updated | `SwimlaneSerializer` object (same field rules as above) |
-| `swimlane.deleted` | Swimlane deleted | `{ "swimlane_uid": <string> }` |
+| `swimlane.deleted` | Swimlane deleted, with every card in it (archived cards included). No `card.deleted` frames are sent for those cards; see [Deleting a container deletes its cards](#deleting-a-container-deletes-its-cards) | `{ "swimlane_uid": <string> }` |
 | `swimlane.reordered` | Swimlane order changed (since 1.1) | `{ "swimlanes": [<SwimlaneSerializer>, ...] }` — all swimlanes in new order |
 
 !!! note
@@ -218,6 +218,34 @@ arrives as `swimlane.updated`, whose payload carries the swimlane's
 
     A client that applies `card.updated` by replacing the card with that id
     needs no special handling for either case.
+
+### Deleting a container deletes its cards
+
+A card belongs to exactly one column and one swimlane. Deleting a column,
+swimlane, or board deletes every card in it, archived cards included, along with
+their comments, checklist items, attachments, movements, and relations. The
+server announces the container, not each card: a column delete publishes one
+`column.deleted`, a swimlane delete one `swimlane.deleted`, and a board delete
+one `board.deleted`. There is no `card.deleted` frame for a card that went with
+its container, and none for the archived ones either. The same holds for a
+delete made in the Django admin, and for the [change feed](events.md), which
+records the same single event.
+
+A client that keeps cards locally must therefore treat a container delete as
+the delete of its cards:
+
+- On `column.deleted`, drop every card whose `column` is the deleted column's
+  `id`. The frame carries only `column_uid`, so look the column up by `uid` in
+  the state you already hold (from `/full/` or an earlier `column.created`) to
+  find its `id`. Do this before removing the column itself.
+- On `swimlane.deleted`, do the same with each card's `swimlane`.
+- On `board.deleted`, discard the board's state; nothing on it remains.
+
+This is the contract, not a gap that later releases will fill with per-card
+frames: a column of thousands of cards is one frame, not thousands. Deleting a
+user account in the Django admin does not delete cards: an account that still
+owns boards cannot be deleted until its boards are transferred, and a card's
+`created_by` and `assignee` are cleared, not cascaded.
 
 ### Member events
 
@@ -411,6 +439,11 @@ ws.onmessage = (event) => {
       break;
     case "card.deleted":
       // remove card from local state by data.card_uid
+      break;
+    case "column.deleted":
+    case "swimlane.deleted":
+      // remove the column or swimlane AND every card in it (no card.deleted
+      // is sent for them; see "Deleting a container deletes its cards")
       break;
     case "card.moved":
       // update card position and record movement

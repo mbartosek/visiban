@@ -110,13 +110,14 @@ vi.mock('../components/Board/ColumnHeader', () => ({
 // existing per-board write gate) so tests can assert on it without rendering the
 // real SwimlaneRow tree.
 vi.mock('../components/Board/SwimlaneRow', () => ({
-  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number }) => {
+  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth, onToggleCardSelection }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number; onToggleCardSelection?: (cardId: number) => void }) => {
     return (
       <div data-testid={`swim-${swimlane.id}`} data-focused={String(isFocused ?? false)} data-compact={String(compact ?? false)} data-can-edit={String(canEdit ?? false)} data-hide-row-chip-names={String(hideRowChipFieldNames ?? false)} data-sidebar-width={String(sidebarWidth)}>
         {swimlane.name}
         <button data-testid={`focus-btn-${swimlane.id}`} onClick={() => onFocus?.(swimlane.id)}>Focus</button>
         <button data-testid={`exit-focus-btn-${swimlane.id}`} onClick={() => onExitFocus?.()}>ExitFocusMock</button>
         {onEditFieldOrder && <button data-testid={`edit-order-${swimlane.id}`} onClick={onEditFieldOrder}>EditOrderMock</button>}
+        {onToggleCardSelection && <button data-testid={`select-card-1-${swimlane.id}`} onClick={() => onToggleCardSelection(1)}>SelectCardMock</button>}
       </div>
     )
   },
@@ -1034,6 +1035,60 @@ describe('BoardView', () => {
 
     // Focus banner should be gone since the focused swimlane no longer exists
     expect(screen.queryByText('Focused on:')).not.toBeInTheDocument()
+  })
+
+  // A card can leave board.cards with no card.deleted for it: a column or
+  // swimlane delete cascades to its cards and the server sends only the
+  // container event (#1615). Nothing may keep acting on such a card.
+  describe('a card that leaves the board while open or selected', () => {
+    const card = {
+      id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Doomed Card',
+      description: '', priority: 'medium' as const, assignee: null,
+      labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: "user1", display_name: "User 1", avatar_url: "" },
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      last_moved_at: null, attachment_count: 0, checklist_total: 0,
+      checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+      custom_field_values: [],
+      blocker_count: 0, external_ref: null,
+    }
+
+    it('closes CardDetail when the open card is evicted', () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+
+      // evictColumn dropped the column and, with it, its cards.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [], columns: makeBoard().columns.slice(1) }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+    })
+
+    it('keeps CardDetail open while the card is still on the board', () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [{ ...card, title: 'Renamed' }] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+    })
+
+    it('drops an evicted card from the bulk selection (existing prune effect)', async () => {
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByTestId('select-card-1-20'))
+      expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument()
+
+      // Another user deleted the card's column: the card is gone, the
+      // swimlane row (and so BoardView's tree) is unchanged.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [], columns: makeBoard().columns.slice(1) }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('bulk-toolbar')).not.toBeInTheDocument()
+    })
   })
 
   describe('toolbar zone layout', () => {

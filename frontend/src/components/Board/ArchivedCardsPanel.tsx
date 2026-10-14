@@ -14,8 +14,8 @@ interface Props {
 }
 
 export default function ArchivedCardsPanel({ board, onClose, onUnarchived, currentUser }: Props) {
-  const [cards, setCards] = useState<Card[]>([]);
-  const [total, setTotal] = useState(0);
+  const [loadedCards, setCards] = useState<Card[]>([]);
+  const [loadedTotal, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,10 +46,23 @@ export default function ArchivedCardsPanel({ board, onClose, onUnarchived, curre
       .finally(() => setLoading(false));
   }, [board.id]);
 
+  // Deleting a column or swimlane deletes the archived cards in it as well,
+  // and the server sends only the container's *.deleted event, not one
+  // card.deleted per card (#1615). The board's columns and swimlanes are kept
+  // current from those events, so drop any loaded card whose column or
+  // swimlane has left the board rather than offer to restore a deleted card.
+  const columnIds = new Set(board.columns.map((c) => c.id));
+  const swimlaneIds = new Set(board.swimlanes.map((s) => s.id));
+  const cards = loadedCards.filter((c) => columnIds.has(c.column) && swimlaneIds.has(c.swimlane));
+  const pruned = loadedCards.length - cards.length;
+  const total = Math.max(0, loadedTotal - pruned);
+
   const handleLoadMore = () => {
     setLoadingMore(true);
     setLoadError(null);
-    getArchivedCards(board.id, offset)
+    // Cards pruned above are gone from the server too, so the server's list
+    // has shifted down by that many since they were loaded.
+    getArchivedCards(board.id, Math.max(0, offset - pruned))
       .then((page) => {
         setCards((prev) => [...prev, ...page.results]);
         setOffset((prev) => prev + page.results.length);

@@ -1089,6 +1089,17 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
   const clearSelection = useCallback(() => setSelectedCardIds(new Set()), []);
 
+  // A card can leave board.cards without this client acting on it: another
+  // user deletes or archives it, or deletes the column or swimlane it was in
+  // (the server sends only the container's *.deleted event for a cascade, no
+  // per-card card.deleted, #1615). Close the detail panel on such a card, so
+  // it does not keep editing a card that is gone (the bulk selection is pruned
+  // the same way further down). Every path that opens CardDetail takes its
+  // card from board.cards, so a card absent from it has left the board view.
+  useEffect(() => {
+    setSelectedCard((prev) => (prev && !board.cards.some((c) => c.id === prev.id) ? null : prev));
+  }, [board.cards]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // ⌘\ / Ctrl+\ — toggle activity drawer (fires even from input fields)
