@@ -3834,9 +3834,9 @@ change.</strong></p>
 <td>Field <strong>names</strong>, both directions</td>
 </tr>
 <tr>
-<td><code>serializer-ts-parity</code> CI job (#1079 + #1139 + #1209 + #1282 + #1294 + #1296, this page)</td>
-<td>The <strong>generated OpenAPI document</strong></td>
-<td><strong>45</strong> pairs — every pair that has a schema component</td>
+<td><code>serializer-ts-parity</code> CI job (#1079 + #1139 + #1209 + #1282 + #1294 + #1296 + #1338, this page)</td>
+<td>The <strong>generated OpenAPI document</strong> (generated with <code>GIT_LENS_ENABLED=True</code>, #1338)</td>
+<td><strong>49</strong> pairs — every pair that has a schema component</td>
 <td>Names, <strong>types</strong>, nullability, enum membership, <strong>array item types</strong></td>
 </tr>
 </tbody>
@@ -3961,7 +3961,7 @@ name something comparable:</p>
   is skipped the same way an unmapped schema item is.</li>
 </ul>
 <h2 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h2>
-<p><code>COMPONENT_MAP</code> in the script is authoritative. As of #1296 it is:</p>
+<p><code>COMPONENT_MAP</code> in the script is authoritative. As of #1338 it is:</p>
 <table>
 <thead>
 <tr>
@@ -3974,6 +3974,11 @@ name something comparable:</p>
 <tr>
 <td><code>Board</code></td>
 <td><code>Board</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>AdminBoardInviteLink</code></td>
+<td><code>AdminBoardInviteLink</code></td>
 <td>yes</td>
 </tr>
 <tr>
@@ -3990,6 +3995,16 @@ name something comparable:</p>
 <td><code>BoardFull</code></td>
 <td><code>BoardFull</code></td>
 <td>yes</td>
+</tr>
+<tr>
+<td><code>BoardInviteLink</code></td>
+<td><code>BoardInviteLink</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>BoardInviteLinkCreateResponse</code></td>
+<td><code>CreatedBoardInviteLink</code></td>
+<td>no</td>
 </tr>
 <tr>
 <td><code>BoardMembership</code></td>
@@ -4115,6 +4130,11 @@ name something comparable:</p>
 <td><code>Label</code></td>
 <td><code>Label</code></td>
 <td>yes</td>
+</tr>
+<tr>
+<td><code>LensConnection</code></td>
+<td><code>LensConnection</code></td>
+<td>no</td>
 </tr>
 <tr>
 <td><code>LinkedCard</code></td>
@@ -4280,9 +4300,9 @@ level with no behavior change:</p>
   <code>GroupInviteLink.token</code> is optional and now listed in <code>TS_ONLY_FIELDS</code> rather than treated as
   drift.</li>
 </ul>
-<p>The thirteenth, <code>LensConnection</code>, stays excluded — see
-<a href="#what-is-not-covered-and-why">What is not covered, and why</a> for the reason, which is
-structural rather than something a decorator can fix.</p>
+<p>The thirteenth, <code>LensConnection</code>, was excluded for a structural reason (its app exists only with
+<code>GIT_LENS_ENABLED</code>) until #1338 generated the parity schema with the flag on and mapped it; see
+<a href="#what-is-not-covered-and-why">What is not covered, and why</a>.</p>
 <h3 id="what-is-not-covered-and-why">What is not covered, and why<a class="headerlink" href="#what-is-not-covered-and-why" title="Permanent link">&para;</a></h3>
 <p>Until #1209, two pairs #821 name-checks were absent here for a structural reason: the schema
 had no component to diff against, so there was nothing this gate could compare. <code>CardActivity</code>
@@ -4312,22 +4332,16 @@ annotation (or, for <code>SiteConfig</code> and the two <code>Created*</code> cr
 / subclass documenting the hand-built response) to each view — annotation only, no runtime,
 queryset, or permission change. All twelve are now mapped; see
 <a href="#coverage">Coverage</a> and the note above it for the drift each one surfaced and how it was fixed.</p>
-<p>The thirteenth stays excluded, for a reason that is structural rather than something a decorator
-can fix:</p>
-<table>
-<thead>
-<tr>
-<th>Pair</th>
-<th>Why excluded</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>LensConnection</code> (<code>LensConnectionSerializer</code>, <code>LensConnectionView</code>, <code>backend/git_lens/</code>)</td>
-<td>The <code>git_lens</code> app — and every one of its URLs, including <code>LensConnectionView</code> — is only installed/routed when <code>GIT_LENS_ENABLED=true</code> (<code>visiban/urls.py</code>, <code>visiban/settings.py</code>). Neither <code>serializer-ts-parity</code> nor <code>backend-schema-validate</code> sets that flag (only the dedicated <code>backend-test-git-lens</code> job does, "and nowhere else" per its own comment in <code>.gitlab-ci.yml</code>), so the schema those jobs generate never contains a <code>LensConnection</code> component to diff against — mapping it would make the gate fail in CI even though nothing is wrong. <code>LensConnectionView.get</code>/<code>.put</code> do now carry <code>@extend_schema</code> (#1294), so the component exists and is accurate whenever the schema <em>is</em> generated with the flag on (local dev, or a future CI job that sets it) — only the always-on parity job's environment is the blocker. Tracked in #1306.</td>
-</tr>
-</tbody>
-</table>
+<p>The thirteenth, <code>LensConnection</code> (<code>LensConnectionSerializer</code>, <code>backend/git_lens/</code>), was excluded
+until #1338 for a structural reason: the <code>git_lens</code> app and all of its URLs exist only when
+<code>GIT_LENS_ENABLED=true</code>, and the parity job ran with the flag off, so its schema had no
+<code>LensConnection</code> component to diff. <code>generate_schema()</code> in the script now forces
+<code>GIT_LENS_ENABLED=True</code> for schema generation (and the job sets it too), so the component is
+always present and the pair is mapped. The flag is set only for this job's schema generation;
+<code>backend-schema-validate</code> and <code>backend-schema-fuzz</code> still run flag-off, and the lens routes are
+fuzzed by their own job, <code>backend-schema-fuzz-git-lens</code> (see <a href="../../api/openapi/">OpenAPI</a>).
+Diffing the pair found no drift: the <code>created_by</code> nullability fixed in #1331 is the kind of
+mismatch it would have caught, and does catch if the TypeScript side regresses.</p>
 <p>Two pairs are absent for the opposite reason — the schema has a component but there is no
 TypeScript interface to diff it against. Confirmed by grepping all of <code>frontend/src</code> (not just
 <code>types/index.ts</code> — the <code>api/*.ts</code> call sites are where a renamed interface would actually be
@@ -4507,9 +4521,9 @@ explicit request-body interfaces, mapping them is the natural extension.</p>
 TypeScript interface <em>and reaches the schema this gate's own environment generates</em> is mapped as
 of <a href="https://gitlab.com/visiban/visiban/-/issues/1294">#1294</a>, so a green <code>serializer-ts-parity</code>
 run means "the published response components and the interfaces agree", not "forty-five of them do".
-<code>LensConnection</code> is the sole component this job cannot see at all, for the feature-flag reason in
-<a href="#what-is-not-covered-and-why">What is not covered, and why</a> — not a gap in <code>COMPONENT_MAP</code>, a
-gap in what the job's own schema generation includes. If you add a serializer <em>and</em> an
+<code>LensConnection</code>, the one component this job used to be unable to see (its app is feature-flagged),
+is mapped since #1338: the job generates its schema with <code>GIT_LENS_ENABLED=True</code>. A component
+from another flag-gated app would need the same treatment. If you add a serializer <em>and</em> an
 interface, add the pair to <code>COMPONENT_MAP</code> in the same MR — the gate does not discover pairs on
 its own, and an unmapped pair is unchecked silently.</p>
 

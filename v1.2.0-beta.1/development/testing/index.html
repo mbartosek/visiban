@@ -4483,6 +4483,10 @@ not <code>manage.py test</code> — <code>pytest-django</code> reads the same <c
   undocumented-<code>400</code> gap (#1124) is closed generically by <code>visiban/schema_hooks.py</code> (#1165).
   A red run is a real defect, never a flake — do not retry it; see the
   <a href="../../api/openapi/#a-red-backend-schema-fuzz-job-is-never-a-flake">triage steps</a></li>
+<li><code>backend-schema-fuzz-git-lens</code> is the same fuzz with <code>GIT_LENS_ENABLED=True</code>, narrowed to
+  the Issue Board Lens routes, with its own <code>backend/schemathesis-baseline-git-lens.json</code> and
+  the GitHub/GitLab calls answered by an in-process stub (#1338). See
+  <a href="../../api/openapi/"><code>docs/api/openapi.md</code></a></li>
 <li>The <code>changelog-check</code> job blocks the pipeline if no fragment is added under <code>changelog.d/</code></li>
 </ul>
 <h3 id="sonarcloud-coverage-import-1370">SonarCloud coverage import (#1370)<a class="headerlink" href="#sonarcloud-coverage-import-1370" title="Permanent link">&para;</a></h3>

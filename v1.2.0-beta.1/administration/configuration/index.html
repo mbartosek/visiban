@@ -3149,10 +3149,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#schema-fuzz-throttle-override" class="md-nav__link">
+  <a href="#schema-fuzz-overrides" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Schema-fuzz throttle override
+        Schema-fuzz overrides
       
     </span>
   </a>
@@ -4212,7 +4212,7 @@
 </tr>
 </tbody>
 </table>
-<h3 id="schema-fuzz-throttle-override">Schema-fuzz throttle override<a class="headerlink" href="#schema-fuzz-throttle-override" title="Permanent link">&para;</a></h3>
+<h3 id="schema-fuzz-overrides">Schema-fuzz overrides<a class="headerlink" href="#schema-fuzz-overrides" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -4226,6 +4226,11 @@
 <td><code>VISIBAN_DISABLE_THROTTLING</code></td>
 <td><code>false</code></td>
 <td>CI/test-only; not for production. Set by the <code>backend-schema-fuzz</code> job so its ~20k requests are not answered with 429. Lifts every API throttle rate and allauth's failed-login lockout (which answers 400 on the API and would hide the login view from the fuzzer). Requires <code>DEBUG=True</code>; the app refuses to start if it is set otherwise.</td>
+</tr>
+<tr>
+<td><code>VISIBAN_GIT_LENS_STUB_PROVIDERS</code></td>
+<td><code>false</code></td>
+<td><strong>CI/dev only; never set this in a deployed environment.</strong> Set by the <code>backend-schema-fuzz-git-lens</code> job (#1338) so the Issue Board Lens answers GitHub/GitLab requests from a fixed in-process fixture instead of the network. Requires <code>DEBUG=True</code> and <code>DEMO_MODE</code> off; the app refuses to start if it is set otherwise.</td>
 </tr>
 </tbody>
 </table>

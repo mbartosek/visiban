@@ -4215,7 +4215,7 @@ own header — is never mistaken for a real exemption.</p>
 </tr>
 <tr>
 <td><code>scripts/resolve_fuzz_seed.py</code></td>
-<td><code>backend-schema-fuzz</code> (and the deep nightly via <code>extends:</code>)</td>
+<td><code>backend-schema-fuzz</code> (and, via <code>extends:</code>, the deep nightly and <code>backend-schema-fuzz-git-lens</code>)</td>
 <td>#1207: MR pipelines cannot take pipeline variables, so the documented <code>FUZZ_SEED</code> replay was impossible on a feature branch. The script picks the seed: explicit <code>FUZZ_SEED</code> variable, then a <code>Fuzz-Seed: &lt;n&gt;</code> trailer on the MR head commit (<code>CI_COMMIT_MESSAGE</code>, merge request pipelines only), then random, and logs which. Every value is validated as a plain non-negative integer below 2**64 because it comes from a commit message. Self-test (run in <code>script:</code> before the fuzz) covers trailer parsing, case-insensitivity, last-trailer-wins, variable precedence, ignoring the trailer off MR pipelines, and rejecting non-integer, shell-metacharacter, negative, empty, unicode-digit and oversized values.</td>
 </tr>
 <tr>
