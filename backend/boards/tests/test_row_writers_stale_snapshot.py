@@ -570,10 +570,12 @@ class BoardAdminSaveTests(TestCase):
         token = uuid.uuid4()
         Board.objects.filter(pk=board.pk).update(share_token=token)
         form_class = model_admin.get_form(request, stale, change=True)
+        # Model fields only: the hidden row_version is not a Board attribute,
+        # and a submission without it skips the rendered-state check.
         data = {
             name: getattr(stale, name)
             for name in form_class.base_fields
-            if getattr(stale, name) is not None
+            if getattr(stale, name, None) is not None
         }
         data["name"] = "After"
         data["allowed_priorities"] = json.dumps(stale.allowed_priorities)

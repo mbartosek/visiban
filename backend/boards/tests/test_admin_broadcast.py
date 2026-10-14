@@ -37,8 +37,10 @@ from groups.models import Group
 class _DummyForm:
     """Minimal stand-in for a bound ModelForm: it carries the ``fields``,
     ``is_bound`` and ``changed_data`` a real form has, so BoardAdmin's merge of
-    non-form fields from the locked row runs in these tests. The other admins'
-    ``save_model`` ignores the form."""
+    non-form fields from the locked row runs in these tests (BoardMembershipAdmin
+    runs the same merge). It is not a ``RowVersionFormMixin`` form, so the
+    rendered-state check is skipped. The other admins' ``save_model`` ignores
+    the form."""
 
     fields = {"name": None}
     is_bound = True
