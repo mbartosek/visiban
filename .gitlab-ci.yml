@@ -1344,9 +1344,16 @@ backend-schema-fuzz-deep:
 #     git_lens-only baseline file, so this job neither reads nor writes the
 #     shared backend/schemathesis-baseline.json.
 #
-# MEASURED LOCALLY (seed 1, SQLite, 1 worker, 300 s, same schemathesis 4.27.1
-# and checks): 5 operations selected, 39,518 cases, 0 failures, no "Missing
-# valid test data" warning. 3 operations answer only 403 by design: connection
+#   * Never green on an empty selection: `st run` exits 0 when its include
+#     regex selects no operation ("No test cases were generated"), so a renamed
+#     route prefix or a flag that stopped mounting the app would leave this job
+#     passing with nothing fuzzed (the silent-exemption class behind #1331). The
+#     job's own script therefore fails before the run unless the served schema
+#     has at least one path matching FUZZ_INCLUDE_PATH_REGEX, and after it unless
+#     the junit report has at least one test case.
+#
+# Measured locally on SQLite (see the MR): 5 operations selected, no failures,
+# no "Missing valid test data" warning. 3 operations answer only 403 by design: connection
 # PUT/DELETE (board-admin only) and /admin/git-lens/usage/ (site-admin only, out
 # of reach for a non-admin token, #1080). The lens fetch budget
 # (LENS_FETCH_BUDGET) still applies under the stub, so after 12 cold fetches a
@@ -1361,6 +1368,12 @@ backend-schema-fuzz-git-lens:
       when: never
     - changes:
         - backend/git_lens/**/*
+        # Where the lens routes are mounted (visiban/urls.py) and any other
+        # URLconf, as in backend-schema-fuzz.
+        - backend/**/urls.py
+        # The lens views reuse these permission chains.
+        - backend/**/permissions.py
+        - backend/accounts/admin_views.py
         # created_by nests BoardUserSerializer.
         - backend/accounts/serializers.py
         - backend/visiban/settings.py
@@ -1375,6 +1388,34 @@ backend-schema-fuzz-git-lens:
     FUZZ_BASELINE: "backend/schemathesis-baseline-git-lens.json"
     FUZZ_MAX_EXAMPLES: "50"
     FUZZ_MAX_TIME: "300"
+  # Same steps as backend-schema-fuzz, plus the empty-selection guards described
+  # above. Defined here only, so the other two fuzz jobs' scripts are unchanged.
+  script:
+    - *schema-fuzz-seed-steps
+    - |
+      python3 - "$FUZZ_INCLUDE_PATH_REGEX" "$VISIBAN_FUZZ_TOKEN_FILE" <<'PYEOF'
+      import re, sys, requests
+      pattern, token_file = sys.argv[1], sys.argv[2]
+      # The schema view requires auth; same token st run uses. raise_for_status so
+      # a 401 fails loudly instead of reading as "no paths".
+      token = open(token_file).read().strip()
+      resp = requests.get("http://localhost:8000/api/schema/?format=json",
+                          headers={"Authorization": f"Token {token}"}, timeout=30)
+      resp.raise_for_status()
+      schema = resp.json()
+      hits = sorted(p for p in schema.get("paths", {}) if re.search(pattern, p))
+      print(f"FUZZ_INCLUDE_PATH_REGEX={pattern!r} selects {len(hits)} schema path(s): {hits}")
+      if not hits:
+          sys.exit("No schema path matches; the lens routes are not mounted or were renamed. Refusing to pass with nothing fuzzed (#1338).")
+      PYEOF
+    - *schema-fuzz-run-steps
+    - |
+      cases=$(grep -c '<testcase' schemathesis-junit.xml || true)
+      echo "schemathesis junit test cases: ${cases}"
+      if [ "${cases:-0}" -lt 1 ]; then
+        echo "No operation was fuzzed; refusing to pass on an empty run (#1338)."
+        exit 1
+      fi
 
 # ─── Backend mutation testing, weekly (#1384) ───────────────────────────────
 #
@@ -1539,15 +1580,18 @@ backend-test-git-lens:
     - python manage.py makemigrations --check --dry-run git_lens
     # Instrumented, and the data file is published for backend-test-coverage to
     # combine.  git_lens' views/serializers/models are exercised only with
-    # GIT_LENS_ENABLED=True, which is set here and nowhere else, so an
+    # GIT_LENS_ENABLED=True. Of the test jobs, only this one sets it (the
+    # serializer-ts-parity and backend-schema-fuzz-git-lens jobs set it too, but
+    # run no pytest), so an
     # uninstrumented run made ~230 well-tested statements score 0% and pinned
     # the project total to the 88-90% knife edge the gate sits on.
     # accounts/tests/test_demo_mode.py rides along (#1179): its route-table
-    # sweep walks whatever URLconf is mounted, and this is the only job where
-    # git_lens' routes exist, so without it the demo fence's sweep never
+    # sweep walks whatever URLconf is mounted, and this is the only pytest job
+    # where git_lens' routes exist, so without it the demo fence's sweep never
     # covers the lens write endpoints.
     # accounts/tests/test_auth_entry_points.py rides along for the same reason
-    # (#1517): it enumerates every mounted view, and the lens views exist only here.
+    # (#1517): it enumerates every mounted view, and among the pytest jobs the
+    # lens views exist only here.
     - coverage run --parallel --data-file=.coverage.git-lens -m pytest git_lens/ accounts/tests/test_demo_mode.py accounts/tests/test_auth_entry_points.py -q
   artifacts:
     paths:

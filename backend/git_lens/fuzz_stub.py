@@ -16,9 +16,9 @@ Production safety, three layers, each failing closed:
 
 1. ``settings.py`` refuses to start when the variable is set without DEBUG=True
    or with DEMO_MODE on (same contract as VISIBAN_DISABLE_THROTTLING, #1569).
-2. ``enabled()`` re-checks both the setting and DEBUG at the call site, so a
-   settings override that bypassed (1) still sends real requests rather than
-   fixture data. Anything other than a literal ``True`` reads as off.
+2. ``enabled()`` re-checks the setting, DEBUG and DEMO_MODE at the call site,
+   so a settings override that bypassed (1) still sends real requests rather
+   than fixture data. Anything other than a literal ``True`` reads as off.
 3. The stub only ever *returns* canned public-issue data. It holds no
    credentials, ignores the request's token and URL, and makes no network call,
    so even a misconfigured install could at worst show fixture issues on a lens
@@ -98,10 +98,11 @@ class StubResponse:
 
 
 def enabled() -> bool:
-    """True only when the CI switch is on AND DEBUG is on (see module docstring)."""
+    """True only with the CI switch on, DEBUG on and DEMO_MODE off (see module docstring)."""
     return (
         getattr(settings, "VISIBAN_GIT_LENS_STUB_PROVIDERS", False) is True
         and settings.DEBUG is True
+        and not getattr(settings, "DEMO_MODE", False)
     )
 
 

@@ -113,14 +113,22 @@ reachable without touching the network:
   request from a fixed in-process fixture (`backend/git_lens/fuzz_stub.py`) instead of calling
   out. Everything after the HTTP call (status mapping, normalization, pipeline linking, pivot,
   cache and fetch budget) still runs for real. `settings.py` refuses to start with the variable
-  set unless `DEBUG=True` and `DEMO_MODE` is off, and the stub re-checks `DEBUG` when it is
-  called, so it cannot be turned on in production.
+  set unless `DEBUG=True` and `DEMO_MODE` is off, and the stub re-checks `DEBUG` and `DEMO_MODE` when it
+  is called, so it cannot be turned on in production.
 
 The fuzz user is a plain board member, so connection `PUT`/`DELETE` answer their declared `403`,
 and `/admin/git-lens/usage/` is out of reach as for every admin route (#1080). The job runs on
-changes to `backend/git_lens/`, its baseline, the hook, `settings.py`, `schema_hooks.py`,
+changes to `backend/git_lens/`, any `urls.py` (the lens routes are mounted in
+`visiban/urls.py`), any `permissions.py` and `accounts/admin_views.py` (the lens views reuse
+their permission chains), its baseline, the hook, `settings.py`, `schema_hooks.py`,
 `accounts/serializers.py` (`created_by` nests `BoardUserSerializer`) and `seed_demo_data`. It
 never runs on a schedule; there is no deep variant.
+
+It cannot pass with nothing fuzzed. `st run` exits `0` when its include regex selects no
+operation, so a renamed route prefix or a flag that stopped mounting the app would otherwise
+leave the job green forever. Before the run, the job fails unless the served schema has at least
+one path matching `FUZZ_INCLUDE_PATH_REGEX`; after it, the job fails unless the junit report has
+at least one test case.
 
 **The fuzz user keeps its token for the whole run (#1607).** The seeded `demo2` account has
 no usable password (social-only). Both password-change routes

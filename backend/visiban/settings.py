@@ -1080,8 +1080,8 @@ if VISIBAN_DISABLE_THROTTLING:
 # rate limits. Same contract as VISIBAN_DISABLE_THROTTLING above: off by
 # default, and honored ONLY with DEBUG=True and outside DEMO_MODE. A production
 # or public-demo install that sets it refuses to start rather than silently
-# serving fixture issues on a real board. fuzz_stub.enabled() re-checks DEBUG at
-# the call site, so a settings override that skips this block still fails closed.
+# serving fixture issues on a real board. fuzz_stub.enabled() re-checks DEBUG and
+# DEMO_MODE at the call site, so a settings override that skips this block still fails closed.
 VISIBAN_GIT_LENS_STUB_PROVIDERS = env.bool("VISIBAN_GIT_LENS_STUB_PROVIDERS", default=False)
 if VISIBAN_GIT_LENS_STUB_PROVIDERS and (not DEBUG or DEMO_MODE):
     raise ImproperlyConfigured(

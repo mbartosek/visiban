@@ -93,11 +93,15 @@ class StubCallSiteGateTests(SimpleTestCase):
     def test_disabled_without_debug_even_if_the_setting_is_forced_on(self):
         self.assertFalse(fuzz_stub.enabled())
 
+    @override_settings(VISIBAN_GIT_LENS_STUB_PROVIDERS=True, DEBUG=True, DEMO_MODE=True)
+    def test_disabled_on_a_public_demo_even_if_the_setting_is_forced_on(self):
+        self.assertFalse(fuzz_stub.enabled())
+
     @override_settings(VISIBAN_GIT_LENS_STUB_PROVIDERS="true", DEBUG=True)
     def test_only_a_literal_true_enables_it(self):
         self.assertFalse(fuzz_stub.enabled())
 
-    @override_settings(VISIBAN_GIT_LENS_STUB_PROVIDERS=True, DEBUG=True)
+    @override_settings(VISIBAN_GIT_LENS_STUB_PROVIDERS=True, DEBUG=True, DEMO_MODE=False)
     def test_enabled_with_setting_and_debug(self):
         self.assertTrue(fuzz_stub.enabled())
 
