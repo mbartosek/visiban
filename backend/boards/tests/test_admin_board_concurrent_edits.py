@@ -22,6 +22,7 @@ from unittest.mock import patch
 from django import forms
 from django.db import connection, connections
 from django.test import Client, TestCase, TransactionTestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from accounts.models import User
@@ -302,6 +303,83 @@ class BoardMembershipAdminConcurrentEditTests(_Fixtures, TestCase):
             self.client.get(response["Location"]), BoardMembershipAdmin.stale_save_message
         )
         self.assertFalse(self.stored_membership().is_moderator)
+        self.assertEqual(self.events("member.updated"), before)
+        board_bc.assert_not_called()
+
+    # -- moving a membership to another board -----------------------------------
+
+    def other_board(self):
+        return Board.objects.create(
+            name="Other RV", owner=self.owner, allowed_priorities=["low"]
+        )
+
+    def test_move_locks_both_boards_in_pk_order_and_saves(self):
+        other = self.other_board()
+        data = page_data(self.render(self.client, self.membership_url()), board=str(other.pk))
+        with CaptureQueriesContext(connection) as ctx:
+            response, board_bc = self.post(data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.stored_membership().board_id, other.pk)
+        board_bc.assert_called_once()
+        self.assertEqual(board_bc.call_args[0][0], other.pk)
+
+        table = Board._meta.db_table
+        sqls = [q["sql"] for q in ctx.captured_queries]
+        # One statement over both boards (the stored one and the target),
+        # ordered by pk, so concurrent saves lock them in the same order.
+        both = [
+            i for i, sql in enumerate(sqls)
+            if f'FROM "{table}" WHERE "{table}"."id" IN (' in sql and "ORDER BY" in sql
+        ]
+        self.assertEqual(len(both), 1, sqls)
+        lock_sql = sqls[both[0]]
+        self.assertRegex(lock_sql, r"ORDER BY \S+ ASC")
+        for pk in (self.board.pk, other.pk):
+            self.assertRegex(lock_sql, rf"IN \([^)]*\b{pk}\b")
+        if connection.vendor == "postgresql":
+            self.assertIn("FOR NO KEY UPDATE", lock_sql)
+        # Taken before the membership row is written.
+        membership_table = BoardMembership._meta.db_table
+        update = next(
+            i for i, sql in enumerate(sqls) if sql.startswith(f'UPDATE "{membership_table}"')
+        )
+        self.assertLess(both[0], update)
+
+    def test_edit_without_move_takes_no_two_board_lock(self):
+        data = page_data(self.render(self.client, self.membership_url()), is_moderator=True)
+        table = Board._meta.db_table
+        with CaptureQueriesContext(connection) as ctx:
+            response, _ = self.post(data)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(any(
+            f'"{table}"."id" IN (' in q["sql"] for q in ctx.captured_queries
+        ))
+
+    def test_stale_move_is_refused_with_no_write_or_broadcast(self):
+        other = self.other_board()
+        data = page_data(self.render(self.client, self.membership_url()), board=str(other.pk))
+        BoardMembership.objects.filter(pk=self.membership.pk).update(
+            role=BoardMembership.Role.VIEWER
+        )
+        before = self.events("member.updated")
+        response, board_bc = self.post(data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, BoardMembershipAdminForm.stale_form_message)
+        self.assertEqual(self.stored_membership().board_id, self.board.pk)
+        self.assertEqual(self.events("member.updated"), before)
+        board_bc.assert_not_called()
+
+    def test_move_with_a_change_after_load_is_refused_under_the_lock(self):
+        other = self.other_board()
+        data = page_data(self.render(self.client, self.membership_url()), board=str(other.pk))
+        before = self.events("member.updated")
+        demote = lambda: BoardMembership.objects.filter(pk=self.membership.pk).update(  # noqa: E731
+            role=BoardMembership.Role.VIEWER
+        )
+        response, board_bc = self.post(data, change=demote)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], self.membership_url())
+        self.assertEqual(self.stored_membership().board_id, self.board.pk)
         self.assertEqual(self.events("member.updated"), before)
         board_bc.assert_not_called()
 
