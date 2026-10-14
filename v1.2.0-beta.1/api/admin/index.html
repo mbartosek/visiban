@@ -4794,7 +4794,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>is_active</code></td>
 <td>boolean</td>
-<td><code>false</code> deactivates the account (blocks login without deleting data). Cannot deactivate your own account.</td>
+<td><code>false</code> deactivates the account (blocks login without deleting data). Cannot deactivate your own account. Only a superuser can change <code>is_active</code> on a superuser account.</td>
 </tr>
 <tr>
 <td><code>is_site_admin</code></td>
@@ -4804,7 +4804,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>can_access_all_content</code></td>
 <td>boolean</td>
-<td>Grant or revoke omniscient read/write access to all boards and groups. Independent of <code>is_site_admin</code> for non-superusers — see <a href="../../administration/site-admins/">Site Admins</a>. Setting <code>false</code> on a superuser returns <code>400</code> with <code>can_access_all_content</code> and <code>detail</code> set to <code>Cannot remove all-content access from a superuser; remove superuser status first.</code> Superuser status implies this flag.</td>
+<td>Grant or revoke omniscient read/write access to all boards and groups. Only a superuser can change this on a superuser account. Independent of <code>is_site_admin</code> for non-superusers — see <a href="../../administration/site-admins/">Site Admins</a>. Setting <code>false</code> on a superuser returns <code>400</code> with <code>can_access_all_content</code> and <code>detail</code> set to <code>Cannot remove all-content access from a superuser; remove superuser status first.</code> Superuser status implies this flag.</td>
 </tr>
 <tr>
 <td><code>has_completed_tour</code></td>
@@ -4814,7 +4814,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>must_change_password</code></td>
 <td>boolean</td>
-<td><code>true</code> forces a password reset on next login</td>
+<td><code>true</code> forces a password reset on next login. Only a superuser can change this on a superuser account (<code>400</code> otherwise).</td>
 </tr>
 </tbody>
 </table>
@@ -4853,7 +4853,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <h3 id="post-apiv1adminusersiddeactivate"><code>POST /api/v1/admin/users/{id}/deactivate/</code><a class="headerlink" href="#post-apiv1adminusersiddeactivate" title="Permanent link">&para;</a></h3>
 <p>Deactivate a user account and transfer ownership of any boards they own to other members.</p>
 <p>Deactivation also revokes the user's unused site invite links and <em>(1.2+)</em> their pending <a href="../boards/#board-invites">board invites</a> (<code>revoked_by</code> is the caller; each board gets an <code>invite_link.revoked</code> event) and <em>(1.2+)</em> their active, unused <a href="../groups/">group invite links</a> (each affected group receives an <code>invite_link.revoked</code> event). Consumed single-use links are left as they are.</p>
-<p><strong>Permission:</strong> <code>IsSiteAdmin</code>. Cannot deactivate your own account.</p>
+<p><strong>Permission:</strong> <code>IsSiteAdmin</code>. Cannot deactivate your own account. Only a superuser can deactivate a superuser account (<code>400</code>).</p>
 <p>If the target user owns one or more boards, you must supply a <code>transfers</code> list mapping each owned board to an eligible recipient. The recipient must have access to the board — either as a direct board member or through group membership. Group-inherited access is accepted. If any owned board has no eligible transfer targets (i.e. the user is the sole member with no group-inherited members either), the request returns <code>400 Bad Request</code> with details.</p>
 <p><strong>Request body</strong></p>
 <table>
@@ -4937,7 +4937,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </table>
 <h3 id="post-apiv1adminusersidclear-lockout"><code>POST /api/v1/admin/users/{id}/clear-lockout/</code><a class="headerlink" href="#post-apiv1adminusersidclear-lockout" title="Permanent link">&para;</a></h3>
 <p>Clear the target user's per-account login lockout early (#1203). The per-account <code>login_failed</code> lockout (5 failed attempts / 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.</p>
-<p><strong>Permission:</strong> <code>IsSiteAdmin</code>.</p>
+<p><strong>Permission:</strong> <code>IsSiteAdmin</code>. Only a superuser can clear the lockout of a superuser account (<code>400</code> otherwise).</p>
 <p>Idempotent — calling it on an account that isn't currently locked out succeeds and changes nothing. Visiban accepts login by username or email, and since 1.2 (#1206) both count against one lockout keyed on the account; this clears that lockout, plus the username- and email-string buckets (used for identifiers that don't resolve to exactly one account, and by lockouts recorded before the upgrade).</p>
 <p><strong>Request body:</strong> none.</p>
 <p><strong>Response</strong> <code>200 OK</code> — the user object (same shape as <code>GET /api/v1/admin/users/</code>).</p>

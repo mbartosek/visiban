@@ -4288,7 +4288,7 @@ not just a mouse target.</p>
 <p>Copy the temporary password before closing the dialog — it is not shown again. The user needs it to log in and trigger the password-reset prompt. If you lose it, deactivate the account and create a new one.</p>
 </div>
 <h4 id="deactivate-reactivate">Deactivate / Reactivate<a class="headerlink" href="#deactivate-reactivate" title="Permanent link">&para;</a></h4>
-<p>Deactivated accounts cannot log in. No data is deleted. Can be reversed at any time by clicking <strong>Reactivate</strong>.</p>
+<p>Deactivated accounts cannot log in. No data is deleted. Can be reversed at any time by clicking <strong>Reactivate</strong>. On a superuser account, <strong>Deactivate</strong> and <strong>Reactivate</strong> are available to superusers only.</p>
 <p>You cannot deactivate your own account from this panel.</p>
 <p><strong>If the user owns any boards</strong>, deactivation opens a <strong>Transfer boards &amp; deactivate</strong>
 dialog first — you cannot deactivate a board owner without reassigning ownership.
@@ -4307,6 +4307,7 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <p>Controls the <code>can_access_all_content</code> flag independently of admin status (for accounts that are not superusers). When enabled, the user can read and write every board and group on the instance regardless of membership.</p>
 <ul>
 <li><strong>Grant all-content</strong> gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.</li>
+<li><strong>Grant all-content</strong> and <strong>Revoke all-content</strong> on a superuser account are available to superusers only.</li>
 <li><strong>Revoke all-content</strong> removes that access. The user will only see boards and groups they are explicitly a member of. It is refused for a superuser account, because superuser status implies all-content access; remove superuser status first.</li>
 </ul>
 <p>These two flags — <code>is_site_admin</code> (admin panel access) and <code>can_access_all_content</code> (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See <a href="../site-admins/">Site Admins</a> for a detailed explanation of the two-flag model and examples of common configurations.</p>
@@ -4315,7 +4316,7 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <p>The <code>set_site_admin</code> management command sets <strong>both</strong> flags together for convenience. To manage them independently for accounts that are not superusers, use the admin panel toggles described here, or edit the user directly in the <a href="../django-admin/">Django admin</a> at <code>/admin/accounts/user/</code>.</p>
 </div>
 <h4 id="force-password-reset">Force password reset<a class="headerlink" href="#force-password-reset" title="Permanent link">&para;</a></h4>
-<p>Sets <code>must_change_password = true</code> on the user. The next time they log in, they are presented with a password-change dialog before accessing the application. Useful after a suspected credential compromise.</p>
+<p>Sets <code>must_change_password = true</code> on the user. The next time they log in, they are presented with a password-change dialog before accessing the application. Useful after a suspected credential compromise. On a superuser account it is available to superusers only.</p>
 <h4 id="restart-onboarding-tour">Restart onboarding tour<a class="headerlink" href="#restart-onboarding-tour" title="Permanent link">&para;</a></h4>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
@@ -4325,7 +4326,7 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
-<p>Clears the per-account login lockout (5 failed login attempts within 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) immediately, letting the user log in again without waiting out the rest of the 5-minute window.</p>
+<p>Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login attempts within 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) immediately, letting the user log in again without waiting out the rest of the 5-minute window.</p>
 <p>A successful password reset already clears this automatically, so <strong>Clear lockout</strong> is for the case where that isn't an option — for example the user contacts support directly instead of using the reset-password flow, or reset emails aren't reaching them. It is safe to click at any time: if the account isn't currently locked out, nothing happens.</p>
 <h2 id="invite-links-tab">Invite Links tab<a class="headerlink" href="#invite-links-tab" title="Permanent link">&para;</a></h2>
 <blockquote>
