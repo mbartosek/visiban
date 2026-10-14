@@ -4509,6 +4509,11 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   admin endpoints if the owner is a site administrator. Their <code>scopes</code> column is <code>NULL</code>
   ("legacy" authority), not an empty scope list, and upgrading does not narrow or break
   a running integration.</li>
+<li><strong>A token can no longer change a profile's email address.</strong> <code>PATCH /api/v1/auth/me/</code>
+  and <code>PATCH</code>/<code>PUT /api/v1/auth/user/</code> refuse an <code>email</code> change with <code>403 Forbidden</code> when
+  the request is authenticated with a personal access token or the login API token; an
+  interactive (signed-in) session is required. Other profile fields are unaffected, and a
+  request that omits <code>email</code> or sends the current value unchanged still succeeds.</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
   scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
   upgrade — create a new token with <code>mcp:read</code> to reconnect it.</li>

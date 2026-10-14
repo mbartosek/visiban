@@ -4116,6 +4116,7 @@
 <hr />
 <h2 id="security-notes">Security notes<a class="headerlink" href="#security-notes" title="Permanent link">&para;</a></h2>
 <ul>
+<li><strong>Email changes need a signed-in session</strong> — the account email is changed from Settings in the browser. Through the API (<code>PATCH /api/v1/auth/me/</code> or <code>/api/v1/auth/user/</code>), a token request that changes it answers <code>403 Forbidden</code>. Tokens can still update the other profile fields, and a request that sends your current email back unchanged is accepted.</li>
 <li><strong>Password change revokes all tokens</strong> — every PAT on your account is revoked automatically when you change your password. Create new tokens and update any scripts or integrations that used the old ones.</li>
 <li><strong>Maximum 10 tokens per user</strong> — revoke tokens you no longer use before creating new ones. The <strong>New token</strong> button is disabled at the limit.</li>
 <li><strong>Treat tokens like passwords</strong> — store them in a secrets manager or CI secrets vault, never in plain text in source code or config files committed to a repository.</li>
