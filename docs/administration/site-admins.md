@@ -44,7 +44,7 @@ python manage.py set_site_admin <username> --revoke
 To manage the flags independently for accounts that are not superusers, use **Site Admin → Users** in the admin panel.
 
 !!! note
-    Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave `can_access_all_content` off on a superuser sets both flags again. Remove superuser status first (which also clears both flags).
+    Superuser status implies both flags. The admin API refuses to clear either flag on an account that is still a superuser, and a save that would leave `can_access_all_content` off on a superuser sets both flags again. Remove superuser status first (which also clears both flags). **Site Admin → Users** therefore does not show **Demote admin** or **Revoke all-content** on a superuser's row.
     Existing superusers that have `can_access_all_content` switched off regain it the next time their account is saved, for example at sign-in.
 
 ## First site admin
@@ -74,7 +74,7 @@ Go to `/admin/accounts/user/` (the Django admin — see [Django Admin](django-ad
 
 **Admin panel (recommended)**
 
-Go to **Site Admin → Users** (`/admin`), find the user, and click **Remove admin** in their row.
+Go to **Site Admin → Users** (`/admin`), find the user, and click **Demote admin** in their row.
 
 **Management command**
 
@@ -83,7 +83,7 @@ python manage.py set_site_admin <username> --revoke
 ```
 
 !!! note
-    An account that is still a superuser cannot have site admin removed; remove its superuser status first. The command and **Remove admin** both refuse it.
+    An account that is still a superuser cannot have site admin removed; remove its superuser status first. The command refuses it, and **Demote admin** is not offered for superuser accounts.
 
 !!! note
     A site admin cannot demote themselves — this prevents accidentally locking yourself out of the instance. To revoke your own status, ask another site admin to do it. The last active site admin on the instance cannot be demoted through the admin API or the site-admin panel.
@@ -109,7 +109,7 @@ The change takes effect immediately — no restart required.
 
 **Inviting users when invite-only is on:**
 
-Go to **Site Admin → Invite Links** to generate a new invite link. Send the link to the prospective user — they can follow it to complete self-registration. Each link can be configured with an expiry and optional use limit. Up to 50 shareable links can be active at once. *(1.2+)* A site invite link creates accounts only while the admin who created it is still an active site admin. Deactivating or deleting that admin (by any means, including the Django admin's **Active** checkbox), or removing their site admin status (**Remove admin** in the admin panel, `set_site_admin --revoke`, or removing their superuser status in the Django admin), stops their links from working, and **Site Admin → Invite Links** then lists those links as **Revoked** and no longer counts them toward the 50-link limit. **Remove admin**, `set_site_admin --revoke`, removing superuser status and deactivation from the admin panel also mark the pending links revoked. A link shown as **Revoked** only because its creator lost standing is not permanently revoked: if the creator's standing is restored, it becomes usable again. To retire such a link for good, revoke it explicitly while its creator is in good standing (the **Revoke** action is shown only for pending links), or at any time through `DELETE /api/v1/admin/invite-links/{id}/` (see the [Admin API](../api/admin.md)).
+Go to **Site Admin → Invite Links** to generate a new invite link. Send the link to the prospective user — they can follow it to complete self-registration. Each link can be configured with an expiry and optional use limit. Up to 50 shareable links can be active at once. *(1.2+)* A site invite link creates accounts only while the admin who created it is still an active site admin. Deactivating or deleting that admin (by any means, including the Django admin's **Active** checkbox), or removing their site admin status (**Demote admin** in the admin panel, `set_site_admin --revoke`, or removing their superuser status in the Django admin), stops their links from working, and **Site Admin → Invite Links** then lists those links as **Revoked** and no longer counts them toward the 50-link limit. **Demote admin**, `set_site_admin --revoke`, removing superuser status and deactivation from the admin panel also mark the pending links revoked. A link shown as **Revoked** only because its creator lost standing is not permanently revoked: if the creator's standing is restored, it becomes usable again. To retire such a link for good, revoke it explicitly while its creator is in good standing (the **Revoke** action is shown only for pending links), or at any time through `DELETE /api/v1/admin/invite-links/{id}/` (see the [Admin API](../api/admin.md)).
 
 **Who can admit new accounts on an invite-only instance:** only site admins. Besides site invite links, *(New in 1.2)* an invite a **site admin** emails from a group's invite panel lets its recipient create an account (password or OAuth) and joins them to that group with the invite's role. It is single-use and expires in 7 days by default. It stops creating accounts if its sender is deactivated, is no longer a site admin, or is no longer an admin of the group, and when email invites are turned off (`INVITE_EMAIL_ENABLED=false`, see [Configuration](configuration.md)) — including invites already sent. Emailed invites from group admins who are not site admins, and every shareable group link, only work for people who already have an account; the group panel tells those senders so. See [Groups](../features/groups.md#new-users-on-invite-only-instances).
 

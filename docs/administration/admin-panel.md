@@ -77,7 +77,7 @@ Lists all accounts on the instance, paginated 50 per page. Use the search bar to
 
 > **Changed in 1.2** — the less-frequent actions moved into a per-row overflow menu.
 
-Each row shows **Deactivate**/**Reactivate** and **Make admin**/**Remove admin** as inline
+Each row shows **Deactivate**/**Reactivate** and **Make admin**/**Demote admin** as inline
 text buttons — these are the actions admins reach for most often. The remaining, lower-frequency
 actions (**Grant all-content**/**Revoke all-content**, **Force password reset**, **Clear
 lockout**, and **Restart onboarding tour**, when each applies to that user) live behind the
@@ -114,9 +114,9 @@ transfers happen together, atomically. Deactivating the account also revokes any
 the departing user created — site invite links and, *(1.2+)*, the pending board invites they
 emailed (each board's admins see those invites move to **Revoked**) and their active, unused group invite links (each affected group's admins see them move to **Revoked**). Consumed single-use links are left as they are.
 
-#### Make admin / Remove admin
+#### Make admin / Demote admin
 
-Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. **Remove admin** is refused for an account that is still a superuser; remove superuser status first. *(1.2+)* **Remove admin** also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.
+Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. **Demote admin** is not shown for an account that is still a superuser (the API refuses it); remove superuser status in the Django admin first. *(1.2+)* **Demote admin** also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.
 
 The last active site admin on the instance cannot be demoted.
 
@@ -128,7 +128,7 @@ Controls the `can_access_all_content` flag independently of admin status (for ac
 
 - **Grant all-content** gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.
 - **Grant all-content** and **Revoke all-content** on a superuser account are available to superusers only.
-- **Revoke all-content** removes that access. The user will only see boards and groups they are explicitly a member of. It is refused for a superuser account, because superuser status implies all-content access; remove superuser status first.
+- **Revoke all-content** removes that access. The user will only see boards and groups they are explicitly a member of. It is not shown for a superuser account, because superuser status implies all-content access (the API refuses it); remove superuser status in the Django admin first.
 
 These two flags — `is_site_admin` (admin panel access) and `can_access_all_content` (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See [Site Admins](site-admins.md) for a detailed explanation of the two-flag model and examples of common configurations.
 

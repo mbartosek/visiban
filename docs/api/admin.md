@@ -334,6 +334,7 @@ Paginated list of all accounts on the instance. Site admin only.
       "is_active": true,
       "is_site_admin": false,
       "can_access_all_content": false,
+      "is_superuser": false,
       "has_completed_tour": true,
       "must_change_password": false,
       "date_joined": "2026-01-15T09:00:00Z",
@@ -353,6 +354,7 @@ Paginated list of all accounts on the instance. Site admin only.
 | `is_active` | boolean | `false` means the account is deactivated (login blocked) |
 | `is_site_admin` | boolean | Whether this user has access to the admin panel |
 | `can_access_all_content` | boolean | Whether this user has super-admin access to all boards and groups, independent of membership |
+| `is_superuser` | boolean | *(1.2+)* Read-only. Whether this user is a Django superuser. Superuser status implies `is_site_admin` and `can_access_all_content`, and neither can be cleared through `PATCH` while it is set, so the admin panel does not offer **Demote admin** or **Revoke all-content** on these rows. It can be changed only in the [Django admin](../administration/django-admin.md); a `PATCH` that sends it is ignored. |
 | `has_completed_tour` | boolean | Whether the onboarding tour has been dismissed |
 | `must_change_password` | boolean | `true` means the user will be forced to set a new password on next login |
 | `date_joined` | ISO 8601 | Account creation timestamp |
@@ -451,6 +453,7 @@ If the target user owns one or more boards, you must supply a `transfers` list m
   "is_active": false,
   "is_site_admin": false,
   "can_access_all_content": false,
+  "is_superuser": false,
   "has_completed_tour": true,
   "must_change_password": false,
   "date_joined": "2025-11-02T08:00:00Z",
