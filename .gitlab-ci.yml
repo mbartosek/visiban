@@ -2007,7 +2007,9 @@ helm-install:
     # DRILL_VALKEY_AUTH=1 adds step 9, the authenticated-Valkey install
     # (#1211). Inline, not a job-level `variables:` block, which would replace
     # the shared anchor's variables (see the warning above).
-    - DRILL_VALKEY_AUTH=1 bash scripts/helm-install-drill.sh
+    # DRILL_EXTERNAL_REDIS=1 adds step 10, valkey.enabled=false against a
+    # password-protected external Valkey with externalRedis.existingSecret (#1426).
+    - DRILL_VALKEY_AUTH=1 DRILL_EXTERNAL_REDIS=1 bash scripts/helm-install-drill.sh
 
 helm-netpol:
   # NetworkPolicy ENFORCEMENT drill. A SEPARATE cluster from helm-install, with
