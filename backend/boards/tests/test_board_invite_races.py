@@ -2,8 +2,9 @@
 
 ``boards.invites.redeem`` stamps ``used_at`` without a conditional update, so
 "one invite, one membership" rests on the row lock both callers take first:
-``JoinBoardView.post`` and ``validate_board_registration_token``. These tests
-race two requests on one token and require exactly one to win.
+``JoinBoardView.post`` and ``validate_board_registration_token``, each after
+the board row lock (#1631). These tests race two requests on one token and
+require exactly one to win.
 
 TransactionTestCase, because TestCase's wrapping transaction is invisible to
 the threads. PostgreSQL only: SQLite has no SELECT FOR UPDATE.
@@ -113,3 +114,36 @@ class BoardRegistrationRaceTests(_RaceFixture):
         self.assertEqual(BoardMembership.objects.filter(board=self.board).exclude(user=self.sender).count(), 1)
         self.link.refresh_from_db()
         self.assertIsNotNone(self.link.used_at)
+
+    def test_only_one_of_join_and_registration_succeeds(self):
+        """One single-use invite redeemed through both entry points at once.
+
+        The join view and invite-only registration take the same locks in the
+        same order (board row, then the invite row — #1631), so they
+        serialize on the invite and exactly one of them consumes it.
+        """
+        joiner = User.objects.create_user(username="race_joiner", password="p")
+
+        def join():
+            client = APIClient()
+            client.force_authenticate(joiner)
+            return ("join", client.post(f"/api/v1/boards/join/{self.raw}/").status_code)
+
+        def register():
+            return ("register", APIClient().post("/api/v1/auth/registration/", {
+                "email": "race_both@example.com", "password1": PASSWORD, "password2": PASSWORD,
+                "invite_token": self.raw,
+            }).status_code)
+
+        results = dict(_race(lambda fn: fn(), [(join,), (register,)]))
+        wins = [kind for kind, code in results.items() if code in (201, 204)]
+        self.assertEqual(len(wins), 1, results)
+        if wins == ["join"]:
+            self.assertEqual(results["register"], 400, results)
+        else:
+            self.assertEqual(results["join"], 410, results)
+        self.assertEqual(BoardMembership.objects.filter(board=self.board).exclude(user=self.sender).count(), 1)
+        self.assertEqual(BoardInviteRedemption.objects.filter(invite=self.link).count(), 1)
+        self.link.refresh_from_db()
+        self.assertIsNotNone(self.link.used_at)
+        self.assertEqual(self.link.use_count, 1)
