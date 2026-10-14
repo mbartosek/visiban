@@ -97,6 +97,19 @@ make_fixture "$TMPCLONE"
   # check, so this test passed or failed depending on whether anyone had
   # merged a fragment since the last release. Seed one so [Unreleased]
   # assembles non-empty regardless. No dots in the slug (assembly rejects them).
+  #
+  # Start from the exact post-release state first (no fragments, empty
+  # [Unreleased]) so CI exercises the zero-fragment case on every run; without
+  # this, the seed below could be removed and the test would still pass
+  # whenever the real repo happens to carry fragments.
+  for f in changelog.d/*.md; do
+    [ -e "$f" ] || continue
+    [ "$(basename "$f")" = "README.md" ] && continue
+    git rm -q "$f"
+  done
+  awk '/^## \[Unreleased\]/{print; print ""; print "---"; print ""; skip=1; next}
+       skip && /^## \[/{skip=0}
+       !skip{print}' CHANGELOG.md > CHANGELOG.md.new && mv CHANGELOG.md.new CHANGELOG.md
   mkdir -p changelog.d
   echo "Release self-test fixture entry." > changelog.d/release-test-fixture.fixed.md
   git add changelog.d/release-test-fixture.fixed.md
