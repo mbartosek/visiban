@@ -1866,6 +1866,7 @@ helm-template:
     # Self-test FIRST (#1093). This gate's failure mode is a GREEN pipeline over
     # a chart that no longer holds the contract, so "it passed" is not evidence
     # that it can still fail. The fixtures replay the #1038 shapes.
+    - bash scripts/helm-structure-check.sh --lint-tmp
     - bash scripts/helm-structure-check.sh --self-test helm/visiban
     - bash scripts/helm-structure-check.sh helm/visiban
 
