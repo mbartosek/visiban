@@ -71,3 +71,39 @@ class BenchmarkCommandAllowedHostsTests(TestCase):
 
         call_command("benchmark", stdout=StringIO(), stderr=StringIO())
         self.assertEqual(list(settings.ALLOWED_HOSTS), ["localhost"])
+
+
+class BenchmarkCommandCiGateTests(TestCase):
+    """The ``backend-benchmark`` CI job relies on these exit behaviors (#1341)."""
+
+    @override_settings(DEBUG=False)
+    def test_debug_off_hard_fails_instead_of_silent_pass(self):
+        with self.assertRaises(CommandError):
+            call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())
+
+    @override_settings(DEBUG=True, ALLOWED_HOSTS=["localhost"])
+    def test_budget_overrun_exits_nonzero_with_fail_on_budget(self):
+        from boards.management.commands import benchmark as bm
+
+        real = bm.Command._bench_cards
+
+        def over(self_, factory, user, board):
+            name, _count, budget = real(self_, factory, user, board)
+            return name, budget + 1, budget
+
+        with mock.patch.object(bm.Command, "_bench_cards", over):
+            with self.assertRaises(SystemExit) as ctx:
+                call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())
+        self.assertEqual(ctx.exception.code, 1)
+
+    @override_settings(DEBUG=True, ALLOWED_HOSTS=["localhost"])
+    def test_within_budget_passes_with_fail_on_budget(self):
+        call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())
+
+    @override_settings(DEBUG=True, ALLOWED_HOSTS=["localhost"])
+    def test_non_2xx_hard_fails_with_fail_on_budget(self):
+        """The exact CI invocation must still raise, not exit 0, on a 4xx."""
+        fake = mock.Mock(status_code=403, content=b"forbidden")
+        with mock.patch("rest_framework.test.APIClient.get", return_value=fake):
+            with self.assertRaises(CommandError):
+                call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())

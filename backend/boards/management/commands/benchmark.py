@@ -4,20 +4,24 @@ Run with:
     python manage.py benchmark
 
 What it measures:
-    - GET /api/boards/{id}/cards/           (CardViewSet list)
+    - GET /api/boards/{id}/cards/           (CardSerializer over ``_card_queryset``;
+                                             a subset of the CardViewSet list, no viewset)
     - GET /api/boards/{id}/full/            (BoardFullSerializer)
     - GET /api/boards/{id}/summary/         (per-swimlane aggregation)
 
 For each endpoint the command reports the number of SQL queries issued and
-a ≤-budget verdict.  It creates a throw-away board, runs each endpoint
-through the Django test client, then deletes the board.
+a ≤-budget verdict.  It creates a throw-away board, drives full/ and summary/
+through DRF's ``APIClient`` (cards/ serializes the queryset directly), then
+deletes the board.
 
 Budgets are set conservatively — a regression that adds an N+1 will immediately
-exceed the budget and the command exits non-zero (with ``--fail-on-budget``).
+exceed the budget and the command exits non-zero (with ``--fail-on-budget``). CI runs it
+that way in the ``backend-benchmark`` job (#1341).
 
 A non-2xx response from any endpoint is always a hard failure (``CommandError``,
 exit code 1) regardless of ``--fail-on-budget`` — a rejected request makes the
 query count meaningless, so it must never be reported as "✅ OK" (#1330).
+Running with DEBUG off is likewise a hard failure (#1341).
 """
 import secrets
 
@@ -62,13 +66,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not settings.DEBUG:
-            self.stderr.write(
-                self.style.ERROR(
-                    "DEBUG must be True to count queries.  "
-                    "Set DEBUG=True in your .env or override via environment."
-                )
+            # Hard-fail, never ``return``: a silent exit 0 here would let a CI
+            # job with DEBUG unset report green without measuring anything
+            # (#1341) -- the same false-pass class as #1330.
+            raise CommandError(
+                "DEBUG must be True to count queries.  "
+                "Set DEBUG=True in your .env or override via environment."
             )
-            return
 
         self.stdout.write("\n" + "═" * 60)
         self.stdout.write("  Visiban Query-Count Benchmark")
@@ -106,6 +110,13 @@ class Command(BaseCommand):
 
     def _bench_cards(self, factory, user, board):
         name = "GET /api/boards/{id}/cards/"
+        # NOTE: this serializes ``_card_queryset`` directly and never goes
+        # through the viewset, so it measures LESS than
+        # test_query_counts.py (CardListQueryCountTests.BUDGET = 14, which
+        # drives the real endpoint on Postgres). Its budget of 12 is
+        # intentionally different. It is a coarse smoke check, not a
+        # duplicate guard.
+        # Measured on Postgres 2026-10-14 (#1341): 9 queries.
         budget = 12
 
         request = factory.get("/")
@@ -123,7 +134,7 @@ class Command(BaseCommand):
 
     def _bench_full(self, factory, user, board):
         name = "GET /api/boards/{id}/full/"
-        budget = 20  # ~12 measured; matches BoardFullQueryCountTests.BUDGET in test_query_counts.py
+        budget = 20  # 17 measured on Postgres (#1341); deliberately 1 looser than BoardFullQueryCountTests.BUDGET (19) in test_query_counts.py
 
         # Drive the endpoint through APIClient instead of constructing a raw
         # WSGIRequest and calling the serializer directly (#996).  The
@@ -153,10 +164,10 @@ class Command(BaseCommand):
 
     def _bench_summary(self, factory, user, board):
         name = "GET /api/boards/{id}/summary/"
-        # Budget matches SummaryQueryCountTests.BUDGET in test_query_counts.py.
+        # Budget equals SummaryQueryCountTests.BUDGET (10) in test_query_counts.py.
         # The real endpoint runs ~6 queries (board load, columns, swimlanes,
         # card counts, velocity, cycle-time × 2); 10 gives auth-middleware headroom.
-        budget = 10
+        budget = 10  # 4 measured on Postgres (#1341)
 
         from rest_framework.test import APIClient
         client = APIClient()
