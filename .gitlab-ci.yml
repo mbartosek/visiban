@@ -4008,6 +4008,31 @@ image-attest-selftest:
   script:
     - bash scripts/attest-image-sbom.sh --self-test
 
+# MR-time run of the nightly check's self-test (#1610). The self-test pins that
+# this file still defines the jobs in ATTEST_SIGNING_JOBS; the nightly
+# check-release-attestations job only runs it on the schedule, so a rename or
+# removal of backfill/signing jobs went unnoticed until the next night, and
+# until the first signed release the nightly itself is a no-op. It needs no
+# registry, cosign or network: crane/cosign are stubbed inside the script.
+# Besides the script it reads .gitlab-ci.yml and the verification doc (the two
+# identity regexps).
+check-release-attestations-selftest:
+  stage: lint
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/alpine:3.19
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &check-release-attestations-selftest-paths
+        - scripts/check-release-attestations.sh
+        - docs/administration/image-verification.md
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *check-release-attestations-selftest-paths
+  before_script:
+    - apk add --no-cache bash git jq
+  script:
+    - bash scripts/check-release-attestations.sh --self-test
+
 # MANUAL backfill for releases published before #1153 (or whose attest job
 # failed): signs + attests an already-published tag's images, both images, both
 # registries, without re-cutting the release. Set BACKFILL_TAG (e.g.
