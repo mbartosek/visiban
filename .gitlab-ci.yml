@@ -4645,6 +4645,56 @@ seed-demo-data:
       when: manual
       allow_failure: true
 
+# ─── Query-count benchmark gate ────────────────────────────────────────────────
+#
+# Runs `manage.py benchmark --fail-on-budget` (#1341). The command seeds its own
+# throw-away board, so no seed_demo_data step is needed. It fails the job on a
+# non-2xx response (CommandError, #1330), on DEBUG being off (CommandError), or
+# on any endpoint exceeding its query budget (exit 1).
+#
+# Why automatic on MRs rather than manual or scheduled: a query COUNT is
+# deterministic and the run takes seconds, unlike the latency-based
+# nightly-load-test. A manual or scheduled job is exactly how this check went
+# unrun before. Latency/index regressions stay with nightly-load-test.
+# Never on a schedule: the nightly pipelines already run the heavier jobs.
+backend-benchmark:
+  extends: .pip-cache
+  stage: test
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/python:3.12-slim
+  allow_failure: false
+  services:
+    - name: ${DOCKERHUB_MIRROR}/postgres:17-alpine
+      alias: postgres
+    - name: ${DOCKERHUB_MIRROR}/valkey/valkey:8-alpine
+      alias: valkey
+  variables:
+    POSTGRES_DB: "${CI_POSTGRES_DB}"
+    POSTGRES_USER: "${CI_POSTGRES_USER}"
+    POSTGRES_PASSWORD: "${CI_POSTGRES_PASSWORD}"
+    DATABASE_URL: "postgres://${CI_POSTGRES_USER}:${CI_POSTGRES_PASSWORD}@postgres:5432/${CI_POSTGRES_DB}"
+    REDIS_URL: "redis://valkey:6379/0"
+    REDIS_CACHE_URL: "redis://valkey:6379/1"
+    DJANGO_SECRET_KEY: "${CI_DJANGO_SECRET_KEY}"
+    # DEBUG is required to count queries; the command hard-fails without it.
+    DEBUG: "True"
+    # Deliberately restrictive: proves the command's own "testserver" host
+    # scoping works (#1330) rather than relying on a permissive setting.
+    ALLOWED_HOSTS: "localhost"
+  before_script:
+    - pip install --quiet -r backend/requirements.txt
+  script:
+    - cd backend
+    - python manage.py migrate --noinput
+    - python manage.py benchmark --fail-on-budget
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 # ─── Nightly load test ─────────────────────────────────────────────────────────
 #
 # Measures p50/p95/p99 latency for the endpoints most sensitive to data volume

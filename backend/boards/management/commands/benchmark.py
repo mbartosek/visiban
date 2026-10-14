@@ -13,11 +13,13 @@ a ≤-budget verdict.  It creates a throw-away board, runs each endpoint
 through the Django test client, then deletes the board.
 
 Budgets are set conservatively — a regression that adds an N+1 will immediately
-exceed the budget and the command exits non-zero (with ``--fail-on-budget``).
+exceed the budget and the command exits non-zero (with ``--fail-on-budget``). CI runs it
+that way in the ``backend-benchmark`` job (#1341).
 
 A non-2xx response from any endpoint is always a hard failure (``CommandError``,
 exit code 1) regardless of ``--fail-on-budget`` — a rejected request makes the
 query count meaningless, so it must never be reported as "✅ OK" (#1330).
+Running with DEBUG off is likewise a hard failure (#1341).
 """
 import secrets
 
@@ -62,13 +64,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not settings.DEBUG:
-            self.stderr.write(
-                self.style.ERROR(
-                    "DEBUG must be True to count queries.  "
-                    "Set DEBUG=True in your .env or override via environment."
-                )
+            # Hard-fail, never ``return``: a silent exit 0 here would let a CI
+            # job with DEBUG unset report green without measuring anything
+            # (#1341) -- the same false-pass class as #1330.
+            raise CommandError(
+                "DEBUG must be True to count queries.  "
+                "Set DEBUG=True in your .env or override via environment."
             )
-            return
 
         self.stdout.write("\n" + "═" * 60)
         self.stdout.write("  Visiban Query-Count Benchmark")
