@@ -8,6 +8,7 @@ lookups, including its graceful-degradation-to-None behavior) and
 when both a mapping and a real value exist).
 """
 import importlib
+from unittest import mock
 from types import SimpleNamespace
 
 from django.test import TestCase
@@ -279,6 +280,20 @@ class PublicTokenAndOwnershipFixtureTests(TestCase):
 
         self.assertIsNone(ids["group_join_token"])
         self.assertIsNotNone(ids["board_join_token"])
+
+    def test_lens_seed_is_a_noop_when_git_lens_is_not_installed(self):
+        """#1338: the main fuzz job runs flag-off; seeding must not touch git_lens.
+
+        The flag-on half (one GitLab connection, null creator, idempotent) is in
+        git_lens/tests/test_fuzz_stub.py, which only runs where the app exists.
+        """
+        from django.apps import apps
+
+        owner = _make_user()
+        board = _make_board(owner, name="Visiban Demo Board")
+        with mock.patch.object(apps, "is_installed", return_value=False) as is_installed:
+            _hooks()._seed_lens_connection(board)
+        is_installed.assert_called_once_with("git_lens")
 
     def test_card_and_children_prefer_rows_owned_by_the_fuzz_user(self):
         from boards.models import CardRelation

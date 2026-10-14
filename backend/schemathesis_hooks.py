@@ -239,6 +239,7 @@ def _query_real_ids():
             ids["media_path"] = attachment.file.name or None
 
     _mint_public_tokens(board, ids)
+    _seed_lens_connection(board)
 
     # The fuzz job's own PAT (provisioned by provision_fuzz_token for the same
     # user this run authenticates as) — gives GET/DELETE
@@ -330,6 +331,43 @@ def _mint_public_tokens(board, ids):
         Board.objects.filter(pk=board.pk, share_token__isnull=True).update(share_token=uuid.uuid4())
         board.refresh_from_db(fields=["share_token"])
     ids["share_token"] = str(board.share_token) if board.share_token else None
+
+
+def _seed_lens_connection(board):
+    """Give the demo board a GitLab lens connection when git_lens is installed (#1338).
+
+    Only the ``backend-schema-fuzz-git-lens`` job runs with GIT_LENS_ENABLED; in
+    every other job the app is not installed and this is a no-op. Without a
+    connection both ``/git-lens/connections/{board_id}/`` GET and
+    ``/git-lens/board/{board_id}/`` 404 on every case, so the fuzzer never reaches
+    the serializer or the rendered board.
+
+    Seeded here, not in ``seed_demo_data``, because that command also seeds real
+    demo installs: a lens on the demo board there would point visitors at a
+    fixture repository. The job answers the provider fetch from
+    ``git_lens.fuzz_stub`` (VISIBAN_GIT_LENS_STUB_PROVIDERS), so the slug is never
+    contacted. GitLab, not GitHub: GitHub needs the viewer's own OAuth token, and
+    without one the board view answers 409 before any fetch. ``created_by`` is
+    left null on purpose, so the nullable nested field (#1331) is exercised on
+    every GET. The fuzz user is a plain board member, so PUT/DELETE on the
+    connection answer 403 and cannot remove this row mid-run.
+    """
+    from django.apps import apps
+
+    if not apps.is_installed("git_lens"):
+        return
+    from git_lens.models import LensConnection
+
+    LensConnection.objects.update_or_create(
+        board=board,
+        defaults={
+            "provider": LensConnection.Provider.GITLAB,
+            "repo_slug": "visiban/fuzz-fixture",
+            "column_dim": "pipeline",
+            "swimlane_dim": "milestone",
+            "created_by": None,
+        },
+    )
 
 
 _DISPOSABLE_TITLE = "schemathesis fuzz disposable"
@@ -580,6 +618,11 @@ _PATH_PARAM_OVERRIDES = {
     "/media/{path}": {"path": "media_path"},
     # A real slug from the sample-board manifest (#1570).
     "/api/v1/boards/samples/{sample_id}/": {"sample_id": "sample_id"},
+    # git_lens (#1338) — mounted only with GIT_LENS_ENABLED, i.e. only in the
+    # backend-schema-fuzz-git-lens job. The connection is seeded by
+    # _seed_lens_connection() above.
+    "/api/v1/git-lens/connections/{board_id}/": {"board_id": "board_pk"},
+    "/api/v1/git-lens/board/{board_id}/": {"board_id": "board_pk"},
 }
 
 

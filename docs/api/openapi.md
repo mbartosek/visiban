@@ -97,13 +97,51 @@ the fuzz itself ran and failed, the job files one tracking issue titled
 open. That needs a `FUZZ_DEEP_API_TOKEN` (or `KAIZEN_API_TOKEN`) CI variable with `api`
 scope. Without one, the job log shows what would have been filed.
 
+**Issue Board Lens routes (`backend-schema-fuzz-git-lens`, #1338).** The `git_lens` app and
+its routes exist only with `GIT_LENS_ENABLED=true`, and `backend-schema-fuzz` runs with the flag
+off, so the lens endpoints were never fuzzed. A third job, `backend-schema-fuzz-git-lens`,
+`extends:` the MR job (same boot, seed, token, checks, seed replay and triage) with the flag on,
+and narrows the run to the lens routes (`FUZZ_INCLUDE_PATH_REGEX=git-lens`) with its own
+baseline file, `backend/schemathesis-baseline-git-lens.json`. Two things make the routes
+reachable without touching the network:
+
+- `schemathesis_hooks.py` gives the demo board a GitLab `LensConnection` when the app is
+  installed (null `created_by`, so the nullable field from #1331 is on every response) and maps
+  `{board_id}` on both lens routes to that board. It is seeded by the hook, not by
+  `seed_demo_data`, because that command also seeds real demo installs.
+- `VISIBAN_GIT_LENS_STUB_PROVIDERS=True` makes `git_lens.providers` answer every GitHub/GitLab
+  request from a fixed in-process fixture (`backend/git_lens/fuzz_stub.py`) instead of calling
+  out. Everything after the HTTP call (status mapping, normalization, pipeline linking, pivot,
+  cache and fetch budget) still runs for real. `settings.py` refuses to start with the variable
+  set unless `DEBUG=True` and `DEMO_MODE` is off, and the stub re-checks `DEBUG` and `DEMO_MODE` when it
+  is called, so it cannot be turned on in production.
+
+The fuzz user is a plain board member, so connection `PUT`/`DELETE` answer their declared `403`,
+and `/admin/git-lens/usage/` is out of reach as for every admin route (#1080). The job runs on
+changes to `backend/git_lens/`, any `urls.py` (the lens routes are mounted in
+`visiban/urls.py`), any `permissions.py` and `accounts/admin_views.py` (the lens views reuse
+their permission chains), its baseline, the hook, `settings.py`, `schema_hooks.py`,
+`accounts/serializers.py` (`created_by` nests `BoardUserSerializer`) and `seed_demo_data`. It
+never runs on a schedule; there is no deep variant.
+
+It cannot pass with nothing fuzzed. `st run` exits `0` when its include regex selects no
+operation, so a renamed route prefix or a flag that stopped mounting the app would otherwise
+leave the job green forever. Before the run, the job fails unless the served schema has at least
+one path matching `FUZZ_INCLUDE_PATH_REGEX`; after it, the job fails unless the junit report has
+at least one test case and `schema-fuzz-server.log` shows, for both lens reads
+(`GET /git-lens/connections/{board_id}/` and `GET /git-lens/board/{board_id}/`), at least one
+`2xx` and no `404`. A junit test case alone proves nothing: one is written even when every call
+answered a declared `404`, which is what happens if a renamed route parameter stops matching the
+hook's mapping. `git_lens/tests/test_fuzz_stub.py` also derives the lens paths from the generated
+schema and fails if any of them is missing from the hook's table.
+
 **The fuzz user keeps its token for the whole run (#1607).** The seeded `demo2` account has
 no usable password (social-only). Both password-change routes
 (`/auth/password/change/`, `/auth/change-password/`) skip the current-password check for such
 an account, but only from an interactive session; a request authenticated with the fuzz token
 is refused with `403` and nothing changes (#1609). Before that, the deep budget generated a
 matching, valid new-password pair on 2026-10-11, the change revoked every Personal Access
-Token, and every request after it returned `401` (#1607). Both fuzz jobs still run
+Token, and every request after it returned `401` (#1607). All three fuzz jobs still run
 `provision_fuzz_token --set-random-password` as defense in depth: it gives a password-less
 target a random password that is never recorded, so those routes also require a current
 password the fuzzer cannot supply and answer `400`. The flag is off by default and is for
@@ -111,7 +149,7 @@ throwaway CI databases only. On a real social-only account, a usable password wo
 verified-email gate on password reset. A run
 of `401`s in a fuzz job means the token stopped authenticating. It is not an API finding.
 
-**Server output is a job artifact, not job log.** Both jobs redirect `runserver` output
+**Server output is a job artifact, not job log.** All three fuzz jobs redirect `runserver` output
 (one access line per request, plus `django.request` lines for every 4xx/5xx) to
 `schema-fuzz-server.log`, kept with `when: always`. The deep run makes over 100k requests,
 and with that output in the job log it hit GitLab's 16 MB limit, which cut off schemathesis's

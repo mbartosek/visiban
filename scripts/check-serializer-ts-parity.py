@@ -346,6 +346,9 @@ COMPONENT_MAP = {
     "InviteLink": "AdminInviteLink",
     "InviteLinkCreateResponse": "CreatedAdminInviteLink",
     "Label": "Label",
+    # git_lens (#1338): only in the schema when GIT_LENS_ENABLED is on, which
+    # generate_schema() below forces for exactly this reason.
+    "LensConnection": "LensConnection",
     "LinkedCard": "RelatedCardRef",
     "Notification": "Notification",
     "OwnedBoardSummary": "OwnedBoardSummary",
@@ -1155,6 +1158,12 @@ def generate_schema(destination: Path) -> None:
     """Run `manage.py spectacular`, the same way the backend-schema-validate job does."""
     env = dict(os.environ)
     env.setdefault("DJANGO_SETTINGS_MODULE", "visiban.settings")
+    # git_lens is a conditionally installed app (#1338): with the flag off its
+    # serializers never reach the schema, so `LensConnection` in COMPONENT_MAP
+    # would be "not found" and the pair would go unchecked. Forced on (not
+    # setdefault) so a developer's local GIT_LENS_ENABLED=False cannot make a
+    # local run disagree with CI. Schema generation only; nothing is served.
+    env["GIT_LENS_ENABLED"] = "True"
     subprocess.run(
         [sys.executable, "manage.py", "spectacular", "--format", "openapi-json", "--file", str(destination)],
         cwd=BACKEND_DIR, env=env, check=True,
