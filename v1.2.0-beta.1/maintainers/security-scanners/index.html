@@ -3839,6 +3839,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#npm-overrides-pins-in-frontendpackagejson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        npm overrides pins in frontend/package.json
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="npm overrides pins in frontend/package.json">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#postcss-selector-parser-pinned-to-716-ghsa-rj75-hqrm-r3gf-1488-1197" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        postcss-selector-parser pinned to 7.1.6 (GHSA-rj75-hqrm-r3gf, #1488, !1197)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4054,6 +4082,37 @@ scanner locally, in memory, instead:</p>
 key fails <code>gitleaks-scan</code> (and, on <code>main</code>, <code>gitleaks-history</code>; on an MR, <code>gitleaks-commits</code> for a key in any of its commits). The component's
 <code>secret_detection</code> job does not fail on it; <code>secret-detection-gate</code> does, when the component
 reports it.</p>
+<h2 id="npm-overrides-pins-in-frontendpackagejson">npm <code>overrides</code> pins in <code>frontend/package.json</code><a class="headerlink" href="#npm-overrides-pins-in-frontendpackagejson" title="Permanent link">&para;</a></h2>
+<p><code>package.json</code> cannot hold comments, so this page is the record. This section documents only
+the <code>postcss-selector-parser</code> pin below; the other entries in the <code>overrides</code> block
+(<code>axios</code>, <code>follow-redirects</code>, <code>markdown-it</code>) are not recorded here; that is tracked in #1649.</p>
+<h3 id="postcss-selector-parser-pinned-to-716-ghsa-rj75-hqrm-r3gf-1488-1197"><code>postcss-selector-parser</code> pinned to 7.1.6 (GHSA-rj75-hqrm-r3gf, #1488, !1197)<a class="headerlink" href="#postcss-selector-parser-pinned-to-716-ghsa-rj75-hqrm-r3gf-1488-1197" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>What it does:</strong> forces every copy of <code>postcss-selector-parser</code> to 7.1.6, including the
+  copies that <code>tailwindcss</code> (<code>^6.1.2</code>), <code>postcss-nested</code> 6.x (<code>^6.1.1</code>) and
+  <code>@tailwindcss/typography</code> (exact <code>6.0.10</code>) request on the vulnerable 6.x line.</li>
+<li><strong>Why it is still needed (checked 2026-10-14):</strong> <code>tailwindcss</code> 3.4.19 is the latest 3.x
+  release (the <code>v3-lts</code> dist-tag; no further 3.x release is expected) and depends on <code>postcss-selector-parser ^6.1.2</code>. It also
+  requires <code>postcss-nested ^6.2.0</code>, whose latest 6.x (6.2.0) depends on <code>^6.1.1</code>, so a
+  <code>^7</code> <code>postcss-nested</code> is not reachable from Tailwind 3. <code>@tailwindcss/typography</code> latest
+  0.5.20 pins exactly <code>6.0.10</code>; the locked 0.5.19 pins exactly <code>6.0.10</code> too. No compatible
+  release resolves a fixed parser on its own, so in practice the override stays until #1420
+  lands, and after that until typography stops pinning 6.x.</li>
+<li><strong>Removal condition:</strong> #1420 (migrate Tailwind CSS v3 to v4, milestone 1.3) is the trigger.
+  Tailwind v4 has no <code>postcss-selector-parser</code> dependency, so it removes the <code>tailwindcss</code>
+  and <code>postcss-nested</code> dependents. <code>@tailwindcss/typography</code> 0.5.20 accepts v4 (peer
+  <code>&gt;=4.0.0</code>) but still pins exactly <code>6.0.10</code>, so after #1420 typography is the only
+  remaining blocker. Remove the override once no dependent requests a vulnerable range.</li>
+<li><strong>How to check:</strong></li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>npm<span class="w"> </span>view<span class="w"> </span>@tailwindcss/typography@latest<span class="w"> </span>dependencies.postcss-selector-parser
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>npm<span class="w"> </span>view<span class="w"> </span>tailwindcss@3<span class="w"> </span>dependencies.postcss-selector-parser<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1<span class="w">   </span><span class="c1"># until #1420 lands</span>
+</code></pre></div>
+<p>After #1420 only the typography line applies. When no dependent requests a vulnerable
+  range, remove the override in a branch, then run <code>cd frontend &amp;&amp; npm install</code> so the
+  installed tree and lockfile are regenerated. Check that the <code>package-lock.json</code> diff
+  shows only <code>postcss-selector-parser</code> tree changes with no remaining 6.x entry, then
+  confirm <code>npm ls postcss-selector-parser</code> lists only fixed versions.</p>
 
 
 
