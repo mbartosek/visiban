@@ -4652,17 +4652,20 @@ seed-demo-data:
 # non-2xx response (CommandError, #1330), on DEBUG being off (CommandError), or
 # on any endpoint exceeding its query budget (exit 1).
 #
-# Why automatic on MRs rather than manual or scheduled: a query COUNT is
-# deterministic and the run takes seconds, unlike the latency-based
-# nightly-load-test. A manual or scheduled job is exactly how this check went
-# unrun before. Latency/index regressions stay with nightly-load-test.
-# Never on a schedule: the nightly pipelines already run the heavier jobs.
+# MANUAL on purpose (owner decision on #1341): the identical
+# `benchmark --fail-on-budget` already runs on Postgres inside backend-test on
+# every backend MR (BenchmarkCommandCiGateTests.test_within_budget_passes_with_fail_on_budget),
+# so an automatic job would be near-redundant and cost a Postgres+Valkey pair per
+# MR. Run it on demand for: DEBUG from the environment, a run outside a TestCase
+# transaction, and a fresh `migrate`. allow_failure: true so an unrun manual job
+# never blocks the pipeline. Never on schedules or tags.
+# Latency/index regressions stay with nightly-load-test.
 backend-benchmark:
   extends: .pip-cache
   stage: test
   needs: []
   image: ${DOCKERHUB_MIRROR}/python:3.12-slim
-  allow_failure: false
+  allow_failure: true
   services:
     - name: ${DOCKERHUB_MIRROR}/postgres:17-alpine
       alias: postgres
@@ -4690,9 +4693,10 @@ backend-benchmark:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
-    - changes:
-        - backend/**/*
-        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - when: manual
+      allow_failure: true
 
 # ─── Nightly load test ─────────────────────────────────────────────────────────
 #
