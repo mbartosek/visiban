@@ -1315,6 +1315,8 @@ What redeeming does depends on the access you already have, because an explicit 
 
 A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns `200` with nothing changed (`created` reports whether this invite created your membership — `true` after signing up from it); anyone else gets `410 {"code": "used"}`. When a membership is created, the board's `member.added` event carries an extra `invite: { "id", "created_by_id" }` key.
 
+*(1.2+)* A join that arrives while the board is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1631).
+
 Both join endpoints share the per-IP `join_group` throttle (10/hour) with the [group join endpoints](groups.md) — board and group join attempts from one address draw from one budget.
 
 Signing up with a board invite on an invite-only site is covered in [Authentication](authentication.md#invite-only-mode).
