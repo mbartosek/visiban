@@ -678,7 +678,27 @@ class _CardChildBroadcastAdminMixin:
     parent card (see CardAdmin above for why admin needs this at all).
     """
 
+    def get_readonly_fields(self, request, obj=None):
+        # The parent card is chosen when the row is added and fixed afterwards:
+        # the broadcast targets the card the row belongs to, and a child moved
+        # between cards would leave the previous card's clients out of date.
+        fields = tuple(super().get_readonly_fields(request, obj))
+        if obj is not None and "card" not in fields:
+            fields += ("card",)
+        return fields
+
     def save_model(self, request, obj, form, change):
+        if change and obj.pk is not None:
+            # Defense in depth next to get_readonly_fields: keep the stored
+            # parent card regardless of what the submitted form carried. This
+            # read precedes the card lock by necessity (the id is needed to know
+            # which card to lock). It is safe unlocked because card is read-only
+            # on change and no other path can re-parent the row.
+            stored_card_id = (
+                type(obj).objects.filter(pk=obj.pk).values_list("card_id", flat=True).first()
+            )
+            if stored_card_id is not None:
+                obj.card_id = stored_card_id
         # Lock the parent card row for the rest of the transaction, as the REST
         # comment/checklist endpoints do (#1587). The child's card foreign key is
         # DEFERRABLE INITIALLY DEFERRED on PostgreSQL, so without the lock a card
