@@ -44,9 +44,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # under it: the render-error captures used to be fixed /tmp/helm-*-err.txt
 # paths, so two worktrees checking concurrently read each other's render
 # errors. TMPDIR is pointed at it so every bare `mktemp` lands here too and one
-# EXIT trap cleans the lot. Self-test fixtures re-run this script as a child
-# process, which gets its own directory. Do not write a literal /tmp/ path in
-# this file: --lint-tmp (run in CI) rejects it.
+# EXIT trap cleans the lot. Self-test fixtures run in-process subshells
+# (`( RENDERED=...; run_all_checks )`), so they share this one directory; that
+# is safe because they run sequentially, never concurrently. Do not write a
+# hardcoded system temp path in this file: --lint-tmp (run in CI) rejects it.
 RUN_TMP="$(mktemp -d)"
 trap 'rm -rf "$RUN_TMP"' EXIT
 export TMPDIR="$RUN_TMP"
@@ -1869,11 +1870,13 @@ self_test() {
 # ---------------------------------------------------------------------------
 
 if [ "${1:-}" = "--lint-tmp" ]; then
-  # Reject any literal /tmp/ path in this script (#1427). The pattern is built
-  # from pieces so this block does not match itself.
-  lint_pat='/''tmp/'
-  if hits="$(grep -nF -- "$lint_pat" "$REPO_ROOT/scripts/helm-structure-check.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
-    echo "FAIL: literal temp path in scripts/helm-structure-check.sh; use \$RUN_TMP:" >&2
+  # Reject any hardcoded system temp path in this script (#1427): /tmp with or
+  # without a trailing slash (so `cd /tmp`, "/tmp" and ${TMPDIR:-/tmp} all
+  # trip), and /var/tmp. Comment lines are skipped. The pattern is built from
+  # pieces so this block does not match itself.
+  lint_re='/(var/)?''tmp([^[:alnum:]_]|$)'
+  if hits="$(grep -nE -- "$lint_re" "$REPO_ROOT/scripts/helm-structure-check.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
+    echo "FAIL: hardcoded temp path in scripts/helm-structure-check.sh; use \$RUN_TMP:" >&2
     echo "$hits" >&2
     exit 1
   fi
