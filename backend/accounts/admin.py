@@ -1,5 +1,4 @@
 import functools
-import json
 
 from django import forms
 from django.contrib import admin, messages
@@ -13,7 +12,12 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.urls import reverse
-from django.utils.crypto import constant_time_compare, salted_hmac
+
+from visiban.admin_row_version import (
+    RowVersionAdminMixin,
+    RowVersionField,
+    RowVersionFormMixin,
+)
 
 from .models import (
     AdminActionLog,
@@ -30,11 +34,11 @@ from .credentials import finalize_password_change, require_password_change_after
 
 
 #: Fields only a superuser may edit in the Django admin user form (#1577).
+#: Fields only a superuser changes on another staff, superuser or site-admin account.
+_PROTECTED_IDENTITY_FIELDS = ("email", "username", "first_name", "last_name", "is_active")
+
 _SUPERUSER_ONLY_FIELDS = ("is_staff", "is_superuser", "groups", "user_permissions")
 
-
-#: Hidden field carrying the account's state as the change form rendered it (#1622).
-ROW_VERSION_FIELD = "row_version"
 
 STALE_FORM_MESSAGE = (
     "This account was changed after this page was opened. Reload the page and "
@@ -48,55 +52,7 @@ STALE_SAVE_MESSAGE = (
 )
 
 
-class StaleSubmission(Exception):
-    """The submitted ``row_version`` does not match the row read under the lock."""
-
-
-def _m2m_state(user, field_names):
-    """Sorted primary keys of *user*'s many-to-many fields among *field_names*."""
-    state = {}
-    for name in sorted(field_names):
-        if User._meta.get_field(name).many_to_many:
-            # Read from the database, not a prefetch cache.
-            state[name] = sorted(getattr(user, name).values_list("pk", flat=True))
-    return state
-
-
-def user_row_version(user, field_names):
-    """A keyed digest of *user*'s stored values for the form fields *field_names*.
-
-    The change form renders it as ``row_version``; a submission is accepted
-    only while it still matches the stored account (#1622). The digest is
-    keyed with ``SECRET_KEY`` so the hidden value says nothing about the
-    stored values.
-    """
-    state = {"pk": user.pk, **_m2m_state(user, field_names)}
-    for name in field_names:
-        field = User._meta.get_field(name)
-        if not field.many_to_many:
-            state[name] = field.value_from_object(user)
-    payload = json.dumps(state, sort_keys=True, default=str)
-    return salted_hmac("accounts.admin.user_row_version", payload).hexdigest()
-
-
-def row_version_matches(submitted, current):
-    return constant_time_compare(submitted, current)
-
-
-class _RowVersionField(forms.CharField):
-    """Hidden ``row_version``; never reported as a changed field.
-
-    It is not account data, so it stays out of ``changed_data`` and the admin
-    history's change message.
-    """
-
-    widget = forms.HiddenInput
-
-    def has_changed(self, initial, data):
-        return False
-
-
-class VisibanUserChangeForm(UserChangeForm):
+class VisibanUserChangeForm(RowVersionFormMixin, UserChangeForm):
     """The user change form with the admin API's account guards.
 
     ``VisibanUserAdmin.get_form`` sets ``guard_actor`` to the requesting user.
@@ -106,8 +62,9 @@ class VisibanUserChangeForm(UserChangeForm):
     render on the form and nothing is saved.
 
     ``row_version`` records the account's stored values, for the fields this
-    form writes, as the form rendered them (#1622). A submission made against
-    an older state of the account is refused:
+    form writes, as the form rendered them (#1622; the shared mechanism is in
+    ``visiban/admin_row_version.py``). A submission made against an older
+    state of the account is refused:
 
     - ``clean`` compares it with the row read when the submission arrives and
       refuses with a form error asking for a reload;
@@ -125,39 +82,12 @@ class VisibanUserChangeForm(UserChangeForm):
 
     guard_actor = None
 
-    row_version = _RowVersionField(required=False)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stored_row_version = None
-        if self.instance.pk and ROW_VERSION_FIELD in self.fields:
-            self._stored_row_version = user_row_version(self.instance, self._versioned_fields())
-            self.fields[ROW_VERSION_FIELD].initial = self._stored_row_version
-
-    def submitted_row_version(self):
-        """The submitted ``row_version``, or ``None`` when absent or unbound."""
-        if not self.is_bound:
-            return None
-        return getattr(self, "cleaned_data", {}).get(ROW_VERSION_FIELD) or None
-
-    def _versioned_fields(self):
-        """The model fields this form can write (disabled fields write nothing)."""
-        model_fields = {f.name for f in User._meta.get_fields() if f.concrete}
-        return [
-            name for name, field in self.fields.items()
-            if name in model_fields and not field.disabled
-        ]
+    row_version = RowVersionField(required=False)
+    stale_form_message = STALE_FORM_MESSAGE
 
     def clean(self):
+        # RowVersionFormMixin.clean refuses a stale row_version first (#1622).
         cleaned = super().clean()
-        submitted = cleaned.get(ROW_VERSION_FIELD)
-        if (
-            self.is_bound
-            and submitted
-            and self._stored_row_version is not None
-            and not row_version_matches(submitted, self._stored_row_version)
-        ):
-            raise ValidationError(STALE_FORM_MESSAGE, code="stale_form")
         actor = self.guard_actor
         stored = self.instance  # clean() runs before the instance is updated
         if actor is None or not stored.pk:
@@ -175,12 +105,19 @@ class VisibanUserChangeForm(UserChangeForm):
         return cleaned
 
 
-def _is_privileged_other_account(actor, target):
-    """True for a superuser or site-admin account other than *actor*'s own."""
+def _is_protected_other_account(actor, target):
+    """True for a staff, superuser or site-admin account other than *actor*'s own.
+
+    The Django admin's account-changing and delete routes are superuser-only
+    for these accounts: a staff account's Django permissions (groups, user
+    permissions) are not comparable between actor and target, so no
+    "broader than the actor" test is attempted and the whole class stays with
+    superusers.
+    """
     return (
         target is not None
         and target.pk != actor.pk
-        and (target.is_superuser or target.is_site_admin)
+        and (target.is_staff or target.is_superuser or target.is_site_admin)
     )
 
 
@@ -221,6 +158,11 @@ def user_deletion_refusals(targets, actor):
     move once the first lock is held, and the owned-boards rule is judged
     again after the target rows are locked ``FOR UPDATE``. Board names are not
     shown, only a count, as on the form.
+
+    Deleting a user also cascades to the groups they own (``Group.owner`` is
+    CASCADE), so ownership of every owned group is transferred first, and a
+    non-superuser actor may delete only accounts that are not another staff,
+    superuser or site-admin account (``_is_protected_other_account``).
     """
     from .admin_views import deactivation_refusal
 
@@ -241,6 +183,19 @@ def user_deletion_refusals(targets, actor):
         else:
             reason = "This account cannot be deleted."
         reasons.append(f"{target}: {reason}")
+    from groups.models import Group
+
+    for target in targets:
+        if not actor.is_superuser and _is_protected_other_account(actor, target):
+            reasons.append(f"{target}: Only a superuser can delete this account.")
+        # Group.owner is CASCADE: the groups, their subgroups and memberships
+        # would go with the owner, so ownership is transferred first.
+        group_count = Group.objects.filter(owner=target).count()
+        if group_count:
+            reasons.append(
+                f"{target}: User owns groups that must be transferred before "
+                f"deletion (owned groups: {group_count})."
+            )
     target_pks = {t.pk for t in targets}
     single = len(targets) == 1
     for flag, singular, plural in (
@@ -285,7 +240,7 @@ functools.update_wrapper(guarded_delete_selected, delete_selected)
 
 
 @admin.register(User)
-class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
+class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdmin):
     """Django's ``UserAdmin`` with the project's password rules applied (#1551).
 
     A password set through the admin's per-user password form has the same
@@ -295,9 +250,15 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
 
     The admin's own "change my password" page (``/admin/password_change/``) is
     routed to the SPA in ``visiban/urls.py`` instead.
+
+    ``RowVersionAdminMixin`` adds the hidden ``row_version`` to the change
+    form, writes only the groups and permissions the administrator changed
+    (``save_related``) and answers a refusal under the row lock with a
+    message (#1622).
     """
 
     form = VisibanUserChangeForm
+    stale_save_message = STALE_SAVE_MESSAGE
 
     def get_queryset(self, request):
         """Non-superuser staff do not see superuser accounts."""
@@ -306,39 +267,13 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             qs = qs.filter(is_superuser=False)
         return qs
 
-    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
-        """Turn a refusal under the row lock into a message, not a server error.
-
-        ``StaleSubmission`` propagates out of Django's transaction around the
-        change view, so everything the save wrote is rolled back; the
-        administrator is sent back to the change page, which shows the
-        account's current state (#1622).
-        """
-        try:
-            return super().changeform_view(request, object_id, form_url, extra_context)
-        except StaleSubmission:
-            self.message_user(request, STALE_SAVE_MESSAGE, messages.ERROR)
-            return HttpResponseRedirect(request.get_full_path())
-
-    def get_fieldsets(self, request, obj=None):
-        """The change form also carries the hidden ``row_version`` (#1622).
-
-        A view-only page has no form to submit, and Django renders every field
-        there as read-only text, so the field is left out.
-        """
-        fieldsets = super().get_fieldsets(request, obj)
-        if obj is None or not fieldsets or not self.has_change_permission(request, obj):
-            return fieldsets
-        (name, options), *rest = fieldsets
-        return [(name, {**options, "fields": (*options["fields"], ROW_VERSION_FIELD)}), *rest]
-
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         form.guard_actor = request.user
         return form
 
     def _refuse_privileged_password_target(self, request, id):
-        """Only a superuser sets the password of a superuser or site admin.
+        """Only a superuser sets the password of a staff, superuser or site-admin account.
 
         The lookup bypasses ``get_queryset`` so a superuser target is refused
         explicitly rather than reported as missing. An account's own password
@@ -350,12 +285,12 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             target = (
                 admin.ModelAdmin.get_queryset(self, request)
                 .filter(pk=unquote(id))
-                .only("pk", "is_superuser", "is_site_admin")
+                .only("pk", "is_staff", "is_superuser", "is_site_admin")
                 .first()
             )
         except (ValueError, ValidationError):
             return
-        if _is_privileged_other_account(request.user, target):
+        if _is_protected_other_account(request.user, target):
             raise PermissionDenied
 
     def user_change_password(self, request, id, form_url=""):
@@ -383,6 +318,17 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             return super().user_change_password(request, id, form_url)
         with transaction.atomic():
             before = _stored_password_hash(target.pk, lock=True)
+            # Protection is judged again with the hash row locked: the target
+            # may have become a staff, superuser or site-admin account, or the
+            # actor lost superuser status, since the request started.
+            actor_now = User.objects.filter(pk=request.user.pk).first()
+            target_now = User.objects.filter(pk=target.pk).first()
+            if (
+                actor_now is not None
+                and not actor_now.is_superuser
+                and _is_protected_other_account(actor_now, target_now)
+            ):
+                raise PermissionDenied
             response = super().user_change_password(request, id, form_url)
             if _stored_password_hash(target.pk) != before:
                 target.refresh_from_db()
@@ -397,11 +343,13 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
         readonly = tuple(super().get_readonly_fields(request, obj))
         if not request.user.is_superuser:
             readonly += tuple(f for f in _SUPERUSER_ONLY_FIELDS if f not in readonly)
-            if _is_privileged_other_account(request.user, obj):
-                # Same predicate as the password form: identity fields of a
-                # site-admin account feed password reset, so they stay with
-                # superusers.
-                readonly += tuple(f for f in ("email", "username") if f not in readonly)
+            if _is_protected_other_account(request.user, obj):
+                # Same predicate as the password form: identity fields feed
+                # password reset and ``is_active`` locks the account out, so
+                # for these accounts they stay with superusers.
+                readonly += tuple(
+                    f for f in _PROTECTED_IDENTITY_FIELDS if f not in readonly
+                )
         return readonly
 
     def save_model(self, request, obj, form, change):
@@ -443,20 +391,12 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
                 .order_by("pk")
             )
             stored = next((u for u in locked if u.pk == obj.pk), None)
-            submitted = (
-                form.submitted_row_version()
-                if isinstance(form, VisibanUserChangeForm) else None
-            )
-            if stored is not None and submitted is not None:
-                # clean() compared row_version before this lock; compare it
-                # again with the locked row so a submission made against an
-                # older state of the account is refused (#1622). The groups
-                # and permissions read here are checked again in
-                # save_related, before they are written.
-                fields = form._versioned_fields()
-                if not row_version_matches(submitted, user_row_version(stored, fields)):
-                    raise StaleSubmission
-                form._locked_m2m_state = _m2m_state(stored, fields)
+            # clean() compared row_version before this lock; compare it again
+            # with the locked row so a submission made against an older state
+            # of the account is refused (#1622). The groups and permissions
+            # read here are checked again in save_related, before they are
+            # written.
+            self.check_row_version(form, stored)
             if stored is not None and form is not None:
                 # The form wrote its values onto the instance Django loaded
                 # earlier in this request. Between that load and the lock
@@ -471,12 +411,24 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
                 # hash, so only the fields in ``changed_data`` take the
                 # submitted value. An unbound form (no submission) has no
                 # ``changed_data`` to go by, so only the first rule applies.
-                changed = set(form.changed_data) if getattr(form, "is_bound", False) else None
-                for field in User._meta.concrete_fields:
-                    if field.name not in form.fields or (
-                        changed is not None and field.name not in changed
-                    ):
-                        setattr(obj, field.attname, getattr(stored, field.attname))
+                self.keep_unchanged_fields(obj, form, stored)
+            if stored is not None and not request.user.pk == stored.pk:
+                # Protection is judged again on the locked target and the
+                # actor's current row: the target may have become a staff,
+                # superuser or site-admin account, or the actor lost
+                # superuser status, since the form was built (the read-only
+                # fields were chosen from the row loaded at request start).
+                actor_now = User.objects.filter(pk=request.user.pk).first()
+                if (
+                    actor_now is not None
+                    and not actor_now.is_superuser
+                    and _is_protected_other_account(actor_now, stored)
+                    and any(
+                        getattr(obj, f) != getattr(stored, f)
+                        for f in _PROTECTED_IDENTITY_FIELDS
+                    )
+                ):
+                    raise PermissionDenied
             if stored is not None:
                 # The form's checks ran before this lock was taken; repeat them
                 # against the locked rows. They run after the values above are
@@ -492,30 +444,6 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             super().save_model(request, obj, form, change)
             if stored is not None:
                 apply_access_loss_revocations(obj, request.user, access_state(stored))
-
-    def save_related(self, request, form, formsets, change):
-        """Write only the many-to-many fields the administrator changed (#1622).
-
-        As with the concrete fields in ``save_model``, a many-to-many field
-        (``groups``, ``user_permissions``) the administrator left alone keeps
-        its stored value. Django's change view runs in one transaction, so the
-        row lock ``save_model`` took is still held here.
-
-        When a ``row_version`` was submitted, the groups and permissions are
-        read again first; if they differ from what ``save_model`` read under
-        the lock, the save is refused and rolled back.
-        """
-        locked_state = getattr(form, "_locked_m2m_state", None)
-        if change and locked_state is not None:
-            current = _m2m_state(User.objects.get(pk=form.instance.pk), list(locked_state))
-            if current != locked_state:
-                raise StaleSubmission
-        if change and getattr(form, "is_bound", False):
-            changed = set(form.changed_data)
-            for field in User._meta.many_to_many:
-                if field.name in form.fields and field.name not in changed:
-                    form.cleaned_data.pop(field.name, None)
-        super().save_related(request, form, formsets, change)
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -575,10 +503,12 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             raise PermissionDenied
         pk_set = set(pks)
         targets = [u for u in locked if u.pk in pk_set]
-        if not actor_row.is_superuser and any(t.is_superuser for t in targets):
-            # Judged on the locked row: a target promoted, or an actor demoted,
-            # since the request started.
-            raise DeletionRefused(["A superuser account cannot be deleted by this administrator."])
+        if not actor_row.is_superuser and any(
+            _is_protected_other_account(actor_row, t) for t in targets
+        ):
+            # Judged on the locked rows: a target promoted to staff or
+            # superuser, or an actor demoted, since the request started.
+            raise DeletionRefused(["Only a superuser can delete this account."])
         reasons = user_deletion_refusals(targets, actor)
         if reasons:
             raise DeletionRefused(reasons)
@@ -674,7 +604,10 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
         locked = list(
             User.objects.select_for_update().filter(pk__in=pk_list).order_by("pk")
         )
-        reasons = user_deletion_refusals(locked, request.user)
+        # The actor row was locked by statement 1 in this transaction, so this
+        # read is stable; the in-memory ``request.user`` may predate a demotion.
+        actor_row = User.objects.filter(pk=request.user.pk).first() or request.user
+        reasons = user_deletion_refusals(locked, actor_row)
         if reasons:
             raise DeletionRefused(reasons)
 
@@ -705,9 +638,37 @@ def _stored_password_hash(pk, *, lock=False):
     return qs.values_list("password", flat=True).first()
 
 
+class SiteSettingAdminForm(RowVersionFormMixin, forms.ModelForm):
+    """The site settings form with the rendered-state check.
+
+    ``row_version`` covers every setting the form writes; see
+    ``visiban/admin_row_version.py``.
+    """
+
+    row_version = RowVersionField(required=False)
+    stale_form_message = (
+        "The site settings were changed after this page was opened. Reload the "
+        "page and make your changes again."
+    )
+
+    class Meta:
+        model = SiteSetting
+        fields = "__all__"
+
+
 @admin.register(SiteSetting)
-class SiteSettingAdmin(admin.ModelAdmin):
-    """Singleton admin — clicking 'Site settings' goes straight to the edit form."""
+class SiteSettingAdmin(RowVersionAdminMixin, admin.ModelAdmin):
+    """Singleton admin — clicking 'Site settings' goes straight to the edit form.
+
+    A save writes only the settings the administrator changed, and a form
+    rendered against an older state of the settings is refused.
+    """
+
+    form = SiteSettingAdminForm
+    stale_save_message = (
+        "The site settings were changed after this page was opened, so nothing "
+        "was saved. The page now shows the current settings; make your changes again."
+    )
 
     def has_add_permission(self, request):
         # Prevent creating additional rows; there is always exactly one.
@@ -734,9 +695,18 @@ class SiteSettingAdmin(admin.ModelAdmin):
         ``AdminSettingsView.patch``: an unlocked read lets a concurrent edit
         land between the snapshot and the save, which yields an audit row
         describing a transition that never happened.
+
+        The same locked row decides what this save writes: a submitted
+        ``row_version`` is compared with it (``check_row_version``), and every
+        setting the administrator did not change is taken from it
+        (``keep_unchanged_fields``) before the audit snapshot, so the audit
+        diff and the save describe the same transition. One lock covers both.
         """
         with transaction.atomic():
             previous = SiteSetting.objects.select_for_update().filter(pk=obj.pk).first()
+            if change:
+                self.check_row_version(form, previous)
+                self.keep_unchanged_fields(obj, form, previous)
             # On the add path there is no stored row yet (obj.pk is None, and
             # `pk__exact=None` matches nothing). Diff against the model defaults
             # rather than skipping the audit: that form is reachable on a
@@ -768,9 +738,56 @@ class SiteSettingAdmin(admin.ModelAdmin):
 admin.site.unregister(AuthGroup)
 
 
+class GroupAdminForm(RowVersionFormMixin, forms.ModelForm):
+    """The group form with the rendered-state check.
+
+    ``row_version`` covers the name and the ``permissions`` set; see
+    ``visiban/admin_row_version.py``.
+    """
+
+    row_version = RowVersionField(required=False)
+    stale_form_message = (
+        "This group was changed after this page was opened. Reload the page and "
+        "make your changes again."
+    )
+
+    class Meta:
+        model = AuthGroup
+        fields = "__all__"
+
+
 @admin.register(AuthGroup)
-class SuperuserOnlyGroupAdmin(GroupAdmin):
-    """Django's ``GroupAdmin`` (keeps its permission widgets), superuser-only."""
+class SuperuserOnlyGroupAdmin(RowVersionAdminMixin, GroupAdmin):
+    """Django's ``GroupAdmin`` (keeps its permission widgets), superuser-only.
+
+    A save writes only the fields the administrator changed (the
+    ``permissions`` set included, in ``save_related``), and a form rendered
+    against an older state of the group is refused.
+    """
+
+    form = GroupAdminForm
+    stale_save_message = (
+        "This group was changed after this page was opened, so nothing was saved. "
+        "The page now shows the current state of the group; make your changes again."
+    )
+
+    def save_model(self, request, obj, form, change):
+        """Judge the submission against the group row read under a lock.
+
+        The lock is held by the change view's transaction until
+        ``save_related`` has written the permissions, so a second admin save
+        of the same group waits for this one and then finds its
+        ``row_version`` stale. A permission added to the group by another
+        route waits for this lock too (the new row's foreign key takes a
+        key-share lock on the group row), but a removal does not;
+        ``save_related`` re-reads the set before writing it for that case.
+        """
+        with transaction.atomic():
+            if change:
+                stored = AuthGroup.objects.select_for_update().filter(pk=obj.pk).first()
+                self.check_row_version(form, stored)
+                self.keep_unchanged_fields(obj, form, stored)
+            super().save_model(request, obj, form, change)
 
     @staticmethod
     def _superuser_only(request):

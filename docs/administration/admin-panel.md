@@ -102,7 +102,7 @@ Creates a local account directly. Fields:
 
 #### Deactivate / Reactivate
 
-Deactivated accounts cannot log in. No data is deleted. Can be reversed at any time by clicking **Reactivate**.
+Deactivated accounts cannot log in. No data is deleted. Can be reversed at any time by clicking **Reactivate**. On a superuser account, **Deactivate** and **Reactivate** are available to superusers only.
 
 You cannot deactivate your own account from this panel.
 
@@ -127,6 +127,7 @@ The last active site admin on the instance cannot be demoted.
 Controls the `can_access_all_content` flag independently of admin status (for accounts that are not superusers). When enabled, the user can read and write every board and group on the instance regardless of membership.
 
 - **Grant all-content** gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.
+- **Grant all-content** and **Revoke all-content** on a superuser account are available to superusers only.
 - **Revoke all-content** removes that access. The user will only see boards and groups they are explicitly a member of. It is not shown for a superuser account, because superuser status implies all-content access (the API refuses it); remove superuser status in the Django admin first.
 
 These two flags — `is_site_admin` (admin panel access) and `can_access_all_content` (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See [Site Admins](site-admins.md) for a detailed explanation of the two-flag model and examples of common configurations.
@@ -136,7 +137,7 @@ These two flags — `is_site_admin` (admin panel access) and `can_access_all_con
 
 #### Force password reset
 
-Sets `must_change_password = true` on the user. The next time they log in, they are presented with a password-change dialog before accessing the application. Useful after a suspected credential compromise.
+Sets `must_change_password = true` on the user. The next time they log in, they are presented with a password-change dialog before accessing the application. Useful after a suspected credential compromise. On a superuser account it is available to superusers only.
 
 #### Restart onboarding tour
 
@@ -148,7 +149,7 @@ Clears `has_completed_tour` for a user, so they see the [onboarding tour](../get
 
 > **Added in 1.2**
 
-Clears the per-account login lockout (5 failed login attempts within 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) immediately, letting the user log in again without waiting out the rest of the 5-minute window.
+Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login attempts within 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) immediately, letting the user log in again without waiting out the rest of the 5-minute window.
 
 A successful password reset already clears this automatically, so **Clear lockout** is for the case where that isn't an option — for example the user contacts support directly instead of using the reset-password flow, or reset emails aren't reaching them. It is safe to click at any time: if the account isn't currently locked out, nothing happens.
 

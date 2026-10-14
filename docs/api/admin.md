@@ -389,11 +389,11 @@ Update a user's account flags. Site admin only.
 
 | Field | Type | Notes |
 |---|---|---|
-| `is_active` | boolean | `false` deactivates the account (blocks login without deleting data). Cannot deactivate your own account. |
+| `is_active` | boolean | `false` deactivates the account (blocks login without deleting data). Cannot deactivate your own account. Only a superuser can change `is_active` on a superuser account. |
 | `is_site_admin` | boolean | Grant or revoke admin panel access. Cannot demote yourself. Cannot demote the last active admin. |
-| `can_access_all_content` | boolean | Grant or revoke omniscient read/write access to all boards and groups. Independent of `is_site_admin` for non-superusers — see [Site Admins](../administration/site-admins.md). Setting `false` on a superuser returns `400` with `can_access_all_content` and `detail` set to `Cannot remove all-content access from a superuser; remove superuser status first.` Superuser status implies this flag. |
+| `can_access_all_content` | boolean | Grant or revoke omniscient read/write access to all boards and groups. Only a superuser can change this on a superuser account. Independent of `is_site_admin` for non-superusers — see [Site Admins](../administration/site-admins.md). Setting `false` on a superuser returns `400` with `can_access_all_content` and `detail` set to `Cannot remove all-content access from a superuser; remove superuser status first.` Superuser status implies this flag. |
 | `has_completed_tour` | boolean | Reset (`false`) to re-show the onboarding tour to this user on next login |
-| `must_change_password` | boolean | `true` forces a password reset on next login |
+| `must_change_password` | boolean | `true` forces a password reset on next login. Only a superuser can change this on a superuser account (`400` otherwise). |
 
 *(1.2+)* Setting `is_active: false` also deletes the user's personal access tokens (so they do not come back on reactivation) and revokes the user's pending invite links exactly like [`POST /api/v1/admin/users/{id}/deactivate/`](#post-apiv1adminusersiddeactivate): unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. Clearing `can_access_all_content` (the only flag that confers group-admin rights; `is_site_admin` does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.
 
@@ -418,7 +418,7 @@ Deactivate a user account and transfer ownership of any boards they own to other
 
 Deactivation also revokes the user's unused site invite links and *(1.2+)* their pending [board invites](boards.md#board-invites) (`revoked_by` is the caller; each board gets an `invite_link.revoked` event) and *(1.2+)* their active, unused [group invite links](groups.md) (each affected group receives an `invite_link.revoked` event). Consumed single-use links are left as they are.
 
-**Permission:** `IsSiteAdmin`. Cannot deactivate your own account.
+**Permission:** `IsSiteAdmin`. Cannot deactivate your own account. Only a superuser can deactivate a superuser account (`400`).
 
 If the target user owns one or more boards, you must supply a `transfers` list mapping each owned board to an eligible recipient. The recipient must have access to the board — either as a direct board member or through group membership. Group-inherited access is accepted. If any owned board has no eligible transfer targets (i.e. the user is the sole member with no group-inherited members either), the request returns `400 Bad Request` with details.
 
@@ -475,7 +475,7 @@ After a successful deactivation with transfers, `owned_boards` will be `[]` — 
 
 Clear the target user's per-account login lockout early (#1203). The per-account `login_failed` lockout (5 failed attempts / 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.
 
-**Permission:** `IsSiteAdmin`.
+**Permission:** `IsSiteAdmin`. Only a superuser can clear the lockout of a superuser account (`400` otherwise).
 
 Idempotent — calling it on an account that isn't currently locked out succeeds and changes nothing. Visiban accepts login by username or email, and since 1.2 (#1206) both count against one lockout keyed on the account; this clears that lockout, plus the username- and email-string buckets (used for identifiers that don't resolve to exactly one account, and by lockouts recorded before the upgrade).
 

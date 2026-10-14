@@ -988,6 +988,32 @@ def deactivation_refusal(target, actor, *, include_last_site_admin=False):
     return None
 
 
+SUPERUSER_ONLY_CHANGE_MESSAGE = (
+    "Only a superuser can change a superuser account's activation, "
+    "all-content access or password-change requirement."
+)
+
+
+SUPERUSER_ONLY_LOCKOUT_MESSAGE = (
+    "Only a superuser can clear the sign-in lockout on a superuser account."
+)
+
+
+def superuser_target_refusal(target, actor, *, message=SUPERUSER_ONLY_CHANGE_MESSAGE):
+    """Refusal when a non-superuser *actor* changes a superuser *target*'s standing.
+
+    A site admin who is not a superuser administers ordinary accounts; a
+    superuser's activation, all-content access and forced-password-change
+    flag stay with superusers. The callers decide which requested change
+    this applies to.
+    """
+    if target.is_superuser and not actor.is_superuser:
+        return GuardRefusal(
+            status.HTTP_400_BAD_REQUEST, {"detail": message}
+        )
+    return None
+
+
 def demotion_refusal(target, actor):
     """Refusal for removing superuser status from *target* by *actor*, or ``None``.
 
@@ -1051,6 +1077,17 @@ class AdminUserDetailView(APIView):
         validated = serializer.validated_data
         update_fields = []
 
+        # Guard: a superuser's activation, all-content access and
+        # password-change flag are changed by superusers only.
+        if (
+            "is_active" in validated
+            or "can_access_all_content" in validated
+            or "must_change_password" in validated
+        ):
+            refusal = superuser_target_refusal(target, request.user)
+            if refusal is not None:
+                return Response(refusal.body, status=refusal.status)
+
         # Guard: cannot deactivate yourself, nor a board owner via PATCH (the
         # dedicated deactivate endpoint carries the ownership transfers).
         if "is_active" in validated and not validated["is_active"]:
@@ -1105,6 +1142,15 @@ class AdminUserDetailView(APIView):
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+                if (
+                    "is_active" in validated
+                    or "can_access_all_content" in validated
+                    or "must_change_password" in validated
+                ):
+                    # Same rule as above, on the locked row.
+                    refusal = superuser_target_refusal(locked, request.user)
+                    if refusal is not None:
+                        return Response(refusal.body, status=refusal.status)
                 prior = access_state(locked)
                 target.save(update_fields=update_fields)
                 # Deactivating through PATCH must revoke the user's invite links
@@ -1550,6 +1596,10 @@ class AdminUserDeactivateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        refusal = superuser_target_refusal(target, request.user)
+        if refusal is not None:
+            return Response(refusal.body, status=refusal.status)
+
         if not target.is_active:
             return Response(
                 {"detail": "User is already inactive."},
@@ -1704,6 +1754,13 @@ class AdminUserClearLockoutView(APIView):
             target = User.objects.get(pk=pk)
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # A superuser account's sign-in protection stays with superusers.
+        refusal = superuser_target_refusal(
+            target, request.user, message=SUPERUSER_ONLY_LOCKOUT_MESSAGE
+        )
+        if refusal is not None:
+            return Response(refusal.body, status=refusal.status)
 
         clear_login_lockout(request, target)
 

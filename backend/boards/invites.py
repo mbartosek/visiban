@@ -75,6 +75,32 @@ def load_board(board_id):
     return Board.objects.select_related("owner", GROUP_ANCESTOR_SELECT_RELATED).get(pk=board_id)
 
 
+def lock_invite_board(board_id) -> bool:
+    """Lock an invite's board row ``FOR NO KEY UPDATE``; False if it is gone.
+
+    Every redemption takes this before the invite row (#1631). A board delete
+    locks the board row at the start of its cascade and reaches the invite
+    only at its collector ``DELETE``; a redemption that held the invite row
+    and inserted the membership and redemption rows under it made that delete
+    fail its deferred foreign keys at COMMIT (a 500), and one that locked the
+    board *after* the invite would deadlock against it. ``FOR NO KEY UPDATE``
+    is the container delete's own board-lock mode (and the member writers'),
+    so it conflicts with the delete and the two queue whole; unlike
+    ``FOR UPDATE`` it does not block the ``FOR KEY SHARE`` a card insert takes
+    on the board at commit. Invite revokes hold only the invite row and take
+    no board lock (``BoardEvent.board_id`` is a plain integer, not a foreign
+    key), so no path holds an invite row and then waits on the board row,
+    and the board -> invite order cannot deadlock. The join view takes the same
+    lock through ``lock_board_row_or_404``; this is the service-side form for
+    the registration path, which answers ``invite_invalid`` rather than 404.
+    Must run inside ``transaction.atomic()``.
+    """
+    return (
+        Board.objects.select_for_update(no_key=True)
+        .filter(pk=board_id).values_list("pk", flat=True).first()
+    ) is not None
+
+
 def role_is_grantable(link: BoardInviteLink) -> bool:
     """False for an invite whose stored role is not member/collaborator/viewer.
 
@@ -186,8 +212,12 @@ def _would_create_membership(user, board, invite_role) -> bool:
 def redeem(link: BoardInviteLink, user, board, *, via: str) -> bool:
     """Redeem ``link`` for ``user``; return whether a membership was created.
 
-    Caller must hold the invite row lock (or, on the OAuth path, have already
-    won the conditional ``used_at`` update) and run inside a transaction: the
+    Caller must hold the board row lock (taken first, #1631) and then the
+    invite row lock — the join view takes both itself; both registration
+    paths (REST and OAuth) take them in ``validate_board_registration_token``
+    and also win the conditional ``used_at`` claim in
+    ``redeem_board_registration_token``, all in one transaction — and run
+    inside that transaction: the
     membership, the invite's counters, the redemption row and the
     ``member.added`` feed row commit or roll back together.
 
@@ -320,15 +350,23 @@ def validate_board_registration_token(raw_token: str) -> BoardInviteLink:
     raw_token = (raw_token or "").strip()
     if not raw_token:
         raise InviteTokenError("invite_missing", "An invite link is required to register.")
-    try:
-        # Lock the bare row: ``created_by`` is a nullable FK, so joining it
-        # here would be a LEFT OUTER JOIN, and PostgreSQL refuses FOR UPDATE on
-        # the nullable side of one. The sender loads lazily below.
-        link = BoardInviteLink.objects.select_for_update().get(
-            token_hash=BoardInviteLink._hash_token(raw_token),
-            revoked_at__isnull=True,
-        )
-    except BoardInviteLink.DoesNotExist:
+    token_hash = BoardInviteLink._hash_token(raw_token)
+    # Board row first, then the invite row — the order the join view takes
+    # (#1631, see ``lock_invite_board``). The board id is read unlocked; an
+    # invite never changes board, and the invite lock below re-checks it.
+    board_id = (
+        BoardInviteLink.objects.filter(token_hash=token_hash, revoked_at__isnull=True)
+        .values_list("board_id", flat=True).first()
+    )
+    if board_id is None or not lock_invite_board(board_id):
+        raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
+    # Lock the bare row: ``created_by`` is a nullable FK, so joining it here
+    # would be a LEFT OUTER JOIN, and PostgreSQL refuses FOR UPDATE on the
+    # nullable side of one. The sender loads lazily below.
+    link = BoardInviteLink.objects.select_for_update().filter(
+        token_hash=token_hash, board_id=board_id, revoked_at__isnull=True,
+    ).first()
+    if link is None:
         raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
     refusal = board_link_registration_refusal(link)
     if refusal is not None:
@@ -339,12 +377,23 @@ def validate_board_registration_token(raw_token: str) -> BoardInviteLink:
 def redeem_board_registration_token(link: BoardInviteLink, user) -> None:
     """Add a just-registered ``user`` to the invite's board and consume it.
 
-    The ``used_at`` stamp is a conditional update, so even the OAuth path —
-    which validated in an earlier transaction and holds no lock here — consumes
-    the invite at most once. Losing that race raises ``invite_invalid`` and
+    Both callers (REST registration and the OAuth adapter) run this in the
+    same transaction as ``validate_board_registration_token``, so the board
+    and invite row locks are already held. The ``used_at`` stamp is still a
+    conditional update, and the board row is re-locked first, as defense in
+    depth for a caller outside a validating transaction: the invite is then
+    consumed at most once, and losing that race raises ``invite_invalid`` and
     grants nothing.
     """
     with transaction.atomic():
+        # Board row before the claim (#1631). Both current callers validated
+        # in this same transaction and already hold it, so this is a no-op
+        # re-lock for them. It is defense in depth for a caller outside a
+        # validating transaction: it keeps the board -> invite order there.
+        # A board deleted since validation is refused either way — its
+        # invite cascades away, so the conditional claim below matches no row.
+        if not lock_invite_board(link.board_id):
+            raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
         claimed = BoardInviteLink.objects.filter(
             pk=link.pk, used_at__isnull=True, revoked_at__isnull=True,
         ).update(used_at=timezone.now())

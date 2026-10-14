@@ -139,6 +139,7 @@ Revoked tokens are deleted immediately. Requests using them get `401 Unauthorize
 
 ## Security notes
 
+- **Email changes need a signed-in session** — the account email is changed from Settings in the browser. Through the API (`PATCH /api/v1/auth/me/` or `/api/v1/auth/user/`), a token request that changes it answers `403 Forbidden`. Tokens can still update the other profile fields, and a request that sends your current email back unchanged is accepted.
 - **Password change revokes all tokens** — every PAT on your account is revoked automatically when you change your password. Create new tokens and update any scripts or integrations that used the old ones.
 - **Maximum 10 tokens per user** — revoke tokens you no longer use before creating new ones. The **New token** button is disabled at the limit.
 - **Treat tokens like passwords** — store them in a secrets manager or CI secrets vault, never in plain text in source code or config files committed to a repository.
