@@ -427,6 +427,73 @@ check_nginx_upstream() {
 }
 
 # ---------------------------------------------------------------------------
+# SPA cache policy (#1633): a stale index.html must never blank the app.
+# ---------------------------------------------------------------------------
+# After a deploy, a browser holding the previous index.html requests hashed
+# /assets/* files that no longer exist. If the SPA catch-all answers those with
+# 200 text/html the user sees a MIME-type error and a blank page, and only a
+# hard reload recovers. Three things must hold in the rendered nginx.conf:
+# /assets/ is a real-404 location, the entry files are no-cache, and the
+# hashed bundles are immutable. The headers ride a server-level add_header
+# (via a map) so they cannot drop HSTS/CSP/X-Frame-Options by inheritance.
+check_spa_cache_policy() {
+  section "SPA cache policy: stale index.html cannot blank the app (#1633)"
+
+  local conf
+  conf="$(doc ConfigMap 'nginx$' | yq '.data."nginx.conf"')"
+  if [ -z "$conf" ] || [ "$conf" = "null" ]; then
+    fail "no nginx ConfigMap rendered — cannot check the SPA cache policy"
+    return
+  fi
+
+  local bad=0
+  if ! grep -qE 'location[[:space:]]+/assets/[[:space:]]*\{' <<< "$conf" \
+     || ! grep -A3 -E 'location[[:space:]]+/assets/' <<< "$conf" | grep -qE 'try_files[[:space:]]+\$uri[[:space:]]+=404;'; then
+    fail "nginx has no 'location /assets/' with 'try_files \$uri =404' — a missing hashed asset falls back to index.html (200 text/html) and blanks the SPA after a deploy"
+    bad=1
+  fi
+  # Bind each entry to its value: the map line that names the file must be the
+  # line that carries the value, not merely coexist with it somewhere in the conf.
+  local f line
+  for f in 'index\\.html' 'theme-init\\.js' 'site\\.webmanifest' 'favicon' 'apple-touch-icon' 'android-chrome-' '\^/brand/'; do
+    line="$(grep -E "^[[:space:]]*~.*${f}.*\"[^\"]*\";[[:space:]]*\$" <<< "$conf" | head -1)"
+    if ! grep -q '"no-cache";' <<< "$line"; then
+      fail "nginx cache map does not bind '${f}' to \"no-cache\" — a stale copy survives a deploy"
+      bad=1
+    fi
+  done
+  line="$(grep -E '^[[:space:]]*~\^/assets/' <<< "$conf" | head -1)"
+  if ! grep -q '"public, max-age=31536000, immutable";' <<< "$line"; then
+    fail "nginx cache map does not bind ^/assets/ to \"public, max-age=31536000, immutable\""
+    bad=1
+  fi
+  if ! grep -qE '^[[:space:]]*add_header[[:space:]]+Cache-Control[[:space:]]+\$visiban_cache_control;' <<< "$conf"; then
+    fail "nginx never emits the Cache-Control map — the cache policy is declared but not applied"
+    bad=1
+  fi
+  # Structure of the map itself. Presence checks above pass mutations that keep
+  # the words but change behavior (first matching regex wins; the key variable
+  # decides what is matched), so pin the source, the ordering and the fallback.
+  local mapblk firstre
+  mapblk="$(awk '/^[[:space:]]*map[[:space:]]+\$uri[[:space:]]+\$visiban_cache_control[[:space:]]*\{/,/^[[:space:]]*\}/' <<< "$conf")"
+  if [ -z "$mapblk" ]; then
+    fail "nginx cache map is not keyed on \$uri — \$request_uri keeps the query/original URI, so the SPA fallback's /index.html never matches"
+    bad=1
+  else
+    firstre="$(grep -E '^[[:space:]]*~' <<< "$mapblk" | head -1)"
+    if ! grep -qE '^[[:space:]]*~\^/\(index\\\.html\|' <<< "$firstre"; then
+      fail "first regex in the cache map is not the anchored no-cache entry rule — nginx uses the first matching regex, so an earlier or re-prefixed rule changes what is cached"
+      bad=1
+    fi
+  fi
+  if ! awk '/location[[:space:]]+\/[[:space:]]*\{/{f=1} f&&/try_files[[:space:]]+\$uri[[:space:]]+\$uri\/[[:space:]]+\/index\.html;/{ok=1} END{exit !ok}' <<< "$conf"; then
+    fail "'location /' no longer falls back to /index.html — SPA deep links like /boards/1 would 404"
+    bad=1
+  fi
+  [ "$bad" -eq 0 ] && pass "nginx: /assets/ 404s, index.html is no-cache, hashed assets are immutable"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Probe paths must be routes the backend actually serves.
 # ---------------------------------------------------------------------------
 # A renamed health URL makes every backend pod fail its readiness gate: the
@@ -1575,6 +1642,7 @@ run_all_checks() {
   check_secret_rotation_reaches_migrate
   check_env_contract
   check_nginx_upstream
+  check_spa_cache_policy
   check_probe_paths
   check_transport_limits
   check_netpol_coverage
@@ -1624,6 +1692,16 @@ self_test() {
     "3 env var name drift (#1038 blocker 1)|templates/_backend-env.tpl|s/- name: OIDC_CLIENT_SECRET/- name: OIDC_SECRET/"
     "3 required env removed (#1038 blocker 3)|templates/_backend-env.tpl|/- name: EMAIL_BACKEND/,+1d"
     "4 nginx upstream|templates/frontend-configmap.yaml|s|http://{{ include \"visiban.fullname\" . }}-backend|http://backend|g"
+    # 4b (#1633): a missing hashed asset falls back to index.html again.
+    "SPA assets fall back to index.html|templates/frontend-configmap.yaml|s/try_files \$uri =404;/try_files \$uri \$uri\/ \/index.html;/"
+    # 4e (#1633): behavior-changing mutations that keep the words in place.
+    "SPA cache map keyed on request_uri|templates/frontend-configmap.yaml|s#map \$uri \$visiban_cache_control#map \$request_uri \$visiban_cache_control#"
+    "SPA cache map catch-all regex first|templates/frontend-configmap.yaml|s#~^/(index#~.* \"\";   ~^/(index#"
+    "SPA cache map entry re-prefixed|templates/frontend-configmap.yaml|s#~^/(index#~^/static/(index#"
+    # 4d (#1633): theme-init.js falls out of the no-cache list.
+    "SPA theme-init.js not no-cache|templates/frontend-configmap.yaml|s/theme-init/theme-removed/"
+    # 4c (#1633): the cache header stops being emitted.
+    "SPA cache header not applied|templates/frontend-configmap.yaml|s/add_header Cache-Control \$visiban_cache_control;/add_header X-Cache-Policy-Removed 1;/"
     "6 transport limit below app cap|templates/frontend-configmap.yaml|s/client_max_body_size {{ include \"visiban.transportBodyLimitMB\" . }}M;/client_max_body_size 1M;/"
     "8 renamed manage.py command|templates/backend-deployment.yaml|s/\"manage.py\", \"ensure_site_admin\"/\"manage.py\", \"ensure_admin_site\"/"
     # 8b: a scheduled-job CronJob (#1157) names a command that does not exist —
