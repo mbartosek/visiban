@@ -53,6 +53,10 @@
   --success-on-tint: 134 239 172;  /* green-300 */
   --info-on-tint: 147 197 253;     /* blue-300 */
   --muted-on-tint: 203 213 225;    /* slate-300 — on `bg-fg-muted/20` */
+  /* Urgent (#1594): dark-red fill/border + text pair, matching the board's PRIORITY_COLORS urgent (#B91C1C).
+     --urgent-on-tint is red-200 on `bg-urgent/20` over surface (slate-800): 9.5:1 (11.3:1 on sunken). */
+  --urgent: 185 28 28;             /* red-700 */
+  --urgent-on-tint: 254 202 202;   /* red-200 */
 
   /* Interactive — primary action (Visiban brand blue).
      The `-bg` variants are the solid button fills; `-emphasis` and `-soft` are
@@ -130,6 +134,9 @@
   --success-on-tint: 21 101 52;    /* green-800 */
   --info-on-tint: 30 64 175;       /* blue-800 */
   --muted-on-tint: 51 65 85;       /* slate-700 — on `bg-fg-muted/20` */
+  /* Urgent (#1594): red-700 fill/border; red-900 text on `bg-urgent/20` over white: 7.1:1 (6.8:1 on sunken). */
+  --urgent: 185 28 28;             /* red-700 */
+  --urgent-on-tint: 127 29 29;     /* red-900 */
 
   /* Brand-tint surfaces stay on Visiban blue-600 in light mode (avatars, active tabs, toggles). */
   --primary: 37 99 235;

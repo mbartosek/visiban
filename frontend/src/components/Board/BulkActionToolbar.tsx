@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { PRIORITY_COLORS } from "../../constants/colors";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import type { BoardFull, Card, Column, User } from "../../types";
 import { userDisplayName } from "../../types";
@@ -175,10 +176,10 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
   };
 
   const priorities: Array<{ value: "low" | "medium" | "high" | "urgent"; color: string }> = [
-    { value: "low", color: "#6B7280" },
-    { value: "medium", color: "#3B82F6" },
-    { value: "high", color: "#F59E0B" },
-    { value: "urgent", color: "#EF4444" },
+    { value: "low", color: PRIORITY_COLORS.low },
+    { value: "medium", color: PRIORITY_COLORS.medium },
+    { value: "high", color: PRIORITY_COLORS.high },
+    { value: "urgent", color: PRIORITY_COLORS.urgent },
   ];
 
   // Assign dropdown items: Unassign + non-viewer members
