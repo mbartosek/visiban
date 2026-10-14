@@ -600,3 +600,216 @@ class CardWriteLockOrderTests(_Base):
         self.assertIn(f'FROM "{table}"', locking[1])
         self.assertIn(f'ORDER BY "{table}"."id" ASC', locking[1])
         self.assertTrue(locking[1].rstrip().endswith("FOR UPDATE"), locking[1])
+
+
+class CardWriteVsOwnerDeactivationTests(_Base):
+    """A card write holds the board row ``FOR SHARE`` and needs ``FOR KEY
+    SHARE`` on its actor's user row at COMMIT (the deferred foreign keys of
+    ``CardActivity.actor``, ``created_by``, ``assignee``). Deactivating that
+    user with a board transfer locked the user row ``FOR UPDATE`` (which
+    blocks ``FOR KEY SHARE``) and then UPDATEd the owned board (which waits on
+    ``FOR SHARE``): ``deadlock detected ... relation "boards"``, a 500 on the
+    deactivation. The deactivation now locks the user ``FOR NO KEY UPDATE``,
+    as the user admin delete does (#1616), so the card write commits and the
+    transfer follows it.
+    """
+
+    def test_owner_card_write_and_deactivation_with_transfer_both_succeed(self):
+        heir = User.objects.create_user(username="heir1632", password="pass")
+        BoardMembership.objects.create(
+            board=self.board, user=heir, role=BoardMembership.Role.ADMIN
+        )
+        admin = User.objects.create_superuser(
+            username="su1632", password="pass", email="su1632@example.com"
+        )
+
+        def deactivate():
+            client = APIClient()
+            client.force_authenticate(admin)
+            return client.post(
+                f"/api/v1/admin/users/{self.owner.pk}/deactivate/",
+                {"transfers": [{"board_id": self.board.pk, "transfer_to": heir.pk}]},
+                format="json",
+            )
+
+        patched, deactivated, waited = self._race(
+            card_services,
+            "lock_card_for_write",
+            lambda: self._client().patch(
+                f"{self.base}/cards/{self.card.pk}/", {"title": "T2"}, format="json"
+            ),
+            deactivate,
+            after_lock=True,
+        )
+        self.assertTrue(
+            waited, "the board transfer did not queue behind the card write"
+        )
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+        self.assertEqual(deactivated.status_code, 200, deactivated.content[:300])
+        self.board.refresh_from_db()
+        self.assertEqual(self.board.owner_id, heir.pk)
+        self.owner.refresh_from_db()
+        self.assertFalse(self.owner.is_active)
+
+
+class ValidatedBeforeTheLockTests(_Base):
+    """Callers that validate before the card service's transaction (#1632).
+
+    The REST PATCH validates inside ``apply()``, under the board lock, so its
+    stale tests above never reach ``CardSerializer._require_live_referents``.
+    The MCP ``create_card``/``update_card`` tools (and the REST create)
+    validate first; these pin the re-read in both ``create()`` and
+    ``update()``: without it the stale write fails its deferred foreign key
+    at COMMIT instead of answering a validation error.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.col.allow_card_creation = True
+        self.col.save()
+        self.label = Label.objects.create(board=self.board, name="Bug")
+        self.definition = CustomFieldDefinition.objects.create(
+            board=self.board, name="Tier", field_type="text", position=0
+        )
+
+    def _as_mcp_user(self, fn):
+        def run():
+            from mcp_server.context import reset_current_user, set_current_user
+
+            token = set_current_user(self.owner)
+            try:
+                return fn()
+            finally:
+                reset_current_user(token)
+
+        return run
+
+    def _delete(self, url):
+        return lambda: self._client().delete(url)
+
+    def test_mcp_update_with_stale_label_is_a_validation_error(self):
+        from mcp_server import tools
+
+        result, deleted, _ = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._as_mcp_user(
+                lambda: tools.update_card(card_id=self.card.pk, labels=["Bug"])
+            ),
+            self._delete(f"{self.base}/labels/{self.label.pk}/"),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(result["error"]["code"], "validation_error", result)
+        self.assertIn("label_ids", str(result["error"]["errors"]))
+        self.assertEqual(self.card.labels.count(), 0)
+
+    def test_mcp_create_with_stale_label_is_a_validation_error(self):
+        from mcp_server import tools
+
+        result, deleted, _ = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._as_mcp_user(
+                lambda: tools.create_card(
+                    board_id=self.board.pk,
+                    column_id=self.col.pk,
+                    swimlane_id=self.lane.pk,
+                    title="New",
+                    labels=["Bug"],
+                )
+            ),
+            self._delete(f"{self.base}/labels/{self.label.pk}/"),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(result["error"]["code"], "validation_error", result)
+        self.assertFalse(Card.objects.filter(title="New").exists())
+
+    def test_create_with_stale_definition_answers_400(self):
+        created, deleted, _ = self._race(
+            card_services,
+            BOARD_LOCK,
+            lambda: self._client().post(
+                f"{self.base}/cards/",
+                {
+                    "title": "New",
+                    "column": self.col.pk,
+                    "swimlane": self.lane.pk,
+                    "custom_field_values": [
+                        {"field_definition": self.definition.pk, "value": "gold"}
+                    ],
+                },
+                format="json",
+            ),
+            self._delete(f"{self.base}/custom-fields/{self.definition.pk}/"),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(created.status_code, 400, created.content[:300])
+        self.assertIn("Unknown custom field", str(created.json()))
+        self.assertFalse(Card.objects.filter(title="New").exists())
+
+
+class SwimlaneDefinitionReorderTests(_Base):
+    """The swimlane definition reorder takes the board row first, then its
+    rows in pk order (#1632), like the card definition reorder."""
+
+    def setUp(self):
+        super().setUp()
+        self.first = SwimlaneCustomFieldDefinition.objects.create(
+            board=self.board, name="Tier", field_type="text", position=0
+        )
+        self.second = SwimlaneCustomFieldDefinition.objects.create(
+            board=self.board, name="Size", field_type="text", position=1
+        )
+        self.reorder_url = f"{self.base}/swimlane-custom-fields/reorder/"
+
+    def _reorder(self):
+        return lambda: self._client().put(
+            self.reorder_url,
+            {"order": [self.second.pk, self.first.pk]},
+            format="json",
+        )
+
+    def test_reorder_queues_behind_a_swimlane_write(self):
+        from boards.views import swimlanes as swimlane_views
+
+        patched, reordered, waited = self._race(
+            swimlane_views,
+            "lock_board_and_row_or_404",
+            lambda: self._client().patch(
+                f"{self.base}/swimlanes/{self.lane.pk}/",
+                {
+                    "custom_field_values": [
+                        {"field_definition": self.first.pk, "value": "gold"}
+                    ]
+                },
+                format="json",
+            ),
+            self._reorder(),
+            after_lock=True,
+        )
+        self.assertTrue(waited, "swimlane definition reorder did not queue")
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+        self.assertEqual(reordered.status_code, 200, reordered.content[:300])
+        self.assertEqual(
+            list(
+                SwimlaneCustomFieldDefinition.objects.filter(board=self.board)
+                .order_by("position")
+                .values_list("pk", flat=True)
+            ),
+            [self.second.pk, self.first.pk],
+        )
+
+    def test_reorder_locks_board_then_rows_in_pk_order(self):
+        table = SwimlaneCustomFieldDefinition._meta.db_table
+        with CaptureQueriesContext(connection) as ctx:
+            response = self._reorder()()
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        locking = [q["sql"] for q in ctx.captured_queries if " FOR " in q["sql"]]
+        self.assertIn('FROM "boards"', locking[0])
+        self.assertIn("FOR NO KEY UPDATE", locking[0])
+        self.assertIn(f'FROM "{table}"', locking[1])
+        self.assertIn(f'ORDER BY "{table}"."id" ASC', locking[1])
+        self.assertTrue(locking[1].rstrip().endswith("FOR UPDATE"), locking[1])

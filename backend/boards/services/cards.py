@@ -1278,13 +1278,25 @@ def lock_board_for_card_write(board_id):
     deadlocked on it.
 
     Lock order: the board row is the first lock of the card transaction,
-    before the card row (``lock_card_for_write``) and any column row. No
-    path takes a board-row lock after a card or column lock
-    (``docs/architecture/service-layer.md``), so this adds no cycle; nothing
-    in a card create or update writes the board row, so two writers holding
-    ``FOR SHARE`` never upgrade into each other. On SQLite there is no row
-    lock and only the existence check remains. Must be called inside
-    ``transaction.atomic()``.
+    before the card row (``lock_card_for_write``) and any column row, and
+    the transaction then holds it while it waits for anything else. No path
+    takes a board-row lock after a card or column lock
+    (``docs/architecture/service-layer.md``). One more edge exists: at
+    COMMIT the card write takes ``FOR KEY SHARE`` on the user rows its
+    foreign keys name (activity actor, ``created_by``, ``assignee``). So a
+    transaction that holds a user row ``FOR UPDATE`` and then locks or
+    UPDATEs a board row would close a cycle. The only such path was the
+    user deactivation's board transfer, which now locks the user ``FOR NO
+    KEY UPDATE`` (it does not block ``FOR KEY SHARE``), like the user admin
+    delete (#1616); every other user-row ``FOR UPDATE`` holder (credential,
+    login, access-change and email-change paths, the user admin save) takes
+    no board, card or column lock. Nothing in a card create or update writes
+    the board row, so two writers holding ``FOR SHARE`` never upgrade into
+    each other. There is no lock timeout: a card write waits for a
+    board-row writer (and the reverse) for as long as that transaction
+    runs, which for a large container delete is the whole cascade. On
+    SQLite there is no row lock and only the existence check remains. Must
+    be called inside ``transaction.atomic()``.
     """
     sql = _BOARD_SHARE_LOCK_SQL.get(connection.vendor, _BOARD_SHARE_LOCK_SQL[None])
     with connection.cursor() as cursor:
