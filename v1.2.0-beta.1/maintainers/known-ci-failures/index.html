@@ -3969,7 +3969,7 @@ reports a callback or session error that the job log does not explain.</p>
 <h2 id="docker-push-cannot-connect-to-the-docker-daemon-at-unixvarrundockersock">Docker push: <code>Cannot connect to the Docker daemon at unix:///var/run/docker.sock</code><a class="headerlink" href="#docker-push-cannot-connect-to-the-docker-daemon-at-unixvarrundockersock" title="Permanent link">&para;</a></h2>
 <p><strong>Signature:</strong> <code>backend-docker-push</code> or <code>frontend-docker-push</code> fails with this Docker daemon
 connection error.</p>
-<p><strong>Root cause (historical, pre-</strong>!852<strong>):</strong> these jobs ran <code>docker buildx</code> against a Docker
+<p><strong>Root cause (historical, pre-</strong>!852**):** these jobs ran <code>docker buildx</code> against a Docker
 socket mounted only by a specific self-hosted runner's <code>config.toml</code>. The jobs carried no
 <code>tags:</code>, so once that runner went stale (2026-07-18), the jobs silently scheduled onto a
 GitLab SaaS runner with no Docker socket at all.</p>
