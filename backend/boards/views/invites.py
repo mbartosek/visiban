@@ -36,7 +36,7 @@ from visiban.utils import get_client_ip
 
 from .. import broadcast as _broadcast
 from .. import invites as _invites
-from ..models import BoardInviteLink, BoardInviteRedemption, BoardMembership
+from ..models import Board, BoardInviteLink, BoardInviteRedemption, BoardMembership
 from ..permissions import SITE_ADMIN, get_board_role
 from ..serializers import (
     BoardInviteLinkCreateBadRequestSerializer,
@@ -426,12 +426,33 @@ class JoinBoardView(APIView):
     def post(self, request, token):
         user = request.user
         ip = get_client_ip(request)
+        token_hash = BoardInviteLink._hash_token(str(token))
         with transaction.atomic():
-            try:
-                link = BoardInviteLink.objects.select_for_update().get(
-                    token_hash=BoardInviteLink._hash_token(str(token)),
-                )
-            except BoardInviteLink.DoesNotExist:
+            # Board row first, then the invite row (#1631). A board delete
+            # holds the board row from the start of its cascade and reaches
+            # this invite only at its collector DELETE, so a join that locked
+            # the invite first and inserted the membership and redemption
+            # rows under it made the delete fail its deferred foreign keys at
+            # COMMIT (a 500); locking the board after the invite would
+            # deadlock against that delete instead. The board id is read
+            # unlocked (an invite never changes board) and re-checked by the
+            # invite lock below. A join that queued behind a board delete
+            # finds the board gone and answers 404 with nothing written.
+            board_id = (
+                BoardInviteLink.objects.filter(token_hash=token_hash)
+                .values_list("board_id", flat=True).first()
+            )
+            if board_id is None:
+                return _not_found()
+            # FOR NO KEY UPDATE, like the member writers: it conflicts with
+            # the delete's board lock but not with the FOR KEY SHARE an invite
+            # revoke's event insert takes on the board while holding the
+            # invite row, so the two cannot deadlock.
+            lock_board_row_or_404(Board(pk=board_id), no_key=True)
+            link = BoardInviteLink.objects.select_for_update().filter(
+                token_hash=token_hash, board_id=board_id,
+            ).first()
+            if link is None:
                 return _not_found()
             # The lock is taken on the bare row (select_for_update cannot lock
             # the nullable side of an outer join); relations load afterwards.
