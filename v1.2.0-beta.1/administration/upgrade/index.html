@@ -4422,6 +4422,13 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <hr />
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Superuser accounts normalized</p>
+<p><code>manage.py migrate</code> runs a one-time data migration (<code>accounts/0036</code>). On upgrade, existing
+superuser accounts are set to site admin with all-content access, matching how the
+application already treats superusers. All existing superuser accounts have both flags set
+after migrating. The migration is idempotent.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Docker Compose: re-render the nginx config to get the stale-<code>index.html</code> fix</p>
 <p>The cache headers and the real-404 for missing <code>/assets/*</code> live in
