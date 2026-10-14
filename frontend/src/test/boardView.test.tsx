@@ -1067,6 +1067,22 @@ describe('BoardView', () => {
       expect(screen.getByText('The card you had open was deleted or archived, so it was closed.')).toBeInTheDocument()
     })
 
+    it('closes CardDetail with the notice in the analytics view too', async () => {
+      mockSearchParams = new URLSearchParams('view=analytics')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      // AnalyticsView mock opens card 1.
+      await userEvent.setup().click(screen.getByTestId('open-card-btn'))
+      expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('analytics-view')).toBeInTheDocument()
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('The card you had open was deleted or archived, so it was closed.')
+    })
+
     it('the notice clears itself after 4 seconds', () => {
       vi.useFakeTimers()
       try {

@@ -1860,12 +1860,21 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     );
   }
 
+  // Shared by the board view and the analytics view, the two views that
+  // render CardDetail: either can lose its open card to another user (#1615).
+  const cardNotFoundNotice = cardNotFound !== null && (
+    <div role="status" className="mx-4 mt-2 px-4 py-2 bg-warning/10 border border-warning/30 rounded-lg text-warning-on-tint text-sm">
+      {cardNotFound}
+    </div>
+  );
+
   if (view === "analytics") {
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <nav aria-label="Board toolbar" className="h-10 shrink-0 bg-surface border-b border-line flex items-center gap-2 px-3">
           <ViewToggle view={view} onChange={setView} showLens={showLensTab} deemphasizeBoard={deemphasizeBoardTab} />
         </nav>
+        {cardNotFoundNotice}
         <SectionErrorBoundary section="Analytics">
           <AnalyticsView
             boardId={board.id}
@@ -2231,11 +2240,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           No cards match the active filters.
         </div>
       )}
-      {cardNotFound !== null && (
-        <div className="mx-4 mt-2 px-4 py-2 bg-warning/10 border border-warning/30 rounded-lg text-warning-on-tint text-sm">
-          {cardNotFound}
-        </div>
-      )}
+      {cardNotFoundNotice}
       {archiveToast && (
         <div className="flex items-center justify-between gap-3 mx-4 mt-2 px-4 py-2 bg-surface-hover/80 border border-line-strong rounded-lg text-fg text-sm">
           <span>Card archived — view in <button onClick={() => { setShowArchived(true); setArchiveToast(false); }} className="text-info hover:underline rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis">Archived panel</button></span>

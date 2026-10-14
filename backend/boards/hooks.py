@@ -56,12 +56,9 @@ ANALYTICS_EXTENSIONS: list = []
 # ws-event-reachability CI gate reads the WebSocket registry only, so nothing
 # here is reachable from it; this table is the only place the mapping is stated.
 #
-# ``card.deleted`` fires only for a direct card delete (``delete_card``), never
-# for the cards a column, swimlane or board delete cascades to: those are
-# announced only by the container's own ``column.deleted`` / ``swimlane.deleted``
-# / ``board.deleted`` event (#1615, docs/api/websockets.md "Deleting a container
-# deletes its cards"). A handler that tracks cards must not assume every removed
-# card passes through it.
+# ``card.deleted`` hooks fire only from ``services.cards.delete_card``; admin
+# card deletes and container cascades (a column, swimlane or board delete,
+# #1615) fire no hook; consume the change feed to observe them.
 #
 # Register via: from boards.hooks import CARD_MUTATION_HOOKS
 #               CARD_MUTATION_HOOKS.append(my_handler)
