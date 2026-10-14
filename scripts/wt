@@ -187,20 +187,41 @@ derive_branch_name() {
   printf "feat/%s" "$(slugify "$input")"
 }
 
+# One tab-separated "<label>\t<path>" line per linked worktree (excludes the
+# main checkout). The label is the branch, or "(detached <sha>)" / "(bare)" for
+# entries with no branch line. wt_count and cmd_list BOTH read this, so the
+# WIP count and the listing can never disagree (#1485). Paths are taken as the
+# full remainder after "worktree " so a path containing spaces survives.
+wt_entries() {
+  git -C "$REPO_ROOT" worktree list --porcelain \
+    | awk -v main="$REPO_ROOT" '
+        function flush() {
+          if (path != "" && path != main) {
+            if (br != "") label = br
+            else if (bare) label = "(bare)"
+            else label = "(detached " substr(head, 1, 7) ")"
+            printf "%s\t%s\n", label, path
+          }
+          path = ""; br = ""; head = ""; bare = 0
+        }
+        /^worktree /{flush(); path = substr($0, 10)}
+        /^HEAD /{head = substr($0, 6)}
+        /^branch /{br = substr($0, 8); sub("^refs/heads/", "", br)}
+        /^bare$/{bare = 1}
+        END{flush()}'
+}
+
 # Count active worktrees (excludes the main checkout).
 wt_count() {
-  git -C "$REPO_ROOT" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -v "^${REPO_ROOT}$" \
-    | wc -l | tr -d ' '
+  wt_entries | wc -l | tr -d ' '
 }
 
 # Find a worktree path by issue number or name fragment.
 find_worktree() {
   local needle="$1"
   git -C "$REPO_ROOT" worktree list --porcelain \
-    | awk '/^worktree /{print $2}' \
-    | grep -v "^${REPO_ROOT}$" \
+    | awk '/^worktree /{print substr($0, 10)}' \
+    | grep -vxF "${REPO_ROOT}" \
     | grep -E "/${needle}(-|$)" \
     | head -n1
 }
@@ -511,13 +532,7 @@ cmd_new() {
 cmd_list() {
   local count; count="$(wt_count)"
   printf "Active worktrees (%s/%s):\n\n" "$count" "$WT_CAP"
-  git -C "$REPO_ROOT" worktree list --porcelain \
-    | awk -v main="$REPO_ROOT" '
-        /^worktree /{path=$2}
-        /^branch /{
-          br=$2; sub("refs/heads/","",br)
-          if (path != main) printf "  %-50s  %s\n", br, path
-        }'
+  wt_entries | awk -F'\t' '{ printf "  %-50s  %s\n", $1, $2 }'
   say ""
   if (( count == 0 )); then
     dim "  (none — use 'wt new <issue>' to create one)"
