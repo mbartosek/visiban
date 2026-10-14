@@ -84,9 +84,13 @@ def lock_invite_board(board_id) -> bool:
     and inserted the membership and redemption rows under it made that delete
     fail its deferred foreign keys at COMMIT (a 500), and one that locked the
     board *after* the invite would deadlock against it. ``FOR NO KEY UPDATE``
-    (as the member writers take it) conflicts with the delete's board lock but
-    not with the ``FOR KEY SHARE`` an invite revoke's event insert takes on
-    the board while it holds the invite row. The join view takes the same
+    is the container delete's own board-lock mode (and the member writers'),
+    so it conflicts with the delete and the two queue whole; unlike
+    ``FOR UPDATE`` it does not block the ``FOR KEY SHARE`` a card insert takes
+    on the board at commit. Invite revokes hold only the invite row and take
+    no board lock (``BoardEvent.board_id`` is a plain integer, not a foreign
+    key), so no path holds an invite row and then waits on the board row,
+    and the board -> invite order cannot deadlock. The join view takes the same
     lock through ``lock_board_row_or_404``; this is the service-side form for
     the registration path, which answers ``invite_invalid`` rather than 404.
     Must run inside ``transaction.atomic()``.
@@ -376,10 +380,12 @@ def redeem_board_registration_token(link: BoardInviteLink, user) -> None:
     grants nothing.
     """
     with transaction.atomic():
-        # Board row before the claim (#1631). Both callers validated in this
-        # same transaction and already hold it, so this is a no-op re-lock
-        # there; it keeps the board -> invite order for any caller that did
-        # not, and refuses a board deleted since validation.
+        # Board row before the claim (#1631). Both current callers validated
+        # in this same transaction and already hold it, so this is a no-op
+        # re-lock for them. It is defense in depth for a caller outside a
+        # validating transaction: it keeps the board -> invite order there.
+        # A board deleted since validation is refused either way — its
+        # invite cascades away, so the conditional claim below matches no row.
         if not lock_invite_board(link.board_id):
             raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
         claimed = BoardInviteLink.objects.filter(

@@ -71,7 +71,12 @@ class LockInviteBoardTests(TestCase):
             self.assertTrue(lock_invite_board(self.board.pk))
             self.assertFalse(lock_invite_board(self.board.pk + 10_000))
 
-    def test_registration_redeem_refuses_a_board_deleted_since_validation(self):
+    def test_registration_redeem_on_a_deleted_board_is_invite_invalid(self):
+        # Proves only the outcome: redeeming an invite whose board is gone
+        # raises invite_invalid and writes nothing. The board delete cascades
+        # to the invite, so the conditional claim alone already refuses it;
+        # this does not isolate the lock_invite_board re-check (which is
+        # defense in depth, see redeem_board_registration_token).
         link, _raw = BoardInviteLink.generate(
             board=self.board,
             created_by=self.sender,

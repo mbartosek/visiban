@@ -444,10 +444,13 @@ class JoinBoardView(APIView):
             )
             if board_id is None:
                 return _not_found()
-            # FOR NO KEY UPDATE, like the member writers: it conflicts with
-            # the delete's board lock but not with the FOR KEY SHARE an invite
-            # revoke's event insert takes on the board while holding the
-            # invite row, so the two cannot deadlock.
+            # FOR NO KEY UPDATE: the container delete's board-lock mode (and
+            # the member writers'), so the two queue whole, and unlike FOR
+            # UPDATE it does not block a card insert's FOR KEY SHARE on the
+            # board. Invite revokes hold only the invite row and take no board
+            # lock (BoardEvent.board_id is a plain integer, not a foreign
+            # key), so nothing holds an invite row while waiting on the board
+            # and this board -> invite order cannot deadlock.
             lock_board_row_or_404(Board(pk=board_id), no_key=True)
             link = BoardInviteLink.objects.select_for_update().filter(
                 token_hash=token_hash, board_id=board_id,
