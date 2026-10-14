@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 
 from accounts.models import User
 from boards.admin import (
@@ -605,3 +606,81 @@ class CardChecklistAdminBroadcastTests(TestCase):
             self.assertEqual(event_type, "card.updated")
             self.assertEqual(payload["checklist_total"], 0)
             self.assertFalse(CardChecklist.objects.filter(pk=item.pk).exists())
+
+
+class CardChildParentFixedOnChangeTests(TestCase):
+    """The parent card of a comment or checklist item is read-only on change."""
+
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(username="admin9", password="p", email="j@x")
+        self.board = Board.objects.create(name="Admin Parent Board", owner=self.admin_user)
+        BoardMembership.objects.create(
+            board=self.board, user=self.admin_user, role=BoardMembership.Role.ADMIN
+        )
+        self.column = Column.objects.create(
+            board=self.board, name="Backlog", position=0, allow_card_creation=True
+        )
+        self.swimlane = Swimlane.objects.create(board=self.board, name="Acme", position=0)
+        self.card = Card.objects.create(
+            board=self.board, column=self.column, swimlane=self.swimlane,
+            title="First card", created_by=self.admin_user, position=0,
+        )
+        self.other = Card.objects.create(
+            board=self.board, column=self.column, swimlane=self.swimlane,
+            title="Second card", created_by=self.admin_user, position=1,
+        )
+        self.client.force_login(self.admin_user)
+
+    def test_card_is_read_only_on_change_and_editable_on_add(self):
+        request = _make_request(self.admin_user)
+        for admin_cls, model, obj in (
+            (CardCommentAdmin, CardComment,
+             CardComment.objects.create(card=self.card, author=self.admin_user, body="x")),
+            (CardChecklistAdmin, CardChecklist,
+             CardChecklist.objects.create(card=self.card, text="x", position=0)),
+        ):
+            ma = admin_cls(model, AdminSite())
+            self.assertIn("card", ma.get_readonly_fields(request, obj))
+            self.assertNotIn("card", ma.get_readonly_fields(request, None))
+
+    def test_save_model_keeps_stored_card_on_change(self):
+        item = CardChecklist.objects.create(card=self.card, text="x", position=0)
+        item.card = self.other
+        admin = CardChecklistAdmin(CardChecklist, AdminSite())
+        with patch("boards.broadcast.broadcast_board_event") as mock_broadcast:
+            with self.captureOnCommitCallbacks(execute=True):
+                admin.save_model(_make_request(self.admin_user), item, _DummyForm(), change=True)
+        item.refresh_from_db()
+        self.assertEqual(item.card_id, self.card.id)
+        mock_broadcast.assert_called_once()
+        self.assertEqual(mock_broadcast.call_args[0][2]["uid"], self.card.uid)
+
+    def test_change_view_post_with_different_card_does_not_move_comment(self):
+        comment = CardComment.objects.create(card=self.card, author=self.admin_user, body="Old")
+        url = reverse("admin:boards_cardcomment_change", args=[comment.pk])
+        with patch("boards.broadcast.broadcast_board_event") as mock_broadcast:
+            with self.captureOnCommitCallbacks(execute=True):
+                resp = self.client.post(
+                    url, {"card": self.other.pk, "author": self.admin_user.pk, "body": "New"}
+                )
+        self.assertEqual(resp.status_code, 302)
+        comment.refresh_from_db()
+        self.assertEqual(comment.card_id, self.card.id)
+        self.assertEqual(comment.body, "New")
+        uids = [c[0][2]["uid"] for c in mock_broadcast.call_args_list]
+        self.assertEqual(uids, [self.card.uid])
+
+    def test_change_view_post_with_different_card_does_not_move_checklist_item(self):
+        item = CardChecklist.objects.create(card=self.card, text="Old", position=0)
+        url = reverse("admin:boards_cardchecklist_change", args=[item.pk])
+        with patch("boards.broadcast.broadcast_board_event") as mock_broadcast:
+            with self.captureOnCommitCallbacks(execute=True):
+                resp = self.client.post(
+                    url, {"card": self.other.pk, "text": "New", "position": 0}
+                )
+        self.assertEqual(resp.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.card_id, self.card.id)
+        self.assertEqual(item.text, "New")
+        uids = [c[0][2]["uid"] for c in mock_broadcast.call_args_list]
+        self.assertEqual(uids, [self.card.uid])
