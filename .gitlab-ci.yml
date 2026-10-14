@@ -4165,6 +4165,28 @@ check-release-attestations-selftest:
   script:
     - bash scripts/check-release-attestations.sh --self-test
 
+# Pins which tags the GitLab registry cleanup policy's `name_regex_keep` (a
+# project setting recorded only in docs/administration/container-image-retention.md)
+# keeps: release tags and `latest` kept, per-arch `-amd64`/`-arm64` working tags
+# swept (#1196), cosign `sha256-<hex>.sig`/`.att` kept by the #1541 target. Also
+# checks this file still uses the `-amd64`/`-arm64` suffixes the test assumes.
+registry-keep-regex-test:
+  stage: lint
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/alpine:3.19
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &registry-keep-regex-test-paths
+        - scripts/tests/registry-keep-regex.test.sh
+        - docs/administration/container-image-retention.md
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *registry-keep-regex-test-paths
+  before_script:
+    - apk add --no-cache bash python3
+  script:
+    - bash scripts/tests/registry-keep-regex.test.sh
+
 # MANUAL backfill for releases published before #1153 (or whose attest job
 # failed): signs + attests an already-published tag's images, both images, both
 # registries, without re-cutting the release. Set BACKFILL_TAG (e.g.

@@ -105,10 +105,11 @@ how to re-attach a backfilled release.
 !!! warning "Cleaning up per-arch tags (#1196) must keep the platform manifests"
     The `-amd64`/`-arm64` intermediate tags point at the same platform manifests the release
     index references, and those digests carry the signatures and SBOM attestations. Any
-    cleanup done for [#1196](https://gitlab.com/visiban/visiban/-/issues/1196) may remove the
-    intermediate **tags**, but it must not delete the platform **manifests** or their
-    `sha256-<digest>.sig`/`.att` tags. Deleting them breaks `docker pull` for that platform
-    and removes its signature and SBOM.
+    cleanup of them may remove the intermediate **tags**, but it must not delete the platform
+    **manifests** or their `sha256-<digest>.sig`/`.att` tags. Deleting them breaks
+    `docker pull` for that platform and removes its signature and SBOM. How #1196 resolved
+    this on each registry is under
+    [Per-arch working tags (#1196)](#per-arch-working-tags-1196).
 
 ### History: the semver-anchored form predates #1190
 
@@ -141,10 +142,8 @@ when #1190 began, and this page is only now catching up to it.
   GitLab registry they therefore fall back to the ordinary `keep_n: 10`/`older_than: 90d`
   sweep that `name_regex: ".*"` subjects everything else to — they get cleaned up in due
   course, not retained forever, as a direct result of the 2026-09-27 tightening above. On
-  GHCR there is still no cleanup mechanism at all (see below), so they accumulate there
-  unconditionally regardless of tag shape. Whether reclaiming them only after a `keep_n`/90d
-  wait (versus immediately after manifest assembly) is good enough is a separate question
-  still tracked in **#1196**.
+  GHCR they are kept on purpose. See [Per-arch working tags (#1196)](#per-arch-working-tags-1196)
+  for why each registry is handled the way it is.
 - **`MAJOR.MINOR` alias tags (e.g. `1.2`) are also not protected.** For a stable release,
   `backend-manifest`/`frontend-manifest` additionally alias the manifest onto a bare
   `MAJOR.MINOR` tag with the leading `v` stripped (`manifest-tool ... --tags latest,1.2` from
@@ -155,6 +154,54 @@ when #1190 began, and this page is only now catching up to it.
   tags specifically — it reads as an incidental consequence of the per-arch-tag anchoring
   above rather than a considered choice, and should be treated as unrecorded, not intended,
   until someone confirms otherwise.
+
+### Per-arch working tags (#1196)
+
+Each release pushes `<tag>-amd64` and `<tag>-arm64` to both registries so `manifest-tool` can
+assemble the multi-arch `:<tag>` index. The index references the two platform manifests **by
+digest**, not by tag. Those same digests carry the cosign signatures and SBOM attestations
+(`sha256-<digest>.sig`/`.att`, #1153). `attest-image-sbom.sh` and
+`check-release-attestations.sh` read the digests from the published index, and nothing after
+`backend-manifest`/`frontend-manifest` reads the `-amd64`/`-arm64` tags. (The SBOM's
+`metadata.component.version`, for example `v1.2.0-arm64`, is a label syft is given, not a
+reference to the tag.) So once the index exists, the per-arch **tag** is a disposable label,
+while the platform **manifest** it points at must stay.
+
+That distinction decides what each registry can safely do:
+
+| | What a delete removes | Mechanism used | Result |
+|---|---|---|---|
+| **GitLab registry** | The cleanup policy deletes **tags**, not the manifests behind them. GitLab's registry garbage collection does not remove a manifest that an index still references. | The existing cleanup policy. `name_regex_keep` does not match `-amd64`/`-arm64`-suffixed tags, so they fall under `keep_n: 10` / `older_than: 90d`. | Removed about 90 days after the release. The platform manifests, the index and the `.sig`/`.att` tags are untouched (the `.sig`/`.att` tags have their own retention question, #1541 above). |
+| **GHCR** | GHCR has no tag-only delete. GitHub's API deletes a **package version**, and a version is a manifest digest: deleting the version that carries `v1.2.0-amd64` deletes the amd64 platform manifest itself, along with every tag on it. | None, on purpose. | Two extra tag names per image per release. They add no storage: each labels a manifest the release index needs anyway. |
+
+**Why not delete them right after manifest assembly (#1196 option 1).** On GHCR the only
+available delete is the version delete above, which would break `docker pull` on that platform
+and orphan its signature and SBOM. On the GitLab registry a manifest-level delete (the registry
+`DELETE /v2/<repo>/manifests/<digest>` that `crane delete <repo>@<digest>` sends) has the same
+effect. Only GitLab's tag-delete API removes the tag alone, and the existing cleanup policy
+already removes these tags without adding a registry-delete credential to the tag pipeline.
+
+**The keep-regex is pinned by a test.** `scripts/tests/registry-keep-regex.test.sh` (CI job
+`registry-keep-regex-test`, on MRs touching this page, the test or `.gitlab-ci.yml`) reads
+every `name_regex_keep` recorded on this page and checks it against the tag shapes the pipeline
+pushes. Release tags and `latest` must be kept. `-amd64`/`-arm64` tags, including pre-release
+ones like `v1.2.0-beta.1-arm64`, must not be. The #1541 target must keep exactly
+`sha256-<64 hex>.sig`/`.att`. The test also checks that `.gitlab-ci.yml` still uses the
+`-amd64`/`-arm64` suffixes, so a change to the naming scheme fails the test instead of slipping
+past the regex. When #1541 is applied and this page records the target as the live policy,
+update the test's "not kept yet" case in the same change.
+
+!!! warning "A GHCR \"delete untagged versions\" workflow would break multi-arch releases"
+    The common GHCR cleanup recipe (for example `actions/delete-package-versions` with
+    `delete-only-untagged-versions: true`) treats an untagged version as garbage. Today the
+    `-amd64`/`-arm64` tags are what keep each platform manifest tagged on GHCR. If those tags
+    are ever removed, the platform manifests become untagged versions, and such a workflow
+    would delete them, breaking every multi-arch release on GHCR. A GHCR retention workflow
+    must exclude any version referenced by a release index. If the per-arch tags should
+    disappear from GHCR, the safe route is to stop pushing them there, for example by copying
+    the assembled index from the GitLab registry to GHCR by digest (`crane copy` copies an
+    index's platform manifests without tags). That changes the release pipeline and is not
+    done here.
 
 ### #1190 update: `latest` added to the keep-regex
 
@@ -229,9 +276,11 @@ Checked 2026-09-27: this repository's only GitHub Actions workflow is
 `.github/workflows/issue-bridge.yml` (unrelated — bridges GitLab issues to GitHub for
 visibility). **No workflow deletes GHCR package versions**, so GHCR-published `backend`/
 `frontend` images are not subject to any automated retention here — they persist until
-someone deletes them by hand. This includes the per-arch `-amd64`/`-arm64` tags #1084 added
-(see the GitLab registry section above) — GHCR has no keep-regex to even consider excluding
-them from, so they accumulate unconditionally until #1196 is addressed.
+someone deletes them by hand. This includes the per-arch `-amd64`/`-arm64` tags #1084 added.
+Those are kept on GHCR deliberately: GHCR can only delete a whole package version, which for
+these tags is the platform manifest the release index, signature and SBOM depend on. See
+[Per-arch working tags (#1196)](#per-arch-working-tags-1196), including the warning there
+before adding any GHCR cleanup workflow.
 
 The `gh` CLI used for this audit was authenticated but its token lacked the `read:packages`
 scope needed to list package versions directly (`gh api orgs/visiban/packages` → 403). That
@@ -249,7 +298,8 @@ gh api "orgs/visiban/packages?package_type=container"
 
 If a retention workflow is ever added for GHCR, record its keep-rule here in the same shape
 as the GitLab section above, including whether it protects `v*` tags and `latest`
-unconditionally.
+unconditionally, and how it avoids deleting platform manifests that a release index
+references.
 
 ## The scheduled check: `check-release-images`
 
