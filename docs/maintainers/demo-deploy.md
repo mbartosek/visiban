@@ -278,6 +278,12 @@ kubectl -n visiban-demo logs deploy/visiban-demo-frontend --tail=20
 - **Rotate a password**: change it in the secrets file and upgrade. The backend pods roll,
   because the demo Secret is checksummed into the pod template, and the seed hook
   re-applies the new password.
+- **Blank page after a deploy, console says "Expected a JavaScript module script but the
+  server responded with a MIME type of text/html".** The visitor's browser holds a cached
+  `index.html` from the previous build. The chart's nginx now sends `no-cache` for it and
+  404s missing `/assets/*` (#1633), so this should not recur; if it does, check that nothing
+  in front (Cloudflare cache rules) is caching `index.html`. A hard reload clears it for one
+  visitor.
 
 ## Deployment record
 
