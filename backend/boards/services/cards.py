@@ -1288,9 +1288,13 @@ def lock_board_for_card_write(board_id):
     UPDATEs a board row would close a cycle. The only such path was the
     user deactivation's board transfer, which now locks the user ``FOR NO
     KEY UPDATE`` (it does not block ``FOR KEY SHARE``), like the user admin
-    delete (#1616); every other user-row ``FOR UPDATE`` holder (credential,
-    login, access-change and email-change paths, the user admin save) takes
-    no board, card or column lock. Nothing in a card create or update writes
+    delete (#1616). No other path takes a board, card or column lock after
+    a user-row ``FOR UPDATE``: the credential, login, access-change and
+    email-change paths and the user admin save take none at all, and the
+    user admin delete locks its targets ``FOR NO KEY UPDATE``, then the
+    owned boards and the cards, and only then the targets ``FOR UPDATE``
+    (``_lock_cards_then_targets``), so it waits at the board row while
+    holding nothing that blocks ``FOR KEY SHARE``. Nothing in a card create or update writes
     the board row, so two writers holding ``FOR SHARE`` never upgrade into
     each other. There is no lock timeout: a card write waits for a
     board-row writer (and the reverse) for as long as that transaction
