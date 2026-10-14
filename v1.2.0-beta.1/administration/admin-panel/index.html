@@ -3294,10 +3294,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#make-admin-remove-admin" class="md-nav__link">
+  <a href="#make-admin-demote-admin" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Make admin / Remove admin
+        Make admin / Demote admin
       
     </span>
   </a>
@@ -4247,7 +4247,7 @@ walkthrough.</p>
 <blockquote>
 <p><strong>Changed in 1.2</strong> — the less-frequent actions moved into a per-row overflow menu.</p>
 </blockquote>
-<p>Each row shows <strong>Deactivate</strong>/<strong>Reactivate</strong> and <strong>Make admin</strong>/<strong>Remove admin</strong> as inline
+<p>Each row shows <strong>Deactivate</strong>/<strong>Reactivate</strong> and <strong>Make admin</strong>/<strong>Demote admin</strong> as inline
 text buttons — these are the actions admins reach for most often. The remaining, lower-frequency
 actions (<strong>Grant all-content</strong>/<strong>Revoke all-content</strong>, <strong>Force password reset</strong>, <strong>Clear
 lockout</strong>, and <strong>Restart onboarding tour</strong>, when each applies to that user) live behind the
@@ -4297,8 +4297,8 @@ has access through group membership both count) and confirm; deactivation and th
 transfers happen together, atomically. Deactivating the account also revokes any invite links
 the departing user created — site invite links and, <em>(1.2+)</em>, the pending board invites they
 emailed (each board's admins see those invites move to <strong>Revoked</strong>) and their active, unused group invite links (each affected group's admins see them move to <strong>Revoked</strong>). Consumed single-use links are left as they are.</p>
-<h4 id="make-admin-remove-admin">Make admin / Remove admin<a class="headerlink" href="#make-admin-remove-admin" title="Permanent link">&para;</a></h4>
-<p>Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. <strong>Remove admin</strong> is refused for an account that is still a superuser; remove superuser status first. <em>(1.2+)</em> <strong>Remove admin</strong> also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.</p>
+<h4 id="make-admin-demote-admin">Make admin / Demote admin<a class="headerlink" href="#make-admin-demote-admin" title="Permanent link">&para;</a></h4>
+<p>Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. <strong>Demote admin</strong> is not shown for an account that is still a superuser (the API refuses it); remove superuser status in the Django admin first. <em>(1.2+)</em> <strong>Demote admin</strong> also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.</p>
 <p>The last active site admin on the instance cannot be demoted.</p>
 <h4 id="grant-all-content-revoke-all-content">Grant all-content / Revoke all-content<a class="headerlink" href="#grant-all-content-revoke-all-content" title="Permanent link">&para;</a></h4>
 <blockquote>
@@ -4308,7 +4308,7 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <ul>
 <li><strong>Grant all-content</strong> gives a user omniscient access without making them a site admin. This is useful for support engineers who need visibility into all boards but should not manage instance settings.</li>
 <li><strong>Grant all-content</strong> and <strong>Revoke all-content</strong> on a superuser account are available to superusers only.</li>
-<li><strong>Revoke all-content</strong> removes that access. The user will only see boards and groups they are explicitly a member of. It is refused for a superuser account, because superuser status implies all-content access; remove superuser status first.</li>
+<li><strong>Revoke all-content</strong> removes that access. The user will only see boards and groups they are explicitly a member of. It is not shown for a superuser account, because superuser status implies all-content access (the API refuses it); remove superuser status in the Django admin first.</li>
 </ul>
 <p>These two flags — <code>is_site_admin</code> (admin panel access) and <code>can_access_all_content</code> (board/group omniscience) — are independent for accounts that are not superusers (a superuser always has both). See <a href="../site-admins/">Site Admins</a> for a detailed explanation of the two-flag model and examples of common configurations.</p>
 <div class="admonition tip">
