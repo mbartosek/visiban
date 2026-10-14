@@ -60,9 +60,12 @@ already an answer:
 | `failed` | `mergeable` / `ci_must_pass` | Step 2 (pipeline only) |
 | `success` | `conflict` / `need_rebase` | **Step 3b** (conflict only) |
 | `failed` | `conflict` / `need_rebase` | **Step 3b first** — merging `main` often clears the red too |
+| `failed` | `not_approved`, `discussions_not_resolved`, `draft_status`, `blocked_status` | Step 2 (pipeline only) — and report the human-blocker status verbatim alongside it |
 | `success` | `mergeable` | Step 6 — genuinely done |
 | `running` / `pending` | any | Step 5, then re-read both |
 | `success` | `not_approved`, `discussions_not_resolved`, `draft_status`, `blocked_status` | Step 6 — report verbatim; needs a human |
+| `canceled` / `skipped` / `manual` / `created` / `none` | any | Report both values verbatim and stop — nothing ran to diagnose, and re-triggering is the user's call |
+| anything else | anything else (e.g. `requested_changes`, `external_status_checks`, `jira_association_missing`, `merge_request_blocked`) | Report both values verbatim; needs a human — do not guess |
 
 `checking` and `unchecked` are transient. Re-read after a few seconds (bounded: at most
 a handful of re-reads) and route on the settled value. A routing decision made on a
