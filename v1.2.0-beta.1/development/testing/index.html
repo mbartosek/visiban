@@ -4443,6 +4443,28 @@ not <code>manage.py test</code> — <code>pytest-django</code> reads the same <c
 <ul>
 <li>Backend tests run in the <code>backend-test</code> job (8 parallel shards) on every MR that touches <code>backend/**/*</code> or <code>requirements*.txt</code></li>
 <li>Shards are time-balanced by <code>pytest-split</code> from the committed <code>backend/.test_durations</code> file. Shards never write it (concurrent shards would overwrite each other's slice). Refresh it occasionally, e.g. after a large batch of new tests: <code>cd backend &amp;&amp; pytest --store-durations --durations-path .test_durations</code>, then commit the file. A stale file only degrades balance, never correctness.</li>
+<li><code>backend-benchmark</code> is a <strong>manual</strong> job (#1341) that runs
+  <code>python manage.py benchmark --fail-on-budget</code>. Trigger it from the pipeline page's manual-job
+  play button on an MR or <code>main</code> pipeline; it is <code>allow_failure: true</code> so an unrun job never
+  blocks a merge, and it never runs on schedules or tags. The command seeds its own throw-away
+  board (100 cards) and counts SQL queries for the card list, <code>full/</code>, and <code>summary/</code> against
+  committed budgets. It fails on a non-2xx response, on <code>DEBUG</code> being off, or on any endpoint
+  over budget. To run it locally: <code>cd backend &amp;&amp; DEBUG=True python manage.py benchmark --fail-on-budget</code>.
+  <strong>Why manual:</strong> the same <code>benchmark --fail-on-budget</code> already runs on Postgres inside
+  <code>backend-test</code> on every backend MR via <code>BenchmarkCommandCiGateTests.test_within_budget_passes_with_fail_on_budget</code>,
+  so an automatic job would be near-redundant and cost a Postgres + Valkey pair per MR. Run on
+  demand it adds <code>DEBUG</code> taken from the environment, a run outside a <code>TestCase</code> transaction, and
+  a fresh <code>migrate</code>. Latency regressions that keep the query count identical are covered by
+  <code>nightly-load-test</code> (<a href="../nightly-load-test/">nightly-load-test.md</a>). First measured on Postgres in
+  #1341: cards 9 (budget 12), <code>full/</code> 17 (budget 20), <code>summary/</code> 4 (budget 10).
+  <strong>Budgets:</strong> they partly overlap <code>backend/boards/tests/test_query_counts.py</code>. The benchmark's
+  cards check serializes <code>_card_queryset</code> directly (a subset of the endpoint), so its budget of
+  12 is intentionally different from <code>CardListQueryCountTests.BUDGET</code> (14); it is a coarser
+  check, not a replacement. <code>full/</code> (20) is deliberately 1 above <code>BoardFullQueryCountTests.BUDGET</code>
+  (19) and <code>summary/</code> (10) equals <code>SummaryQueryCountTests.BUDGET</code>; neither should exceed the
+  <code>test_query_counts.py</code> value plus that slack. When a budget legitimately changes, bump both
+  files together following
+  <a href="https://gitlab.com/visiban/visiban/-/blob/main/.claude/agents/perf-bench.md">perf-bench.md section 6</a>.</li>
 <li>Frontend unit tests run in <code>frontend-test</code>. Unlike <code>backend-schema-fuzz</code> below, a single
   failed test retries once automatically under CI (<code>vitest.config.ts</code>'s <code>test.retry</code>, gated
   on <code>process.env.CI</code> so local runs stay strict) before failing the job — a mitigation for
