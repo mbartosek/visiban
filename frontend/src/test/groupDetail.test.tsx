@@ -919,13 +919,13 @@ describe('GroupDetail', () => {
       await screen.findByText('Board defaults')
       const expected: Record<string, string> = {
         low: 'text-info-on-tint', medium: 'text-warning-on-tint',
-        high: 'text-danger-on-tint', urgent: 'text-danger-on-tint',
+        high: 'text-danger-on-tint', urgent: 'text-urgent-on-tint',
       }
       for (const [name, textClass] of Object.entries(expected)) {
         const btn = screen.getByRole('button', { name })
         expect(btn).toHaveClass(textClass, 'focus:ring-2')
-        expect(btn.className).toMatch(/bg-(info|warning|danger)\/20/)
-        expect(btn.className).not.toMatch(/bg-(info|warning|danger)\/(50|60)/)
+        expect(btn.className).toMatch(/bg-(info|warning|danger|urgent)\/20/)
+        expect(btn.className).not.toMatch(/bg-(info|warning|danger|urgent)\/(50|60)/)
       }
     })
 
@@ -940,8 +940,9 @@ describe('GroupDetail', () => {
       expect(medium).toHaveClass('bg-warning/20', 'border-warning/60')
       expect(high).toHaveClass('bg-danger/20', 'border-danger/60')
       expect(high).not.toHaveClass('bg-warning/20')
-      expect(urgent).toHaveClass('border-danger', 'font-semibold')
-      expect(urgent).not.toHaveClass('border-danger/60')
+      expect(urgent).toHaveClass('bg-urgent/20', 'border-urgent/60', 'text-urgent-on-tint')
+      expect(urgent).not.toHaveClass('font-semibold')
+      expect(urgent.className).not.toMatch(/danger/)
     })
 
     it('a disabled priority toggle reports aria-pressed=false (#1592)', async () => {
