@@ -370,7 +370,7 @@ claimed_e2e_ports() {
     [[ -z "$path" || "$path" == "$REPO_ROOT" ]] && continue
     port="$(worktree_e2e_port "$path")"
     [[ -n "$port" ]] && printf '%s\n' "$port"
-  done < <(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print $2}')
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print substr($0, 10)}')
 }
 
 # Deterministic offset in [0, WT_E2E_PORT_SPAN) derived from the slug via
@@ -692,7 +692,7 @@ cmd_prune() {
       clear_lock "$issue" "$branch"
       dim "    released check-out of #$issue"
     fi
-  done < <(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print $2}')
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print substr($0, 10)}')
 
   say ""
   say "Pruned: $pruned. Skipped (had local work): $skipped. Kept: $kept."

@@ -200,6 +200,20 @@ prune_in "$D" "[{\"iid\": 1, \"sha\": \"$TIP\", \"target_branch\": \"release/1.0
 check "a squash merge onto a different target branch is kept" "$(if [[ -d "$P" ]]; then echo 0; else echo 1; fi)"
 check "…with the not-in-main warning"                          "$(printf '%s' "$RUN_OUT" | grep -q 'NOT in origin/main'; echo $?)"
 
+# --- Case 7: worktree path containing a space --------------------------------
+# prune parsed the path with awk $2, truncating at the space, so `git -C` hit a
+# nonexistent dir and the entry was silently skipped forever (#1485).
+echo "Case 7: merged worktree under a path with a space"
+D="$TMP/c7"; mk_repo "$D"
+P="$TMP/c7 spaced/wt-merge"
+git -C "$D" worktree add -q -b feat/7-space "$P" main 2>/dev/null
+commit_in "$P" feat-7-1
+git -C "$P" push -q -u origin feat/7-space 2>/dev/null
+git -C "$D" merge -q --no-ff feat/7-space -m "Merge feat/7-space"
+land "$D" feat/7-space
+prune_in "$D"
+check "a merged worktree whose path has a space is removed"  "$(if [[ ! -d "$P" ]]; then echo 0; else echo 1; fi)"
+
 echo ""
 echo "wt-prune: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]
