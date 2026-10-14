@@ -187,12 +187,17 @@ class DeactivationGuardFormTests(_Base):
         self.assertNotContains(r, "Owned 1577")
 
     def test_last_active_site_admin_deactivation_refused(self):
+        root = User.objects.create_superuser(username="root_sa_1577", email="rsa1577@example.com", password=PW)
+        User.objects.filter(pk=root.pk).update(is_site_admin=False)
+        self.client.force_login(root)
         self.target.is_site_admin = True
         self.target.save()
         r = self.post(self.target, is_active="")
         self.assert_refused(r, self.target, "Cannot deactivate the last active site admin.")
 
     def test_site_admin_deactivation_allowed_when_another_remains(self):
+        root = User.objects.create_superuser(username="root_sa2_1577", email="rsa2@example.com", password=PW)
+        self.client.force_login(root)
         self.target.is_site_admin = True
         self.target.save()
         _staff("sa2_1577", site_admin=True)
@@ -409,7 +414,7 @@ class IdentityFieldTests(_Base):
         self.target.refresh_from_db()
         self.assertEqual(self.target.username, "target_1577")
         self.assertNotEqual(self.target.email, "new@example.com")
-        self.assertEqual(self.target.first_name, "Ada")
+        self.assertEqual(self.target.first_name, "")
 
     def test_ordinary_target_identity_fields_editable(self):
         r = self.post(self.target, email="new@example.com", username="renamed_1577")

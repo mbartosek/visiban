@@ -112,7 +112,14 @@ class UserDeleteGuardTests(TestCase):
         self.assertRefused(r, "last active site admin")
         self.assertTrue(User.objects.filter(pk=sole.pk).exists())
 
+    def _login_superuser(self, name="root_1620"):
+        root = _staff(name, superuser=True)
+        User.objects.filter(pk=root.pk).update(is_site_admin=False)
+        self.client.force_login(root)
+        return root
+
     def test_single_delete_site_admin_allowed_when_another_remains(self):
+        self._login_superuser()
         other = _staff("other_admin_1616", site_admin=True)
         sole = User.objects.create_user(username="second_1616", password=PW)
         sole.is_site_admin = True
@@ -169,6 +176,7 @@ class UserDeleteGuardTests(TestCase):
         for u in (a, b):
             u.is_site_admin = True
             u.save()
+        self._login_superuser()
         self.bulk([a], post="yes")
         self.assertFalse(User.objects.filter(pk=a.pk).exists())
         self.assertTrue(User.objects.filter(pk=b.pk).exists())
@@ -272,6 +280,9 @@ class UserDeleteHardeningTests(TestCase):
         sole = User.objects.create_user(username="stale_sole_1616", password=PW)
         sole.is_site_admin = True
         sole.save()
+        root = _staff("stale_root_1616", superuser=True)
+        User.objects.filter(pk=root.pk).update(is_site_admin=False)
+        self.client.force_login(root)
         with self._first_check_passes():
             r = self.client.post(self.delete_url(sole), {"post": "yes"}, follow=True)
         self.assertTrue(User.objects.filter(pk=sole.pk).exists())

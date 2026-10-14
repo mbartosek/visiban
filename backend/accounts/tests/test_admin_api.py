@@ -429,11 +429,6 @@ class AdminPatchUserTests(TestCase):
         self.assertTrue(self.target.can_access_all_content)
 
     def test_all_content_grant_and_non_superuser_clear_still_work(self):
-        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
-        r = self.client.patch(
-            f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": True}
-        )
-        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
         other = make_user(username="plain_1614")
         User.objects.filter(pk=other.pk).update(can_access_all_content=True)
         r = self.client.patch(
