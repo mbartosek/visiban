@@ -109,6 +109,38 @@ class StaffTargetFormTests(TestCase):
         self.actor.refresh_from_db()
         self.assertEqual(self.actor.email, "mine@example.com")
 
+    def test_target_promoted_to_staff_before_the_lock_keeps_identity(self):
+        from accounts.admin import VisibanUserAdmin
+
+        real_save = VisibanUserAdmin.save_model
+
+        def promote_then_save(admin_self, request, obj, form, change):
+            User.objects.filter(pk=obj.pk).update(is_staff=True)
+            return real_save(admin_self, request, obj, form, change)
+
+        with mock.patch.object(VisibanUserAdmin, "save_model", promote_then_save):
+            r = self.change(self.plain, email="late@example.com")
+        self.assertEqual(r.status_code, 403)
+        self.plain.refresh_from_db()
+        self.assertEqual(self.plain.email, "plain_s@example.com")
+
+    def test_target_promoted_to_staff_before_the_lock_keeps_password(self):
+        real_hash = admin_module._stored_password_hash
+
+        def promote_then_lock(pk, *, lock=False):
+            if lock:
+                User.objects.filter(pk=pk).update(is_staff=True)
+            return real_hash(pk, lock=lock)
+
+        url = reverse("admin:auth_user_password_change", args=[self.plain.pk])
+        before = User.objects.get(pk=self.plain.pk).password
+        with mock.patch.object(admin_module, "_stored_password_hash", promote_then_lock):
+            r = self.client.post(
+                url, {"password1": "Str0ng-new-pass-1620", "password2": "Str0ng-new-pass-1620"}
+            )
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(User.objects.get(pk=self.plain.pk).password, before)
+
     def test_superuser_actor_changes_staff_target(self):
         root = _user("root_s", staff=True, superuser=True)
         self.client.force_login(root)
@@ -163,19 +195,13 @@ class StaffTargetDeleteTests(TestCase):
         self.client.post(self.delete_url(self.plain), {"post": "yes"})
         self.assertFalse(User.objects.filter(pk=self.plain.pk).exists())
 
-    def test_staff_target_refused_under_lock_when_page_check_passes(self):
-        real = admin_module.user_deletion_refusals
-        calls = {"n": 0}
-
-        def side_effect(targets, actor):
-            calls["n"] += 1
-            return [] if calls["n"] == 1 else real(targets, actor)
-
-        with mock.patch("accounts.admin.user_deletion_refusals", side_effect=side_effect):
-            # The page-level check is bypassed; the locked rows decide.
+    def test_staff_target_refused_by_locked_actor_row_check(self):
+        # Every call to the shared refusal helper is bypassed, so only the
+        # scope check on the locked rows in ``_lock_and_check_admins`` decides.
+        with mock.patch("accounts.admin.user_deletion_refusals", return_value=[]):
             r = self.client.post(self.delete_url(self.peer), {"post": "yes"}, follow=True)
         self.assertTrue(User.objects.filter(pk=self.peer.pk).exists())
-        self.assertTrue(any("Only a superuser can delete" in m for m in _msgs(r)))
+        self.assertTrue(any("Only a superuser can delete" in m for m in _msgs(r)), _msgs(r))
         self.assertFalse(LogEntry.objects.filter(action_flag=DELETION).exists())
 
     def test_superuser_actor_deletes_staff_and_site_admin(self):
@@ -233,22 +259,25 @@ class GroupOwnerDeleteTests(TestCase):
         self.assertFalse(User.objects.filter(pk=self.owner.pk).exists())
         self.assertTrue(Group.objects.filter(pk=self.group.pk).exists())
 
-    def test_group_created_after_page_check_refused_under_lock(self):
+    def test_group_created_after_page_check_refused_by_final_lock_check(self):
         late = _user("late_g")
         real = admin_module.user_deletion_refusals
         calls = {"n": 0}
+        # Created inside the delete transaction, so a refusal rolls it back too.
 
         def side_effect(targets, actor):
             calls["n"] += 1
-            if calls["n"] == 1:
+            if calls["n"] == 1:  # page-level check
                 return []
-            return real(targets, actor)
+            if calls["n"] == 2:  # first lock statement: the group appears after it
+                Group.objects.create(name="Late", owner=late)
+                return []
+            return real(targets, actor)  # final check, after the target rows lock
 
-        grp = Group.objects.create(name="Late", owner=late)
         with mock.patch("accounts.admin.user_deletion_refusals", side_effect=side_effect):
             r = self.client.post(self.delete_url(late), {"post": "yes"}, follow=True)
+        self.assertEqual(calls["n"], 3)
         self.assertTrue(User.objects.filter(pk=late.pk).exists())
-        self.assertTrue(Group.objects.filter(pk=grp.pk).exists())
         self.assertTrue(any("owns groups" in m for m in _msgs(r)))
 
 
@@ -317,6 +346,17 @@ class AdminApiSuperuserTargetTests(TestCase):
         target = _user("api_plain")
         r = self.api.patch(self.url(target), {"must_change_password": True, "is_active": False},
                            format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+
+    def test_clear_lockout_of_superuser_refused_for_site_admin(self):
+        r = self.api.post(self.url(self.root, "clear-lockout/"), {}, format="json")
+        self.assert_refused(r)
+        other = _user("api_locked")
+        r = self.api.post(self.url(other, "clear-lockout/"), {}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        api = APIClient()
+        api.force_authenticate(self.root)
+        r = api.post(self.url(self.root, "clear-lockout/"), {}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
 
     def test_deactivating_group_owner_is_not_refused(self):

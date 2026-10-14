@@ -1745,6 +1745,11 @@ class AdminUserClearLockoutView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # A superuser account's sign-in protection stays with superusers.
+        refusal = superuser_target_refusal(target, request.user)
+        if refusal is not None:
+            return Response(refusal.body, status=refusal.status)
+
         clear_login_lockout(request, target)
 
         # Same user-targeted admin-action logging shape as

@@ -30,6 +30,9 @@ from .credentials import finalize_password_change, require_password_change_after
 
 
 #: Fields only a superuser may edit in the Django admin user form (#1577).
+#: Fields only a superuser changes on another staff, superuser or site-admin account.
+_PROTECTED_IDENTITY_FIELDS = ("email", "username", "first_name", "last_name", "is_active")
+
 _SUPERUSER_ONLY_FIELDS = ("is_staff", "is_superuser", "groups", "user_permissions")
 
 
@@ -408,6 +411,17 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
             return super().user_change_password(request, id, form_url)
         with transaction.atomic():
             before = _stored_password_hash(target.pk, lock=True)
+            # Protection is judged again with the hash row locked: the target
+            # may have become a staff, superuser or site-admin account, or the
+            # actor lost superuser status, since the request started.
+            actor_now = User.objects.filter(pk=request.user.pk).first()
+            target_now = User.objects.filter(pk=target.pk).first()
+            if (
+                actor_now is not None
+                and not actor_now.is_superuser
+                and _is_protected_other_account(actor_now, target_now)
+            ):
+                raise PermissionDenied
             response = super().user_change_password(request, id, form_url)
             if _stored_password_hash(target.pk) != before:
                 target.refresh_from_db()
@@ -427,8 +441,7 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
                 # password reset and ``is_active`` locks the account out, so
                 # for these accounts they stay with superusers.
                 readonly += tuple(
-                    f for f in ("email", "username", "first_name", "last_name", "is_active")
-                    if f not in readonly
+                    f for f in _PROTECTED_IDENTITY_FIELDS if f not in readonly
                 )
         return readonly
 
@@ -505,6 +518,23 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
                         changed is not None and field.name not in changed
                     ):
                         setattr(obj, field.attname, getattr(stored, field.attname))
+            if stored is not None and not request.user.pk == stored.pk:
+                # Protection is judged again on the locked target and the
+                # actor's current row: the target may have become a staff,
+                # superuser or site-admin account, or the actor lost
+                # superuser status, since the form was built (the read-only
+                # fields were chosen from the row loaded at request start).
+                actor_now = User.objects.filter(pk=request.user.pk).first()
+                if (
+                    actor_now is not None
+                    and not actor_now.is_superuser
+                    and _is_protected_other_account(actor_now, stored)
+                    and any(
+                        getattr(obj, f) != getattr(stored, f)
+                        for f in _PROTECTED_IDENTITY_FIELDS
+                    )
+                ):
+                    raise PermissionDenied
             if stored is not None:
                 # The form's checks ran before this lock was taken; repeat them
                 # against the locked rows. They run after the values above are
@@ -704,7 +734,10 @@ class VisibanUserAdmin(ContainerChangedAdminMixin, UserAdmin):
         locked = list(
             User.objects.select_for_update().filter(pk__in=pk_list).order_by("pk")
         )
-        reasons = user_deletion_refusals(locked, request.user)
+        # The actor row was locked by statement 1 in this transaction, so this
+        # read is stable; the in-memory ``request.user`` may predate a demotion.
+        actor_row = User.objects.filter(pk=request.user.pk).first() or request.user
+        reasons = user_deletion_refusals(locked, actor_row)
         if reasons:
             raise DeletionRefused(reasons)
 

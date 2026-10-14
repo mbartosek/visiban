@@ -373,7 +373,10 @@ class UserDeleteHardeningTests(TestCase):
 @_PLAIN_STATIC
 class ConcurrentLastSiteAdminDeleteTests(TransactionTestCase):
     def test_two_concurrent_deletes_of_the_last_two_site_admins_leave_one(self):
-        actor = _staff("actor_1616")
+        actor = _staff("actor_1616", superuser=True)
+        # Superuser status implies site admin; clear it so only the two
+        # accounts below count as site admins.
+        User.objects.filter(pk=actor.pk).update(is_site_admin=False)
         admins = []
         for name in ("conc_a_1616", "conc_b_1616"):
             u = User.objects.create_user(username=name, password=PW)

@@ -428,7 +428,7 @@ class AdminPatchUserTests(TestCase):
         self.target.refresh_from_db()
         self.assertTrue(self.target.can_access_all_content)
 
-    def test_all_content_grant_and_non_superuser_clear_still_work(self):
+    def test_non_superuser_clear_of_all_content_still_works(self):
         other = make_user(username="plain_1614")
         User.objects.filter(pk=other.pk).update(can_access_all_content=True)
         r = self.client.patch(

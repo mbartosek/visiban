@@ -472,7 +472,7 @@ After a successful deactivation with transfers, `owned_boards` will be `[]` — 
 
 Clear the target user's per-account login lockout early (#1203). The per-account `login_failed` lockout (5 failed attempts / 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.
 
-**Permission:** `IsSiteAdmin`.
+**Permission:** `IsSiteAdmin`. Only a superuser can clear the lockout of a superuser account (`400` otherwise).
 
 Idempotent — calling it on an account that isn't currently locked out succeeds and changes nothing. Visiban accepts login by username or email, and since 1.2 (#1206) both count against one lockout keyed on the account; this clears that lockout, plus the username- and email-string buckets (used for identifiers that don't resolve to exactly one account, and by lockouts recorded before the upgrade).
 
