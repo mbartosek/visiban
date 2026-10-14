@@ -4545,6 +4545,7 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 <h3 id="post-apiv1boardsboard_idcards"><code>POST /api/v1/boards/{board_id}/cards/</code><a class="headerlink" href="#post-apiv1boardsboard_idcards" title="Permanent link">&para;</a></h3>
 <p>Create a card. Requires member or above. The target column must have <code>allow_card_creation</code> enabled.</p>
 <p>The target column's WIP and weight limits are enforced exactly as on a <a href="#wip-weight-limit-enforcement">move</a> into it: <code>409</code> with <code>wip_limit_exceeded</code>, <code>wip_hard_blocked</code>, or <code>weight_limit_exceeded</code>, and a board admin may pass the optional <code>?force=true</code> query parameter to override a soft limit (a non-admin gets <code>403</code>; hard mode has no override). <em>Changed in 1.2 (#1428): creates were not checked before.</em></p>
+<p>Since 1.2, a create returns <code>404 Not Found</code> (nothing is written) when its target column or swimlane, or the board, was deleted while the request was in flight (#1602).</p>
 <p><strong>Request</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Fix login bug"</span><span class="p">,</span>
@@ -4992,7 +4993,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <hr />
 <h2 id="move">Move<a class="headerlink" href="#move" title="Permanent link">&para;</a></h2>
 <h3 id="post-apiv1boardsboard_idcardsidmove"><code>POST /api/v1/boards/{board_id}/cards/{id}/move/</code><a class="headerlink" href="#post-apiv1boardsboard_idcardsidmove" title="Permanent link">&para;</a></h3>
-<p>Move a card to a new column/swimlane/position. Creates a <code>CardMovement</code> record if column or swimlane changes. Requires member or above. Returns <code>404 Not Found</code> if the card was deleted concurrently; the move is not saved (#1585).</p>
+<p>Move a card to a new column/swimlane/position. Creates a <code>CardMovement</code> record if column or swimlane changes. Requires member or above. Returns <code>404 Not Found</code> if the card was deleted concurrently; the move is not saved (#1585). Since 1.2 it also returns <code>404</code> when the destination column or swimlane, or the board, was deleted while the request was in flight (#1602).</p>
 <blockquote>
 <p><strong>Ownership gate:</strong> Members can freely move unassigned cards, cards assigned to themselves, and cards they created. Moving a card that is assigned to a different user and that the member did not create requires the <code>is_moderator</code> entitlement or Admin role. In that case, non-moderator members receive <code>403 Forbidden</code> with body <code>{"code": "permission_denied", "detail": "Moving a card assigned to another member requires Moderator or Admin access — ask a board admin."}</code>.</p>
 </blockquote>
