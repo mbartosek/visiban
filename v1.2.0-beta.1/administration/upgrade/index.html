@@ -3550,6 +3550,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#frontend-caching-and-a-blank-page-after-a-deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frontend caching and a blank page after a deploy
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4200,6 +4211,24 @@ scheduler running against the new API. Nginx and the database are unaffected.</p
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span>python<span class="w"> </span>manage.py<span class="w"> </span>showmigrations
 </code></pre></div>
 <p>All migrations should show <code>[X]</code>. Any <code>[ ]</code> entry means a migration was not applied.</p>
+<h3 id="frontend-caching-and-a-blank-page-after-a-deploy">Frontend caching and a blank page after a deploy<a class="headerlink" href="#frontend-caching-and-a-blank-page-after-a-deploy" title="Permanent link">&para;</a></h3>
+<p>The bundled nginx sends <code>Cache-Control: no-cache</code> for <code>index.html</code>,
+<code>theme-init.js</code>, <code>site.webmanifest</code>, the favicon and app-icon files, and everything under <code>/brand/</code>, and <code>Cache-Control: public, max-age=31536000, immutable</code>
+for the content-hashed files under <code>/assets/</code>. A request for an <code>/assets/*</code> file that does not
+exist returns a real <code>404</code>, not the SPA's <code>index.html</code>. Deploys therefore stop leaving returning
+visitors on a stale entry page. Helm picks this up on <code>helm upgrade</code>; Docker Compose installs must
+first re-render the nginx config (see
+<a href="#upgrading-to-12x">Upgrading to 1.2.x</a>).</p>
+<p>If you put your own reverse proxy or CDN in front of Visiban:</p>
+<ul>
+<li>Do <strong>not</strong> cache <code>index.html</code> (or any non-<code>/assets/</code> path) beyond revalidation. Cache-busting
+  depends on the browser fetching a fresh <code>index.html</code> that names the new hashed <code>/assets/*</code> files.</li>
+<li>Pass the <code>Cache-Control</code> header through unchanged, and do not rewrite <code>404</code> responses for
+  <code>/assets/*</code> into the SPA fallback.</li>
+</ul>
+<p>A blank page after a deploy with a console error such as "Failed to load module script ...
+MIME type of text/html" means a cached <code>index.html</code> is pointing at assets from the previous
+build. A hard reload fixes it for that visitor; the headers above prevent it for everyone else.</p>
 <hr />
 <h2 id="zero-downtime-migration-rules">Zero-downtime migration rules<a class="headerlink" href="#zero-downtime-migration-rules" title="Permanent link">&para;</a></h2>
 <p>Visiban enforces strict migration authoring rules that make the upgrade sequence above safe. Understanding these rules helps you evaluate whether a third-party migration or a local customization is safe to run without downtime.</p>
@@ -4393,6 +4422,20 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <hr />
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Docker Compose: re-render the nginx config to get the stale-<code>index.html</code> fix</p>
+<p>The cache headers and the real-404 for missing <code>/assets/*</code> live in
+<code>nginx/active.conf.template</code>, which is a gitignored copy that only <code>./init-prod.sh</code> refreshes
+from <code>nginx/app.conf.template</code> / <code>nginx/app-http.conf.template</code>. A plain <code>git pull</code> +
+<code>pull</code> + <code>up -d</code> leaves nginx running the <strong>old</strong> config, so the fix is not active. After
+upgrading, run <code>./init-prod.sh</code> to re-render <code>nginx/active.conf.template</code>, then
+<code>docker compose -f docker-compose.prod.yml up -d --force-recreate nginx</code> (a plain <code>up -d</code>
+does not notice that the bind-mounted config content changed). Helm installs need no extra
+step.</p>
+<p>A browser that already holds a pre-fix <code>index.html</code> (browsers may reuse it heuristically
+without asking) can still show a blank page once after this upgrade. A hard reload fixes it
+for that visitor.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Housekeeping for inactive accounts</p>
 <p><code>manage.py migrate</code> runs a one-time data migration (<code>groups/0018</code>) that removes personal

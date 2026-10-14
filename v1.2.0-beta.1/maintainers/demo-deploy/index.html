@@ -4226,6 +4226,12 @@ requests genuinely arrive through the tunnel, not directly):</p>
 <li><strong>Rotate a password</strong>: change it in the secrets file and upgrade. The backend pods roll,
   because the demo Secret is checksummed into the pod template, and the seed hook
   re-applies the new password.</li>
+<li><strong>Blank page after a deploy, console says "Expected a JavaScript module script but the
+  server responded with a MIME type of text/html".</strong> The visitor's browser holds a cached
+  <code>index.html</code> from the previous build. The chart's nginx now sends <code>no-cache</code> for it and
+  404s missing <code>/assets/*</code> (#1633), so this should not recur; if it does, check that nothing
+  in front (Cloudflare cache rules) is caching <code>index.html</code>. A hard reload clears it for one
+  visitor.</li>
 </ul>
 <h2 id="deployment-record">Deployment record<a class="headerlink" href="#deployment-record" title="Permanent link">&para;</a></h2>
 <p>Fill this in on every (re)deploy. An empty cell is an unverified claim.</p>
