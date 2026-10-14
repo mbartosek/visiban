@@ -212,9 +212,12 @@ def _would_create_membership(user, board, invite_role) -> bool:
 def redeem(link: BoardInviteLink, user, board, *, via: str) -> bool:
     """Redeem ``link`` for ``user``; return whether a membership was created.
 
-    Caller must hold the board row lock (``lock_invite_board``, taken first,
-    #1631) and the invite row lock (or, on the OAuth path, have already won
-    the conditional ``used_at`` update) and run inside a transaction: the
+    Caller must hold the board row lock (taken first, #1631) and then the
+    invite row lock — the join view takes both itself; both registration
+    paths (REST and OAuth) take them in ``validate_board_registration_token``
+    and also win the conditional ``used_at`` claim in
+    ``redeem_board_registration_token``, all in one transaction — and run
+    inside that transaction: the
     membership, the invite's counters, the redemption row and the
     ``member.added`` feed row commit or roll back together.
 
@@ -374,9 +377,12 @@ def validate_board_registration_token(raw_token: str) -> BoardInviteLink:
 def redeem_board_registration_token(link: BoardInviteLink, user) -> None:
     """Add a just-registered ``user`` to the invite's board and consume it.
 
-    The ``used_at`` stamp is a conditional update, so even the OAuth path —
-    which validated in an earlier transaction and holds no lock here — consumes
-    the invite at most once. Losing that race raises ``invite_invalid`` and
+    Both callers (REST registration and the OAuth adapter) run this in the
+    same transaction as ``validate_board_registration_token``, so the board
+    and invite row locks are already held. The ``used_at`` stamp is still a
+    conditional update, and the board row is re-locked first, as defense in
+    depth for a caller outside a validating transaction: the invite is then
+    consumed at most once, and losing that race raises ``invite_invalid`` and
     grants nothing.
     """
     with transaction.atomic():
