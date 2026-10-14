@@ -304,6 +304,12 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! note "Superuser accounts normalized"
+    `manage.py migrate` runs a one-time data migration (`accounts/0036`). On upgrade, existing
+    superuser accounts are set to site admin with all-content access, matching how the
+    application already treats superusers. All existing superuser accounts have both flags set
+    after migrating. The migration is idempotent.
+
 !!! warning "Docker Compose: re-render the nginx config to get the stale-`index.html` fix"
     The cache headers and the real-404 for missing `/assets/*` live in
     `nginx/active.conf.template`, which is a gitignored copy that only `./init-prod.sh` refreshes
