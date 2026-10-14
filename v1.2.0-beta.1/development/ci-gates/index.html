@@ -4086,7 +4086,7 @@ own header — is never mistaken for a real exemption.</p>
 <tr>
 <td><code>scripts/helm-structure-check.sh</code></td>
 <td><code>helm-lint</code></td>
-<td><code>--self-test</code> injects each defect class into a throwaway copy of the chart.</td>
+<td><code>--self-test</code> injects each defect class into a throwaway copy of the chart. <code>--lint-tmp</code> (run in the same job, #1427) rejects any hardcoded <code>/tmp</code> or <code>/var/tmp</code> path in the script, which must use its per-run <code>$RUN_TMP</code> directory.</td>
 </tr>
 <tr>
 <td><code>scripts/lock-backend-requirements.sh</code></td>
