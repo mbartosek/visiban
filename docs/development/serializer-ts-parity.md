@@ -10,7 +10,7 @@ change.**
 | Check | Source of truth | Covers | Checks |
 |---|---|---|---|
 | `backend/boards/tests/test_ts_serializer_drift.py` (#821, since 1.1) | The serializer classes (`instance.fields`) | **15** pairs, incl. `BoardFull`, `CardActivity`, `CardAttachment` | Field **names**, both directions |
-| `serializer-ts-parity` CI job (#1079 + #1139 + #1209 + #1282 + #1294 + #1296, this page) | The **generated OpenAPI document** | **45** pairs — every pair that has a schema component | Names, **types**, nullability, enum membership, **array item types** |
+| `serializer-ts-parity` CI job (#1079 + #1139 + #1209 + #1282 + #1294 + #1296 + #1338, this page) | The **generated OpenAPI document** (generated with `GIT_LENS_ENABLED=True`, #1338) | **49** pairs — every pair that has a schema component | Names, **types**, nullability, enum membership, **array item types** |
 
 Neither supersedes the other, and a green run of one says nothing about the other. Through
 #1139 the coverage gap was a structural one — #821 reached two pairs this gate could not,
@@ -99,14 +99,17 @@ name something comparable:
 
 ## Coverage
 
-`COMPONENT_MAP` in the script is authoritative. As of #1296 it is:
+`COMPONENT_MAP` in the script is authoritative. As of #1338 it is:
 
 | Schema component | TypeScript interface | Also name-checked by #821 |
 |---|---|---|
 | `Board` | `Board` | yes |
+| `AdminBoardInviteLink` | `AdminBoardInviteLink` | yes |
 | `AdminUser` | `AdminUser` | no |
 | `BoardExportLog` | `BoardExportLogEntry` | no |
 | `BoardFull` | `BoardFull` | yes |
+| `BoardInviteLink` | `BoardInviteLink` | yes |
+| `BoardInviteLinkCreateResponse` | `CreatedBoardInviteLink` | no |
 | `BoardMembership` | `BoardMembership` | yes |
 | `BoardTemplate` | `BoardTemplate` | no |
 | `BoardUser` | `BoardUser` | yes |
@@ -132,6 +135,7 @@ name something comparable:
 | `InviteLink` | `AdminInviteLink` | no |
 | `InviteLinkCreateResponse` | `CreatedAdminInviteLink` | no |
 | `Label` | `Label` | yes |
+| `LensConnection` | `LensConnection` | no |
 | `LinkedCard` | `RelatedCardRef` | no |
 | `Notification` | `Notification` | no |
 | `OwnedBoardSummary` | `OwnedBoardSummary` | no |
@@ -271,12 +275,16 @@ annotation (or, for `SiteConfig` and the two `Created*` creation responses, an `
 queryset, or permission change. All twelve are now mapped; see
 [Coverage](#coverage) and the note above it for the drift each one surfaced and how it was fixed.
 
-The thirteenth stays excluded, for a reason that is structural rather than something a decorator
-can fix:
-
-| Pair | Why excluded |
-|---|---|
-| `LensConnection` (`LensConnectionSerializer`, `LensConnectionView`, `backend/git_lens/`) | The `git_lens` app — and every one of its URLs, including `LensConnectionView` — is only installed/routed when `GIT_LENS_ENABLED=true` (`visiban/urls.py`, `visiban/settings.py`). Neither `serializer-ts-parity` nor `backend-schema-validate` sets that flag (only the dedicated `backend-test-git-lens` job does, "and nowhere else" per its own comment in `.gitlab-ci.yml`), so the schema those jobs generate never contains a `LensConnection` component to diff against — mapping it would make the gate fail in CI even though nothing is wrong. `LensConnectionView.get`/`.put` do now carry `@extend_schema` (#1294), so the component exists and is accurate whenever the schema *is* generated with the flag on (local dev, or a future CI job that sets it) — only the always-on parity job's environment is the blocker. Tracked in #1306. |
+The thirteenth, `LensConnection` (`LensConnectionSerializer`, `backend/git_lens/`), was excluded
+until #1338 for a structural reason: the `git_lens` app and all of its URLs exist only when
+`GIT_LENS_ENABLED=true`, and the parity job ran with the flag off, so its schema had no
+`LensConnection` component to diff. `generate_schema()` in the script now forces
+`GIT_LENS_ENABLED=True` for schema generation (and the job sets it too), so the component is
+always present and the pair is mapped. The flag is set only for this job's schema generation;
+`backend-schema-validate` and `backend-schema-fuzz` still run flag-off, and the lens routes are
+fuzzed by their own job, `backend-schema-fuzz-git-lens` (see [OpenAPI](../api/openapi.md)).
+Diffing the pair found no drift: the `created_by` nullability fixed in #1331 is the kind of
+mismatch it would have caught, and does catch if the TypeScript side regresses.
 
 Two pairs are absent for the opposite reason — the schema has a component but there is no
 TypeScript interface to diff it against. Confirmed by grepping all of `frontend/src` (not just

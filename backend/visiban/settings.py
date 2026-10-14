@@ -1073,6 +1073,22 @@ if VISIBAN_DISABLE_THROTTLING:
     # view from the fuzzer once the fuzz account trips it.
     ACCOUNT_RATE_LIMITS = {"login_failed": False}
 
+# #1338: CI-only provider stub for the backend-schema-fuzz-git-lens job. With it
+# on, git_lens.providers answers every outbound GitHub/GitLab request from a
+# fixed in-process fixture (git_lens/fuzz_stub.py) instead of the network, so the
+# fuzzer can drive GET /git-lens/board/{id}/ without outbound calls or upstream
+# rate limits. Same contract as VISIBAN_DISABLE_THROTTLING above: off by
+# default, and honored ONLY with DEBUG=True and outside DEMO_MODE. A production
+# or public-demo install that sets it refuses to start rather than silently
+# serving fixture issues on a real board. fuzz_stub.enabled() re-checks DEBUG at
+# the call site, so a settings override that skips this block still fails closed.
+VISIBAN_GIT_LENS_STUB_PROVIDERS = env.bool("VISIBAN_GIT_LENS_STUB_PROVIDERS", default=False)
+if VISIBAN_GIT_LENS_STUB_PROVIDERS and (not DEBUG or DEMO_MODE):
+    raise ImproperlyConfigured(
+        "VISIBAN_GIT_LENS_STUB_PROVIDERS is only honored with DEBUG=True and DEMO_MODE off "
+        "(it exists for the CI schema-fuzz job). Unset it on this install."
+    )
+
 # Email backend — console in development (prints to stdout), SMTP in production.
 # Set EMAIL_BACKEND explicitly to override (e.g. for testing or third-party relay).
 # Whether the operator pinned EMAIL_BACKEND explicitly. Load-bearing for #306:

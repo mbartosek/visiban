@@ -350,6 +350,10 @@ SQLite has no row locks, so a `select_for_update()` can be deleted without faili
   undocumented-`400` gap (#1124) is closed generically by `visiban/schema_hooks.py` (#1165).
   A red run is a real defect, never a flake — do not retry it; see the
   [triage steps](../api/openapi.md#a-red-backend-schema-fuzz-job-is-never-a-flake)
+- `backend-schema-fuzz-git-lens` is the same fuzz with `GIT_LENS_ENABLED=True`, narrowed to
+  the Issue Board Lens routes, with its own `backend/schemathesis-baseline-git-lens.json` and
+  the GitHub/GitLab calls answered by an in-process stub (#1338). See
+  [`docs/api/openapi.md`](../api/openapi.md)
 - The `changelog-check` job blocks the pipeline if no fragment is added under `changelog.d/`
 
 ### SonarCloud coverage import (#1370)

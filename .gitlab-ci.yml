@@ -1021,7 +1021,11 @@ backend-schema-validate:
     - python3 scripts/resolve_fuzz_seed.py > /tmp/fuzz_seed
     - echo "${CI_JOB_NAME} seed=$(cat /tmp/fuzz_seed) max-examples=${FUZZ_MAX_EXAMPLES} max-time=${FUZZ_MAX_TIME}  (to replay on an MR, push an empty commit with the trailer 'Fuzz-Seed:' followed by $(cat /tmp/fuzz_seed); see docs/api/openapi.md)"
 
-# The fuzz run itself, shared by backend-schema-fuzz and the deep nightly job.
+# The fuzz run itself, shared by backend-schema-fuzz, the deep nightly job and
+# backend-schema-fuzz-git-lens. The git_lens job narrows it with two optional
+# variables (#1338); both are unset on the other two jobs, so their command is
+# unchanged: FUZZ_INCLUDE_PATH_REGEX adds --include-path-regex only when set,
+# and FUZZ_BASELINE defaults to the shared baseline file.
 .schema-fuzz-run-steps: &schema-fuzz-run-steps
     # The two email-confirm endpoints and the 3rdparty/signup safety-net (#1321)
     # only 302 to the SPA at FRONTEND_URL, which does not run in this job —
@@ -1039,7 +1043,8 @@ backend-schema-validate:
         --max-examples "${FUZZ_MAX_EXAMPLES}" \
         --max-time "${FUZZ_MAX_TIME}" \
         --workers 4 \
-        --baseline backend/schemathesis-baseline.json \
+        ${FUZZ_INCLUDE_PATH_REGEX:+--include-path-regex "$FUZZ_INCLUDE_PATH_REGEX"} \
+        --baseline "${FUZZ_BASELINE:-backend/schemathesis-baseline.json}" \
         --report junit \
         --report-junit-path schemathesis-junit.xml \
         --no-color
@@ -1314,6 +1319,62 @@ backend-schema-fuzz-deep:
       elif [ "$CI_JOB_STATUS" = "failed" ]; then
         echo "backend-schema-fuzz-deep failed before the fuzz ran (setup, the filer self-test, or seed resolution); not filing a schema-fuzz issue."
       fi
+
+# ─── git_lens schema fuzz (#1338) ────────────────────────────────────────────
+#
+# backend-schema-fuzz runs flag-off, so the git_lens routes (mounted only with
+# GIT_LENS_ENABLED) were never fuzzed, and backend-test-git-lens is plain pytest.
+# This job is backend-schema-fuzz with the flag on, narrowed to the lens routes:
+# same boot, migrate, seed, fuzz token, checks, seed replay and triage output
+# (everything is inherited via `extends:`; only the variables and rules differ).
+#
+#   * Provider calls are stubbed: VISIBAN_GIT_LENS_STUB_PROVIDERS makes
+#     git_lens.providers answer every GitHub/GitLab request from an in-process
+#     fixture (git_lens/fuzz_stub.py), so GET /git-lens/board/{id}/ runs the real
+#     normalize/pivot/cache path with no outbound network and no upstream rate
+#     limit. settings.py refuses to start with it set unless DEBUG=True and
+#     DEMO_MODE is off, so it cannot be enabled on a production or demo install.
+#   * Seeded connection: schemathesis_hooks.py gives the demo board a GitLab
+#     LensConnection (null created_by, so the #1331 nullable field is exercised)
+#     when git_lens is installed, and maps {board_id} on both lens routes to it.
+#     The fuzz user is a plain board member, so PUT/DELETE answer their declared
+#     403 and cannot remove it.
+#   * Scoped: FUZZ_INCLUDE_PATH_REGEX keeps the run to the lens routes (the rest
+#     of the API is backend-schema-fuzz's job), and FUZZ_BASELINE points at a
+#     git_lens-only baseline file, so this job neither reads nor writes the
+#     shared backend/schemathesis-baseline.json.
+#
+# MEASURED LOCALLY (seed 1, SQLite, 1 worker, 300 s, same schemathesis 4.27.1
+# and checks): 5 operations selected, 39,518 cases, 0 failures, no "Missing
+# valid test data" warning. 3 operations answer only 403 by design: connection
+# PUT/DELETE (board-admin only) and /admin/git-lens/usage/ (site-admin only, out
+# of reach for a non-admin token, #1080). The lens fetch budget
+# (LENS_FETCH_BUDGET) still applies under the stub, so after 12 cold fetches a
+# novel filter answers its declared 429: that is the endpoint's real behavior.
+#
+# Five operations need far less than the main job's budget; 300 s is still
+# time-bound locally. Not on a schedule (no deep variant yet).
+backend-schema-fuzz-git-lens:
+  extends: backend-schema-fuzz
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: never
+    - changes:
+        - backend/git_lens/**/*
+        # created_by nests BoardUserSerializer.
+        - backend/accounts/serializers.py
+        - backend/visiban/settings.py
+        - backend/visiban/schema_hooks.py
+        - backend/schemathesis_hooks.py
+        - backend/schemathesis-baseline-git-lens.json
+        - backend/boards/management/commands/seed_demo_data.py
+  variables:
+    GIT_LENS_ENABLED: "True"
+    VISIBAN_GIT_LENS_STUB_PROVIDERS: "True"
+    FUZZ_INCLUDE_PATH_REGEX: "git-lens"
+    FUZZ_BASELINE: "backend/schemathesis-baseline-git-lens.json"
+    FUZZ_MAX_EXAMPLES: "50"
+    FUZZ_MAX_TIME: "300"
 
 # ─── Backend mutation testing, weekly (#1384) ───────────────────────────────
 #
@@ -2275,6 +2336,10 @@ serializer-ts-parity:
     DJANGO_SECRET_KEY: "${CI_DJANGO_SECRET_KEY}"
     DEBUG: "True"
     ALLOWED_HOSTS: "localhost"
+    # git_lens is conditionally installed; LensConnection is in COMPONENT_MAP
+    # (#1338), so its serializer must be in the schema. generate_schema() in the
+    # script forces this too, so a local run matches; set here to be explicit.
+    GIT_LENS_ENABLED: "True"
   before_script:
     - pip install --quiet -r backend/requirements.txt
   script:

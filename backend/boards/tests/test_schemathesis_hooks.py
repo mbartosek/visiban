@@ -8,6 +8,7 @@ lookups, including its graceful-degradation-to-None behavior) and
 when both a mapping and a real value exist).
 """
 import importlib
+from unittest import mock
 from types import SimpleNamespace
 
 from django.test import TestCase
@@ -280,6 +281,20 @@ class PublicTokenAndOwnershipFixtureTests(TestCase):
         self.assertIsNone(ids["group_join_token"])
         self.assertIsNotNone(ids["board_join_token"])
 
+    def test_lens_seed_is_a_noop_when_git_lens_is_not_installed(self):
+        """#1338: the main fuzz job runs flag-off; seeding must not touch git_lens.
+
+        The flag-on half (one GitLab connection, null creator, idempotent) is in
+        git_lens/tests/test_fuzz_stub.py, which only runs where the app exists.
+        """
+        from django.apps import apps
+
+        owner = _make_user()
+        board = _make_board(owner, name="Visiban Demo Board")
+        with mock.patch.object(apps, "is_installed", return_value=False) as is_installed:
+            _hooks()._seed_lens_connection(board)
+        is_installed.assert_called_once_with("git_lens")
+
     def test_card_and_children_prefer_rows_owned_by_the_fuzz_user(self):
         from boards.models import CardRelation
 
@@ -548,6 +563,21 @@ class MapPathParametersTests(TestCase):
             {"id": "generated", "link_id": "generated-link"},
         )
         self.assertEqual(result, {"id": 7, "link_id": "generated-link"})
+
+    def test_git_lens_paths_get_a_real_board_pk(self):
+        """#1338: both lens routes resolve the seeded connection's board, not a 404."""
+        for path in (
+            "/api/v1/git-lens/connections/{board_id}/",
+            "/api/v1/git-lens/board/{board_id}/",
+        ):
+            for method in ("GET", "PUT", "DELETE"):
+                with self.subTest(path=path, method=method):
+                    result = _hooks().map_path_parameters(
+                        _fake_context(path, method), {"board_id": "generated"}
+                    )
+                    # DELETE included: the connection is not a disposable kind,
+                    # and a plain member's DELETE answers 403 (git_lens tests).
+                    self.assertEqual(result, {"board_id": 7})
 
     def test_overrides_custom_field_id(self):
         context = _fake_context("/api/v1/boards/{board_pk}/custom-fields/{id}/")

@@ -25,7 +25,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from . import metrics
+from . import fuzz_stub, metrics
 from .types import (
     LensAxis,
     LensConfig,
@@ -256,7 +256,12 @@ def _provider_get(url, *, headers, params, raise_for, provider, kind, repo):
     status_code = None
     outcome = "ok"
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
+        if fuzz_stub.enabled():
+            # CI schema-fuzz only (#1338): canned response, no network. Refused
+            # outside DEBUG by settings.py and re-checked by enabled().
+            resp = fuzz_stub.response(provider, kind, params)
+        else:
+            resp = requests.get(url, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
         status_code = getattr(resp, "status_code", None)
         raise_for(resp)
         return resp
