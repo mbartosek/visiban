@@ -301,7 +301,11 @@ class AdminPatchUserTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
         self.assertIs(r.json()["is_superuser"], False)
 
-        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        # Only a superuser may change a superuser account's flags, so the
+        # actor is promoted before the target is.
+        User.objects.filter(pk__in=[self.admin.pk, self.target.pk]).update(is_superuser=True)
+        self.admin.refresh_from_db()
+        self.client.force_authenticate(self.admin)
         r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"must_change_password": False})
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
         self.assertIs(r.json()["is_superuser"], True)
