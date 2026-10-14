@@ -1,44 +1,48 @@
-"""Card writes naming a label or custom field definition vs its DELETE (#1632).
+"""Card and swimlane writes naming a label or custom field definition vs its
+DELETE (#1632).
 
 Card validation resolves ``label_ids`` and ``custom_field_values`` definitions
 before the request's transaction and before any lock. A DELETE of one of them
 that committed after that (or that commits before the card write does) left
 the M2M / value row the card writer inserts pointing at a missing row: a 500
-from the deferred foreign key at COMMIT. ``CardSerializer`` now locks the
-referenced label and definition rows ``FOR NO KEY UPDATE`` inside the card
-transaction, the mode the DELETE's own ``lock_board_and_row_or_404`` takes
-first, and re-resolves them under the lock.
+from the deferred foreign key at COMMIT.
 
-Two deterministic interleavings per resource, no sleeps:
+The fix: ``create_card`` and ``update_card`` take the board row ``FOR SHARE``
+as the first lock of their transaction (``lock_board_for_card_write``), and
+``CardSerializer._require_live_referents`` re-reads the named rows under it.
+Every label and definition delete takes the board row ``FOR NO KEY UPDATE``
+first, which conflicts with ``FOR SHARE``, so it either committed before the
+re-read (the write answers 400, as for any unknown id) or queues behind the
+whole write and cascades what it wrote. ``FOR SHARE`` does not conflict with
+itself, so card writes do not queue behind each other.
 
-* ``stale`` - the card PATCH is paused after validation and before its lock,
-  the DELETE commits, the PATCH resumes: it answers 400 (the answer a request
-  naming an unknown id always got) and writes nothing.
-* ``queued`` - the card PATCH is paused after taking its lock; the DELETE must
-  wait, then (once the PATCH commits) cascades the row the PATCH wrote.
+Interleavings, deterministic, no sleeps:
 
-The swimlane ``custom_field_values`` writer takes the board row before it
-re-resolves its definitions, so it was already covered by #1602
-(``SwimlanePatchVsDefinitionDeleteTests`` in
-``test_row_writers_stale_snapshot.py``); ``SwimlaneValuesVsDefinitionDeleteTests``
-here adds the same interleaving with the writer paused before the lock, so both
-writers named by #1632 are exercised in this file.
+* ``stale`` - the writer is paused before its board lock, the DELETE commits,
+  the writer resumes: 400 and nothing written.
+* ``queued`` - the writer is paused holding its board lock; the DELETE must
+  wait, then (once the write commits) cascades the row it wrote.
 
-Label assignment vs label DELETE has the same shape as the definition case and
-is exercised by ``CardLabelVsLabelDeleteTests``; both interleavings failed
-with a 500 before this change on PostgreSQL. PostgreSQL only: SQLite has no
-row locks.
+Also here: the swimlane create and update writers, the Django admin card form
+(``labels`` M2M) and bulk label delete, the custom field definition reorder,
+the deadlock the first attempt (row locks on the label and definition rows)
+introduced between a card create and a weight-raising update, and SQL-level
+pins of the lock order. PostgreSQL only: SQLite has no row locks.
 """
 
 import threading
 from unittest import skipUnless
 from unittest.mock import patch
 
+from django.contrib import admin as django_admin
 from django.db import connection, connections
-from django.test import TransactionTestCase
+from django.test import Client, RequestFactory, TransactionTestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from boards import admin as boards_admin
 from boards.models import (
     Board,
     BoardMembership,
@@ -51,7 +55,10 @@ from boards.models import (
     SwimlaneCustomFieldDefinition,
     SwimlaneCustomFieldValue,
 )
-from boards.serializers import CardSerializer
+from boards.services import cards as card_services
+from boards.tests.test_admin_card_cell_entry_race import _admin_post_data
+
+BOARD_LOCK = "lock_board_for_card_write"
 
 HOLD_TIMEOUT = 10.0
 BLOCK_PROBE = 0.5
@@ -159,8 +166,8 @@ class CardValuesVsDefinitionDeleteTests(_Base):
 
     def test_stale_definition_answers_400_not_500(self):
         patched, deleted, _ = self._race(
-            CardSerializer,
-            "_lock_live_referents",
+            card_services,
+            BOARD_LOCK,
             self._patch(),
             lambda: self._client().delete(self.def_url),
             after_lock=False,
@@ -172,8 +179,8 @@ class CardValuesVsDefinitionDeleteTests(_Base):
 
     def test_delete_queues_behind_the_write_then_cascades_it(self):
         patched, deleted, waited = self._race(
-            CardSerializer,
-            "_lock_live_referents",
+            card_services,
+            BOARD_LOCK,
             self._patch(),
             lambda: self._client().delete(self.def_url),
             after_lock=True,
@@ -185,6 +192,39 @@ class CardValuesVsDefinitionDeleteTests(_Base):
             CustomFieldDefinition.objects.filter(pk=self.definition.pk).exists()
         )
         self.assertFalse(CustomFieldValue.objects.filter(card=self.card).exists())
+
+    def test_reorder_queues_behind_the_write(self):
+        """The definition reorder takes the board row first (#1632), so it
+        queues whole behind a card write holding the board row, instead of
+        meeting the write's commit-time FOR KEY SHARE on definition rows in
+        bulk_update's scan order."""
+        second = CustomFieldDefinition.objects.create(
+            board=self.board, name="Size", field_type="text", position=1
+        )
+        patched, reordered, waited = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._patch(),
+            lambda: self._client().put(
+                f"{self.base}/custom-fields/reorder/",
+                {"order": [second.pk, self.definition.pk]},
+                format="json",
+            ),
+            after_lock=True,
+        )
+        self.assertTrue(
+            waited, "definition reorder did not queue behind the card write"
+        )
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+        self.assertEqual(reordered.status_code, 200, reordered.content[:300])
+        self.assertEqual(
+            list(
+                CustomFieldDefinition.objects.filter(board=self.board)
+                .order_by("position")
+                .values_list("pk", flat=True)
+            ),
+            [second.pk, self.definition.pk],
+        )
 
 
 class CardLabelVsLabelDeleteTests(_Base):
@@ -201,8 +241,8 @@ class CardLabelVsLabelDeleteTests(_Base):
 
     def test_stale_label_answers_400_not_500(self):
         patched, deleted, _ = self._race(
-            CardSerializer,
-            "_lock_live_referents",
+            card_services,
+            BOARD_LOCK,
             self._patch(),
             lambda: self._client().delete(self.label_url),
             after_lock=False,
@@ -214,8 +254,8 @@ class CardLabelVsLabelDeleteTests(_Base):
 
     def test_delete_queues_behind_the_assignment_then_removes_it(self):
         patched, deleted, waited = self._race(
-            CardSerializer,
-            "_lock_live_referents",
+            card_services,
+            BOARD_LOCK,
             self._patch(),
             lambda: self._client().delete(self.label_url),
             after_lock=True,
@@ -226,31 +266,172 @@ class CardLabelVsLabelDeleteTests(_Base):
         self.assertFalse(Label.objects.filter(pk=self.label.pk).exists())
         self.assertEqual(self.card.labels.count(), 0)
 
+    def test_admin_bulk_label_delete_queues_behind_the_assignment(self):
+        """``LabelAdmin.delete_queryset`` took no lock before #1632; it now
+        takes the board row first, like the single-object admin delete."""
+        superuser = User.objects.create_superuser(
+            username="admin1632", password="pass", email="a1632@example.com"
+        )
+
+        def bulk_delete():
+            request = RequestFactory().post("/")
+            request.user = superuser
+            model_admin = django_admin.site._registry[Label]
+            model_admin.delete_queryset(request, Label.objects.filter(pk=self.label.pk))
+            return "deleted"
+
+        patched, deleted, waited = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._patch(),
+            bulk_delete,
+            after_lock=True,
+        )
+        self.assertTrue(
+            waited, "admin bulk label delete did not queue behind the assignment"
+        )
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+        self.assertEqual(deleted, "deleted")
+        self.assertFalse(Label.objects.filter(pk=self.label.pk).exists())
+        self.assertEqual(self.card.labels.count(), 0)
+
+
+class CardCreateVsLabelDeleteTests(_Base):
+    """The ``create()`` half: a create resolves labels before its transaction
+    too, and re-reads them under the board row."""
+
+    def setUp(self):
+        super().setUp()
+        self.col.allow_card_creation = True
+        self.col.save()
+        self.label = Label.objects.create(board=self.board, name="Bug")
+        self.label_url = f"{self.base}/labels/{self.label.pk}/"
+
+    def _create(self):
+        return lambda: self._client().post(
+            f"{self.base}/cards/",
+            {
+                "title": "New",
+                "column": self.col.pk,
+                "swimlane": self.lane.pk,
+                "label_ids": [self.label.pk],
+            },
+            format="json",
+        )
+
+    def test_stale_label_answers_400_not_500(self):
+        created, deleted, _ = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._create(),
+            lambda: self._client().delete(self.label_url),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(created.status_code, 400, created.content[:300])
+        self.assertIn("label_ids", created.json())
+        self.assertFalse(Card.objects.filter(title="New").exists())
+
+    def test_delete_queues_behind_the_create_then_removes_the_label(self):
+        created, deleted, waited = self._race(
+            card_services,
+            BOARD_LOCK,
+            self._create(),
+            lambda: self._client().delete(self.label_url),
+            after_lock=True,
+        )
+        self.assertTrue(waited, "label DELETE did not queue behind the create")
+        self.assertEqual(created.status_code, 201, created.content[:300])
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(Card.objects.get(title="New").labels.count(), 0)
+
+
+# Plain static storage: the re-rendered change form (the error case) needs no
+# collected manifest.
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
+class AdminCardFormVsLabelDeleteTests(_Base):
+    """The Django admin card form's ``labels`` M2M (#1632)."""
+
+    def setUp(self):
+        super().setUp()
+        self.superuser = User.objects.create_superuser(
+            username="admin1632", password="pass", email="a1632@example.com"
+        )
+        self.label = Label.objects.create(board=self.board, name="Bug")
+        self.label_url = f"{self.base}/labels/{self.label.pk}/"
+        self.data = _admin_post_data(self.card, labels=[self.label.pk])
+
+    def _admin_save(self):
+        def run():
+            client = Client()
+            client.force_login(self.superuser)
+            return client.post(
+                reverse("admin:boards_card_change", args=[self.card.pk]), self.data
+            )
+
+        return run
+
+    def _delete_as_owner(self):
+        return lambda: self._client().delete(self.label_url)
+
+    def test_stale_label_is_a_form_error_not_500(self):
+        saved, deleted, _ = self._race(
+            boards_admin,
+            BOARD_LOCK,
+            self._admin_save(),
+            self._delete_as_owner(),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        # 200 is the change form re-rendered with the error; 302 would be a save.
+        self.assertEqual(saved.status_code, 200)
+        self.assertIn(b"A selected label was deleted", saved.content)
+        self.assertEqual(self.card.labels.count(), 0)
+
+    def test_delete_queues_behind_the_admin_save(self):
+        saved, deleted, waited = self._race(
+            boards_admin,
+            BOARD_LOCK,
+            self._admin_save(),
+            self._delete_as_owner(),
+            after_lock=True,
+        )
+        self.assertTrue(waited, "label DELETE did not queue behind the admin save")
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(self.card.labels.count(), 0)
+
 
 class SwimlaneValuesVsDefinitionDeleteTests(_Base):
-    """Swimlane writer paused before its board lock; the delete commits first."""
+    """Swimlane writers paused before their board lock; the delete commits first."""
 
-    def test_stale_definition_answers_400_not_500(self):
-        from boards.views import swimlanes as swimlane_views
-
-        definition = SwimlaneCustomFieldDefinition.objects.create(
+    def setUp(self):
+        super().setUp()
+        self.definition = SwimlaneCustomFieldDefinition.objects.create(
             board=self.board, name="Tier", field_type="text", position=0
         )
+        self.values = [{"field_definition": self.definition.pk, "value": "gold"}]
+        self.def_url = f"{self.base}/swimlane-custom-fields/{self.definition.pk}/"
+
+    def test_patch_stale_definition_answers_400_not_500(self):
+        from boards.views import swimlanes as swimlane_views
+
         patched, deleted, _ = self._race(
             swimlane_views,
             "lock_board_and_row_or_404",
             lambda: self._client().patch(
                 f"{self.base}/swimlanes/{self.lane.pk}/",
-                {
-                    "custom_field_values": [
-                        {"field_definition": definition.pk, "value": "gold"}
-                    ]
-                },
+                {"custom_field_values": self.values},
                 format="json",
             ),
-            lambda: self._client().delete(
-                f"{self.base}/swimlane-custom-fields/{definition.pk}/"
-            ),
+            lambda: self._client().delete(self.def_url),
             after_lock=False,
         )
         self.assertEqual(deleted.status_code, 204)
@@ -258,3 +439,164 @@ class SwimlaneValuesVsDefinitionDeleteTests(_Base):
         self.assertFalse(
             SwimlaneCustomFieldValue.objects.filter(swimlane=self.lane).exists()
         )
+
+    def test_create_stale_definition_answers_400_not_name_collision(self):
+        from boards.views import swimlanes as swimlane_views
+
+        created, deleted, _ = self._race(
+            swimlane_views,
+            "lock_board_row_or_404",
+            lambda: self._client().post(
+                f"{self.base}/swimlanes/",
+                {"name": "New", "custom_field_values": self.values},
+                format="json",
+            ),
+            lambda: self._client().delete(self.def_url),
+            after_lock=False,
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(created.status_code, 400, created.content[:300])
+        body = created.json()
+        self.assertIn("custom_field_values", body)
+        self.assertIn("Unknown swimlane custom field", str(body))
+        self.assertNotIn("name", body)
+        self.assertFalse(Swimlane.objects.filter(name="New").exists())
+
+
+class CardCreateVsWeightPatchDeadlockTests(_Base):
+    def test_create_and_weight_patch_naming_one_label_do_not_deadlock(self):
+        """The first attempt at #1632 locked the named label rows: after the
+        column row on create, before it on a weight-raising update. A create
+        paused holding its column, racing such an update naming the same
+        label, then deadlocked (``deadlock detected ... relation "columns"``).
+        Paused at ``require_swimlane_exists``, i.e. holding the column row.
+        """
+        self.board.enforce_weight_limits = True
+        self.board.save()
+        self.col.allow_card_creation = True
+        self.col.weight_limit = 1000
+        self.col.save()
+        label = Label.objects.create(board=self.board, name="Bug")
+        created, patched, _ = self._race(
+            card_services,
+            "require_swimlane_exists",
+            lambda: self._client().post(
+                f"{self.base}/cards/",
+                {
+                    "title": "x",
+                    "column": self.col.pk,
+                    "swimlane": self.lane.pk,
+                    "label_ids": [label.pk],
+                },
+                format="json",
+            ),
+            lambda: self._client().patch(
+                f"{self.base}/cards/{self.card.pk}/",
+                {"weight": 5, "label_ids": [label.pk]},
+                format="json",
+            ),
+            after_lock=False,
+        )
+        self.assertEqual(created.status_code, 201, created.content[:300])
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+
+
+class CardWriteLockOrderTests(_Base):
+    """Pins the lock statements, which the race tests cannot (#1632).
+
+    Board row ``FOR SHARE`` first, then the card row, then the column row;
+    never a row lock on a label or definition row (those row locks are what
+    deadlocked). ``FOR SHARE`` specifically: ``FOR NO KEY UPDATE`` would
+    serialize every card write on a board, and ``FOR KEY SHARE`` would not
+    make a label or definition delete wait.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.board.enforce_weight_limits = True
+        self.board.save()
+        self.col.allow_card_creation = True
+        self.col.weight_limit = 1000
+        self.col.save()
+        self.label = Label.objects.create(board=self.board, name="Bug")
+        self.definition = CustomFieldDefinition.objects.create(
+            board=self.board, name="Tier", field_type="text", position=0
+        )
+
+    def _locking(self, fn):
+        with CaptureQueriesContext(connection) as ctx:
+            response = fn()
+        self.assertLess(response.status_code, 300, response.content[:300])
+        return [q["sql"] for q in ctx.captured_queries if " FOR " in q["sql"]]
+
+    def _assert_no_referent_row_locks(self, locking):
+        for table in (Label._meta.db_table, CustomFieldDefinition._meta.db_table):
+            self.assertFalse(
+                [sql for sql in locking if f'FROM "{table}"' in sql], locking
+            )
+
+    def test_update_locks_board_then_card_then_column(self):
+        locking = self._locking(
+            lambda: self._client().patch(
+                f"{self.base}/cards/{self.card.pk}/",
+                {
+                    "weight": 5,
+                    "label_ids": [self.label.pk],
+                    "custom_field_values": [
+                        {"field_definition": self.definition.pk, "value": "gold"}
+                    ],
+                },
+                format="json",
+            )
+        )
+        self.assertEqual(
+            locking[0],
+            'SELECT 1 FROM "boards" WHERE "id" = %s FOR SHARE' % self.board.pk,
+            locking,
+        )
+        self.assertIn('FROM "cards"', locking[1])
+        self.assertIn("FOR NO KEY UPDATE", locking[1])
+        self.assertIn('FROM "columns"', locking[2])
+        self._assert_no_referent_row_locks(locking)
+
+    def test_create_locks_board_then_column(self):
+        locking = self._locking(
+            lambda: self._client().post(
+                f"{self.base}/cards/",
+                {
+                    "title": "New",
+                    "column": self.col.pk,
+                    "swimlane": self.lane.pk,
+                    "label_ids": [self.label.pk],
+                    "custom_field_values": [
+                        {"field_definition": self.definition.pk, "value": "gold"}
+                    ],
+                },
+                format="json",
+            )
+        )
+        self.assertEqual(
+            locking[0],
+            'SELECT 1 FROM "boards" WHERE "id" = %s FOR SHARE' % self.board.pk,
+            locking,
+        )
+        self.assertIn('FROM "columns"', locking[1])
+        self._assert_no_referent_row_locks(locking)
+
+    def test_definition_reorder_locks_board_then_rows_in_pk_order(self):
+        second = CustomFieldDefinition.objects.create(
+            board=self.board, name="Size", field_type="text", position=1
+        )
+        table = CustomFieldDefinition._meta.db_table
+        locking = self._locking(
+            lambda: self._client().put(
+                f"{self.base}/custom-fields/reorder/",
+                {"order": [second.pk, self.definition.pk]},
+                format="json",
+            )
+        )
+        self.assertIn('FROM "boards"', locking[0])
+        self.assertIn("FOR NO KEY UPDATE", locking[0])
+        self.assertIn(f'FROM "{table}"', locking[1])
+        self.assertIn(f'ORDER BY "{table}"."id" ASC', locking[1])
+        self.assertTrue(locking[1].rstrip().endswith("FOR UPDATE"), locking[1])

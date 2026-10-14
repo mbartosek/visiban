@@ -49,6 +49,36 @@ def _refetch_swimlane(swimlane):
     )
 
 
+def _require_live_swimlane_definitions(field_pairs):
+    """Answer 400 when a definition in ``field_pairs`` no longer exists.
+
+    The swimlane create and update paths resolve ``custom_field_values``
+    definitions at validation, before their transaction. Called once the
+    board row is held: every swimlane definition delete takes the board row
+    first (``lock_board_and_row_or_404``), so a definition read here stays
+    until this transaction commits. A definition a delete already removed is
+    reported exactly as the serializer reports an unknown definition, and
+    nothing is written (#1602, #1632).
+    """
+    if not field_pairs:
+        return
+    wanted = {definition.pk for definition, _ in field_pairs}
+    live = set(
+        SwimlaneCustomFieldDefinition.objects.filter(pk__in=wanted).values_list(
+            "pk", flat=True
+        )
+    )
+    missing = sorted(wanted - live)
+    if missing:
+        raise ValidationError({
+            "custom_field_values": [
+                "Unknown swimlane custom field(s) for this board: "
+                + ", ".join(str(pk) for pk in missing)
+                + "."
+            ]
+        })
+
+
 @extend_schema_view(
     destroy=extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409}),
 )
@@ -120,6 +150,14 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             # concurrent swimlane creation could race on Max(position).
             with transaction.atomic():
                 lock_board_row_or_404(board)
+                # Re-read the definitions under the board row (#1632): they
+                # were resolved before the lock, and a definition DELETE that
+                # committed meanwhile otherwise failed the value rows' deferred
+                # foreign key at COMMIT, which the IntegrityError handler
+                # below misreported as a name collision. Every definition
+                # delete takes the board row first, so none can commit after
+                # this read.
+                _require_live_swimlane_definitions(field_pairs)
                 _max = board.swimlanes.aggregate(m=Max("position"))["m"]
                 max_pos = 0 if _max is None else _max + 1
                 swimlane = serializer.save(board=board, position=max_pos)
@@ -155,27 +193,10 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
                 # Reload under the lock (see ColumnViewSet.perform_update):
                 # a rename queued behind a reorder must keep the new position.
                 serializer.instance.refresh_from_db()
-                if field_pairs:
-                    # The definitions were resolved before the lock. One that a
-                    # concurrent delete removed while this request queued is
-                    # reported exactly as the serializer reports an unknown
-                    # definition (400), and nothing is written.
-                    live = set(
-                        SwimlaneCustomFieldDefinition.objects.filter(
-                            pk__in=[definition.pk for definition, _ in field_pairs]
-                        ).values_list("pk", flat=True)
-                    )
-                    missing = sorted(
-                        {definition.pk for definition, _ in field_pairs} - live
-                    )
-                    if missing:
-                        raise ValidationError({
-                            "custom_field_values": [
-                                "Unknown swimlane custom field(s) for this board: "
-                                + ", ".join(str(pk) for pk in missing)
-                                + "."
-                            ]
-                        })
+                # The definitions were resolved before the lock; one a
+                # concurrent delete removed while this request queued answers
+                # 400 and nothing is written.
+                _require_live_swimlane_definitions(field_pairs)
                 swimlane = serializer.save()
                 if field_pairs:
                     apply_swimlane_custom_field_values(

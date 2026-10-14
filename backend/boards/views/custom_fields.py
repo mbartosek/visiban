@@ -217,11 +217,22 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             # assigns the final values. Two queries regardless of field count.
             # IDs are looked up board-scoped, so an id from another board is
             # silently ignored rather than reordered (IDOR).
+            # Board row first, then the rows in pk order (#1632). Every
+            # other writer of these rows (create, update, delete, and the
+            # card or swimlane writes whose value rows take FOR KEY SHARE on
+            # them at COMMIT) holds a conflicting lock on the board row
+            # first, so they queue whole with this reorder instead of meeting
+            # it row by row: bulk_update's UPDATE locks rows in scan order,
+            # and a writer holding one definition while waiting on another
+            # could otherwise close a cycle with it. FOR UPDATE because
+            # position is part of a unique key, the lock the UPDATE takes.
+            lock_board_row_or_404(board, no_key=True)
             count = board.custom_field_definitions.count()
             rows = list(
-                CustomFieldDefinition.objects.filter(
-                    board=board, pk__in=order_ints
-                ).only("id", "position")
+                CustomFieldDefinition.objects.select_for_update()
+                .filter(board=board, pk__in=order_ints)
+                .order_by("pk")
+                .only("id", "position")
             )
             by_id = {row.pk: row for row in rows}
             ordered = [by_id[fid] for fid in order_ints if fid in by_id]

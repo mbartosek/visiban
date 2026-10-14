@@ -23,8 +23,8 @@ from .permissions import SITE_ADMIN
 from .admin_mixins import ContainerChangedAdminMixin
 from visiban.admin_row_version import RowVersionAdminMixin, RowVersionField, RowVersionFormMixin
 from .services.cards import (
-    enforce_column_limits, lock_card_cell_entry, lock_card_for_write, lock_card_row,
-    lock_cards_for_cascade, require_swimlane_exists,
+    enforce_column_limits, lock_board_for_card_write, lock_card_cell_entry,
+    lock_card_for_write, lock_card_row, lock_cards_for_cascade, require_swimlane_exists,
 )
 from .services.errors import (
     CardNotFound, SwimlaneNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded,
@@ -154,6 +154,7 @@ class CardAdminForm(forms.ModelForm):
         cleaned = super().clean()
         if self.errors:
             return cleaned
+        self._require_live_labels(cleaned)
         column = cleaned.get("column")
         board = cleaned.get("board")
         if column is None or board is None:
@@ -243,6 +244,36 @@ class CardAdminForm(forms.ModelForm):
         except (WipHardBlocked, WipLimitExceeded, WeightLimitExceeded) as exc:
             raise ValidationError(_limit_error_message(exc)) from None
         return cleaned
+
+    def _require_live_labels(self, cleaned):
+        """Hold the board row(s) ``FOR SHARE`` and re-read the chosen labels (#1632).
+
+        The ``labels`` field resolved its choices before any lock, and
+        ``save_m2m`` inserts them at the end of ``changeform_view``'s
+        transaction: a label deleted in between failed the M2M row's deferred
+        foreign key at COMMIT (a 500). Same lock the card service takes
+        (``lock_board_for_card_write``), and first, before the card and
+        column rows ``clean()`` locks next, so the board -> card -> column
+        order holds. Every label delete takes the board row ``FOR NO KEY
+        UPDATE`` first, so a label read here stays until this save commits;
+        one already gone is a form error, not a 500. Both the stored and the
+        submitted board are held (a card can be moved between boards here),
+        in pk order.
+        """
+        board = cleaned.get("board")
+        board_ids = {self.instance.board_id, getattr(board, "pk", None)} - {None}
+        for board_id in sorted(board_ids):
+            if not lock_board_for_card_write(board_id):
+                raise ValidationError("This board was deleted while you were editing the card.")
+        labels = cleaned.get("labels")
+        if not labels:
+            return
+        wanted = {label.pk for label in labels}
+        live = set(Label.objects.filter(pk__in=wanted).values_list("pk", flat=True))
+        if wanted - live:
+            raise ValidationError({
+                "labels": "A selected label was deleted. Choose the labels again.",
+            })
 
 
 @admin.register(Card)
@@ -466,6 +497,30 @@ class _BoardEventAdminMixin:
                 boards=self._boards_for(queryset),
             )
 
+    @staticmethod
+    def _lock_boards_then_rows(queryset):
+        """Bulk delete of rows with no card cascade (label, membership).
+
+        Board rows, then the rows themselves, each in one pk-ordered
+        ``FOR NO KEY UPDATE`` statement: the order and mode
+        ``_lock_board_for_admin_save`` takes for one row. A bulk label delete
+        took no lock before (#1632), so a card write that had re-checked its
+        labels under the board row (``lock_board_for_card_write``) could
+        still have one deleted under it and fail its deferred foreign key at
+        COMMIT; holding the board row makes the two queue.
+        """
+        model = queryset.model
+        pks = list(queryset.values_list("pk", flat=True))
+        board_ids = model.objects.filter(pk__in=pks).values("board_id")
+        list(
+            Board.objects.select_for_update(no_key=True)
+            .filter(pk__in=board_ids).order_by("pk").values_list("pk", flat=True)
+        )
+        list(
+            model.objects.select_for_update(no_key=True)
+            .filter(pk__in=pks).order_by("pk").values_list("pk", flat=True)
+        )
+
     def delete_model(self, request, obj):
         board_id = self._board_id(obj)
         payload = self._delete_payload(obj)
@@ -486,7 +541,10 @@ class _BoardEventAdminMixin:
         # One outer atomic across lock + delete: a bulk action is not wrapped
         # by Django, so per-object locks would not be held (#1603).
         with transaction.atomic():
-            self._lock_cascade(queryset)
+            if self._cards_cascaded_by(queryset) is None:
+                self._lock_boards_then_rows(queryset)
+            else:
+                self._lock_cascade(queryset)
             # Capture identifiers before delete — post-delete each instance's pk is cleared.
             deleted = [(self._board_id(o), self._delete_payload(o)) for o in queryset]
             super().delete_queryset(request, queryset)
