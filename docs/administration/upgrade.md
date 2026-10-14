@@ -86,6 +86,25 @@ docker compose -f docker-compose.prod.yml run --rm backend python manage.py show
 
 All migrations should show `[X]`. Any `[ ]` entry means a migration was not applied.
 
+### Frontend caching and a blank page after a deploy
+
+The bundled nginx (Compose and Helm) sends `Cache-Control: no-cache` for `index.html`,
+`theme-init.js`, and `site.webmanifest`, and `Cache-Control: public, max-age=31536000, immutable`
+for the content-hashed files under `/assets/`. A request for an `/assets/*` file that does not
+exist returns a real `404`, not the SPA's `index.html`. Deploys therefore never leave a returning
+visitor on a stale entry page.
+
+If you put your own reverse proxy or CDN in front of Visiban:
+
+- Do **not** cache `index.html` (or any non-`/assets/` path) beyond revalidation. Cache-busting
+  depends on the browser fetching a fresh `index.html` that names the new hashed `/assets/*` files.
+- Pass the `Cache-Control` header through unchanged, and do not rewrite `404` responses for
+  `/assets/*` into the SPA fallback.
+
+A blank page after a deploy with a console error such as "Failed to load module script ...
+MIME type of text/html" means a cached `index.html` is pointing at assets from the previous
+build. A hard reload fixes it for that visitor; the headers above prevent it for everyone else.
+
 ---
 
 ## Zero-downtime migration rules

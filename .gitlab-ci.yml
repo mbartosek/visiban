@@ -418,6 +418,7 @@ compose-hygiene:
         - docker-compose*.yml
         - scripts/check-compose-*.sh
         - nginx/app.conf.template
+        - nginx/app-http.conf.template
         - init-prod.sh
         - scripts/render-nginx-hsts.sh
         - .gitlab-ci.yml
@@ -432,6 +433,12 @@ compose-hygiene:
     - bash scripts/check-compose-project-names.sh
     - bash scripts/render-nginx-hsts.sh --self-test
     - bash scripts/render-nginx-hsts.sh --check nginx/app.conf.template
+    # SPA cache policy (#1633): a missing /assets/* must 404, never fall back to index.html.
+    - |
+      for t in nginx/app.conf.template nginx/app-http.conf.template; do
+        grep -q 'location /assets/' "$t" && grep -A2 'location /assets/' "$t" | grep -q 'try_files \$uri =404;' || { echo "$t: /assets/ must be 'try_files \$uri =404' (#1633)"; exit 1; }
+        grep -q 'add_header Cache-Control \$visiban_cache_control;' "$t" || { echo "$t: Cache-Control map not applied (#1633)"; exit 1; }
+      done
 
 # ─── SonarCloud report-rewrite self-test (#1370) ─────────────────────────────
 #
