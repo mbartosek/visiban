@@ -19,6 +19,7 @@
 # Modes:
 #   bash scripts/helm-structure-check.sh [chart-dir]   # assert the contract
 #   bash scripts/helm-structure-check.sh --self-test   # prove it can still fail
+#   bash scripts/helm-structure-check.sh --lint-tmp    # reject literal temp paths
 #
 # ---------------------------------------------------------------------------
 # Self-test (#1093)
@@ -38,6 +39,17 @@ set -euo pipefail
 
 CHART_DIR="${1:-helm/visiban}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Per-run scratch directory (#1427). Every temp file this script writes lives
+# under it: the render-error captures used to be fixed /tmp/helm-*-err.txt
+# paths, so two worktrees checking concurrently read each other's render
+# errors. TMPDIR is pointed at it so every bare `mktemp` lands here too and one
+# EXIT trap cleans the lot. Self-test fixtures re-run this script as a child
+# process, which gets its own directory. Do not write a literal /tmp/ path in
+# this file: --lint-tmp (run in CI) rejects it.
+RUN_TMP="$(mktemp -d)"
+trap 'rm -rf "$RUN_TMP"' EXIT
+export TMPDIR="$RUN_TMP"
 
 # Values the chart's render-time guards (templates/_validate.tpl) demand before
 # it will render at all. Arbitrary — only the wiring downstream is asserted.
@@ -101,9 +113,9 @@ section() {
 render() {
   local chart="$1" out="$2"
   CHART_UNDER_TEST="$chart"
-  if ! helm template "$RELEASE" "$chart" "${RENDER_ARGS[@]}" > "$out" 2>/tmp/helm-render-err.txt; then
+  if ! helm template "$RELEASE" "$chart" "${RENDER_ARGS[@]}" > "$out" 2>"$RUN_TMP/helm-render-err.txt"; then
     echo "ERROR: helm template failed for chart '$chart':" >&2
-    cat /tmp/helm-render-err.txt >&2
+    cat "$RUN_TMP/helm-render-err.txt" >&2
     exit 1
   fi
 }
@@ -750,7 +762,7 @@ render_demo() {
     fi
     args+=("$a")
   done < <(demo_args "$CHART_UNDER_TEST")
-  helm template "$RELEASE" "$CHART_UNDER_TEST" "${args[@]}" "$@" > "$out" 2>/tmp/helm-demo-render-err.txt
+  helm template "$RELEASE" "$CHART_UNDER_TEST" "${args[@]}" "$@" > "$out" 2>"$RUN_TMP/helm-demo-render-err.txt"
 }
 
 check_demo_mode() {
@@ -779,7 +791,7 @@ check_demo_mode() {
   local demo_rendered saved="$RENDERED"
   demo_rendered="$(mktemp)"
   if ! render_demo "$demo_rendered"; then
-    fail "values-demo.yaml (with its secrets supplied) does not render: $(head -3 /tmp/helm-demo-render-err.txt)"
+    fail "values-demo.yaml (with its secrets supplied) does not render: $(head -3 "$RUN_TMP/helm-demo-render-err.txt")"
     rm -f "$demo_rendered"; return
   fi
   RENDERED="$demo_rendered"
@@ -895,7 +907,7 @@ check_demo_mode() {
       pass "demo.reset.enabled=false: no CronJob, DEMO_RESET_SCHEDULE rendered empty"
     fi
   else
-    fail "values-demo.yaml with demo.reset.enabled=false does not render: $(head -3 /tmp/helm-demo-render-err.txt)"
+    fail "values-demo.yaml with demo.reset.enabled=false does not render: $(head -3 "$RUN_TMP/helm-demo-render-err.txt")"
   fi
 
   RENDERED="$saved"
@@ -959,8 +971,8 @@ check_demo_guards() {
     if render_demo "$out" "${flags[@]}"; then
       fail "demo guard '$name' did not fire: the render SUCCEEDED with ${flags[*]}"
       bad=1
-    elif ! grep -qF -- "$expect" /tmp/helm-demo-render-err.txt; then
-      fail "demo guard '$name' failed the render, but not with its own message ('$expect'): $(head -2 /tmp/helm-demo-render-err.txt | tr '\n' ' ')"
+    elif ! grep -qF -- "$expect" "$RUN_TMP/helm-demo-render-err.txt"; then
+      fail "demo guard '$name' failed the render, but not with its own message ('$expect'): $(head -2 "$RUN_TMP/helm-demo-render-err.txt" | tr '\n' ' ')"
       bad=1
     fi
   done
@@ -1034,13 +1046,13 @@ check_image_pins() {
   if ! helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
-         > "$default_out" 2>/tmp/helm-default-render-err.txt; then
-    fail "the chart's default values do not render: $(cat /tmp/helm-default-render-err.txt)"
+         > "$default_out" 2>"$RUN_TMP/helm-default-render-err.txt"; then
+    fail "the chart's default values do not render: $(cat "$RUN_TMP/helm-default-render-err.txt")"
     rm -f "$default_out" "$demo_out"
     return
   fi
   if ! render_demo "$demo_out"; then
-    fail "values-demo.yaml does not render: $(cat /tmp/helm-demo-render-err.txt)"
+    fail "values-demo.yaml does not render: $(cat "$RUN_TMP/helm-demo-render-err.txt")"
     rm -f "$default_out" "$demo_out"
     return
   fi
@@ -1078,19 +1090,19 @@ check_image_pins() {
     if helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
-         "${flags[@]}" > "$out" 2>/tmp/helm-valkey-guard-err.txt; then
+         "${flags[@]}" > "$out" 2>"$RUN_TMP/helm-valkey-guard-err.txt"; then
       fail "valkey guard '$name' did not fire: the render SUCCEEDED with ${flags[*]}"
       gbad=1
-    elif ! grep -qF -- "$expect" /tmp/helm-valkey-guard-err.txt; then
-      fail "valkey guard '$name' failed the render, but not with its own message ('$expect'): $(head -2 /tmp/helm-valkey-guard-err.txt | tr '\n' ' ')"
+    elif ! grep -qF -- "$expect" "$RUN_TMP/helm-valkey-guard-err.txt"; then
+      fail "valkey guard '$name' failed the render, but not with its own message ('$expect'): $(head -2 "$RUN_TMP/helm-valkey-guard-err.txt" | tr '\n' ' ')"
       gbad=1
     fi
   done
   if ! helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
-         "${VALKEY_GUARD_FIX_ARGS[@]}" > "$out" 2>/tmp/helm-valkey-guard-err.txt; then
-    fail "the fix the Valkey image guard prints does not clear it on a --reuse-values-shaped render: $(grep -m1 'Visiban:' /tmp/helm-valkey-guard-err.txt)"
+         "${VALKEY_GUARD_FIX_ARGS[@]}" > "$out" 2>"$RUN_TMP/helm-valkey-guard-err.txt"; then
+    fail "the fix the Valkey image guard prints does not clear it on a --reuse-values-shaped render: $(grep -m1 'Visiban:' "$RUN_TMP/helm-valkey-guard-err.txt")"
     gbad=1
   fi
   rm -f "$out"
@@ -1387,7 +1399,7 @@ check_pod_hardening() {
   local demo_out
   demo_out="$(mktemp)"
   if ! render_demo "$demo_out"; then
-    fail "values-demo.yaml does not render: $(cat /tmp/helm-demo-render-err.txt)"
+    fail "values-demo.yaml does not render: $(cat "$RUN_TMP/helm-demo-render-err.txt")"
     rm -f "$demo_out"
     return
   fi
@@ -1458,8 +1470,8 @@ VALUES
       expected="postgres://us%20er:${expected_pw}@db.example.com:5432/visiban"
     fi
     if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" -f "$vals" \
-          ${extra[@]+"${extra[@]}"} > "$out" 2>/tmp/helm-dburl-err.txt; then
-      fail "database-url render ($mode) failed: $(head -2 /tmp/helm-dburl-err.txt | tr '\n' ' ')"
+          ${extra[@]+"${extra[@]}"} > "$out" 2>"$RUN_TMP/helm-dburl-err.txt"; then
+      fail "database-url render ($mode) failed: $(head -2 "$RUN_TMP/helm-dburl-err.txt" | tr '\n' ' ')"
       bad=1; continue
     fi
     got="$(yq 'select(.kind == "Secret" and (.metadata.name | test("visiban$"))) | .stringData."database-url"' "$out")"
@@ -1856,6 +1868,19 @@ self_test() {
 
 # ---------------------------------------------------------------------------
 
+if [ "${1:-}" = "--lint-tmp" ]; then
+  # Reject any literal /tmp/ path in this script (#1427). The pattern is built
+  # from pieces so this block does not match itself.
+  lint_pat='/''tmp/'
+  if hits="$(grep -nF -- "$lint_pat" "$REPO_ROOT/scripts/helm-structure-check.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
+    echo "FAIL: literal temp path in scripts/helm-structure-check.sh; use \$RUN_TMP:" >&2
+    echo "$hits" >&2
+    exit 1
+  fi
+  echo "PASSED: no literal temp paths in scripts/helm-structure-check.sh"
+  exit 0
+fi
+
 if [ "${1:-}" = "--self-test" ]; then
   CHART_DIR="${2:-helm/visiban}"
   self_test
@@ -1867,7 +1892,6 @@ command -v yq   >/dev/null || { echo "ERROR: yq (mikefarah v4) not on PATH" >&2;
 
 echo "helm-structure-check.sh: asserting the deploy contract for '$CHART_DIR'"
 RENDERED="$(mktemp)"
-trap 'rm -f "$RENDERED"' EXIT
 render "$CHART_DIR" "$RENDERED"
 
 run_all_checks
