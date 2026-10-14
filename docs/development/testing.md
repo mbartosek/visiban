@@ -310,22 +310,32 @@ SQLite has no row locks, so a `select_for_update()` can be deleted without faili
 
 - Backend tests run in the `backend-test` job (8 parallel shards) on every MR that touches `backend/**/*` or `requirements*.txt`
   - Shards are time-balanced by `pytest-split` from the committed `backend/.test_durations` file. Shards never write it (concurrent shards would overwrite each other's slice). Refresh it occasionally, e.g. after a large batch of new tests: `cd backend && pytest --store-durations --durations-path .test_durations`, then commit the file. A stale file only degrades balance, never correctness.
-- `backend-benchmark` runs `python manage.py benchmark --fail-on-budget` (#1341) on every MR
-  that touches `backend/**/*` (and on `main`), never on a schedule. The command seeds its own
-  throw-away board (100 cards) and counts SQL queries for the card list, `full/`, and `summary/`
-  endpoints against committed budgets. The job fails on a non-2xx response, on `DEBUG` being off,
-  or on any endpoint over budget. It is automatic rather than manual or scheduled because a query
-  count is deterministic and takes seconds; latency regressions that keep the query count identical
-  are covered by `nightly-load-test` ([nightly-load-test.md](nightly-load-test.md)). To run it
-  locally: `cd backend && DEBUG=True python manage.py benchmark --fail-on-budget`.
-  **Why blocking on every backend MR** (the issue suggested manual or scheduled): the check is
-  deterministic and takes seconds, and a manual job is exactly how it went unrun. The cost is one
-  more job per backend MR (Postgres + Valkey services, `migrate`, `pip install`). First measured
-  on Postgres in #1341: cards 9 (budget 12), `full/` 17 (budget 20), `summary/` 4 (budget 10).
-  The budgets partly duplicate `backend/boards/tests/test_query_counts.py` (`BoardFullQueryCountTests.BUDGET`,
-  `SummaryQueryCountTests.BUDGET`); the benchmark's `cards/` row serializes `_card_queryset`
-  directly and does **not** exercise the viewset, so it is a coarser check than
-  `test_query_counts.py`, not a replacement. Keep both sets of budgets in sync when either changes.
+- `backend-benchmark` runs `python manage.py benchmark --fail-on-budget` (#1341) on pipelines
+  where `backend/**/*` or `.gitlab-ci.yml` changed, and never on a schedule. It has no
+  default-branch fallback (the #1266 convention for leaf jobs), so a docs-only or frontend-only
+  merge to `main` does not run it. The command seeds its own throw-away board (100 cards) and
+  counts SQL queries for the card list, `full/`, and `summary/` against committed budgets. The
+  job fails on a non-2xx response, on `DEBUG` being off, or on any endpoint over budget. It is
+  automatic rather than manual or scheduled because a query count is deterministic and takes
+  seconds; latency regressions that keep the query count identical are covered by
+  `nightly-load-test` ([nightly-load-test.md](nightly-load-test.md)). To run it locally:
+  `cd backend && DEBUG=True python manage.py benchmark --fail-on-budget`.
+  **Why blocking on backend MRs** (the issue suggested manual or scheduled): a manual job is
+  exactly how the check went unrun. The cost is one more job per backend MR (Postgres + Valkey
+  services, `migrate`, `pip install`). First measured on Postgres in #1341: cards 9 (budget 12),
+  `full/` 17 (budget 20), `summary/` 4 (budget 10).
+  **What the job adds beyond `backend-test`:** `BenchmarkCommandCiGateTests.test_within_budget_passes_with_fail_on_budget`
+  already runs the identical command on Postgres inside `backend-test`. The job adds only
+  `DEBUG` taken from the environment, a run outside a `TestCase` transaction, and a fresh
+  `migrate`. The owner may prefer to drop the job and rely on that test, or keep it manual.
+  **Budgets:** they partly overlap `backend/boards/tests/test_query_counts.py`. The benchmark's
+  cards check serializes `_card_queryset` directly (a subset of the endpoint), so its budget of
+  12 is intentionally different from `CardListQueryCountTests.BUDGET` (14); it is a coarser
+  check, not a replacement. `full/` (20) is deliberately 1 above `BoardFullQueryCountTests.BUDGET`
+  (19) and `summary/` (10) equals `SummaryQueryCountTests.BUDGET`; neither should exceed the
+  `test_query_counts.py` value plus that slack. When a budget legitimately changes, bump both
+  files together following
+  [perf-bench.md section 6](https://gitlab.com/visiban/visiban/-/blob/main/.claude/agents/perf-bench.md).
 - Frontend unit tests run in `frontend-test`. Unlike `backend-schema-fuzz` below, a single
   failed test retries once automatically under CI (`vitest.config.ts`'s `test.retry`, gated
   on `process.env.CI` so local runs stay strict) before failing the job — a mitigation for

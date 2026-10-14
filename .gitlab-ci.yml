@@ -4693,7 +4693,6 @@ backend-benchmark:
     - changes:
         - backend/**/*
         - .gitlab-ci.yml
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ─── Nightly load test ─────────────────────────────────────────────────────────
 #
