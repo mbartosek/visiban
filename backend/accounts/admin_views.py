@@ -989,7 +989,12 @@ SUPERUSER_ONLY_CHANGE_MESSAGE = (
 )
 
 
-def superuser_target_refusal(target, actor):
+SUPERUSER_ONLY_LOCKOUT_MESSAGE = (
+    "Only a superuser can clear the sign-in lockout on a superuser account."
+)
+
+
+def superuser_target_refusal(target, actor, *, message=SUPERUSER_ONLY_CHANGE_MESSAGE):
     """Refusal when a non-superuser *actor* changes a superuser *target*'s standing.
 
     A site admin who is not a superuser administers ordinary accounts; a
@@ -999,7 +1004,7 @@ def superuser_target_refusal(target, actor):
     """
     if target.is_superuser and not actor.is_superuser:
         return GuardRefusal(
-            status.HTTP_400_BAD_REQUEST, {"detail": SUPERUSER_ONLY_CHANGE_MESSAGE}
+            status.HTTP_400_BAD_REQUEST, {"detail": message}
         )
     return None
 
@@ -1746,7 +1751,9 @@ class AdminUserClearLockoutView(APIView):
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
         # A superuser account's sign-in protection stays with superusers.
-        refusal = superuser_target_refusal(target, request.user)
+        refusal = superuser_target_refusal(
+            target, request.user, message=SUPERUSER_ONLY_LOCKOUT_MESSAGE
+        )
         if refusal is not None:
             return Response(refusal.body, status=refusal.status)
 

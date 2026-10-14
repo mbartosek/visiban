@@ -351,6 +351,10 @@ class AdminApiSuperuserTargetTests(TestCase):
     def test_clear_lockout_of_superuser_refused_for_site_admin(self):
         r = self.api.post(self.url(self.root, "clear-lockout/"), {}, format="json")
         self.assert_refused(r)
+        self.assertEqual(
+            r.json()["detail"],
+            "Only a superuser can clear the sign-in lockout on a superuser account.",
+        )
         other = _user("api_locked")
         r = self.api.post(self.url(other, "clear-lockout/"), {}, format="json")
         self.assertEqual(r.status_code, 200, r.content)

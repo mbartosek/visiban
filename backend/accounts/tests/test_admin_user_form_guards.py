@@ -197,6 +197,7 @@ class DeactivationGuardFormTests(_Base):
 
     def test_site_admin_deactivation_allowed_when_another_remains(self):
         root = User.objects.create_superuser(username="root_sa2_1577", email="rsa2@example.com", password=PW)
+        User.objects.filter(pk=root.pk).update(is_site_admin=False)
         self.client.force_login(root)
         self.target.is_site_admin = True
         self.target.save()
