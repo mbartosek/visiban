@@ -34,6 +34,9 @@ from .credentials import finalize_password_change, require_password_change_after
 
 
 #: Fields only a superuser may edit in the Django admin user form (#1577).
+#: Fields only a superuser changes on another staff, superuser or site-admin account.
+_PROTECTED_IDENTITY_FIELDS = ("email", "username", "first_name", "last_name", "is_active")
+
 _SUPERUSER_ONLY_FIELDS = ("is_staff", "is_superuser", "groups", "user_permissions")
 
 
@@ -102,12 +105,19 @@ class VisibanUserChangeForm(RowVersionFormMixin, UserChangeForm):
         return cleaned
 
 
-def _is_privileged_other_account(actor, target):
-    """True for a superuser or site-admin account other than *actor*'s own."""
+def _is_protected_other_account(actor, target):
+    """True for a staff, superuser or site-admin account other than *actor*'s own.
+
+    The Django admin's account-changing and delete routes are superuser-only
+    for these accounts: a staff account's Django permissions (groups, user
+    permissions) are not comparable between actor and target, so no
+    "broader than the actor" test is attempted and the whole class stays with
+    superusers.
+    """
     return (
         target is not None
         and target.pk != actor.pk
-        and (target.is_superuser or target.is_site_admin)
+        and (target.is_staff or target.is_superuser or target.is_site_admin)
     )
 
 
@@ -148,6 +158,11 @@ def user_deletion_refusals(targets, actor):
     move once the first lock is held, and the owned-boards rule is judged
     again after the target rows are locked ``FOR UPDATE``. Board names are not
     shown, only a count, as on the form.
+
+    Deleting a user also cascades to the groups they own (``Group.owner`` is
+    CASCADE), so ownership of every owned group is transferred first, and a
+    non-superuser actor may delete only accounts that are not another staff,
+    superuser or site-admin account (``_is_protected_other_account``).
     """
     from .admin_views import deactivation_refusal
 
@@ -168,6 +183,19 @@ def user_deletion_refusals(targets, actor):
         else:
             reason = "This account cannot be deleted."
         reasons.append(f"{target}: {reason}")
+    from groups.models import Group
+
+    for target in targets:
+        if not actor.is_superuser and _is_protected_other_account(actor, target):
+            reasons.append(f"{target}: Only a superuser can delete this account.")
+        # Group.owner is CASCADE: the groups, their subgroups and memberships
+        # would go with the owner, so ownership is transferred first.
+        group_count = Group.objects.filter(owner=target).count()
+        if group_count:
+            reasons.append(
+                f"{target}: User owns groups that must be transferred before "
+                f"deletion (owned groups: {group_count})."
+            )
     target_pks = {t.pk for t in targets}
     single = len(targets) == 1
     for flag, singular, plural in (
@@ -245,7 +273,7 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         return form
 
     def _refuse_privileged_password_target(self, request, id):
-        """Only a superuser sets the password of a superuser or site admin.
+        """Only a superuser sets the password of a staff, superuser or site-admin account.
 
         The lookup bypasses ``get_queryset`` so a superuser target is refused
         explicitly rather than reported as missing. An account's own password
@@ -257,12 +285,12 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
             target = (
                 admin.ModelAdmin.get_queryset(self, request)
                 .filter(pk=unquote(id))
-                .only("pk", "is_superuser", "is_site_admin")
+                .only("pk", "is_staff", "is_superuser", "is_site_admin")
                 .first()
             )
         except (ValueError, ValidationError):
             return
-        if _is_privileged_other_account(request.user, target):
+        if _is_protected_other_account(request.user, target):
             raise PermissionDenied
 
     def user_change_password(self, request, id, form_url=""):
@@ -290,6 +318,17 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
             return super().user_change_password(request, id, form_url)
         with transaction.atomic():
             before = _stored_password_hash(target.pk, lock=True)
+            # Protection is judged again with the hash row locked: the target
+            # may have become a staff, superuser or site-admin account, or the
+            # actor lost superuser status, since the request started.
+            actor_now = User.objects.filter(pk=request.user.pk).first()
+            target_now = User.objects.filter(pk=target.pk).first()
+            if (
+                actor_now is not None
+                and not actor_now.is_superuser
+                and _is_protected_other_account(actor_now, target_now)
+            ):
+                raise PermissionDenied
             response = super().user_change_password(request, id, form_url)
             if _stored_password_hash(target.pk) != before:
                 target.refresh_from_db()
@@ -304,11 +343,13 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         readonly = tuple(super().get_readonly_fields(request, obj))
         if not request.user.is_superuser:
             readonly += tuple(f for f in _SUPERUSER_ONLY_FIELDS if f not in readonly)
-            if _is_privileged_other_account(request.user, obj):
-                # Same predicate as the password form: identity fields of a
-                # site-admin account feed password reset, so they stay with
-                # superusers.
-                readonly += tuple(f for f in ("email", "username") if f not in readonly)
+            if _is_protected_other_account(request.user, obj):
+                # Same predicate as the password form: identity fields feed
+                # password reset and ``is_active`` locks the account out, so
+                # for these accounts they stay with superusers.
+                readonly += tuple(
+                    f for f in _PROTECTED_IDENTITY_FIELDS if f not in readonly
+                )
         return readonly
 
     def save_model(self, request, obj, form, change):
@@ -371,6 +412,23 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
                 # submitted value. An unbound form (no submission) has no
                 # ``changed_data`` to go by, so only the first rule applies.
                 self.keep_unchanged_fields(obj, form, stored)
+            if stored is not None and not request.user.pk == stored.pk:
+                # Protection is judged again on the locked target and the
+                # actor's current row: the target may have become a staff,
+                # superuser or site-admin account, or the actor lost
+                # superuser status, since the form was built (the read-only
+                # fields were chosen from the row loaded at request start).
+                actor_now = User.objects.filter(pk=request.user.pk).first()
+                if (
+                    actor_now is not None
+                    and not actor_now.is_superuser
+                    and _is_protected_other_account(actor_now, stored)
+                    and any(
+                        getattr(obj, f) != getattr(stored, f)
+                        for f in _PROTECTED_IDENTITY_FIELDS
+                    )
+                ):
+                    raise PermissionDenied
             if stored is not None:
                 # The form's checks ran before this lock was taken; repeat them
                 # against the locked rows. They run after the values above are
@@ -445,10 +503,12 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
             raise PermissionDenied
         pk_set = set(pks)
         targets = [u for u in locked if u.pk in pk_set]
-        if not actor_row.is_superuser and any(t.is_superuser for t in targets):
-            # Judged on the locked row: a target promoted, or an actor demoted,
-            # since the request started.
-            raise DeletionRefused(["A superuser account cannot be deleted by this administrator."])
+        if not actor_row.is_superuser and any(
+            _is_protected_other_account(actor_row, t) for t in targets
+        ):
+            # Judged on the locked rows: a target promoted to staff or
+            # superuser, or an actor demoted, since the request started.
+            raise DeletionRefused(["Only a superuser can delete this account."])
         reasons = user_deletion_refusals(targets, actor)
         if reasons:
             raise DeletionRefused(reasons)
@@ -544,7 +604,10 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         locked = list(
             User.objects.select_for_update().filter(pk__in=pk_list).order_by("pk")
         )
-        reasons = user_deletion_refusals(locked, request.user)
+        # The actor row was locked by statement 1 in this transaction, so this
+        # read is stable; the in-memory ``request.user`` may predate a demotion.
+        actor_row = User.objects.filter(pk=request.user.pk).first() or request.user
+        reasons = user_deletion_refusals(locked, actor_row)
         if reasons:
             raise DeletionRefused(reasons)
 

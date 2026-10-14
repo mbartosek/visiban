@@ -428,12 +428,19 @@ class AdminPatchUserTests(TestCase):
         self.target.refresh_from_db()
         self.assertTrue(self.target.can_access_all_content)
 
-    def test_all_content_grant_and_non_superuser_clear_still_work(self):
+    def test_superuser_actor_may_grant_all_content_on_superuser(self):
         User.objects.filter(pk=self.target.pk).update(is_superuser=True)
-        r = self.client.patch(
-            f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": True}
+        api = APIClient()
+        api.force_authenticate(User.objects.create_superuser(
+            username="root_1614", email="root1614@example.com", password="rootpass123!"
+        ))
+        r = api.patch(
+            f"/api/v1/admin/users/{self.target.pk}/", {"can_access_all_content": True},
+            format="json",
         )
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+
+    def test_non_superuser_clear_of_all_content_still_works(self):
         other = make_user(username="plain_1614")
         User.objects.filter(pk=other.pk).update(can_access_all_content=True)
         r = self.client.patch(
