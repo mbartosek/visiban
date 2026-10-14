@@ -661,6 +661,18 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   const cardNotFoundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // null = no message; non-null string = message to show in the not-found toast.
   const [cardNotFound, setCardNotFound] = useState<string | null>(null);
+  // Shows the card notice for 4 s. Used for a deep link to a card that is not
+  // on the board, and when the open card leaves the board (#1615).
+  const showCardNotFound = useCallback((msg: string) => {
+    setCardNotFound(msg);
+    if (cardNotFoundTimerRef.current !== null) {
+      clearTimeout(cardNotFoundTimerRef.current);
+    }
+    cardNotFoundTimerRef.current = setTimeout(() => {
+      setCardNotFound(null);
+      cardNotFoundTimerRef.current = null;
+    }, 4000);
+  }, []);
   const [archiveToast, setArchiveToast] = useState(false);
   const archiveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -796,16 +808,6 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     } else {
       setSearchParams((prev) => { prev.delete("card"); if (!prev.has("view")) prev.set("view", "board"); return prev; }, { replace: true });
       // Check whether the card is archived so we can show a contextual message.
-      const showCardNotFound = (msg: string) => {
-        setCardNotFound(msg);
-        if (cardNotFoundTimerRef.current !== null) {
-          clearTimeout(cardNotFoundTimerRef.current);
-        }
-        cardNotFoundTimerRef.current = setTimeout(() => {
-          setCardNotFound(null);
-          cardNotFoundTimerRef.current = null;
-        }, 4000);
-      };
       getCardStatus(board.id, cardId)
         .then((status) => {
           showCardNotFound(
@@ -819,7 +821,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
         // feedback at all for their deep link.
         .catch(() => showCardNotFound("Card not found — it may have been deleted."));
     }
-  }, [board.cards, board.id, searchParams, setSearchParams]);
+  }, [board.cards, board.id, searchParams, setSearchParams, showCardNotFound]);
   const [showAddColumn, setShowAddColumn] = useState(false);
   // When non-null, new column is inserted at this index (0 = first)
   const [insertPosition, setInsertPosition] = useState<number | null>(null);
@@ -1094,11 +1096,20 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // (the server sends only the container's *.deleted event for a cascade, no
   // per-card card.deleted, #1615). Close the detail panel on such a card, so
   // it does not keep editing a card that is gone (the bulk selection is pruned
-  // the same way further down). Every path that opens CardDetail takes its
-  // card from board.cards, so a card absent from it has left the board view.
+  // the same way further down), and say why, since any unsaved draft in the
+  // panel goes with it. Every path that opens CardDetail takes its card from
+  // board.cards, which always holds every unarchived card on the board
+  // (filters and search narrow what is rendered, not board.cards, and /full/
+  // is not paginated), so a card absent from it has really left the board. A
+  // delete or archive made from the panel itself closes it first, so this
+  // effect does not fire for it.
+  const selectedCardId = selectedCard?.id ?? null;
   useEffect(() => {
-    setSelectedCard((prev) => (prev && !board.cards.some((c) => c.id === prev.id) ? null : prev));
-  }, [board.cards]);
+    if (selectedCardId === null) return;
+    if (board.cards.some((c) => c.id === selectedCardId)) return;
+    setSelectedCard(null);
+    showCardNotFound("The card you had open was deleted or archived, so it was closed.");
+  }, [board.cards, selectedCardId, showCardNotFound]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

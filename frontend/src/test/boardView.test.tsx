@@ -126,7 +126,7 @@ vi.mock('../components/Card/CardItem', () => ({
   default: ({ card, compact }: { card: { title: string }; compact?: boolean }) => <div data-compact={String(compact ?? false)}>{card.title}</div>,
 }))
 vi.mock('../components/Card/CardDetail', () => ({
-  default: ({ card, onClose }: { card: { title: string }; onClose: () => void }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button></div>,
+  default: ({ card, onClose, onDeleted }: { card: { id: number; title: string }; onClose: () => void; onDeleted?: (id: number) => void }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button><button onClick={() => onDeleted?.(card.id)}>Delete From Detail</button></div>,
 }))
 vi.mock('../components/Board/AddColumnModal', () => ({
   default: ({ onAdded }: { onAdded: (col: { id: number; name: string; position: number; color: string; wip_limit: null; weight_limit: null; allow_card_creation: true; is_done: false }) => void }) => (
@@ -1063,6 +1063,47 @@ describe('BoardView', () => {
       rerender(<BoardView {...defaultProps()} />)
 
       expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      // Closed with a reason, not silently: an unsaved draft went with it.
+      expect(screen.getByText('The card you had open was deleted or archived, so it was closed.')).toBeInTheDocument()
+    })
+
+    it('the notice clears itself after 4 seconds', () => {
+      vi.useFakeTimers()
+      try {
+        mockSearchParams = new URLSearchParams('card=1')
+        mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+        const { rerender } = render(<BoardView {...defaultProps()} />)
+        mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+        rerender(<BoardView {...defaultProps()} />)
+        expect(screen.getByText(/so it was closed/)).toBeInTheDocument()
+        act(() => { vi.advanceTimersByTime(4000) })
+        expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('shows no notice when this user deletes the card from the panel', async () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      const removeCard = vi.fn()
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }), removeCard })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByText('Delete From Detail'))
+      expect(removeCard).toHaveBeenCalledWith(1)
+      // removeCard has now dropped the card from state.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }), removeCard })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
+    })
+
+    it('shows no notice when cards leave the board and none is open', () => {
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
     })
 
     it('keeps CardDetail open while the card is still on the board', () => {
@@ -1074,6 +1115,7 @@ describe('BoardView', () => {
       rerender(<BoardView {...defaultProps()} />)
 
       expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+      expect(screen.queryByText(/so it was closed/)).not.toBeInTheDocument()
     })
 
     it('drops an evicted card from the bulk selection (existing prune effect)', async () => {
