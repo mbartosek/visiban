@@ -452,12 +452,19 @@ check_spa_cache_policy() {
     fail "nginx has no 'location /assets/' with 'try_files \$uri =404' — a missing hashed asset falls back to index.html (200 text/html) and blanks the SPA after a deploy"
     bad=1
   fi
-  if ! grep -qE '"no-cache"' <<< "$conf" || ! grep -qE 'index\\\.html' <<< "$conf"; then
-    fail "nginx does not mark index.html no-cache — browsers keep a stale entry document across deploys"
-    bad=1
-  fi
-  if ! grep -qE '"public, max-age=31536000, immutable"' <<< "$conf"; then
-    fail "nginx does not mark hashed /assets/* immutable"
+  # Bind each entry to its value: the map line that names the file must be the
+  # line that carries the value, not merely coexist with it somewhere in the conf.
+  local f line
+  for f in 'index\\.html' 'theme-init\\.js' 'site\\.webmanifest' 'favicon' 'apple-touch-icon' 'android-chrome-' '\^/brand/'; do
+    line="$(grep -E "^[[:space:]]*~.*${f}.*\"[^\"]*\";[[:space:]]*\$" <<< "$conf" | head -1)"
+    if ! grep -q '"no-cache";' <<< "$line"; then
+      fail "nginx cache map does not bind '${f}' to \"no-cache\" — a stale copy survives a deploy"
+      bad=1
+    fi
+  done
+  line="$(grep -E '^[[:space:]]*~\^/assets/' <<< "$conf" | head -1)"
+  if ! grep -q '"public, max-age=31536000, immutable";' <<< "$line"; then
+    fail "nginx cache map does not bind ^/assets/ to \"public, max-age=31536000, immutable\""
     bad=1
   fi
   if ! grep -qE '^[[:space:]]*add_header[[:space:]]+Cache-Control[[:space:]]+\$visiban_cache_control;' <<< "$conf"; then
@@ -1668,6 +1675,8 @@ self_test() {
     "4 nginx upstream|templates/frontend-configmap.yaml|s|http://{{ include \"visiban.fullname\" . }}-backend|http://backend|g"
     # 4b (#1633): a missing hashed asset falls back to index.html again.
     "SPA assets fall back to index.html|templates/frontend-configmap.yaml|s/try_files \$uri =404;/try_files \$uri \$uri\/ \/index.html;/"
+    # 4d (#1633): theme-init.js falls out of the no-cache list.
+    "SPA theme-init.js not no-cache|templates/frontend-configmap.yaml|s/theme-init/theme-removed/"
     # 4c (#1633): the cache header stops being emitted.
     "SPA cache header not applied|templates/frontend-configmap.yaml|s/add_header Cache-Control \$visiban_cache_control;/add_header X-Cache-Policy-Removed 1;/"
     "6 transport limit below app cap|templates/frontend-configmap.yaml|s/client_max_body_size {{ include \"visiban.transportBodyLimitMB\" . }}M;/client_max_body_size 1M;/"

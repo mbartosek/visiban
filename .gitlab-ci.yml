@@ -437,6 +437,11 @@ compose-hygiene:
     - |
       for t in nginx/app.conf.template nginx/app-http.conf.template; do
         grep -q 'location /assets/' "$t" && grep -A2 'location /assets/' "$t" | grep -q 'try_files \$uri =404;' || { echo "$t: /assets/ must be 'try_files \$uri =404' (#1633)"; exit 1; }
+        blk="$(awk '/^map \$uri \$visiban_cache_control/,/^}/' "$t")"
+        for p in 'index\\.html' 'theme-init\\.js' 'site\\.webmanifest' 'favicon' 'apple-touch-icon' 'android-chrome-' '\^/brand/'; do
+          printf '%s\n' "$blk" | grep -E "$p" | grep -q '"no-cache";' || { echo "$t: cache map must bind $p to no-cache (#1633)"; exit 1; }
+        done
+        printf '%s\n' "$blk" | grep -E '\^/assets/' | grep -q 'immutable' || { echo "$t: cache map must bind ^/assets/ to immutable (#1633)"; exit 1; }
         grep -q 'add_header Cache-Control \$visiban_cache_control;' "$t" || { echo "$t: Cache-Control map not applied (#1633)"; exit 1; }
       done
 

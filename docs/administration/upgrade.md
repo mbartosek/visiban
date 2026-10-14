@@ -89,7 +89,7 @@ All migrations should show `[X]`. Any `[ ]` entry means a migration was not appl
 ### Frontend caching and a blank page after a deploy
 
 The bundled nginx (Compose and Helm) sends `Cache-Control: no-cache` for `index.html`,
-`theme-init.js`, and `site.webmanifest`, and `Cache-Control: public, max-age=31536000, immutable`
+`theme-init.js`, `site.webmanifest`, the favicon and app-icon files, and everything under `/brand/`, and `Cache-Control: public, max-age=31536000, immutable`
 for the content-hashed files under `/assets/`. A request for an `/assets/*` file that does not
 exist returns a real `404`, not the SPA's `index.html`. Deploys therefore never leave a returning
 visitor on a stale entry page.
