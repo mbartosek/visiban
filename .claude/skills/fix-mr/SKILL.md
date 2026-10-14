@@ -56,11 +56,17 @@ already an answer:
 
 | pipeline | `detailed_merge_status` | Go to |
 |---|---|---|
-| `failed` | `mergeable` | Step 2 (pipeline only) |
-| `success` | `conflict` | **Step 3b** (conflict only) |
-| `failed` | `conflict` | **Step 3b first** — merging `main` often clears the red too |
+| any | `checking` / `unchecked` | **Wait, re-read.** GitLab has not computed mergeability yet; never route on this value |
+| `failed` | `mergeable` / `ci_must_pass` | Step 2 (pipeline only) |
+| `success` | `conflict` / `need_rebase` | **Step 3b** (conflict only) |
+| `failed` | `conflict` / `need_rebase` | **Step 3b first** — merging `main` often clears the red too |
 | `success` | `mergeable` | Step 6 — genuinely done |
-| `running` / `pending` | either | Step 5, then re-read both |
+| `running` / `pending` | any | Step 5, then re-read both |
+| `success` | `not_approved`, `discussions_not_resolved`, `draft_status`, `blocked_status` | Step 6 — report verbatim; needs a human |
+
+`checking` and `unchecked` are transient. Re-read after a few seconds (bounded: at most
+a handful of re-reads) and route on the settled value. A routing decision made on a
+stale `mergeable` is how a conflicted MR gets reported ready.
 
 **Read the pipeline from the MR, never from the branch ref.** Once an MR exists, the
 `workflow:` rules suppress branch pipelines, so a branch-scoped status can show a
@@ -78,11 +84,23 @@ query the jobs, not the pipeline summary.
 
 ## Step 2 — Diagnose failures (parallel sub-agents)
 
-**First, rule out a pipeline that tested nothing.** A `failed` pipeline with **0 jobs**,
-no `started_at`, and no YAML errors failed at *creation*. Two causes, neither of which
-is a code defect: job-quota exhaustion ("exceeded the allowed number of jobs in active
-pipelines" — wait for active pipelines to drain, then re-trigger), or a stale merge base
-(Step 3b clears it). Do not diagnose code against it.
+**First, rule out a zero-job pipeline — a `failed` with no jobs never tested anything.**
+Before reading any trace, check whether the pipeline actually ran. A pipeline that
+reports `failed` with `jobs: 0`, `started_at: null`, and `finished_at == created_at`
+(instant) **failed at creation** — it is not a code failure:
+
+```bash
+glab api "projects/:id/pipelines/$PIPELINE_ID" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print('status',d['status'],'| started',d['started_at'],'| yaml_errors',d['yaml_errors'])"
+glab api "projects/:id/pipelines/$PIPELINE_ID/jobs?per_page=100" \
+  | python3 -c "import sys,json;print('jobs:',len(json.load(sys.stdin)))"
+```
+
+With `jobs: 0` and `yaml_errors: null`, the cause is capacity (job-quota exhaustion:
+GitLab caps the number of jobs across a project's *active* pipelines on some plans) or
+a stale merge base (Step 3b clears it) — not code. A zero-job failure is never evidence
+about the diff: wait for active pipelines to drain, then re-trigger. Do not diagnose
+code against it. See `.claude/skills/mass_merge/SKILL.md` for the same check.
 
 Otherwise, launch **2 sub-agents in parallel** (both with `model: "sonnet"`). Wait for
 both.
@@ -146,8 +164,27 @@ git fetch origin
 git merge origin/main
 ```
 
-Prefer **merge over rebase** — it needs no force-push, so the no-force-push rule below
-stays satisfied without a round trip.
+Prefer **merge over rebase** to resolve a conflict — it needs no force-push, so the
+no-force-push rule below stays satisfied without a round trip. (This is distinct from the
+global "rebase before each merge" rule for batched MR sequences, which refreshes a
+*stale base* before landing; this rule is about *resolving a conflict* on one MR.)
+
+If you rebase anyway (the user wants linear history), the push needs a lease, and only
+with the user's confirmation:
+
+```bash
+git fetch origin
+git rev-parse "origin/<branch>"     # assert BY HAND this is the sha you expect
+git push --force-with-lease origin "<branch>"   # BARE form only
+```
+
+- **Never `--force-with-lease="<branch>:<sha>"`.** On some git versions (observed on
+  git 2.50.1 / Apple Git-155) the explicit `<shortref>:<sha>` form silently fails to
+  register the lease and the push degrades to a plain, *non-forced* push — which is
+  then rejected as non-fast-forward, with no "stale info" message. It does not fail
+  safe, it fails **closed**. Hand-verifying `origin/<branch>` before a **bare**
+  `--force-with-lease` gives the same guarantee the explicit form was meant to provide.
+- Never fall back to plain `--force`.
 
 **Resolve in place, between the conflict markers.** Never rebuild a conflicted file from
 `git show :2:<path>`. Stage 2 is the branch's *pre-merge* blob, so copying it over the
