@@ -117,3 +117,31 @@ This is the planted-credential check for the issue's first acceptance criterion:
 key fails `gitleaks-scan` (and, on `main`, `gitleaks-history`; on an MR, `gitleaks-commits` for a key in any of its commits). The component's
 `secret_detection` job does not fail on it; `secret-detection-gate` does, when the component
 reports it.
+
+## npm `overrides` pins in `frontend/package.json`
+
+`package.json` cannot hold comments, so this section is the record for each entry in the
+`overrides` block that exists to clear an advisory rather than to fix a build.
+
+### `postcss-selector-parser` pinned to 7.1.6 (GHSA-rj75-hqrm-r3gf, #1488, !1197)
+
+- **What it does:** forces every copy of `postcss-selector-parser` to 7.1.6, including the
+  copies that `tailwindcss` (`^6.1.2`), `postcss-nested` 6.x (`^6.1.1`) and
+  `@tailwindcss/typography` (exact `6.0.10`) request on the vulnerable 6.x line.
+- **Why it is still needed (checked 2026-10-14):** `tailwindcss` 3.4.19 (the last 3.x) still
+  depends on `^6.1.2`, `@tailwindcss/typography` 0.5.20 still pins `6.0.10`, and the only
+  `postcss-nested` releases on `^7` (8.x) are a major bump. The repo is on Tailwind 3, so no
+  compatible release resolves a fixed parser on its own.
+- **Removal condition:** drop the override when every dependent resolves
+  `postcss-selector-parser` >= 7.1.6 without it, i.e. `@tailwindcss/typography` releases a
+  version that no longer pins 6.x, and the Tailwind 3 / `postcss-nested` chain either does the
+  same or the project moves to a Tailwind line that does (a major upgrade, tracked separately).
+- **How to check:**
+
+  ```bash
+  npm view @tailwindcss/typography@latest dependencies.postcss-selector-parser
+  npm view tailwindcss@3 dependencies.postcss-selector-parser | tail -1
+  ```
+
+  When both report a range satisfied by >= 7.1.6, remove the override in a branch and confirm
+  `cd frontend && npm ls postcss-selector-parser` lists only fixed versions.
