@@ -205,10 +205,11 @@ class SiteSetting(models.Model):
     )
     # The 1000-character cap is also declared on the admin serializer, which is
     # where API input is validated. It is repeated here as a model validator
-    # because the serializer is not the only write path: Django admin registers
-    # SiteSetting with no custom ModelForm, and management commands and shell
-    # sessions write the field directly. Without this, those paths could store
-    # an unbounded notice that then lands in every 503 body on the instance.
+    # because the serializer is not the only write path: the Django admin form
+    # (accounts/admin.py SiteSettingAdminForm) declares no length check of its
+    # own, and management commands and shell sessions write the field directly.
+    # Without this, those paths could store an unbounded notice that then
+    # lands in every 503 body on the instance.
     maintenance_message = models.TextField(
         blank=True,
         default="",

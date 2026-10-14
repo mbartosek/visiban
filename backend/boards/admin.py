@@ -21,6 +21,7 @@ from .serializers import (
 )
 from .permissions import SITE_ADMIN
 from .admin_mixins import ContainerChangedAdminMixin
+from visiban.admin_row_version import RowVersionAdminMixin, RowVersionField, RowVersionFormMixin
 from .services.cards import (
     enforce_column_limits, lock_card_cell_entry, lock_card_for_write, lock_card_row,
     lock_cards_for_cascade, require_swimlane_exists,
@@ -545,8 +546,26 @@ class LabelAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
         return {"label_uid": obj.uid}
 
 
+class BoardAdminForm(RowVersionFormMixin, forms.ModelForm):
+    """The board form with the rendered-state check.
+
+    ``row_version`` covers every field the form writes, ``owner`` and
+    ``group`` included; see ``visiban/admin_row_version.py``.
+    """
+
+    row_version = RowVersionField(required=False)
+    stale_form_message = (
+        "This board was changed after this page was opened. Reload the page and "
+        "make your changes again."
+    )
+
+    class Meta:
+        model = Board
+        fields = "__all__"
+
+
 @admin.register(Board)
-class BoardAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
+class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAdmin):
     """Admin for Board that broadcasts mutations to both the board channel and
     the board's group channel.
 
@@ -561,7 +580,17 @@ class BoardAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
     Swimlane/Label/BoardMembership have no group-channel counterpart (their
     REST viewsets never call broadcast_group_event either) and stay on that
     mixin below.
+
+    A save writes only the fields the administrator changed, and a form
+    rendered against an older state of the board is refused with nothing
+    written or broadcast (``RowVersionAdminMixin``).
     """
+
+    form = BoardAdminForm
+    stale_save_message = (
+        "This board was changed after this page was opened, so nothing was saved. "
+        "The page now shows the current state of the board; make your changes again."
+    )
 
     def save_model(self, request, obj, form, change):
         if change:
@@ -573,15 +602,12 @@ class BoardAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
                 # did not change), so a concurrent change to them is not
                 # reverted by the earlier read held in ``obj``. The share-link
                 # fields are editable=False, so they are never on the form.
+                # A submitted row_version is compared with the locked row
+                # first, so a form rendered against an older owner or group
+                # is refused before anything is written or broadcast.
                 stored = Board.objects.get(pk=obj.pk)
-                changed = (
-                    set(form.changed_data) if getattr(form, "is_bound", False) else None
-                )
-                for field in Board._meta.concrete_fields:
-                    if field.name not in form.fields or (
-                        changed is not None and field.name not in changed
-                    ):
-                        setattr(obj, field.attname, getattr(stored, field.attname))
+                self.check_row_version(form, stored)
+                self.keep_unchanged_fields(obj, form, stored)
         super().save_model(request, obj, form, change)
         event = _broadcast.EVT_BOARD_UPDATED if change else _broadcast.EVT_BOARD_CREATED
         # No request in context: BoardSerializer.get_group_detail() reads
@@ -632,13 +658,71 @@ class BoardAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
                 )
 
 
+class BoardMembershipAdminForm(RowVersionFormMixin, forms.ModelForm):
+    """The membership form with the rendered-state check.
+
+    ``row_version`` covers every field the form writes, ``role`` and
+    ``is_moderator`` included; see ``visiban/admin_row_version.py``.
+    """
+
+    row_version = RowVersionField(required=False)
+    stale_form_message = (
+        "This membership was changed after this page was opened. Reload the page "
+        "and make your changes again."
+    )
+
+    class Meta:
+        model = BoardMembership
+        fields = "__all__"
+
+
 @admin.register(BoardMembership)
-class BoardMembershipAdmin(_BoardEventAdminMixin, admin.ModelAdmin):
-    """Admin for BoardMembership that broadcasts mutations (see CardAdmin for rationale)."""
+class BoardMembershipAdmin(RowVersionAdminMixin, _BoardEventAdminMixin, admin.ModelAdmin):
+    """Admin for BoardMembership that broadcasts mutations (see CardAdmin for rationale).
+
+    A save writes only the fields the administrator changed, and a form
+    rendered against an older state of the membership is refused with nothing
+    written or broadcast (``RowVersionAdminMixin``).
+    """
+
+    form = BoardMembershipAdminForm
+    stale_save_message = (
+        "This membership was changed after this page was opened, so nothing was "
+        "saved. The page now shows its current state; make your changes again."
+    )
 
     event_created = _broadcast.EVT_MEMBER_ADDED
     event_updated = _broadcast.EVT_MEMBER_UPDATED
     event_deleted = _broadcast.EVT_MEMBER_REMOVED
+
+    def save_model(self, request, obj, form, change):
+        """Judge the submission against the membership read under its lock.
+
+        Board row, then the membership row, as ``_BoardEventAdminMixin.save_model``
+        locks them (it takes the same locks again, which this transaction
+        already holds). The row_version check and the unchanged-field merge
+        run before that save, so a refused submission records and broadcasts
+        nothing; the change view's transaction holds the locks until commit.
+        """
+        if change:
+            # Both boards the save touches, in one pk-ordered statement: the
+            # stored board (the form may move the membership off it) and the
+            # submitted one, which the mixin's save locks again below.
+            stored_board_id = (
+                BoardMembership.objects.filter(pk=obj.pk)
+                .values_list("board_id", flat=True).first()
+            )
+            if stored_board_id is not None and stored_board_id != obj.board_id:
+                list(
+                    Board.objects.select_for_update(no_key=True)
+                    .filter(pk__in={stored_board_id, obj.board_id}).order_by("pk")
+                    .values_list("pk", flat=True)
+                )
+            _lock_board_for_admin_save(obj.board_id, BoardMembership, obj.pk)
+            stored = BoardMembership.objects.get(pk=obj.pk)
+            self.check_row_version(form, stored)
+            self.keep_unchanged_fields(obj, form, stored)
+        super().save_model(request, obj, form, change)
 
     def _board_id(self, obj):
         return obj.board_id
