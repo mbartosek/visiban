@@ -146,6 +146,7 @@ const fakeAdminUsers: AdminUser[] = [
     is_active: true,
     is_site_admin: true,
     can_access_all_content: false,
+    is_superuser: false,
     must_change_password: false,
     date_joined: '2024-01-01T00:00:00Z',
     owned_boards: [],
@@ -161,6 +162,7 @@ const fakeAdminUsers: AdminUser[] = [
     is_active: true,
     is_site_admin: false,
     can_access_all_content: false,
+    is_superuser: false,
     must_change_password: false,
     date_joined: '2024-02-01T00:00:00Z',
     owned_boards: [],
@@ -322,6 +324,7 @@ describe('AdminPage — Users tab', () => {
       is_active: true,
       is_site_admin: false,
       can_access_all_content: false,
+      is_superuser: false,
       must_change_password: true,
       date_joined: '2024-03-01T00:00:00Z',
       owned_boards: [],
@@ -550,9 +553,7 @@ describe('AdminPage — Users tab', () => {
     })
   })
 
-  it('shows the server refusal when revoking all-content access from a superuser fails (#1614)', async () => {
-    // The admin list payload carries no is_superuser field, so the row cannot
-    // hide the action in advance; the server's 400 detail is what the admin sees.
+  it('shows the server detail message when revoking all-content access fails', async () => {
     const message = 'Cannot remove all-content access from a superuser; remove superuser status first.'
     const holder: AdminUser = { ...fakeAdminUsers[1], can_access_all_content: true }
     mockGetAdminUsers.mockResolvedValue({
@@ -572,6 +573,58 @@ describe('AdminPage — Users tab', () => {
       expect(mockPatchAdminUser).toHaveBeenCalledWith(3, { can_access_all_content: false })
       expect(screen.getByText(message)).toBeInTheDocument()
     })
+  })
+
+  it('does not offer Revoke all-content or Demote admin on a superuser row', async () => {
+    // Superuser status implies both site admin and all-content access, so the
+    // row leaves out the two actions that would clear them.
+    const superuser: AdminUser = {
+      ...fakeAdminUsers[1],
+      is_site_admin: true,
+      can_access_all_content: true,
+      is_superuser: true,
+    }
+    const holder: AdminUser = {
+      ...fakeAdminUsers[1],
+      id: 4,
+      username: 'bob',
+      display_name: 'Bob',
+      is_site_admin: true,
+      can_access_all_content: true,
+    }
+    mockGetAdminUsers.mockResolvedValue({
+      count: 3, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser, holder],
+    })
+    renderAdminPage()
+    fireEvent.click(screen.getByText('Users'))
+    await waitFor(() => screen.getByText('@alice'))
+
+    const superRow = screen.getByText('@alice').closest('tr') as HTMLElement
+    const holderRow = screen.getByText('@bob').closest('tr') as HTMLElement
+    expect(within(superRow).queryByRole('button', { name: 'Demote admin' })).not.toBeInTheDocument()
+    expect(within(superRow).getByRole('button', { name: 'Deactivate' })).toBeInTheDocument()
+    expect(within(holderRow).getByRole('button', { name: 'Demote admin' })).toBeInTheDocument()
+
+    await openRowMenu('Alice')
+    expect(screen.queryByRole('menuitem', { name: 'Revoke all-content' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Grant all-content' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Clear lockout' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+
+    await openRowMenu('Bob')
+    expect(screen.getByRole('menuitem', { name: 'Revoke all-content' })).toBeInTheDocument()
+  })
+
+  it('still offers Grant all-content on a superuser row whose flag is off', async () => {
+    const superuser: AdminUser = { ...fakeAdminUsers[1], is_superuser: true }
+    mockGetAdminUsers.mockResolvedValue({
+      count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser],
+    })
+    renderAdminPage()
+    fireEvent.click(screen.getByText('Users'))
+    await waitFor(() => screen.getByText('@alice'))
+    await openRowMenu('Alice')
+    expect(screen.getByRole('menuitem', { name: 'Grant all-content' })).toBeInTheDocument()
   })
 
   it('falls back to a generic error message when clearAdminUserLockout fails without detail (#1203)', async () => {

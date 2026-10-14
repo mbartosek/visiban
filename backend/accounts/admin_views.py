@@ -515,12 +515,17 @@ class AdminUserSerializer(drf_serializers.ModelSerializer):
             "is_active",
             "is_site_admin",
             "can_access_all_content",
+            "is_superuser",
             "must_change_password",
             "has_completed_tour",
             "date_joined",
             "owned_boards",
         ]
-        read_only_fields = ["id", "date_joined", "owned_boards"]
+        # ``is_superuser`` is exposed read-only so the admin users page can
+        # leave out actions the API refuses for a superuser (clearing
+        # ``is_site_admin`` or ``can_access_all_content``, both implied by
+        # superuser status). It is changed only through the Django admin.
+        read_only_fields = ["id", "is_superuser", "date_joined", "owned_boards"]
 
 
 class AdminCreateUserSerializer(drf_serializers.Serializer):

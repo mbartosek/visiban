@@ -1178,19 +1178,23 @@ function UsersTab({ currentUser }: { currentUser: User }) {
   const buildOverflowItems = (u: AdminUser): OverflowItem[] => {
     const items: OverflowItem[] = [];
 
-    items.push(
-      u.can_access_all_content
-        ? {
-            id: "revoke-all-content",
-            label: "Revoke all-content",
-            onSelect: () => handleRevokeContentAccess(u),
-          }
-        : {
-            id: "grant-all-content",
-            label: "Grant all-content",
-            onSelect: () => handleGrantContentAccess(u),
-          }
-    );
+    // Superuser status implies all-content access and the API refuses to
+    // clear it on a superuser, so Revoke is omitted (not disabled) for those
+    // rows: a context-gated action is left out of the DOM (frontend/CLAUDE.md
+    // § "Permission-gated and context-gated"). Grant stays available.
+    if (!u.can_access_all_content) {
+      items.push({
+        id: "grant-all-content",
+        label: "Grant all-content",
+        onSelect: () => handleGrantContentAccess(u),
+      });
+    } else if (!u.is_superuser) {
+      items.push({
+        id: "revoke-all-content",
+        label: "Revoke all-content",
+        onSelect: () => handleRevokeContentAccess(u),
+      });
+    }
 
     if (!u.must_change_password) {
       items.push({
@@ -1335,10 +1339,13 @@ function UsersTab({ currentUser }: { currentUser: User }) {
                         )}
 
                         {/* Promote / Demote site admin — kept inline as the
-                            second highest-frequency row action (#1291). */}
+                            second highest-frequency row action (#1291).
+                            Demote is omitted on a superuser row: superuser
+                            status implies site admin and the API refuses to
+                            clear it, so the action is context-gated out. */}
                         {u.id !== currentUser.id && (
                           u.is_site_admin ? (
-                            <button
+                            !u.is_superuser && <button
                               onClick={() => handleDemote(u)}
                               className="text-xs text-fg-tertiary hover:text-warning transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis"
                             >

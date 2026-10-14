@@ -137,6 +137,16 @@ class AdminUsersListTests(TestCase):
         self.assertEqual(body["offset"], 0)
         self.assertEqual(body["page_size"], 50)
 
+    def test_lists_is_superuser_per_row(self):
+        """``is_superuser`` is in every row so the page can leave out refused actions."""
+        User.objects.filter(username="alice").update(is_superuser=True)
+        r = self.client.get("/api/v1/admin/users/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        flags = {u["username"]: u["is_superuser"] for u in r.json()["results"]}
+        self.assertIs(flags["alice"], True)
+        self.assertIs(flags["bob"], False)
+        self.assertIs(flags["admin"], False)
+
     def test_search_by_username(self):
         r = self.client.get("/api/v1/admin/users/?search=alice")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
@@ -285,6 +295,35 @@ class AdminPatchUserTests(TestCase):
         self.target = make_user(username="target")
         self.client = APIClient()
         self.client.force_authenticate(self.admin)
+
+    def test_patch_response_carries_is_superuser(self):
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"must_change_password": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertIs(r.json()["is_superuser"], False)
+
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        r = self.client.patch(f"/api/v1/admin/users/{self.target.pk}/", {"must_change_password": False})
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertIs(r.json()["is_superuser"], True)
+
+    def test_is_superuser_is_read_only(self):
+        """A PATCH carrying ``is_superuser`` leaves the flag unchanged either way."""
+        r = self.client.patch(
+            f"/api/v1/admin/users/{self.target.pk}/", {"is_superuser": True}, format="json"
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertIs(r.json()["is_superuser"], False)
+        self.target.refresh_from_db()
+        self.assertFalse(self.target.is_superuser)
+
+        User.objects.filter(pk=self.target.pk).update(is_superuser=True)
+        r = self.client.patch(
+            f"/api/v1/admin/users/{self.target.pk}/", {"is_superuser": False}, format="json"
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertIs(r.json()["is_superuser"], True)
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_superuser)
 
     def test_demoting_a_superuser_from_site_admin_is_refused(self):
         from accounts.models import InviteLink

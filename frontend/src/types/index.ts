@@ -949,6 +949,10 @@ export interface AdminUser {
   is_active: boolean;
   is_site_admin: boolean;
   can_access_all_content: boolean;
+  // Read-only. Superuser status implies is_site_admin and
+  // can_access_all_content, so the admin API refuses to clear either flag
+  // while it is set; the users page leaves those actions out for such rows.
+  is_superuser: boolean;
   must_change_password: boolean;
   date_joined: string;
   owned_boards: OwnedBoardSummary[];
