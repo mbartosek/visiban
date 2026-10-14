@@ -690,7 +690,10 @@ class _CardChildBroadcastAdminMixin:
     def save_model(self, request, obj, form, change):
         if change and obj.pk is not None:
             # Defense in depth next to get_readonly_fields: keep the stored
-            # parent card regardless of what the submitted form carried.
+            # parent card regardless of what the submitted form carried. This
+            # read precedes the card lock by necessity (the id is needed to know
+            # which card to lock). It is safe unlocked because card is read-only
+            # on change and no other path can re-parent the row.
             stored_card_id = (
                 type(obj).objects.filter(pk=obj.pk).values_list("card_id", flat=True).first()
             )
