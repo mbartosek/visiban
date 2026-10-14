@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 from unittest import skipIf
 from unittest.mock import patch
 
@@ -191,6 +192,40 @@ class StubEndToEndTests(TestCase):
         self.assertIsNone(conn.json()["created_by"])
         self.assertEqual(board.status_code, 200)
         self.assertEqual(len(board.json()["issues"]), 4)
+
+    def test_hook_maps_every_lens_path_the_schema_publishes(self):
+        """Keys come from the generated schema, not literals (#1338).
+
+        A renamed lens route or path parameter would stop matching the hook's
+        exact-template keys, the seeded board would never be used, and the fuzz
+        job would only ever see declared 404s. This fails first.
+        """
+        import re
+
+        from drf_spectacular.generators import SchemaGenerator
+
+        hooks = self._hooks()
+        paths = SchemaGenerator().get_schema(request=None, public=True)["paths"]
+        lens_paths = sorted(
+            p for p in paths if "/git-lens/" in p and not p.startswith("/api/v1/admin/")
+        )
+        self.assertTrue(lens_paths, "no git-lens paths in the schema; is GIT_LENS_ENABLED on?")
+
+        board_pk = 4242
+        original = hooks._IDS
+        hooks._IDS = {**original, "board_pk": board_pk}
+        self.addCleanup(setattr, hooks, "_IDS", original)
+        for path in lens_paths:
+            params = re.findall(r"{(\w+)}", path)
+            with self.subTest(path=path):
+                self.assertIn(path, hooks._PATH_PARAM_OVERRIDES)
+                self.assertEqual(sorted(hooks._PATH_PARAM_OVERRIDES[path]), sorted(params))
+                for method in ("GET", "PUT", "DELETE"):
+                    result = hooks.map_path_parameters(
+                        SimpleNamespace(operation=SimpleNamespace(path=path, method=method)),
+                        {name: "generated" for name in params},
+                    )
+                    self.assertEqual(result, {name: board_pk for name in params})
 
     def test_member_cannot_remove_the_seeded_connection(self):
         from rest_framework.test import APIClient

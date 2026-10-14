@@ -564,21 +564,6 @@ class MapPathParametersTests(TestCase):
         )
         self.assertEqual(result, {"id": 7, "link_id": "generated-link"})
 
-    def test_git_lens_paths_get_a_real_board_pk(self):
-        """#1338: both lens routes resolve the seeded connection's board, not a 404."""
-        for path in (
-            "/api/v1/git-lens/connections/{board_id}/",
-            "/api/v1/git-lens/board/{board_id}/",
-        ):
-            for method in ("GET", "PUT", "DELETE"):
-                with self.subTest(path=path, method=method):
-                    result = _hooks().map_path_parameters(
-                        _fake_context(path, method), {"board_id": "generated"}
-                    )
-                    # DELETE included: the connection is not a disposable kind,
-                    # and a plain member's DELETE answers 403 (git_lens tests).
-                    self.assertEqual(result, {"board_id": 7})
-
     def test_overrides_custom_field_id(self):
         context = _fake_context("/api/v1/boards/{board_pk}/custom-fields/{id}/")
         params = {"board_pk": "generated-board", "id": "generated-field"}

@@ -1350,7 +1350,9 @@ backend-schema-fuzz-deep:
 #     passing with nothing fuzzed (the silent-exemption class behind #1331). The
 #     job's own script therefore fails before the run unless the served schema
 #     has at least one path matching FUZZ_INCLUDE_PATH_REGEX, and after it unless
-#     the junit report has at least one test case.
+#     the junit report has at least one test case and the server log shows a
+#     2xx and no 404 on both lens reads (connections and board), i.e. every
+#     call reached the seeded connection rather than a declared 404.
 #
 # Measured locally on SQLite (see the MR): 5 operations selected, no failures,
 # no "Missing valid test data" warning. 3 operations answer only 403 by design: connection
@@ -1416,6 +1418,24 @@ backend-schema-fuzz-git-lens:
         echo "No operation was fuzzed; refusing to pass on an empty run (#1338)."
         exit 1
       fi
+      # A test case per operation is not enough: junit writes one even when
+      # every call answered a declared 404 (e.g. a renamed route parameter no
+      # longer matching schemathesis_hooks.py, so the seeded board is never
+      # used). From the server's own access log, both lens reads must have a
+      # 2xx AND no 404 at all: with the hook mapping every {board_id} to the
+      # seeded board nothing on these two reads can 404, while an unmapped
+      # parameter is random and mostly 404s. A 2xx count alone is not enough,
+      # because hypothesis generates small integers often enough to hit the
+      # seeded board id by chance (seen locally with the mapping broken).
+      for route in connections board; do
+        ok=$(grep -cE "^HTTP GET /api/v1/git-lens/${route}/[^ ]* 2[0-9][0-9] " schema-fuzz-server.log || true)
+        missing=$(grep -cE "^HTTP GET /api/v1/git-lens/${route}/[^ ]* 404 " schema-fuzz-server.log || true)
+        echo "GET /api/v1/git-lens/${route}/{board_id}/: ${ok:-0} x 2xx, ${missing:-0} x 404"
+        if [ "${ok:-0}" -lt 1 ] || [ "${missing:-0}" -gt 0 ]; then
+          echo "The fuzz did not stay on the seeded lens connection for ${route} (#1338): check the {board_id} mapping in backend/schemathesis_hooks.py."
+          exit 1
+        fi
+      done
 
 # ─── Backend mutation testing, weekly (#1384) ───────────────────────────────
 #

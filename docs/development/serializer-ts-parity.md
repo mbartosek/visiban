@@ -238,9 +238,9 @@ level with no behavior change:
   `GroupInviteLink.token` is optional and now listed in `TS_ONLY_FIELDS` rather than treated as
   drift.
 
-The thirteenth, `LensConnection`, stays excluded — see
-[What is not covered, and why](#what-is-not-covered-and-why) for the reason, which is
-structural rather than something a decorator can fix.
+The thirteenth, `LensConnection`, was excluded for a structural reason (its app exists only with
+`GIT_LENS_ENABLED`) until #1338 generated the parity schema with the flag on and mapped it; see
+[What is not covered, and why](#what-is-not-covered-and-why).
 
 ### What is not covered, and why
 
@@ -480,8 +480,8 @@ explicit request-body interfaces, mapping them is the natural extension.
 TypeScript interface *and reaches the schema this gate's own environment generates* is mapped as
 of [#1294](https://gitlab.com/visiban/visiban/-/issues/1294), so a green `serializer-ts-parity`
 run means "the published response components and the interfaces agree", not "forty-five of them do".
-`LensConnection` is the sole component this job cannot see at all, for the feature-flag reason in
-[What is not covered, and why](#what-is-not-covered-and-why) — not a gap in `COMPONENT_MAP`, a
-gap in what the job's own schema generation includes. If you add a serializer *and* an
+`LensConnection`, the one component this job used to be unable to see (its app is feature-flagged),
+is mapped since #1338: the job generates its schema with `GIT_LENS_ENABLED=True`. A component
+from another flag-gated app would need the same treatment. If you add a serializer *and* an
 interface, add the pair to `COMPONENT_MAP` in the same MR — the gate does not discover pairs on
 its own, and an unmapped pair is unchecked silently.

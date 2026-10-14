@@ -128,7 +128,12 @@ It cannot pass with nothing fuzzed. `st run` exits `0` when its include regex se
 operation, so a renamed route prefix or a flag that stopped mounting the app would otherwise
 leave the job green forever. Before the run, the job fails unless the served schema has at least
 one path matching `FUZZ_INCLUDE_PATH_REGEX`; after it, the job fails unless the junit report has
-at least one test case.
+at least one test case and `schema-fuzz-server.log` shows, for both lens reads
+(`GET /git-lens/connections/{board_id}/` and `GET /git-lens/board/{board_id}/`), at least one
+`2xx` and no `404`. A junit test case alone proves nothing: one is written even when every call
+answered a declared `404`, which is what happens if a renamed route parameter stops matching the
+hook's mapping. `git_lens/tests/test_fuzz_stub.py` also derives the lens paths from the generated
+schema and fails if any of them is missing from the hook's table.
 
 **The fuzz user keeps its token for the whole run (#1607).** The seeded `demo2` account has
 no usable password (social-only). Both password-change routes
@@ -136,7 +141,7 @@ no usable password (social-only). Both password-change routes
 an account, but only from an interactive session; a request authenticated with the fuzz token
 is refused with `403` and nothing changes (#1609). Before that, the deep budget generated a
 matching, valid new-password pair on 2026-10-11, the change revoked every Personal Access
-Token, and every request after it returned `401` (#1607). Both fuzz jobs still run
+Token, and every request after it returned `401` (#1607). All three fuzz jobs still run
 `provision_fuzz_token --set-random-password` as defense in depth: it gives a password-less
 target a random password that is never recorded, so those routes also require a current
 password the fuzzer cannot supply and answer `400`. The flag is off by default and is for
@@ -144,7 +149,7 @@ throwaway CI databases only. On a real social-only account, a usable password wo
 verified-email gate on password reset. A run
 of `401`s in a fuzz job means the token stopped authenticating. It is not an API finding.
 
-**Server output is a job artifact, not job log.** Both jobs redirect `runserver` output
+**Server output is a job artifact, not job log.** All three fuzz jobs redirect `runserver` output
 (one access line per request, plus `django.request` lines for every 4xx/5xx) to
 `schema-fuzz-server.log`, kept with `when: always`. The deep run makes over 100k requests,
 and with that output in the job log it hit GitLab's 16 MB limit, which cut off schemathesis's
