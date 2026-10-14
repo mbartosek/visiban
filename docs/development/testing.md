@@ -318,6 +318,14 @@ SQLite has no row locks, so a `select_for_update()` can be deleted without faili
   count is deterministic and takes seconds; latency regressions that keep the query count identical
   are covered by `nightly-load-test` ([nightly-load-test.md](nightly-load-test.md)). To run it
   locally: `cd backend && DEBUG=True python manage.py benchmark --fail-on-budget`.
+  **Why blocking on every backend MR** (the issue suggested manual or scheduled): the check is
+  deterministic and takes seconds, and a manual job is exactly how it went unrun. The cost is one
+  more job per backend MR (Postgres + Valkey services, `migrate`, `pip install`). First measured
+  on Postgres in #1341: cards 9 (budget 12), `full/` 17 (budget 20), `summary/` 4 (budget 10).
+  The budgets partly duplicate `backend/boards/tests/test_query_counts.py` (`BoardFullQueryCountTests.BUDGET`,
+  `SummaryQueryCountTests.BUDGET`); the benchmark's `cards/` row serializes `_card_queryset`
+  directly and does **not** exercise the viewset, so it is a coarser check than
+  `test_query_counts.py`, not a replacement. Keep both sets of budgets in sync when either changes.
 - Frontend unit tests run in `frontend-test`. Unlike `backend-schema-fuzz` below, a single
   failed test retries once automatically under CI (`vitest.config.ts`'s `test.retry`, gated
   on `process.env.CI` so local runs stay strict) before failing the job — a mitigation for

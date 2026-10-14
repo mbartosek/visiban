@@ -99,3 +99,11 @@ class BenchmarkCommandCiGateTests(TestCase):
     @override_settings(DEBUG=True, ALLOWED_HOSTS=["localhost"])
     def test_within_budget_passes_with_fail_on_budget(self):
         call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())
+
+    @override_settings(DEBUG=True, ALLOWED_HOSTS=["localhost"])
+    def test_non_2xx_hard_fails_with_fail_on_budget(self):
+        """The exact CI invocation must still raise, not exit 0, on a 4xx."""
+        fake = mock.Mock(status_code=403, content=b"forbidden")
+        with mock.patch("rest_framework.test.APIClient.get", return_value=fake):
+            with self.assertRaises(CommandError):
+                call_command("benchmark", "--fail-on-budget", stdout=StringIO(), stderr=StringIO())

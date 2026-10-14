@@ -108,6 +108,11 @@ class Command(BaseCommand):
 
     def _bench_cards(self, factory, user, board):
         name = "GET /api/boards/{id}/cards/"
+        # NOTE: this serializes ``_card_queryset`` directly and never goes
+        # through the viewset, so it measures LESS than
+        # test_query_counts.py (which drives the real endpoint on Postgres,
+        # budgets 14/19). It is a coarse smoke check, not a duplicate guard.
+        # Measured on Postgres 2026-10-14 (#1341): 9 queries.
         budget = 12
 
         request = factory.get("/")
@@ -125,7 +130,7 @@ class Command(BaseCommand):
 
     def _bench_full(self, factory, user, board):
         name = "GET /api/boards/{id}/full/"
-        budget = 20  # ~12 measured; matches BoardFullQueryCountTests.BUDGET in test_query_counts.py
+        budget = 20  # 17 measured on Postgres (#1341); matches BoardFullQueryCountTests.BUDGET in test_query_counts.py
 
         # Drive the endpoint through APIClient instead of constructing a raw
         # WSGIRequest and calling the serializer directly (#996).  The
@@ -158,7 +163,7 @@ class Command(BaseCommand):
         # Budget matches SummaryQueryCountTests.BUDGET in test_query_counts.py.
         # The real endpoint runs ~6 queries (board load, columns, swimlanes,
         # card counts, velocity, cycle-time × 2); 10 gives auth-middleware headroom.
-        budget = 10
+        budget = 10  # 4 measured on Postgres (#1341)
 
         from rest_framework.test import APIClient
         client = APIClient()
