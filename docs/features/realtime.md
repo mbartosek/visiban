@@ -75,6 +75,8 @@ For most events, `data` is the full serialized object. Deletion and archive-remo
 
 `board_uid` (added in 1.1, #696) is the stable identifier for a deleted board, matching every other terminal `*.deleted` event. A plain board deletion carries `board_uid` only. The single exception is a board **moved out of a group**: the `board.deleted` emitted on the *old* group's channel additionally carries `"board_id": <int>` so clients keyed by integer id can drop the row without a re-fetch.
 
+Deleting a column, swimlane, or board deletes the cards in it too, and only the container's `*.deleted` event is sent, not one `card.deleted` per card. Connected clients remove those cards when they receive it. See [Deleting a container deletes its cards](../api/websockets.md#deleting-a-container-deletes-its-cards).
+
 ```json
 { "event": "member.removed", "data": { "user_id": 42 } }
 ```

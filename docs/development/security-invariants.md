@@ -160,9 +160,9 @@ canonical wording.
 |---|---|---|
 | Site invite (registration) | `accounts/invite_utils.py` `validate_invite_token`, `consume_invite_token` | `select_for_update()` on validation; conditional `used_at IS NULL` update checked by row count |
 | Group invite (registration) | `groups/invite_registration.py` `validate_group_registration_token`, `redeem_group_registration_token` | `select_for_update()` on validation; conditional `used_at` update checked by row count |
-| Board invite (join) | `boards/views/invites.py` `JoinBoardView.post` | `select_for_update()` on the link row inside the request transaction |
+| Board invite (join) | `boards/views/invites.py` `JoinBoardView.post` | `select_for_update()` on the link row inside the request transaction, taken after the board row lock (`FOR NO KEY UPDATE`, #1631) so a join cannot race a board delete |
 | Group invite (join) | `groups/views.py` `JoinGroupView.post` | `select_for_update()` on the link row inside the request transaction |
-| Board invite (registration) | `boards/invites.py` `validate_board_registration_token`, `redeem_board_registration_token` | `select_for_update()` on validation; conditional update on `used_at IS NULL, revoked_at IS NULL` checked by row count |
+| Board invite (registration) | `boards/invites.py` `validate_board_registration_token`, `redeem_board_registration_token` | `select_for_update()` on validation, after the board row lock (`lock_invite_board`, #1631); conditional update on `used_at IS NULL, revoked_at IS NULL` checked by row count |
 | Registration dispatch | `accounts/registration_tokens.py` `registration_token_kind` | Routes to the site, group or board validate and redeem functions above |
 | Email and password signup | `accounts/views.py` `InviteRegisterView.post` | Runs in `transaction.atomic`; validates and redeems through `registration_token_kind` |
 | OAuth signup | `accounts/adapter.py` `SocialRegistrationAdapter.save_user`, `_redeem_invite` | Validate and redeem in one transaction |

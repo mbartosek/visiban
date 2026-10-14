@@ -277,4 +277,57 @@ describe('ArchivedCardsPanel — backdrop keyboard operation (#1376)', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Old feature')).toBeInTheDocument()
   })
+
+  // A column or swimlane delete cascades to its archived cards, and the server
+  // sends only the container's *.deleted event for them (#1615).
+  describe('cards of a deleted column or swimlane', () => {
+    const otherCard: Card = { ...archivedCard, id: 100, uid: 'carduid00100', column: 11, title: 'Kept card' }
+    const twoColumnBoard: BoardFull = {
+      ...fakeBoard,
+      columns: [
+        ...fakeBoard.columns,
+        { id: 11, uid: 'coluid000002', name: 'Done', position: 1, color: '#10B981', wip_limit: null, weight_limit: null, allow_card_creation: true, is_done: false },
+      ],
+    }
+
+    it('drops a loaded card once its column leaves the board', async () => {
+      mockGetArchivedCards.mockResolvedValue(makePage([archivedCard, otherCard]))
+      const { rerender } = render(<ArchivedCardsPanel board={twoColumnBoard} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+      await waitFor(() => screen.getByText('Old feature'))
+      expect(screen.getByText('(2)')).toBeInTheDocument()
+
+      rerender(<ArchivedCardsPanel board={{ ...twoColumnBoard, columns: twoColumnBoard.columns.filter((c) => c.id !== 10) }} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+
+      expect(screen.queryByText('Old feature')).not.toBeInTheDocument()
+      expect(screen.getByText('Kept card')).toBeInTheDocument()
+      expect(screen.getByText('(1)')).toBeInTheDocument()
+    })
+
+    it('drops a loaded card once its swimlane leaves the board', async () => {
+      mockGetArchivedCards.mockResolvedValue(makePage([archivedCard]))
+      const { rerender } = render(<ArchivedCardsPanel board={fakeBoard} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+      await waitFor(() => screen.getByText('Old feature'))
+
+      rerender(<ArchivedCardsPanel board={{ ...fakeBoard, swimlanes: [] }} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+
+      expect(screen.queryByText('Old feature')).not.toBeInTheDocument()
+      expect(screen.getByText('No archived cards')).toBeInTheDocument()
+    })
+
+    it('asks for the next page at an offset that skips no surviving card', async () => {
+      mockGetArchivedCards.mockResolvedValueOnce(makePage([archivedCard, otherCard], 5))
+      const { rerender } = render(<ArchivedCardsPanel board={twoColumnBoard} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+      await waitFor(() => screen.getByText('Old feature'))
+
+      rerender(<ArchivedCardsPanel board={{ ...twoColumnBoard, columns: twoColumnBoard.columns.filter((c) => c.id !== 10) }} onClose={vi.fn()} onUnarchived={vi.fn()} />)
+      // 5 archived, 1 deleted with its column, 1 shown: 3 remain on the server.
+      expect(screen.getByText('Load more (3 remaining)')).toBeInTheDocument()
+
+      mockGetArchivedCards.mockResolvedValueOnce(makePage([], 4))
+      await userEvent.click(screen.getByText(/Load more/))
+      // The server's list lost the deleted card, so the one surviving card
+      // already loaded is the whole of the first page now.
+      await waitFor(() => expect(mockGetArchivedCards).toHaveBeenLastCalledWith(1, 1))
+    })
+  })
 })
