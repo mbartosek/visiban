@@ -283,6 +283,12 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! note "Superuser accounts normalized"
+    `manage.py migrate` runs a one-time data migration (`accounts/0036`). On upgrade, existing
+    superuser accounts are set to site admin with all-content access, matching how the
+    application already treats superusers. All existing superuser accounts have both flags set
+    after migrating. The migration is idempotent.
+
 !!! note "Housekeeping for inactive accounts"
     `manage.py migrate` runs a one-time data migration (`groups/0018`) that removes personal
     access tokens and unused invite links belonging to inactive accounts. No operator action
