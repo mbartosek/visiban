@@ -7,6 +7,7 @@ import Avatar from "../Common/Avatar";
 import FilterChip from "./FilterChip";
 import { choiceColor, explicitChoiceColor, formatCustomFieldValue } from "../../utils/customFieldValue";
 import { CHOICE_COLORS } from "../../constants/choiceColors";
+import { PRIORITY_COLORS } from "../../constants/colors";
 
 // #371 — one filter value per custom field, keyed by field_definition id in
 // FilterState.customFields. Number/date are equality-only (the value is
@@ -138,10 +139,10 @@ function MyCardsButton({ currentUser, filters, onChange }: MyCardsButtonProps) {
 }
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
-  { value: "low", label: "Low", color: "#6B7280" },
-  { value: "medium", label: "Medium", color: "#3B82F6" },
-  { value: "high", label: "High", color: "#F59E0B" },
-  { value: "urgent", label: "Urgent", color: "#EF4444" },
+  { value: "low", label: "Low", color: PRIORITY_COLORS.low },
+  { value: "medium", label: "Medium", color: PRIORITY_COLORS.medium },
+  { value: "high", label: "High", color: PRIORITY_COLORS.high },
+  { value: "urgent", label: "Urgent", color: PRIORITY_COLORS.urgent },
 ];
 
 const DUE_DATE_OPTIONS: { value: NonNullable<FilterState["dueDate"]>; label: string }[] = [
