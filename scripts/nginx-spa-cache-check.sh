@@ -21,7 +21,7 @@
 #   /assets/missing.js     -> 404 (nginx's own error page), no Cache-Control
 #   /api/x (proxied)       -> no Cache-Control added by nginx
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 IMAGE="${NGINX_IMAGE:-nginx:1.27-alpine}"
 for c in docker helm yq openssl curl; do
   command -v "$c" >/dev/null || { echo "ERROR: $c not on PATH" >&2; exit 1; }
@@ -70,7 +70,7 @@ run_config() {
   done
   [ -n "$certdir" ] && args+=(-v "$certdir:/etc/letsencrypt:ro")
   CONTAINER="$(docker run "${args[@]}" "$IMAGE" 2>&1)" || { bad "$name: docker run failed: $CONTAINER"; CONTAINER=""; return; }
-  local i; for i in 1 2 3 4 5 6 7 8 9 10; do
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
     curl -sk -o /dev/null "$scheme://127.0.0.1:$port/" && break; sleep 1
   done
   if ! docker exec "$CONTAINER" nginx -t >/dev/null 2>&1; then
