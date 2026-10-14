@@ -54,6 +54,15 @@
 #      proves Valkey refuses an unauthenticated client, the backend round-trips
 #      the cache and the Channels layer through it, `helm test` passes, and
 #      `helm get manifest` carries no plaintext password.
+#  10. EXTERNAL REDIS existingSecret (#1426, the live half of #1361), opt-in with
+#      DRILL_EXTERNAL_REDIS=1 (CI sets it): valkey.enabled=false against a
+#      password-protected Valkey the drill deploys itself, with an ACL USER in
+#      externalRedis.url/cacheUrl (`redis://visiban@host`, no password) and the
+#      password only in externalRedis.existingSecret. Proves the instance refuses
+#      anonymous and wrong-password clients, the backend (settings.py
+#      _apply_redis_password splices the Secret's password into the URL) is
+#      Ready and round-trips the cache and the Channels layer, `helm test`
+#      passes, and the password is in the Secret only.
 #
 # Images are BUILT FROM THE WORKING TREE and side-loaded into kind, not pulled
 # from a registry. The MR pipeline's image jobs are `--no-push`, so there is no
@@ -77,6 +86,9 @@
 #                           defaults on amd64.
 #          DRILL_VALKEY_AUTH=1  also run step 9 (bundled Valkey password auth,
 #                           #1211). Off by default; CI's helm-install job sets it.
+#          DRILL_EXTERNAL_REDIS=1  also run step 10 (external Redis with an ACL
+#                           user + externalRedis.existingSecret, #1426). Off by
+#                           default; CI's helm-install job sets it.
 #
 # Use a current kind (CI pins KIND_VERSION in .gitlab-ci.yml). Valkey dying with
 # "Fatal: Can't initialize Background Jobs. Error message: Operation not
@@ -701,9 +713,150 @@ if [ "${DRILL_VALKEY_AUTH:-0}" = "1" ]; then
   ok "valkey-auth uninstall left nothing behind"
 fi
 
+# ---------------------------------------------------------------------------
+# 10. EXTERNAL REDIS existingSecret (#1426) — opt-in, DRILL_EXTERNAL_REDIS=1
+# ---------------------------------------------------------------------------
+# #1361's structure check (section 11c) proves the render statically and
+# test_connection_url_guard.py unit-tests _apply_redis_password, but nothing
+# booted the chart with valkey.enabled=false and a password-protected external
+# instance. The runtime behavior only this step covers: a Redis ACL USERNAME in
+# the URL plus the PASSWORD from the Secret, joined by the backend at startup.
+# The "external" instance is a plain Deployment+Service of the SAME Valkey
+# image the chart ships (already side-loaded by step "Pre-pulling"), so no new
+# image or Helm repo dependency.
+if [ "${DRILL_EXTERNAL_REDIS:-0}" = "1" ]; then
+  step "10. EXTERNAL REDIS: ACL user in the URL, password from externalRedis.existingSecret (#1426)"
+  EXT_RELEASE="extredis"
+  NAMESPACE="visiban-extredis-drill"   # install_args and dump_diagnostics read it
+  # Same awkward characters as step 9: "/" and "@" split a URL spliced in raw.
+  EXT_PW='drill/ext@pw:1426+a$x'
+
+  if [ -z "${VALKEY_IMAGE:-}" ]; then
+    # Only set by the DOCKERHUB_MIRROR branch above; derive it the same way.
+    EXT_VALUES_BLOCK="$(sed -n '/^valkey:/,/^[a-zA-Z]/p' "$CHART/values.yaml")"
+    EXT_REPO="$(printf '%s\n' "$EXT_VALUES_BLOCK" | grep -m1 '^[[:space:]]*repository:' | sed -E 's/^[[:space:]]*repository:[[:space:]]*"?([^"[:space:]]*)"?.*/\1/')"
+    EXT_TAG="$(printf '%s\n' "$EXT_VALUES_BLOCK" | grep -m1 '^[[:space:]]*tag:' | sed -E 's/^[[:space:]]*tag:[[:space:]]*"?([^"[:space:]]*)"?.*/\1/')"
+    [ -n "$EXT_REPO" ] && [ -n "$EXT_TAG" ] || die "could not derive valkey.image.{repository,tag} from $CHART/values.yaml"
+    VALKEY_IMAGE="${EXT_REPO}:${EXT_TAG}"
+  fi
+
+  kubectl create namespace "$NAMESPACE" >/dev/null
+  # The password for the chart (key redis-password is the chart's default
+  # existingSecretPasswordKey) and the server's own config, in one Secret each.
+  # `user default off` is what makes an unauthenticated client get NOAUTH.
+  kubectl -n "$NAMESPACE" create secret generic drill-extredis \
+    --from-literal=redis-password="$EXT_PW" >/dev/null
+  kubectl -n "$NAMESPACE" create secret generic drill-extredis-server \
+    --from-literal=valkey.conf="$(printf 'save ""\nappendonly no\nuser default off\nuser visiban on >%s ~* &* +@all\n' "$EXT_PW")" >/dev/null
+  kubectl -n "$NAMESPACE" apply -f - >/dev/null <<EXTREDIS
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: extredis
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: extredis}
+  template:
+    metadata:
+      labels: {app: extredis}
+    spec:
+      containers:
+        - name: valkey
+          image: ${VALKEY_IMAGE}
+          imagePullPolicy: IfNotPresent
+          args: ["valkey-server", "/etc/valkey-drill/valkey.conf"]
+          ports: [{containerPort: 6379}]
+          readinessProbe:
+            tcpSocket: {port: 6379}
+            periodSeconds: 2
+          volumeMounts:
+            - {name: conf, mountPath: /etc/valkey-drill, readOnly: true}
+      volumes:
+        - name: conf
+          secret: {secretName: drill-extredis-server}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: extredis
+spec:
+  selector: {app: extredis}
+  ports: [{port: 6379, targetPort: 6379}]
+EXTREDIS
+  kubectl -n "$NAMESPACE" rollout status deployment/extredis --timeout=180s >/dev/null \
+    || die "the drill's external Valkey did not become ready"
+
+  # Instance-level proof, before the chart is involved: it really is protected.
+  out="$(kubectl -n "$NAMESPACE" exec deployment/extredis -- valkey-cli -h 127.0.0.1 ping 2>&1 || true)"
+  case "$out" in *NOAUTH*) ok "external Valkey refuses an unauthenticated client (NOAUTH)" ;;
+    *) die "an unauthenticated PING to the external Valkey answered '$out', not NOAUTH — the control is not password-protected" ;; esac
+  out="$(kubectl -n "$NAMESPACE" exec deployment/extredis -- valkey-cli -h 127.0.0.1 --user visiban --pass wrong-password ping 2>&1 || true)"
+  case "$out" in *WRONGPASS*) ok "external Valkey refuses the ACL user with a wrong password (WRONGPASS)" ;;
+    *) die "a wrong-password AUTH to the external Valkey answered '$out', not WRONGPASS" ;; esac
+
+  # shellcheck disable=SC2046  # install_args is deliberately word-split
+  helm install "$EXT_RELEASE" "$CHART" $(install_args) \
+    --set-string secret.djangoSecretKey="$SECRET_KEY_A" \
+    --set valkey.enabled=false \
+    --set externalRedis.url="redis://visiban@extredis:6379/0" \
+    --set externalRedis.cacheUrl="redis://visiban@extredis:6379/1" \
+    --set externalRedis.existingSecret=drill-extredis \
+    --wait --timeout 10m \
+    || die "an install with valkey.enabled=false and externalRedis.existingSecret did not complete"
+  ok "install against the password-protected external Valkey completed (backend Ready)"
+
+  out="$(kubectl -n "$NAMESPACE" exec "deployment/${EXT_RELEASE}-visiban-backend" -c backend -- \
+    python manage.py shell -c '
+import asyncio
+from channels.layers import get_channel_layer
+from django.core.cache import cache
+cache.set("drill-1426", "ok", 30)
+assert cache.get("drill-1426") == "ok", "cache round-trip failed"
+async def roundtrip():
+    layer = get_channel_layer()
+    channel = await layer.new_channel()
+    await layer.send(channel, {"type": "drill.1426"})
+    message = await asyncio.wait_for(layer.receive(channel), timeout=15)
+    assert message["type"] == "drill.1426"
+asyncio.run(roundtrip())
+print("EXTERNAL_REDIS_ROUNDTRIP_OK")
+' 2>&1 || true)"
+  case "$out" in
+    *EXTERNAL_REDIS_ROUNDTRIP_OK*) ok "the backend round-trips the cache (db 1) and the Channels layer (db 0) through the external Valkey as the ACL user" ;;
+    *) die "the backend could not use the external Valkey: $(printf '%s' "$out" | tail -3)" ;;
+  esac
+  helm test "$EXT_RELEASE" --namespace "$NAMESPACE" --timeout 5m \
+    || die "helm test failed with externalRedis.existingSecret"
+  ok "helm test passed"
+
+  # The password must live in Secrets only: not in the Deployment's env (the
+  # URLs there carry the username alone) nor in 'helm get manifest'. The
+  # control first proves the Secret the backend reads really holds it.
+  live="$(kubectl -n "$NAMESPACE" get secret drill-extredis -o go-template='{{index .data "redis-password"}}' | base64 -d)"
+  [ "$live" = "$EXT_PW" ] || die "control failed — drill-extredis does not hold the drill password, so the plaintext check would prove nothing"
+  if kubectl -n "$NAMESPACE" get configmap,statefulset,deployment,cronjob,job,pod,service -o yaml | grep -qF -- "$EXT_PW"; then
+    die "the external Redis password appears as plaintext in a non-Secret object"
+  fi
+  if helm get manifest "$EXT_RELEASE" --namespace "$NAMESPACE" | grep -qF -- "$EXT_PW"; then
+    die "the external Redis password appears as plaintext in 'helm get manifest'"
+  fi
+  ok "the password is in Secrets only — no plaintext in any other object or in 'helm get manifest'"
+
+  helm uninstall "$EXT_RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m \
+    || die "helm uninstall of the external-redis release failed"
+  LEFTOVERS="$(kubectl -n "$NAMESPACE" get deploy,statefulset,svc,secret,job,configmap,networkpolicy,pdb \
+    -l "app.kubernetes.io/instance=${EXT_RELEASE}" -o name 2>/dev/null | grep -v '^$' || true)"
+  [ -z "$LEFTOVERS" ] || die "the external-redis uninstall left release-owned objects behind: $LEFTOVERS"
+  ok "external-redis uninstall left nothing behind"
+fi
+
 VALKEY_AUTH_SUMMARY=""
 if [ "${DRILL_VALKEY_AUTH:-0}" = "1" ]; then
   VALKEY_AUTH_SUMMARY=", and the bundled Valkey runs authenticated with an existingSecret and a chart-managed password"
+fi
+if [ "${DRILL_EXTERNAL_REDIS:-0}" = "1" ]; then
+  VALKEY_AUTH_SUMMARY="${VALKEY_AUTH_SUMMARY}, and the backend authenticates to a password-protected external Valkey with an ACL user and externalRedis.existingSecret"
 fi
 echo
 echo "PASSED: one-shot fresh install, serves, fails closed on a placeholder key, rotates secrets in place, migrates safely at 3 replicas, uninstalls clean, and the public demo installs, proves its fence, resets and uninstalls clean${VALKEY_AUTH_SUMMARY}"
