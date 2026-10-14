@@ -121,30 +121,35 @@ reports it.
 ## npm `overrides` pins in `frontend/package.json`
 
 `package.json` cannot hold comments, so this page is the record. This section documents only
-the `postcss-selector-parser` pin below; the other entries in the `overrides` block are not
-recorded here.
+the `postcss-selector-parser` pin below; the other entries in the `overrides` block
+(`axios`, `follow-redirects`, `markdown-it`) are not recorded here; that is tracked in #1649.
 
 ### `postcss-selector-parser` pinned to 7.1.6 (GHSA-rj75-hqrm-r3gf, #1488, !1197)
 
 - **What it does:** forces every copy of `postcss-selector-parser` to 7.1.6, including the
   copies that `tailwindcss` (`^6.1.2`), `postcss-nested` 6.x (`^6.1.1`) and
   `@tailwindcss/typography` (exact `6.0.10`) request on the vulnerable 6.x line.
-- **Why it is still needed (checked 2026-10-14):** `tailwindcss` 3.4.19 is the last 3.x
-  release (the frozen `v3-lts` line) and depends on `postcss-selector-parser ^6.1.2`. It also
+- **Why it is still needed (checked 2026-10-14):** `tailwindcss` 3.4.19 is the latest 3.x
+  release (the `v3-lts` dist-tag; no further 3.x release is expected) and depends on `postcss-selector-parser ^6.1.2`. It also
   requires `postcss-nested ^6.2.0`, whose latest 6.x (6.2.0) depends on `^6.1.1`, so a
   `^7` `postcss-nested` is not reachable from Tailwind 3. `@tailwindcss/typography` latest
   0.5.20 pins exactly `6.0.10`; the locked 0.5.19 pins exactly `6.0.10` too. No compatible
   release resolves a fixed parser on its own, so in practice the override stays until #1420
-  lands.
-- **Removal condition:** remove the override when #1420 (migrate Tailwind CSS v3 to v4,
-  milestone 1.3) lands and every remaining dependent resolves `postcss-selector-parser`
-  >= 7.1.6 without it. Confirm with the check below.
+  lands, and after that until typography stops pinning 6.x.
+- **Removal condition:** #1420 (migrate Tailwind CSS v3 to v4, milestone 1.3) is the trigger.
+  Tailwind v4 has no `postcss-selector-parser` dependency, so it removes the `tailwindcss`
+  and `postcss-nested` dependents. `@tailwindcss/typography` 0.5.20 accepts v4 (peer
+  `>=4.0.0`) but still pins exactly `6.0.10`, so after #1420 typography is the only
+  remaining blocker. Remove the override once no dependent requests a vulnerable range.
 - **How to check:**
 
   ```bash
   npm view @tailwindcss/typography@latest dependencies.postcss-selector-parser
-  npm view tailwindcss@3 dependencies.postcss-selector-parser | tail -1
+  npm view tailwindcss@3 dependencies.postcss-selector-parser | tail -1   # until #1420 lands
   ```
 
-  When no dependent requests a vulnerable range, remove the override in a branch and confirm
-  `cd frontend && npm ls postcss-selector-parser` lists only fixed versions.
+  After #1420 only the typography line applies. When no dependent requests a vulnerable
+  range, remove the override in a branch, then run `cd frontend && npm install` so the
+  installed tree and lockfile are regenerated. Check that the `package-lock.json` diff
+  shows only `postcss-selector-parser` tree changes with no remaining 6.x entry, then
+  confirm `npm ls postcss-selector-parser` lists only fixed versions.
