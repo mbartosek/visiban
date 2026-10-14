@@ -7293,6 +7293,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <li><strong>An equal or higher inherited role, an explicit board membership of any role, board ownership or all-content access</strong> → nothing changes (<code>created: false</code>). A group admin who redeems a viewer invite is <strong>not</strong> downgraded to viewer.</li>
 </ul>
 <p>A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns <code>200</code> with nothing changed (<code>created</code> reports whether this invite created your membership — <code>true</code> after signing up from it); anyone else gets <code>410 {"code": "used"}</code>. When a membership is created, the board's <code>member.added</code> event carries an extra <code>invite: { "id", "created_by_id" }</code> key.</p>
+<p><em>(1.2+)</em> A join that arrives while the board is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1631).</p>
 <p>Both join endpoints share the per-IP <code>join_group</code> throttle (10/hour) with the <a href="../groups/">group join endpoints</a> — board and group join attempts from one address draw from one budget.</p>
 <p>Signing up with a board invite on an invite-only site is covered in <a href="../authentication/#invite-only-mode">Authentication</a>.</p>
 <p>Site admins can list and revoke every board's invites with the <a href="../admin/#board-invites">admin board invite endpoints</a>.</p>
