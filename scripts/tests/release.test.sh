@@ -90,6 +90,16 @@ make_fixture "$TMPCLONE"
   # starts with `appVersion: `.
   sed -i.bak 's/^appVersion: /"appVersion": /' helm/visiban/Chart.yaml
   rm -f helm/visiban/Chart.yaml.bak
+  # Hermetic changelog state (#1640): the fixture inherits the real repo's
+  # changelog.d/ and CHANGELOG.md, and right after a release main has no
+  # fragments and an empty [Unreleased]. release.sh then dies at its
+  # empty-[Unreleased] guard before ever reaching the version-consistency
+  # check, so this test passed or failed depending on whether anyone had
+  # merged a fragment since the last release. Seed one so [Unreleased]
+  # assembles non-empty regardless. No dots in the slug (assembly rejects them).
+  mkdir -p changelog.d
+  echo "Release self-test fixture entry." > changelog.d/release-test-fixture.fixed.md
+  git add changelog.d/release-test-fixture.fixed.md
   git -c user.email=t@t -c user.name=t commit -aqm "test: break appVersion anchor"
 )
 set +e
