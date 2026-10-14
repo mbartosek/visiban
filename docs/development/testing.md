@@ -310,6 +310,14 @@ SQLite has no row locks, so a `select_for_update()` can be deleted without faili
 
 - Backend tests run in the `backend-test` job (8 parallel shards) on every MR that touches `backend/**/*` or `requirements*.txt`
   - Shards are time-balanced by `pytest-split` from the committed `backend/.test_durations` file. Shards never write it (concurrent shards would overwrite each other's slice). Refresh it occasionally, e.g. after a large batch of new tests: `cd backend && pytest --store-durations --durations-path .test_durations`, then commit the file. A stale file only degrades balance, never correctness.
+- `backend-benchmark` runs `python manage.py benchmark --fail-on-budget` (#1341) on every MR
+  that touches `backend/**/*` (and on `main`), never on a schedule. The command seeds its own
+  throw-away board (100 cards) and counts SQL queries for the card list, `full/`, and `summary/`
+  endpoints against committed budgets. The job fails on a non-2xx response, on `DEBUG` being off,
+  or on any endpoint over budget. It is automatic rather than manual or scheduled because a query
+  count is deterministic and takes seconds; latency regressions that keep the query count identical
+  are covered by `nightly-load-test` ([nightly-load-test.md](nightly-load-test.md)). To run it
+  locally: `cd backend && DEBUG=True python manage.py benchmark --fail-on-budget`.
 - Frontend unit tests run in `frontend-test`. Unlike `backend-schema-fuzz` below, a single
   failed test retries once automatically under CI (`vitest.config.ts`'s `test.retry`, gated
   on `process.env.CI` so local runs stay strict) before failing the job — a mitigation for
