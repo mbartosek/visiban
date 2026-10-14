@@ -388,6 +388,11 @@ touched — so it is zero-downtime and requires no operator action.
       admin endpoints if the owner is a site administrator. Their `scopes` column is `NULL`
       ("legacy" authority), not an empty scope list, and upgrading does not narrow or break
       a running integration.
+    - **A token can no longer change a profile's email address.** `PATCH /api/v1/auth/me/`
+      and `PATCH`/`PUT /api/v1/auth/user/` refuse an `email` change with `403 Forbidden` when
+      the request is authenticated with a personal access token or the login API token; an
+      interactive (signed-in) session is required. Other profile fields are unaffected, and a
+      request that omits `email` or sends the current value unchanged still succeeds.
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.
