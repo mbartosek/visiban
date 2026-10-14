@@ -1875,12 +1875,17 @@ if [ "${1:-}" = "--lint-tmp" ]; then
   # trip), and /var/tmp. Comment lines are skipped. The pattern is built from
   # pieces so this block does not match itself.
   lint_re='/(var/)?''tmp([^[:alnum:]_]|$)'
-  if hits="$(grep -nE -- "$lint_re" "$REPO_ROOT/scripts/helm-structure-check.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
-    echo "FAIL: hardcoded temp path in scripts/helm-structure-check.sh; use \$RUN_TMP:" >&2
-    echo "$hits" >&2
-    exit 1
-  fi
-  echo "PASSED: no literal temp paths in scripts/helm-structure-check.sh"
+  # #1646: the install drill is covered by the same lint.
+  lint_rc=0
+  for lint_file in helm-structure-check.sh helm-install-drill.sh; do
+    if hits="$(grep -nE -- "$lint_re" "$REPO_ROOT/scripts/$lint_file" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
+      echo "FAIL: hardcoded temp path in scripts/$lint_file; use \$RUN_TMP:" >&2
+      echo "$hits" >&2
+      lint_rc=1
+    fi
+  done
+  [ "$lint_rc" -eq 0 ] || exit 1
+  echo "PASSED: no literal temp paths in scripts/helm-structure-check.sh or scripts/helm-install-drill.sh"
   exit 0
 fi
 
