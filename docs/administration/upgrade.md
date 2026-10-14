@@ -88,11 +88,13 @@ All migrations should show `[X]`. Any `[ ]` entry means a migration was not appl
 
 ### Frontend caching and a blank page after a deploy
 
-The bundled nginx (Compose and Helm) sends `Cache-Control: no-cache` for `index.html`,
+The bundled nginx sends `Cache-Control: no-cache` for `index.html`,
 `theme-init.js`, `site.webmanifest`, the favicon and app-icon files, and everything under `/brand/`, and `Cache-Control: public, max-age=31536000, immutable`
 for the content-hashed files under `/assets/`. A request for an `/assets/*` file that does not
-exist returns a real `404`, not the SPA's `index.html`. Deploys therefore never leave a returning
-visitor on a stale entry page.
+exist returns a real `404`, not the SPA's `index.html`. Deploys therefore stop leaving returning
+visitors on a stale entry page. Helm picks this up on `helm upgrade`; Docker Compose installs must
+first re-render the nginx config (see
+[Upgrading to 1.2.x](#upgrading-to-12x)).
 
 If you put your own reverse proxy or CDN in front of Visiban:
 
@@ -301,6 +303,20 @@ After rolling back, restart the backend container with the previous image versio
 ## Release-specific upgrade notes
 
 ### Upgrading to 1.2.x
+
+!!! warning "Docker Compose: re-render the nginx config to get the stale-`index.html` fix"
+    The cache headers and the real-404 for missing `/assets/*` live in
+    `nginx/active.conf.template`, which is a gitignored copy that only `./init-prod.sh` refreshes
+    from `nginx/app.conf.template` / `nginx/app-http.conf.template`. A plain `git pull` +
+    `pull` + `up -d` leaves nginx running the **old** config, so the fix is not active. After
+    upgrading, run `./init-prod.sh` to re-render `nginx/active.conf.template`, then
+    `docker compose -f docker-compose.prod.yml up -d --force-recreate nginx` (a plain `up -d`
+    does not notice that the bind-mounted config content changed). Helm installs need no extra
+    step.
+
+    A browser that already holds a pre-fix `index.html` (browsers may reuse it heuristically
+    without asking) can still show a blank page once after this upgrade. A hard reload fixes it
+    for that visitor.
 
 !!! note "Housekeeping for inactive accounts"
     `manage.py migrate` runs a one-time data migration (`groups/0018`) that removes personal

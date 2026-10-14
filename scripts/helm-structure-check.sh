@@ -471,6 +471,25 @@ check_spa_cache_policy() {
     fail "nginx never emits the Cache-Control map — the cache policy is declared but not applied"
     bad=1
   fi
+  # Structure of the map itself. Presence checks above pass mutations that keep
+  # the words but change behavior (first matching regex wins; the key variable
+  # decides what is matched), so pin the source, the ordering and the fallback.
+  local mapblk firstre
+  mapblk="$(awk '/^[[:space:]]*map[[:space:]]+\$uri[[:space:]]+\$visiban_cache_control[[:space:]]*\{/,/^[[:space:]]*\}/' <<< "$conf")"
+  if [ -z "$mapblk" ]; then
+    fail "nginx cache map is not keyed on \$uri — \$request_uri keeps the query/original URI, so the SPA fallback's /index.html never matches"
+    bad=1
+  else
+    firstre="$(grep -E '^[[:space:]]*~' <<< "$mapblk" | head -1)"
+    if ! grep -qE '^[[:space:]]*~\^/\(index\\\.html\|' <<< "$firstre"; then
+      fail "first regex in the cache map is not the anchored no-cache entry rule — nginx uses the first matching regex, so an earlier or re-prefixed rule changes what is cached"
+      bad=1
+    fi
+  fi
+  if ! awk '/location[[:space:]]+\/[[:space:]]*\{/{f=1} f&&/try_files[[:space:]]+\$uri[[:space:]]+\$uri\/[[:space:]]+\/index\.html;/{ok=1} END{exit !ok}' <<< "$conf"; then
+    fail "'location /' no longer falls back to /index.html — SPA deep links like /boards/1 would 404"
+    bad=1
+  fi
   [ "$bad" -eq 0 ] && pass "nginx: /assets/ 404s, index.html is no-cache, hashed assets are immutable"
 }
 
@@ -1675,6 +1694,10 @@ self_test() {
     "4 nginx upstream|templates/frontend-configmap.yaml|s|http://{{ include \"visiban.fullname\" . }}-backend|http://backend|g"
     # 4b (#1633): a missing hashed asset falls back to index.html again.
     "SPA assets fall back to index.html|templates/frontend-configmap.yaml|s/try_files \$uri =404;/try_files \$uri \$uri\/ \/index.html;/"
+    # 4e (#1633): behavior-changing mutations that keep the words in place.
+    "SPA cache map keyed on request_uri|templates/frontend-configmap.yaml|s#map \$uri \$visiban_cache_control#map \$request_uri \$visiban_cache_control#"
+    "SPA cache map catch-all regex first|templates/frontend-configmap.yaml|s#~^/(index#~.* \"\";   ~^/(index#"
+    "SPA cache map entry re-prefixed|templates/frontend-configmap.yaml|s#~^/(index#~^/static/(index#"
     # 4d (#1633): theme-init.js falls out of the no-cache list.
     "SPA theme-init.js not no-cache|templates/frontend-configmap.yaml|s/theme-init/theme-removed/"
     # 4c (#1633): the cache header stops being emitted.

@@ -441,6 +441,9 @@ compose-hygiene:
         for p in 'index\\.html' 'theme-init\\.js' 'site\\.webmanifest' 'favicon' 'apple-touch-icon' 'android-chrome-' '\^/brand/'; do
           printf '%s\n' "$blk" | grep -E "$p" | grep -q '"no-cache";' || { echo "$t: cache map must bind $p to no-cache (#1633)"; exit 1; }
         done
+        [ -n "$blk" ] || { echo "$t: cache map must be keyed on \$uri (#1633)"; exit 1; }
+        printf '%s\n' "$blk" | grep -E '^[[:space:]]*~' | head -1 | grep -qE '^[[:space:]]*~\^/\(index\\\.html\|' || { echo "$t: first regex in cache map must be the index.html no-cache rule (#1633)"; exit 1; }
+        grep -A2 'location / {' "$t" | grep -q 'try_files \$uri \$uri/ /index.html;' || { echo "$t: location / must fall back to /index.html (#1633)"; exit 1; }
         printf '%s\n' "$blk" | grep -E '\^/assets/' | grep -q 'immutable' || { echo "$t: cache map must bind ^/assets/ to immutable (#1633)"; exit 1; }
         grep -q 'add_header Cache-Control \$visiban_cache_control;' "$t" || { echo "$t: Cache-Control map not applied (#1633)"; exit 1; }
       done
