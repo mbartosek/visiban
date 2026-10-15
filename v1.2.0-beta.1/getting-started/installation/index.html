@@ -4903,7 +4903,7 @@ The backend may still be starting up. Check: <code>docker compose -f docker-comp
 </code></pre></div></p>
 </li>
 <li>
-<p><strong><code>ALLOWED_HOSTS</code> missing your domain</strong> — Django rejects WebSocket handshakes from unlisted hosts. Confirm <code>ALLOWED_HOSTS=yourdomain.com</code> is set in <code>.env</code>.</p>
+<p><strong><code>ALLOWED_HOSTS</code> missing your domain</strong> — A handshake whose <code>Origin</code> matches neither <code>CORS_ALLOWED_ORIGINS</code> / <code>CSRF_TRUSTED_ORIGINS</code> nor a host in <code>ALLOWED_HOSTS</code> is refused with <code>403</code>. Confirm <code>ALLOWED_HOSTS=yourdomain.com</code> is set in <code>.env</code>.</p>
 </li>
 <li>
 <p><strong>Nginx not proxying <code>/ws/</code></strong> — Verify the nginx container started without errors and that its config includes the WebSocket location block:

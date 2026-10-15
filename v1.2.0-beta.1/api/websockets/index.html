@@ -4244,6 +4244,7 @@
 <p><strong>Ticket</strong> (since 1.2) — used by token-authenticated clients. See <a href="#ticket-authentication-since-12">Ticket authentication</a> below.</p>
 </li>
 </ul>
+<p>When a handshake carries an <code>Origin</code> header (browsers always send one), it must match a configured origin: an entry in <code>CORS_ALLOWED_ORIGINS</code> or <code>CSRF_TRUSTED_ORIGINS</code>, or an origin whose host matches <code>ALLOWED_HOSTS</code>. A handshake whose <code>Origin</code> matches none of these is refused before authentication. Clients that send no <code>Origin</code> header (CLI, native, and agent clients using a ticket) are not affected. The host match ignores both the scheme and the port (an <code>http</code> origin matches an <code>https</code> host). A leading-dot entry such as <code>.example.com</code> matches that domain and every subdomain, and <code>*</code> matches every host, so with either entry the host match accepts every origin whose host the entry covers. List exact hostnames in <code>ALLOWED_HOSTS</code> (or exact origins in <code>CORS_ALLOWED_ORIGINS</code>) to keep the check narrow. An <code>Origin</code> that includes credentials, a path, a query, or a fragment, or more than one <code>Origin</code> header, is refused. Existing installs need no new settings.</p>
 <p>The server checks board membership before completing the handshake, regardless of which method authenticated the connection. The connection is closed with one of two application-defined codes if either check fails:</p>
 <table>
 <thead>

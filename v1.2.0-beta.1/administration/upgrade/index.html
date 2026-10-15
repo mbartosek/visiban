@@ -4453,6 +4453,14 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
+<p class="admonition-title">Browser WebSocket connections check the Origin header</p>
+<p>A WebSocket handshake that carries an <code>Origin</code> header must match <code>CORS_ALLOWED_ORIGINS</code>,
+<code>CSRF_TRUSTED_ORIGINS</code>, or a host in <code>ALLOWED_HOSTS</code>. If your public hostname differs from
+<code>ALLOWED_HOSTS</code>, add it there (or list the origin in <code>CORS_ALLOWED_ORIGINS</code>); otherwise browser
+WebSocket connections are refused. Clients that send no <code>Origin</code> header are unaffected. See the
+<a href="../../api/websockets/#connecting">WebSocket API</a>.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Superuser accounts normalized</p>
 <p><code>manage.py migrate</code> runs a one-time data migration (<code>accounts/0036</code>). On upgrade, existing
 superuser accounts are set to site admin with all-content access, matching how the
