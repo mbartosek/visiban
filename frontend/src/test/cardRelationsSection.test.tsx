@@ -449,8 +449,8 @@ describe('CardRelationsSection — backend error codes map to copy', () => {
 
   it.each(cases)('maps %s', async (code, copy) => {
     mockSearch.mockResolvedValue([makeCard({ id: 42, title: 'Provision cluster', column: 11 })])
-    // DRF returns `code` as a single-item list.
-    mockAdd.mockRejectedValue({ response: { data: { code: [code], detail: ['ignored'] } } })
+    // `code` and `detail` are plain strings (#1660).
+    mockAdd.mockRejectedValue({ response: { data: { code, detail: 'ignored' } } })
     renderSection()
     await userEvent.click(await screen.findByRole('button', { name: '+ Add relation' }))
     await userEvent.type(screen.getByRole('combobox'), 'prov')
@@ -460,7 +460,7 @@ describe('CardRelationsSection — backend error codes map to copy', () => {
 
   it('falls back to a generic line for an unknown code', async () => {
     mockSearch.mockResolvedValue([makeCard({ id: 42, title: 'Provision cluster', column: 11 })])
-    mockAdd.mockRejectedValue({ response: { data: { code: ['something_new'] } } })
+    mockAdd.mockRejectedValue({ response: { data: { code: 'something_new', detail: 'ignored' } } })
     renderSection()
     await userEvent.click(await screen.findByRole('button', { name: '+ Add relation' }))
     await userEvent.type(screen.getByRole('combobox'), 'prov')

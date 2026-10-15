@@ -396,7 +396,10 @@ class GroupBoardsTests(TestCase):
             {"name": "Bad Template", "template": "does_not_exist"},
         )
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("unknown_template", r.json().get("code", []))
+        body = r.json()
+        # 1.1 error shape (#1660): string `code` + `detail`, never list-wrapped.
+        self.assertEqual(body["code"], "unknown_template")
+        self.assertIsInstance(body["detail"], str)
         self.assertEqual(Board.objects.count(), boards_before)
 
     def test_create_board_uses_supplied_swimlane_name(self):

@@ -757,9 +757,11 @@ the same row.
 Returns `201` with the same object shape as the list endpoint, resolved to the
 card in the URL.
 
-**Rejected with `400`.** The body carries a top-level `code` alongside `detail`,
-so a client branches on the code rather than string-matching the message
-(DRF returns both as single-item lists):
+**Rejected with `400`.** The body is `{"code": "<code>", "detail": "<message>"}`
+— both plain strings, the same shape as `feature_disabled` and
+`export_restricted` — so a client branches on `body.code === "<code>"` rather
+than string-matching the message. (1.2.0-beta.1 returned both values as
+single-item lists; that was normalized before 1.2.0, #1660.)
 
 | `code` | Condition |
 |---|---|

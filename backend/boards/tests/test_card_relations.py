@@ -79,9 +79,19 @@ class _RelationTestBase(TestCase):
             format="json",
         )
 
-    def _codes(self, response):
-        """The machine-checkable `code` slugs on a 400 body (#1115 shape)."""
-        return response.data.get("code", [])
+    def _code(self, response):
+        """The machine-checkable `code` on a 400 body.
+
+        Pinned as the 1.1 shape (#1660): ``code`` and ``detail`` are plain
+        strings and the only keys, exactly like ``feature_disabled`` /
+        ``export_restricted``. The rendered JSON is checked rather than
+        ``response.data`` so a list-wrapped code cannot slip through.
+        """
+        body = response.json()
+        self.assertEqual(set(body), {"code", "detail"}, body)
+        self.assertIsInstance(body["code"], str, body)
+        self.assertIsInstance(body["detail"], str, body)
+        return body["code"]
 
 
 class CardRelationCrudTests(_RelationTestBase):
@@ -184,7 +194,7 @@ class CardRelationCrudTests(_RelationTestBase):
         self._link(self.card_a, self.card_b, "blocks")
         r = self._link(self.card_b, self.card_a, "blocked_by")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("relation_exists", self._codes(r))
+        self.assertEqual(self._code(r), "relation_exists")
         self.assertEqual(CardRelation.objects.count(), 1)
 
     def test_relation_records_its_creator(self):
@@ -215,7 +225,7 @@ class CardRelationValidationTests(_RelationTestBase):
     def test_self_relation_rejected_with_400(self):
         r = self._link(self.card_a, self.card_a)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("self_relation", self._codes(r))
+        self.assertEqual(self._code(r), "self_relation")
         self.assertEqual(CardRelation.objects.count(), 0)
 
     def test_self_relation_also_rejected_by_the_database(self):
@@ -235,8 +245,20 @@ class CardRelationValidationTests(_RelationTestBase):
         self._link(self.card_a, self.card_b)
         r = self._link(self.card_a, self.card_b)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("relation_exists", self._codes(r))
+        self.assertEqual(self._code(r), "relation_exists")
         self.assertEqual(CardRelation.objects.count(), 1)
+
+    def test_integrity_error_race_reports_relation_exists_as_a_string_code(self):
+        """The view's IntegrityError fallback (a duplicate that slipped past the
+        serializer's check) answers in the same 1.1 shape as the serializer
+        path: string ``code`` and ``detail`` (#1660)."""
+        with patch.object(
+            CardRelation.objects, "create", side_effect=IntegrityError("dup")
+        ):
+            r = self._link(self.card_a, self.card_b)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._code(r), "relation_exists")
+        self.assertEqual(CardRelation.objects.count(), 0)
 
     def test_unique_constraint_enforced_by_the_database(self):
         self._link(self.card_a, self.card_b)
@@ -260,7 +282,7 @@ class CardRelationValidationTests(_RelationTestBase):
         self._link(self.card_a, self.card_b)
         r = self._link(self.card_b, self.card_a)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("relation_cycle", self._codes(r))
+        self.assertEqual(self._code(r), "relation_cycle")
         self.assertEqual(CardRelation.objects.count(), 1)
 
     def test_longer_cycles_are_deliberately_allowed(self):
@@ -281,7 +303,7 @@ class CardRelationValidationTests(_RelationTestBase):
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         second = self._link(self.card_b, self.card_a, "relates_to")
         self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("relation_exists", self._codes(second))
+        self.assertEqual(self._code(second), "relation_exists")
         self.assertEqual(CardRelation.objects.count(), 1)
 
     def test_relates_to_stored_with_lower_card_id_first(self):
@@ -303,7 +325,7 @@ class CardRelationValidationTests(_RelationTestBase):
         self.card_b.save(update_fields=["archived_at"])
         r = self._link(self.card_a, self.card_b)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("archived_card", self._codes(r))
+        self.assertEqual(self._code(r), "archived_card")
 
 
 class CardRelationRbacTests(_RelationTestBase):
@@ -429,7 +451,7 @@ class CardRelationIdorTests(_RelationTestBase):
     def test_cannot_link_to_a_card_on_another_board(self):
         r = self._link(self.card_a, self.other_card)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("cross_board", self._codes(r))
+        self.assertEqual(self._code(r), "cross_board")
         self.assertEqual(CardRelation.objects.count(), 0)
 
     def test_nonexistent_card_is_indistinguishable_from_a_cross_board_one(self):
@@ -442,7 +464,7 @@ class CardRelationIdorTests(_RelationTestBase):
         )
         cross = self._link(self.card_a, self.other_card)
         self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(self._codes(missing), self._codes(cross))
+        self.assertEqual(self._code(missing), self._code(cross))
         self.assertEqual(missing.data["detail"], cross.data["detail"])
 
     def test_cannot_link_from_the_far_board_inward(self):
