@@ -3,14 +3,16 @@
   "last_iid": 1200,
   "last_merged_at": "2026-10-01T00:00:00Z",
   "threshold": 10,
-  "proposed": ["ux-design|feat"],
+  "proposed": ["regression-check|fix"],
   "pairs": {
-    "ux-design|feat": {"streak": 11, "runs": 14, "zero": 11, "positive": 3, "evidence": [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110]},
+    "regression-check|fix": {"streak": 11, "runs": 14, "zero": 11, "positive": 3, "evidence": [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110]},
+    "security-review|feat": {"streak": 10, "runs": 24, "zero": 12, "positive": 12, "evidence": [1161, 1162, 1163, 1164, 1165, 1166, 1167, 1168, 1169, 1170]},
+    "completeness-check|docs": {"streak": 10, "runs": 10, "zero": 10, "positive": 0, "evidence": [1171, 1172, 1173, 1174, 1175, 1176, 1177, 1178, 1179, 1180]},
+    "ux-design|feat": {"streak": 11, "runs": 14, "zero": 11, "positive": 3, "evidence": [1181, 1182, 1183, 1184, 1185, 1186, 1187, 1188, 1189, 1190]},
     "voc|feat": {"streak": 10, "runs": 12, "zero": 10, "positive": 2, "evidence": [1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120]},
-    "dependency|chore": {"streak": 10, "runs": 10, "zero": 10, "positive": 0, "evidence": [1121, 1122, 1123, 1124, 1125, 1126, 1127, 1128, 1129, 1130]},
     "perf-check|feat": {"streak": 10, "runs": 20, "zero": 12, "positive": 8, "evidence": [1131, 1132, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140]},
     "regression-check|other": {"streak": 12, "runs": 12, "zero": 12, "positive": 0, "evidence": [1141, 1142, 1143, 1144, 1145, 1146, 1147, 1148, 1149, 1150]},
-    "regression-check|fix": {"streak": 9, "runs": 15, "zero": 9, "positive": 6, "evidence": [1151, 1152, 1153, 1154, 1155, 1156, 1157, 1158, 1159]},
+    "completeness-check|fix": {"streak": 9, "runs": 15, "zero": 9, "positive": 6, "evidence": [1151, 1152, 1153, 1154, 1155, 1156, 1157, 1158, 1159]},
     "architect|feat": {"streak": 0, "runs": 22, "zero": 0, "positive": 22, "evidence": []}
   }
 }

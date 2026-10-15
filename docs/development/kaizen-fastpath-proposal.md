@@ -19,9 +19,10 @@ its path. Without `--table` the script searches the repository's `CLAUDE.md` fil
 if none holds the table.
 
 ```bash
+OUT="${TMPDIR:-/tmp}"   # macOS: $TMPDIR (/var/folders/...); a literal /tmp/... path is rejected
 python3 scripts/kaizen_fastpath_proposal.py --table ~/.claude/CLAUDE.md \
-  --evidence-out /tmp/fastpath-evidence.md > /tmp/fastpath.diff
-patch ~/.claude/CLAUDE.md < /tmp/fastpath.diff      # only after review
+  --evidence-out "$OUT/fastpath-evidence.md" > "$OUT/fastpath.diff"
+patch ~/.claude/CLAUDE.md < "$OUT/fastpath.diff"      # only after review
 python3 scripts/kaizen_fastpath_proposal.py --self-test
 ```
 
@@ -32,10 +33,14 @@ python3 scripts/kaizen_fastpath_proposal.py --self-test
 | `--table FILE` | search repo `CLAUDE.md` files | The file holding the table. Read only. |
 | `--evidence-out FILE` | stderr | Where the `## Fast-path evidence` section goes. Must not be the table file. |
 
-Stdout is only the diff, so it can be redirected straight into a file for `patch`. An empty
-diff means nothing reached the threshold. File paths follow the
+Stdout is only the diff, so it can be redirected straight into a file for `patch`. Stderr
+always ends with a one-line summary such as `3 candidate(s) over threshold, 1 diff edit(s),
+2 evidence-only note(s)`. **An empty diff does not mean nothing reached the threshold**: the
+candidates below that get no automatic edit appear only in the evidence section, so read it
+(or the summary) every time. File paths follow the
 [path containment rules](ci-gates.md#path-containment-for-cli-arguments); `--table` may also
-live under `~/.claude/`.
+live under `~/.claude/`. On macOS the temp root is `$TMPDIR`, not `/tmp`; a rejected path
+exits 2 with the allowed roots listed.
 
 ## What it proposes
 
@@ -59,9 +64,17 @@ together. The reviewer decides whether the narrowing holds for each row.
 
 For each candidate:
 
-- **Gate named in a mapped row** (for example `` `ux-design` `` in "Frontend-only feature"):
-  the diff removes that item from the row, including its qualifier text. The ledger name `voc`
+- **Gate named in a mapped row** (for example `` `security-review` `` in "Settings sub-page
+  wiring"): the diff removes that item from the row, including its qualifier text, and one
+  adjacent separator (`+` inside a group, else the step arrow). Arrows may be `→` or `->` with any
+  spacing; an arrow inside a parenthesized qualifier is part of the item. The ledger name `voc`
   matches the table's `voice-of-customer`.
+- **Edit would remove the gate from every row that runs it** (by name or through the pre-MR
+  gate cluster): no diff. That is a gate deletion, which `/kaizen`'s hard rule (narrow, never
+  delete) reserves for a human; the evidence section says so.
+- **Cell cannot be split safely** (unbalanced parentheses or backticks, or the gate named
+  inside prose rather than as an item): that row is not edited and the evidence section names it.
+  The script never writes markdown it could not parse.
 - **Gate covered only by "batched pre-MR gate cluster"**: no diff. The evidence section lists
   it as a hand edit, because the cluster's applicability list is prose.
 - **No mapped row names the gate**, or the shape is `other`: no diff, listed with the reason.
@@ -70,7 +83,8 @@ For each candidate:
 
 **Adding a row is out of reach of this data.** A branch prefix cannot tell a sub-class of
 `feat` (like Settings sub-page wiring) from the rest, so new rows still come from `/kaizen` and
-human review.
+human review. Path-based diff shapes, which would let the proposer add rows, are tracked in
+#1652.
 
 ## The evidence section
 
@@ -79,6 +93,10 @@ file and its watermark, the threshold, and for each candidate the gate, diff sha
 consecutive 0-finding runs, lifetime runs (with how many had findings), the MRs in the streak
 (the most recent 10 the state keeps), and the rows narrowed or the reason no edit was made.
 The table's rationale stays auditable the same way the #682 citation is.
+
+The diff edits only the table, but the same file restates when gates fire (the Gate
+reference rows, and prose such as "before the push, run `completeness-check`"). For every
+narrowed gate the evidence section adds a checklist line to review those too.
 
 A streak is absence of evidence. Before merging, confirm the gate was not only run on
 trivially safe diffs. Narrow a trigger; never delete a gate.

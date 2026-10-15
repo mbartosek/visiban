@@ -19,9 +19,14 @@ What it can propose, and what it cannot:
   * a gate covered only by the row's "batched pre-MR gate cluster" wording,
     or a shape with no mapped row (`other`), is reported as evidence with no
     diff -- the edit needs a human (the cluster's applicability list is prose).
+  * removing a gate from every row that runs it is a gate deletion, which
+    /kaizen's hard rule reserves for a human: reported, never diffed.
+  * a cell that cannot be split safely (unbalanced parentheses or backticks,
+    the gate named inside prose) is reported, never diffed.
   * adding a row is out of reach of this data: diff shape is the branch
     prefix (feat/fix/docs/chore), which cannot tell a sub-class of `feat`
-    (like Settings sub-page wiring) apart from the rest. /kaizen stays the
+    (like Settings sub-page wiring) apart from the rest. That scope cut is
+    tracked in #1652 (path-based diff shapes); until then /kaizen stays the
     fallback for that kind of finding.
 
 Reuses kaizen_yield_watch's state, threshold, and declined ledger; a gate
@@ -59,8 +64,10 @@ from _paths import PathEscapeError, cli_roots, resolve_within  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOME_CLAUDE = Path.home() / ".claude"
 HEADER_RE = re.compile(r"^\|\s*Change class\s*\|\s*Required gates")
-ITEM_GATE_RE = re.compile(r"^`([^`]+)`")
-ARROW, PLUS = " → ", " + "
+# Top-level separators in a gates cell: a step arrow (`→` or `->`) or a `+`
+# joining gates in one step, with whatever whitespace surrounds them.
+SEP_RE = re.compile(r"\s*(?:→|->|\+)\s*")
+CLUSTER = "pre-MR gate cluster"
 
 # Diff shape (branch prefix, see kaizen_yield_watch.diff_shape) -> the table
 # rows it covers, matched by case-insensitive prefix of the "Change class"
@@ -127,32 +134,90 @@ def default_table():
     )
 
 
+class Unsafe(ValueError):
+    """The cell cannot be split safely; refuse the edit rather than guess."""
+
+
+def tokenize(cell):
+    """Split a gates cell into [item, sep, item, sep, ..., item].
+
+    Separators are `→` or `->` (a step) and `+` (gates run together), each with
+    any surrounding whitespace, and only at the top level: an arrow inside a
+    parenthesized qualifier or a backtick span is part of the item. Separators
+    keep their original spacing so an edit changes nothing but the removed item.
+    Raises Unsafe on unbalanced parentheses or backticks.
+    """
+    tokens, buf, depth, tick, i = [], "", 0, False, 0
+    while i < len(cell):
+        c = cell[i]
+        if c == "`":
+            tick = not tick
+        elif not tick and c == "(":
+            depth += 1
+        elif not tick and c == ")":
+            depth -= 1
+            if depth < 0:
+                raise Unsafe("unbalanced parentheses")
+        elif not tick and depth == 0:
+            m = SEP_RE.match(cell, i)
+            if m:
+                tokens += [buf, m.group(0)]
+                buf, i = "", m.end()
+                continue
+        buf += c
+        i += 1
+    if depth or tick:
+        raise Unsafe("unbalanced parentheses or backticks")
+    tokens.append(buf)
+    if any(not t.strip() for t in tokens[::2]):
+        raise Unsafe("empty step")
+    return tokens
+
+
+def names_item(item, gate):
+    """True when *item* is `gate`, optionally followed by a (qualifier)."""
+    m = re.fullmatch(r"\s*`([^`]+)`\s*(\(.*\))?\s*", item, re.S)
+    return bool(m) and m.group(1) == gate
+
+
 def remove_gate(cell, gate):
     """Return *cell* without the item naming *gate*, or None if not named.
 
-    Items are `→`-separated steps, a step may hold `+`-joined gates; an item
-    keeps its qualifier text (e.g. "`test-scaffold` (if no coverage)"), so the
-    whole item goes.
+    The whole item goes, qualifier included ("`test-scaffold` (if no
+    coverage)"), with one adjacent separator: a `+` one if the item sits in a
+    `+` group (so the rest of the group stays one step), else the preceding
+    arrow (the following one for a first item). Raises Unsafe when the gate is
+    named but not as a standalone item, or the cell cannot be split safely, so
+    the caller reports it instead of writing broken markdown.
     """
-    steps, hit = [], False
-    for step in cell.split(ARROW):
-        kept = []
-        for item in step.split(PLUS):
-            m = ITEM_GATE_RE.match(item.strip())
-            if m and m.group(1) == gate:
-                hit = True
-            else:
-                kept.append(item)
-        if kept:
-            steps.append(PLUS.join(kept))
-    return ARROW.join(steps) if hit else None
+    tokens = tokenize(cell)
+    hits = [k for k in range(0, len(tokens), 2) if names_item(tokens[k], gate)]
+    if not hits:
+        if f"`{gate}`" in cell:
+            raise Unsafe("named, but not as a standalone item")
+        return None
+    if len(tokens) == 1:
+        raise Unsafe("it is the only item in the row")
+    for k in reversed(hits):
+        seps = [j for j in (k - 1, k + 1) if 0 < j < len(tokens)]
+        plus = [j for j in seps if tokens[j].strip() == "+"]
+        drop = plus[0] if plus else seps[0]
+        lo, hi = min(k, drop), max(k, drop)
+        del tokens[lo : hi + 1]
+    return "".join(tokens)
+
+
+def appears(cell, name):
+    """Does a row run *name*, by name or through the pre-MR gate cluster?"""
+    return f"`{name}`" in cell or (name in PRE_MR_CLUSTER and CLUSTER in cell)
 
 
 def build(state, declined, text):
     """Return (new_text, edits, notes); pure, so tests need no files.
 
     One entry per candidate pair. edits: (gate, shape, pair, rows narrowed);
-    notes: (gate, shape, pair, why no automatic edit).
+    notes: (gate, shape, pair, why no automatic edit). The threshold is the
+    state file's own, so a state written with another threshold is honored.
     """
     lines = text.splitlines(keepends=True)
     span = find_table([ln.rstrip("\n") for ln in lines])
@@ -170,20 +235,51 @@ def build(state, declined, text):
         if not prefixes:
             notes.append((gate, shape, p, f"diff shape `{shape}` maps to no table row"))
             continue
-        edited, cluster = [], []
+        planned, cluster, unsafe = {}, [], []
         for i in rows:
             label, cell = split_row(lines[i])
             if not label.lower().startswith(prefixes):
                 continue
             short = label.split(" (")[0]
-            narrowed = remove_gate(cell, name)
+            try:
+                narrowed = remove_gate(cell, name)
+            except Unsafe as exc:
+                unsafe.append(f"{short} ({exc})")
+                continue
             if narrowed is not None:
-                lines[i] = f"| {label} | {narrowed} |\n"
-                edited.append(short)
-            elif name in PRE_MR_CLUSTER and "pre-MR gate cluster" in cell:
+                planned[i] = (label, short, narrowed)
+            elif name in PRE_MR_CLUSTER and CLUSTER in cell:
                 cluster.append(short)
-        if edited:
-            edits.append((gate, shape, p, "; ".join(edited)))
+        everywhere = [i for i in rows if appears(split_row(lines[i])[1], name)]
+        deletion = bool(planned) and set(everywhere) <= set(planned)
+        if deletion:
+            # Removing it from every row that runs it deletes the gate from
+            # the table; /kaizen's hard rule (narrow, never delete) reserves
+            # that call for a human.
+            named = "; ".join(s for _, s, _ in planned.values())
+            notes.append(
+                (
+                    gate,
+                    shape,
+                    p,
+                    f"would remove it from every row that runs it ({named}): a gate "
+                    "deletion, which /kaizen's hard rule reserves for a human (no diff)",
+                )
+            )
+            planned = {}
+        for i, (label, _, narrowed) in planned.items():
+            lines[i] = f"| {label} | {narrowed} |\n"
+        if planned:
+            edits.append((gate, shape, p, "; ".join(s for _, s, _ in planned.values())))
+        if unsafe:
+            notes.append(
+                (
+                    gate,
+                    shape,
+                    p,
+                    f"row not edited, cell could not be split safely: {'; '.join(unsafe)}",
+                )
+            )
         if cluster:
             notes.append(
                 (
@@ -193,7 +289,7 @@ def build(state, declined, text):
                     f"only via the pre-MR gate cluster in: {'; '.join(cluster)} (hand edit)",
                 )
             )
-        if not edited and not cluster:
+        if not (planned or deletion or unsafe or cluster):
             notes.append(
                 (
                     gate,
@@ -226,6 +322,11 @@ def evidence_md(state, edits, notes, source):
     if edits:
         out += [head.format("Row narrowed"), "|---|---|---|---|---|---|"]
         out += [row(g, s, p, label) for g, s, p, label in edits]
+        out += ["", "Before merging, for each narrowed gate:", ""]
+        out += [
+            f"- [ ] `{g}`: also review the Gate reference row and any prose restating when this gate fires"
+            for g in dict.fromkeys(g for g, _, _, _ in edits)
+        ]
         out.append("")
     else:
         out += ["No table edit proposed.", ""]
@@ -270,9 +371,14 @@ def run(args, out=None, err=None):
         notes,
         src.relative_to(REPO_ROOT) if src.is_relative_to(REPO_ROOT) else args.state,
     )
+    print(
+        f"kaizen-fastpath-proposal: {len({(g, s) for g, s, _, _ in edits + notes})} candidate(s) over "
+        f"threshold, {len(edits)} diff edit(s), {len(notes)} evidence-only note(s)",
+        file=err,
+    )
     if args.evidence_out:
         dest = resolve_within(roots, args.evidence_out)
-        if dest == table:
+        if dest == table or (dest.exists() and os.path.samefile(dest, table)):
             raise PathEscapeError(
                 "--evidence-out must not be the table file (this script never writes it)"
             )
@@ -372,8 +478,8 @@ def self_test():
             table=str(tbl),
             evidence_out=str(Path(d) / "ev.md"),
         )
-        buf = io.StringIO()
-        rc = run(ns, out=buf)
+        buf, err = io.StringIO(), io.StringIO()
+        rc = run(ns, out=buf, err=err)
         check(
             rc == 0 and tbl.read_text(encoding="utf-8") == before,
             "run must never write the table",
@@ -382,10 +488,75 @@ def self_test():
             "-| Pure bugfix" in buf.getvalue() and "+| Pure bugfix" in buf.getvalue(),
             "run must emit a unified diff",
         )
+        check("2 diff edit(s)" in err.getvalue(), "run must print a one-line summary")
+        link = Path(d) / "hardlink.md"
+        os.link(tbl, link)
+        ns.evidence_out = str(link)
+        try:
+            run(ns, out=io.StringIO(), err=io.StringIO())
+            check(False, "a hard link to the table must be refused as --evidence-out")
+        except PathEscapeError:
+            pass
+        check(
+            tbl.read_text(encoding="utf-8") == before,
+            "hard link must not let the table be written",
+        )
+
+    # The state file's threshold wins over the module constant.
+    lo = watch.empty_state()
+    lo["threshold"] = 5
+    lo["pairs"] = {"regression-check|fix": pair(7)}
+    _, e3, _ = build(lo, set(), SELF_TEST_TABLE)
+    check(
+        len(e3) == 1 and watch.THRESHOLD > 7,
+        "state threshold (5) must win over the constant",
+    )
+    lo["threshold"] = watch.THRESHOLD + 5
+    lo["pairs"] = {"regression-check|fix": pair(watch.THRESHOLD + 1)}
+    check(
+        not build(lo, set(), SELF_TEST_TABLE)[1],
+        "a higher state threshold must suppress a lower streak",
+    )
+
+    # Splitting: non-canonical spacing, `->`, and an arrow inside a qualifier.
+    cell = "`a` (if x -> y)  ->`b`+  `c`→`d`"
+    check(
+        remove_gate(cell, "b") == "`a` (if x -> y)  ->`c`→`d`",
+        "plus-group item must drop its + sep",
+    )
+    check(
+        remove_gate(cell, "a") == "`b`+  `c`→`d`",
+        "first item must drop the following arrow",
+    )
+    check(remove_gate(cell, "y") is None, "a word inside a qualifier is not an item")
+    for bad, gate in (
+        ("`a` (unclosed → `b`", "b"),
+        ("run `b` only if → `c`", "b"),
+        ("`b`", "b"),
+    ):
+        try:
+            remove_gate(bad, gate)
+            check(False, f"unsafe cell must refuse: {bad}")
+        except Unsafe:
+            pass
+
+    # Removing a gate from every row that runs it is a deletion: note, no diff.
+    only = watch.empty_state()
+    only["pairs"] = {"ux-review|feat": pair(10)}
+    same2, e4, n4 = build(only, set(), SELF_TEST_TABLE)
+    check(same2 == SELF_TEST_TABLE and not e4, "a gate deletion must not be diffed")
+    check(
+        any("gate deletion" in w for *_, w in n4),
+        "a gate deletion must be an evidence note",
+    )
+    check(
+        "Gate reference row" in md,
+        "evidence must carry the collateral-review checklist",
+    )
     if ok:
         print(
-            "kaizen-fastpath-proposal --self-test: OK - narrows named gates at threshold; notes cluster/unmapped; "
-            "honors declined; never writes the table."
+            "kaizen-fastpath-proposal --self-test: OK - narrows named gates at the state threshold; "
+            "notes cluster/unmapped/unsafe/deletion; honors declined; never writes the table."
         )
         return 0
     return 1
@@ -416,7 +587,15 @@ def main():
         sys.exit(self_test())
     try:
         sys.exit(run(args))
-    except (PathEscapeError, TableNotFound, OSError, ValueError, KeyError) as exc:
+    except PathEscapeError as exc:
+        roots = ", ".join(str(r) for r in cli_roots())
+        print(
+            f"kaizen-fastpath-proposal: {exc}\n  allowed roots: {roots} (and {HOME_CLAUDE} for --table).\n"
+            '  On macOS the temp root is $TMPDIR, not /tmp: write to "${TMPDIR:-/tmp}/..." or under the repo.',
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    except (TableNotFound, OSError, ValueError, KeyError) as exc:
         print(f"kaizen-fastpath-proposal: {exc}", file=sys.stderr)
         sys.exit(2)
 

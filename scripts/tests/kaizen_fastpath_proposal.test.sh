@@ -27,25 +27,33 @@ run() { python3 "$SCRIPT" --state "$FIX/fastpath_state.json" --declined "$TMP/no
 rc=0; run --evidence-out "$TMP/ev.md" > "$TMP/p.diff" 2> "$TMP/err" || rc=$?
 check "exits 0" "$([ "$rc" -eq 0 ] && echo 0 || echo 1)"
 check "table file is never written" "$([ "$(shasum "$TMP/table.md")" = "$before" ] && echo 0 || echo 1)"
-check "ux-design (11 zeros, feat) removed from the frontend-only row" \
-  "$(has "$TMP/p.diff" '+| Frontend-only feature (no API change) | `architect` → implement → `ux-review`')"
-check "voc maps to the table's voice-of-customer and is removed" \
-  "$(has "$TMP/p.diff" '+| New user-visible feature (full stack) | `threat-model`')"
-check "already-filed issue (proposed) is still proposed in the table diff" "$(has "$TMP/ev.md" '| `ux-design` | `feat` | 11 |')"
-check "dependency on chore is removed from the dependency-bump row" \
-  "$(has "$TMP/p.diff" '+| Dependency bump (single package, no API change) | `changelog` → `/mr` |')"
-check "below threshold (9) is not proposed" "$(lacks "$TMP/p.diff" '-| Pure bugfix')"
+check "regression-check (11 zeros, fix) removed from the bugfix row" \
+  "$(has "$TMP/p.diff" '+| Pure bugfix with identified root cause | `test-scaffold` (if no coverage)')"
+check "already-filed issue (proposed) is still proposed in the table diff" "$(has "$TMP/ev.md" '| `regression-check` | `fix` | 11 |')"
+check "plus-joined gate removed alone from the settings row" \
+  "$(has "$TMP/p.diff" '+| Settings sub-page wiring (form/toggle on an existing serializer) | `ux-review` (visual diff) → `rbac-check` + `regression-check` →')"
+check "non-canonical spacing, -> and an arrow inside a qualifier survive the edit" \
+  "$(has "$TMP/p.diff" '+| Docs-only | `docs-writer` (if new page -> see docs/)  →  `/mr` |')"
+check "below threshold (9) is not proposed" "$(lacks "$TMP/ev.md" '`completeness-check` | `fix`')"
 check "load-bearing gate is not touched" "$(lacks "$TMP/ev.md" '`architect`')"
 check "cluster-only gate is a hand-edit note, not a diff" "$(has "$TMP/ev.md" 'only via the pre-MR gate cluster in: Backend-only feature; New user-visible feature (hand edit)')"
 check "unmapped shape is a note" "$(has "$TMP/ev.md" 'diff shape `other` maps to no table row')"
+check "removing a gate from every row that runs it is a deletion note" "$(has "$TMP/ev.md" '| `ux-design` | `feat` | 11 |')"
+check "deletion note names the /kaizen hard rule" "$(has "$TMP/ev.md" "a gate deletion, which /kaizen's hard rule reserves for a human")"
+check "a gate deletion is never diffed (ux-design)" "$(lacks "$TMP/p.diff" '+| Frontend-only feature')"
+check "a gate deletion is never diffed (voc -> voice-of-customer)" "$(lacks "$TMP/p.diff" '+| New user-visible feature')"
+check "each narrowed gate gets a collateral-review checklist line" \
+  "$(has "$TMP/ev.md" '- [ ] `security-review`: also review the Gate reference row and any prose restating when this gate fires')"
+check "no checklist line for a gate with no diff" "$(lacks "$TMP/ev.md" '- [ ] `ux-design`')"
+check "stderr carries a one-line summary" "$(has "$TMP/err" '7 candidate(s) over threshold, 3 diff edit(s), 5 evidence-only note(s)')"
 check "evidence cites the streak MRs" "$(has "$TMP/ev.md" '!1101, !1102')"
 check "evidence cites the watermark and threshold" "$(has "$TMP/ev.md" 'watermark !1200')"
-check "evidence goes to the file, not stderr" "$([ ! -s "$TMP/err" ] && echo 0 || echo 1)"
+check "evidence goes to the file, not stderr" "$(lacks "$TMP/err" 'Fast-path evidence')"
 
 # The diff applies cleanly with patch and the result matches the expected table.
 cp "$FIX/fastpath_table.md" "$TMP/applied.md"
 check "diff applies with patch" "$(patch -s "$TMP/applied.md" < "$TMP/p.diff" >/dev/null 2>&1 && echo 0 || echo 1)"
-check "applied table keeps the docs-only row" "$(has "$TMP/applied.md" '| Docs-only | `docs-writer` (if new page)')"
+check "applied table keeps the docs-only row" "$(has "$TMP/applied.md" '| Docs-only | `docs-writer` (if new page -> see docs/)  →  `/mr` |')"
 
 # Without --evidence-out the section goes to stderr, keeping stdout a pure diff.
 run > "$TMP/p2.diff" 2> "$TMP/err2"
@@ -53,9 +61,9 @@ check "stderr carries the evidence section by default" "$(has "$TMP/err2" '## Fa
 check "stdout is only the diff" "$(lacks "$TMP/p2.diff" 'Fast-path evidence')"
 
 # Declined gates are not proposed.
-echo '[{"id":"ux-design:fast-path-candidate","declined_on":"2026-10-01","note":"x"}]' > "$TMP/declined.json"
+echo '[{"id":"regression-check:fast-path-candidate","declined_on":"2026-10-01","note":"x"}]' > "$TMP/declined.json"
 python3 "$SCRIPT" --state "$FIX/fastpath_state.json" --declined "$TMP/declined.json" --table "$TMP/table.md" > "$TMP/p3.diff" 2>/dev/null
-check "declined gate is not proposed" "$(lacks "$TMP/p3.diff" '+| Frontend-only feature')"
+check "declined gate is not proposed" "$(lacks "$TMP/p3.diff" '+| Pure bugfix')"
 
 # Nothing at threshold -> empty diff, still exit 0.
 python3 - "$FIX/fastpath_state.json" > "$TMP/quiet.json" <<'PY'
@@ -68,6 +76,17 @@ PY
 python3 "$SCRIPT" --state "$TMP/quiet.json" --declined "$TMP/none.json" --table "$TMP/table.md" > "$TMP/p4.diff" 2> "$TMP/err4"
 check "no candidates -> empty diff" "$([ ! -s "$TMP/p4.diff" ] && echo 0 || echo 1)"
 check "no candidates -> says so" "$(has "$TMP/err4" 'No table edit proposed.')"
+check "no candidates -> summary says 0" "$(has "$TMP/err4" '0 candidate(s) over threshold, 0 diff edit(s), 0 evidence-only note(s)')"
+
+# The threshold comes from the state file, not the module constant (10).
+set_threshold() { python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); s["threshold"]=int(sys.argv[2]); print(json.dumps(s))' "$FIX/fastpath_state.json" "$1"; }
+set_threshold 12 > "$TMP/hi.json"
+python3 "$SCRIPT" --state "$TMP/hi.json" --declined "$TMP/none.json" --table "$TMP/table.md" > "$TMP/p5.diff" 2> "$TMP/err5"
+check "state threshold 12 suppresses an 11-run streak" "$(lacks "$TMP/p5.diff" '+| Pure bugfix')"
+check "state threshold 12 leaves only the 12-run pair" "$(has "$TMP/err5" '1 candidate(s) over threshold')"
+set_threshold 9 > "$TMP/lo.json"
+python3 "$SCRIPT" --state "$TMP/lo.json" --declined "$TMP/none.json" --table "$TMP/table.md" > /dev/null 2> "$TMP/err6"
+check "state threshold 9 admits the 9-run streak" "$(has "$TMP/err6" '| `completeness-check` | `fix` | 9 |')"
 
 # Error paths exit 2: a file with no table, an escaping path, evidence onto the table.
 echo "no table here" > "$TMP/notable.md"
@@ -77,6 +96,12 @@ rc=0; python3 "$SCRIPT" --state "$FIX/fastpath_state.json" --table /etc/passwd >
 check "--table outside allowed roots exits 2" "$([ "$rc" -eq 2 ] && echo 0 || echo 1)"
 rc=0; run --evidence-out "$TMP/table.md" >/dev/null 2>&1 || rc=$?
 check "--evidence-out onto the table exits 2" "$([ "$rc" -eq 2 ] && echo 0 || echo 1)"
+ln "$TMP/table.md" "$TMP/hardlink.md"
+rc=0; run --evidence-out "$TMP/hardlink.md" >/dev/null 2>&1 || rc=$?
+check "--evidence-out onto a hard link of the table exits 2" "$([ "$rc" -eq 2 ] && echo 0 || echo 1)"
+rc=0; python3 "$SCRIPT" --state "$FIX/fastpath_state.json" --table "$TMP/table.md" --evidence-out /etc/x.md >/dev/null 2>"$TMP/err7" || rc=$?
+check "escaping --evidence-out names the allowed roots and TMPDIR" \
+  "$([ "$rc" -eq 2 ] && grep -q 'allowed roots:' "$TMP/err7" && grep -q 'TMPDIR' "$TMP/err7" && echo 0 || echo 1)"
 check "table still untouched after the refused write" "$([ "$(shasum "$TMP/table.md")" = "$before" ] && echo 0 || echo 1)"
 
 check "--self-test passes" "$(python3 "$SCRIPT" --self-test >/dev/null 2>&1 && echo 0 || echo 1)"
