@@ -5042,7 +5042,7 @@
 <tr>
 <td><code>group</code></td>
 <td></td>
-<td>Integer group ID — assigns the board to this group at creation time. The caller must be a group member.</td>
+<td>Integer group ID — assigns the board to this group at creation time. Since 1.2 the caller must be an admin of the group or of one of its ancestor groups (or a site admin with all-content access), the same rule as <a href="../groups/#boards"><code>POST /groups/{id}/boards/</code></a>. <code>null</code> or omitted creates a personal board.</td>
 </tr>
 </tbody>
 </table>
@@ -5060,6 +5060,11 @@
 <td><code>400 Bad Request</code></td>
 <td><code>{"code": "unknown_template", "detail": "Unknown board template: '...'."}</code> (both plain strings, #1660)</td>
 <td><code>template</code> was sent as a non-blank value that doesn't match an active template's slug. This is deliberately distinct from a generic per-field validation error — a stale or mistyped <code>template</code> value previously created a <code>simple_kanban</code> board with a <code>201</code> instead of surfacing the mistake (#1115).</td>
+</tr>
+<tr>
+<td><code>400 Bad Request</code></td>
+<td><code>{"group": ["Unknown group, or you are not an admin of it."]}</code></td>
+<td><code>group</code> names a group that does not exist, or one the caller does not administer. Both cases return the same body.</td>
 </tr>
 </tbody>
 </table>
@@ -5178,7 +5183,8 @@
 </table>
 <h3 id="put-apiv1boardsid-patch-apiv1boardsid"><code>PUT /api/v1/boards/{id}/</code> / <code>PATCH /api/v1/boards/{id}/</code><a class="headerlink" href="#put-apiv1boardsid-patch-apiv1boardsid" title="Permanent link">&para;</a></h3>
 <p>Update board fields. Both <code>PUT</code> and <code>PATCH</code> are accepted — all fields are optional in either case. Requires board admin.</p>
-<p><strong>Writable fields:</strong> <code>name</code>, <code>description</code>, <code>staleness_threshold_days</code>, <code>stale_warning_pct</code>, <code>allowed_priorities</code>, <code>enforce_wip_limits</code>, <code>enforce_weight_limits</code>, <code>enforce_wip_hard</code>, <code>export_min_role</code>, <code>card_density</code>, <code>show_wip_at_limit</code>, <code>show_row_chip_field_names</code>. The entire request requires board admin (or site admin) — there is no tier of fields a non-admin member can edit; a non-admin PATCHing even a single field like <code>description</code> receives <code>403 Forbidden</code>.</p>
+<p><strong>Writable fields:</strong> <code>name</code>, <code>description</code>, <code>staleness_threshold_days</code>, <code>stale_warning_pct</code>, <code>allowed_priorities</code>, <code>enforce_wip_limits</code>, <code>enforce_weight_limits</code>, <code>enforce_wip_hard</code>, <code>export_min_role</code>, <code>card_density</code>, <code>show_wip_at_limit</code>, <code>show_row_chip_field_names</code>, <code>group</code> (see below; since 1.2, changing it to a different group also requires admin of that group). The entire request requires board admin (or site admin) — there is no tier of fields a non-admin member can edit; a non-admin PATCHing even a single field like <code>description</code> receives <code>403 Forbidden</code>.</p>
+<p><strong><code>group</code> on update:</strong> <a href="#post-apiv1boardsidmove-group"><code>POST /api/v1/boards/{id}/move-group/</code></a> is the preferred way to change it. Since 1.2, setting <code>group</code> to a different group requires the caller to be an admin of that group or of one of its ancestor groups (or a site admin with all-content access); otherwise, or when the group does not exist, the request returns <code>400</code> with <code>{"group": ["Unknown group, or you are not an admin of it."]}</code> and nothing is changed. The check is made against the board's group at the time the update is applied. Sending the board's current <code>group</code> unchanged (for example in a <code>PUT</code> that echoes the board back) and setting it to <code>null</code> (detach to a personal board) need only board admin.</p>
 <h3 id="delete-apiv1boardsid"><code>DELETE /api/v1/boards/{id}/</code><a class="headerlink" href="#delete-apiv1boardsid" title="Permanent link">&para;</a></h3>
 <p>Delete board. Requires board owner or site admin. Deletes every card on the board, <strong>including archived cards</strong> — see <code>archived_card_count</code> above.</p>
 <p>Since 1.2, if cards keep being created in, or moved into, the board while it is being deleted, the delete gives up after a bounded number of internal retries and returns <code>409 Conflict</code> with <code>{"code": "container_changed", "detail": "Cards were added while this was being deleted. Please try again."}</code>. Nothing is deleted; retry the request (#1602). A create or move that targets the board while it is being deleted waits for the delete and then returns <code>404</code>. Other requests that write to the board while it is being deleted also wait for the delete and then return <code>404</code> with nothing written: board <code>PATCH</code>/<code>PUT</code>, share link enable and revoke, move-group, column and swimlane create, update, reorder and set-collapsed, card and swimlane custom-field definition create, update and delete, label create, update and delete, saved-filter create, star and unstar, member add, role change and removal, and invite link create and send. A delete of a board, column or swimlane that waits behind another delete of the same object also waits and then returns <code>404</code>; the deletion event is sent once. A <code>PATCH</code> of a board that waits behind another write to the same board (for example a share link change or a move to a group) applies only the fields it sends: the fields it did not send keep the other request's committed values. While a column or swimlane is being deleted, an update of that column or swimlane waits and then returns <code>404</code>; other column and swimlane requests wait for it and then proceed (a column reorder that still lists the deleted column returns <code>400</code>).</p>
