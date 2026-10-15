@@ -28,13 +28,14 @@ Create a board.
 | `description` | | Board description (default: `""`) |
 | `template` | | Template slug to use for column layout (default: `"simple_kanban"`). See `GET /api/v1/boards/templates/` for available slugs. Omitting the field (or sending `""`/`null`) uses the default; sending a non-blank slug that doesn't match an active template returns `400` — see **Errors** below. |
 | `swimlane_name` | | Name for the first swimlane. Omitting it (or sending blank) creates the board with **no** swimlane at all — no template currently supplies a non-empty default. Contrast with [`POST /groups/{id}/boards/`](groups.md#boards), which defaults an omitted value to `"General"`. |
-| `group` | | Integer group ID — assigns the board to this group at creation time. The caller must be a group member. |
+| `group` | | Integer group ID — assigns the board to this group at creation time. Since 1.2 the caller must be an admin of the group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /groups/{id}/boards/`](groups.md#boards). `null` or omitted creates a personal board. |
 
 **Errors**
 
 | Status | Body | Condition |
 |---|---|---|
 | `400 Bad Request` | `{"code": "unknown_template", "detail": "Unknown board template: '...'."}` (both plain strings, #1660) | `template` was sent as a non-blank value that doesn't match an active template's slug. This is deliberately distinct from a generic per-field validation error — a stale or mistyped `template` value previously created a `simple_kanban` board with a `201` instead of surfacing the mistake (#1115). |
+| `400 Bad Request` | `{"group": ["Unknown group, or you are not an admin of it."]}` | `group` names a group that does not exist, or one the caller does not administer. Both cases return the same body. |
 
 ### `GET /api/v1/boards/{id}/`
 Get board summary. Response includes:
@@ -65,7 +66,9 @@ Get board summary. Response includes:
 ### `PUT /api/v1/boards/{id}/` / `PATCH /api/v1/boards/{id}/`
 Update board fields. Both `PUT` and `PATCH` are accepted — all fields are optional in either case. Requires board admin.
 
-**Writable fields:** `name`, `description`, `staleness_threshold_days`, `stale_warning_pct`, `allowed_priorities`, `enforce_wip_limits`, `enforce_weight_limits`, `enforce_wip_hard`, `export_min_role`, `card_density`, `show_wip_at_limit`, `show_row_chip_field_names`. The entire request requires board admin (or site admin) — there is no tier of fields a non-admin member can edit; a non-admin PATCHing even a single field like `description` receives `403 Forbidden`.
+**Writable fields:** `name`, `description`, `staleness_threshold_days`, `stale_warning_pct`, `allowed_priorities`, `enforce_wip_limits`, `enforce_weight_limits`, `enforce_wip_hard`, `export_min_role`, `card_density`, `show_wip_at_limit`, `show_row_chip_field_names`, `group` (see below; since 1.2, changing it to a different group also requires admin of that group). The entire request requires board admin (or site admin) — there is no tier of fields a non-admin member can edit; a non-admin PATCHing even a single field like `description` receives `403 Forbidden`.
+
+**`group` on update:** [`POST /api/v1/boards/{id}/move-group/`](#post-apiv1boardsidmove-group) is the preferred way to change it. Since 1.2, setting `group` to a different group requires the caller to be an admin of that group or of one of its ancestor groups (or a site admin with all-content access); otherwise, or when the group does not exist, the request returns `400` with `{"group": ["Unknown group, or you are not an admin of it."]}` and nothing is changed. The check is made against the board's group at the time the update is applied. Sending the board's current `group` unchanged (for example in a `PUT` that echoes the board back) and setting it to `null` (detach to a personal board) need only board admin.
 
 ### `DELETE /api/v1/boards/{id}/`
 Delete board. Requires board owner or site admin. Deletes every card on the board, **including archived cards** — see `archived_card_count` above.

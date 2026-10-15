@@ -740,7 +740,15 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         # POST — create a new board inside this group
         _require_group_admin(request.user, group)
-        serializer = BoardSerializer(data=request.data)
+        # The path group decides where the board goes (save() below overrides
+        # it), so a `group` in the body is dropped before validation: it has
+        # always been ignored here, and BoardSerializer.validate_group must not
+        # turn an ignored key into a 400 (#1655).
+        data = request.data
+        if "group" in data:
+            data = data.copy()
+            data.pop("group")
+        serializer = BoardSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         # Wrap the entire creation sequence in a transaction so a failure in any
         # step (column bulk_create, swimlane create, label copy, allowed_priorities

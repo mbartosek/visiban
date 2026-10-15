@@ -257,6 +257,9 @@ class BoardViewSet(
             # applies only the fields the request sent; fields another
             # request changed while this one waited keep their values.
             board.refresh_from_db()
+            # The group rule was checked against the pre-lock snapshot; check
+            # it again against the row as it is now (#1655).
+            serializer.recheck_group_under_lock(board)
             serializer.save()
             board = serializer.instance
             board_id = board.id
