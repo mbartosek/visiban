@@ -47,16 +47,16 @@ class DbDefaultNotNullColumnsTests(TestCase):
         """Mimic an old pod: INSERT names only the pre-existing columns."""
         # Literal table name, no interpolation: bandit B608 / semgrep flag any
         # string-built SQL, and the assert pins it to the model's real table.
-        self.assertEqual(SiteSetting._meta.db_table, "accounts_sitesetting")
+        self.assertEqual(SiteSetting._meta.db_table, "site_settings")
         with connection.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO accounts_sitesetting "
+                "INSERT INTO site_settings "
                 "(id, registration_mode, uploads_enabled) VALUES (%s, %s, %s)",
                 [99, "open", True],
             )
             cursor.execute(
                 "SELECT maintenance_mode, maintenance_message "
-                "FROM accounts_sitesetting WHERE id = %s",
+                "FROM site_settings WHERE id = %s",
                 [99],
             )
             mode, message = cursor.fetchone()
