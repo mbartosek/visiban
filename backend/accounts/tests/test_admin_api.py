@@ -1133,6 +1133,38 @@ class AdminDeactivatePATRevocationTests(TestCase):
         # Token record is gone — PATAuthentication raises "Invalid or revoked token."
         self.assertEqual(r.status_code, 401)
 
+    def _assert_auth_token_gone_after_cycle(self, deactivate):
+        """Token revoked on deactivation and not restored by reactivation."""
+        from rest_framework.authtoken.models import Token
+        from rest_framework.test import APIClient as FreshClient
+
+        target = make_user(username="tokowner_" + deactivate.__name__)
+        token = Token.objects.create(user=target)
+
+        deactivate(target.pk)
+        self.assertFalse(Token.objects.filter(user=target).exists())
+
+        r = self.client.patch(f"/api/v1/admin/users/{target.pk}/", {"is_active": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        fresh = FreshClient()
+        r = fresh.get("/api/v1/auth/me/", HTTP_AUTHORIZATION=f"Token {token.key}")
+        self.assertEqual(r.status_code, 401)
+
+    def test_deactivate_endpoint_revokes_auth_token(self):
+        def via_post(pk):
+            r = self._deactivate(pk)
+            self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        self._assert_auth_token_gone_after_cycle(via_post)
+
+    def test_patch_is_active_false_revokes_auth_token(self):
+        def via_patch(pk):
+            r = self.client.patch(f"/api/v1/admin/users/{pk}/", {"is_active": False})
+            self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        self._assert_auth_token_gone_after_cycle(via_patch)
+
     def test_deactivation_with_no_pats_still_succeeds(self):
         """Deactivating a user who has no PATs must not raise an error."""
         target = make_user(username="nopats")

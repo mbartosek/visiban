@@ -136,8 +136,9 @@ def revoke_auth_token(user):
     """Delete *user*'s DRF auth ``Token`` (the key minted at REST login).
 
     Called from ``finalize_password_change`` (and so from
-    ``finalize_password_reset``) and from
-    ``require_password_change_after_admin_set``. The SPA
+    ``finalize_password_reset``), from
+    ``require_password_change_after_admin_set``, and on account deactivation
+    from ``AdminUserDeactivateView._revoke_invite_links``. The SPA
     authenticates with its session cookie, not this key, and REST login mints a
     fresh one on the next sign-in.
     """

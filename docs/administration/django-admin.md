@@ -33,7 +33,7 @@ An account with a forced password or username change pending (`must_change_passw
 
 ## Deactivating users
 
-Clearing **Active** on a user deletes their Personal Access Tokens and revokes their pending invite links, the same as deactivating them from the site-admin panel.
+Clearing **Active** on a user deletes their Personal Access Tokens and API token and revokes their pending invite links, the same as deactivating them from the site-admin panel.
 
 ## What you can manage
 

@@ -1656,7 +1656,7 @@ class AdminUserDeactivateView(APIView):
 
     @classmethod
     def _revoke_invite_links(cls, target, actor):
-        """Delete the user's PATs and revoke every pending site, board and group invite they created.
+        """Delete the user's PATs and DRF auth token and revoke every pending site, board and group invite they created.
 
         Shared by the deactivate endpoint and ``PATCH is_active=false`` (#1510)
         so the two deactivation paths cannot drift apart.
@@ -1665,6 +1665,11 @@ class AdminUserDeactivateView(APIView):
         # cannot retain API access via previously issued tokens — and cannot
         # get them back on reactivation.
         target.personal_access_tokens.all().delete()
+        # The DRF auth Token is revoked on the same terms: it never expires, so
+        # reactivation must not bring a previously issued key back.
+        from .credentials import revoke_auth_token
+
+        revoke_auth_token(target)
 
         # Security: a departing admin's unused invite links must not remain valid.
         revoke_site_invite_links(target)

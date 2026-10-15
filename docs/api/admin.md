@@ -395,7 +395,7 @@ Update a user's account flags. Site admin only.
 | `has_completed_tour` | boolean | Reset (`false`) to re-show the onboarding tour to this user on next login |
 | `must_change_password` | boolean | `true` forces a password reset on next login. Only a superuser can change this on a superuser account (`400` otherwise). |
 
-*(1.2+)* Setting `is_active: false` also deletes the user's personal access tokens (so they do not come back on reactivation) and revokes the user's pending invite links exactly like [`POST /api/v1/admin/users/{id}/deactivate/`](#post-apiv1adminusersiddeactivate): unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. Clearing `can_access_all_content` (the only flag that confers group-admin rights; `is_site_admin` does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.
+*(1.2+)* Setting `is_active: false` also deletes the user's personal access tokens and API auth token (so they do not come back on reactivation) and revokes the user's pending invite links exactly like [`POST /api/v1/admin/users/{id}/deactivate/`](#post-apiv1adminusersiddeactivate): unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. Clearing `can_access_all_content` (the only flag that confers group-admin rights; `is_site_admin` does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.
 
 *(1.2+)* Clearing `is_site_admin` revokes the user's unused site invite links. Site invite links create accounts only while their creator is an active site admin (see [`GET /api/v1/admin/invite-links/`](#get-apiv1admininvite-links)).
 
@@ -416,7 +416,7 @@ Update a user's account flags. Site admin only.
 
 Deactivate a user account and transfer ownership of any boards they own to other members.
 
-Deactivation also revokes the user's unused site invite links and *(1.2+)* their pending [board invites](boards.md#board-invites) (`revoked_by` is the caller; each board gets an `invite_link.revoked` event) and *(1.2+)* their active, unused [group invite links](groups.md) (each affected group receives an `invite_link.revoked` event). Consumed single-use links are left as they are.
+Deactivation also deletes the user's personal access tokens and API auth token, revokes the user's unused site invite links and *(1.2+)* their pending [board invites](boards.md#board-invites) (`revoked_by` is the caller; each board gets an `invite_link.revoked` event) and *(1.2+)* their active, unused [group invite links](groups.md) (each affected group receives an `invite_link.revoked` event). Consumed single-use links are left as they are.
 
 **Permission:** `IsSiteAdmin`. Cannot deactivate your own account. Only a superuser can deactivate a superuser account (`400`).
 
