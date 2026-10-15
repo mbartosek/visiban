@@ -3930,9 +3930,9 @@ pushed by Visiban's release pipeline rather than trusting the registry:</p>
 </table>
 <p>Signatures and attestations are stored in the same registry as the image, so each registry
 carries its own copy. Verify against the registry you actually pull from. GHCR keeps its
-copies indefinitely. On the GitLab registry, the current cleanup policy can sweep signature
-and attestation tags about 90 days after a release, even though the image itself is kept.
-Extending the policy is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1541">#1541</a>.
+copies indefinitely. On the GitLab registry, the cleanup policy's keep-regex protects
+signature and attestation tags, so they are kept as long as the image
+(<a href="https://gitlab.com/visiban/visiban/-/issues/1541">#1541</a>).
 A nightly CI job, <code>check-release-attestations</code>, re-verifies the newest signed releases' signatures and SBOM
 attestations on both registries (releases cut before image signing shipped are skipped unless backfilled) so a sweep or delete does not go unnoticed. See
 <a href="../../development/ci-gates/">CI gate self-tests</a>.
@@ -3956,7 +3956,8 @@ any <code>v*</code> tag pipeline matches, so <code>v1.2.0-alpha.1</code>'s certi
 <p><code>--certificate-identity</code> with that exact URL also works on <code>cosign verify-attestation</code> and on
 the chart. A release that was signed later by the backfill job needs a wider identity, which
 the exact form never matches. It is described in <a href="#older-releases">Older releases</a>. Use that
-wider identity only for those versions, and on the GitLab registry after a sweep (below).</p>
+wider identity only for those versions, and on the GitLab registry for a release whose
+signatures were re-attached (below).</p>
 <p>Keep the regexp anchored (<code>^...$</code>) as shown. A loose pattern such as <code>gitlab\.com/visiban/visiban</code>
 also matches other projects whose path starts the same way, such as <code>visiban/visiban-enterprise</code>.</p>
 <h2 id="verify-an-image-signature">Verify an image signature<a class="headerlink" href="#verify-an-image-signature" title="Permanent link">&para;</a></h2>
@@ -4021,15 +4022,14 @@ already carries a signature or SBOM from a release tag pipeline. A backfill (<co
 signature does not satisfy them, so the tag job signs anyway. On GHCR, every release cut
 after this feature shipped therefore verifies with the tag-only <code>IDENTITY</code>, even if the
 backfill job touched those digests first.</p>
-<p><strong>Exception: the GitLab registry after a cleanup sweep.</strong> Until its keep-regex is extended
-(<a href="https://gitlab.com/visiban/visiban/-/issues/1541">#1541</a>), the GitLab registry deletes a
-release's signature and attestation tags about 90 days after it ships. If the backfill job
-re-attaches them, the new copies on <code>registry.gitlab.com/visiban/visiban</code> carry the
-<code>@refs/heads/main</code> identity. The tag-only <code>IDENTITY</code> and the exact-release form then <strong>fail</strong>
-for that release on that registry. Use the backfill regexp below for it. The same release
-on GHCR still verifies with the tag-only identity, because GHCR never sweeps. Once #1541's
-keep-regex is applied, tag-pipeline signatures are no longer swept and this exception stops
-arising for new releases.</p>
+<p><strong>Exception: a GitLab registry release whose signatures were re-attached.</strong> The GitLab
+registry's cleanup keep-regex protects signature and attestation tags
+(<a href="https://gitlab.com/visiban/visiban/-/issues/1541">#1541</a>), so tag-pipeline signatures are
+not swept. If they are deleted anyway (for example by hand) and the backfill job re-attaches
+them, the new copies on <code>registry.gitlab.com/visiban/visiban</code> carry the <code>@refs/heads/main</code>
+identity. The tag-only <code>IDENTITY</code> and the exact-release form then <strong>fail</strong> for that release on
+that registry. Use the backfill regexp below for it. The same release on GHCR still verifies
+with the tag-only identity, because GHCR never sweeps.</p>
 <p>A backfilled release's certificate identity ends in <code>@refs/heads/main</code> rather than
 <code>@refs/tags/v…</code>, because a released tag cannot be re-run without moving it. The tag-only
 <code>IDENTITY</code> above rejects it. For a backfilled version <strong>only</strong>, verify with:</p>
