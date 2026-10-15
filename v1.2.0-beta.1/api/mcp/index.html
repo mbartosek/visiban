@@ -2244,6 +2244,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#user-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#list_columns" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4583,7 +4594,7 @@
 </tr>
 <tr>
 <td><code>validation_error</code></td>
-<td>A field failed validation — includes an <code>errors</code> object keyed by field name, e.g. an <code>assignee_email</code>/label name that does not resolve to a real board member/label.</td>
+<td>A field failed validation — includes an <code>errors</code> object keyed by field name, e.g. an <code>assignee</code> username or label name that does not resolve to an assignable board member/label. Every unresolved <code>assignee</code> returns the same message, whether the username does not exist, belongs to someone with no role on the board, or belongs to a <code>viewer</code> (who cannot be assigned).</td>
 </tr>
 <tr>
 <td><code>wip_limit_exceeded</code> / <code>wip_hard_blocked</code></td>
@@ -4599,6 +4610,10 @@
 </tr>
 </tbody>
 </table>
+<h3 id="user-fields">User fields<a class="headerlink" href="#user-fields" title="Permanent link">&para;</a></h3>
+<p>Users are identified by username and display name, matching the REST API. Every user-bearing field in tool and resource output — a card's <code>assignee</code>, a movement's <code>moved_by</code>, an activity's <code>actor</code>, and a comment's <code>author</code> — is either <code>null</code> or a <code>{username, display_name}</code> object, the same <code>username</code>/<code>display_name</code> pair the REST API embeds for board members. <code>display_name</code> is an empty string when the user has not set one.</p>
+<p>The <code>assignee</code> argument of <code>list_cards</code>, <code>create_card</code>, and <code>update_card</code> takes a username, matched case-insensitively.</p>
+<p><em>Changed in 1.2 (before GA, #1671): the 1.2 pre-releases reported these fields as email address strings and took the <code>create_card</code>/<code>update_card</code> assignee as <code>assignee_email</code>; that argument is now <code>assignee</code>. The <code>list_cards</code> <code>assignee</code> filter kept its name but now matches a username instead of an email address, so an email value returns no cards rather than an error. A call that still passes <code>assignee_email</code> (any value, including an empty string) is rejected with a <code>validation_error</code> whose <code>errors</code> is <code>{"assignee_email": ["This argument was replaced by `assignee` (a username)."]}</code>, and nothing is written.</em></p>
 <h3 id="list_columns"><code>list_columns</code><a class="headerlink" href="#list_columns" title="Permanent link">&para;</a></h3>
 <p>Lists a board's columns, ordered by position. All board roles may call it.</p>
 <p><strong>Arguments:</strong> <code>board_id</code> (integer, required).</p>
@@ -4609,11 +4624,11 @@
 <p><strong>Returns:</strong> an array of <code>{id, name, position, color, card_count, is_collapsed}</code>, plus <code>contact_email</code> for <code>admin</code>/<code>site_admin</code> callers only — a <code>collaborator</code>/<code>viewer</code> response simply omits that key, matching the same admin-only visibility the web UI already applies to swimlane contact info.</p>
 <h3 id="list_cards"><code>list_cards</code><a class="headerlink" href="#list_cards" title="Permanent link">&para;</a></h3>
 <p>Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Capped at 200 rows, like the REST card list endpoint.</p>
-<p><strong>Arguments:</strong> <code>board_id</code> (integer, required); <code>column_id</code>, <code>swimlane_id</code> (integers), <code>assignee</code> (email, case-insensitive), <code>priority</code>, <code>label</code> (name) — all optional filters, ANDed together; <code>include_archived</code> (boolean, default <code>false</code>).</p>
-<p><strong>Returns:</strong> an array of <code>{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}</code>. <code>assignee</code> is an email or <code>null</code>; <code>labels</code> is an array of names; <code>column</code>/<code>swimlane</code> are <code>{id, name}</code> objects so a result can be fed straight into <code>move_card</code>.</p>
+<p><strong>Arguments:</strong> <code>board_id</code> (integer, required); <code>column_id</code>, <code>swimlane_id</code> (integers), <code>assignee</code> (username, case-insensitive), <code>priority</code>, <code>label</code> (name) — all optional filters, ANDed together; <code>include_archived</code> (boolean, default <code>false</code>).</p>
+<p><strong>Returns:</strong> an array of <code>{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}</code>. <code>assignee</code> is a <code>{username, display_name}</code> object or <code>null</code> (see <a href="#user-fields">User fields</a>); <code>labels</code> is an array of names; <code>column</code>/<code>swimlane</code> are <code>{id, name}</code> objects so a result can be fed straight into <code>move_card</code>.</p>
 <h3 id="create_card"><code>create_card</code><a class="headerlink" href="#create_card" title="Permanent link">&para;</a></h3>
 <p>Creates a card, appended to the end of its column/swimlane cell (or inserted at <code>position</code> if given). Requires <code>admin</code> or <code>member</code> board role and the <code>mcp:write</code> scope.</p>
-<p><strong>Arguments:</strong> <code>board_id</code>, <code>column_id</code>, <code>swimlane_id</code>, <code>title</code> (required); <code>description</code>, <code>priority</code> (default <code>"medium"</code>), <code>assignee_email</code>, <code>labels</code> (array of names), <code>due_date</code> (<code>YYYY-MM-DD</code>), <code>position</code> — all optional.</p>
+<p><strong>Arguments:</strong> <code>board_id</code>, <code>column_id</code>, <code>swimlane_id</code>, <code>title</code> (required); <code>description</code>, <code>priority</code> (default <code>"medium"</code>), <code>assignee</code> (username of any board member whose role is not <code>viewer</code>), <code>labels</code> (array of names), <code>due_date</code> (<code>YYYY-MM-DD</code>), <code>position</code> — all optional.</p>
 <p><strong>Returns:</strong> the created card, same shape as one row of <code>list_cards</code>. Writes a <code>CardMovement</code> record with no "from" column (matching how the REST API records card creation) and broadcasts <code>card.created</code> on the board's WebSocket channel.</p>
 <p>Enforces the column's WIP and weight limits exactly as <code>move_card</code> does, with no override: a create into a full column returns <code>wip_limit_exceeded</code>/<code>wip_hard_blocked</code>/<code>weight_limit_exceeded</code> and writes nothing. <em>Changed in 1.2 (#1428): creates were not checked before.</em></p>
 <h3 id="move_card"><code>move_card</code><a class="headerlink" href="#move_card" title="Permanent link">&para;</a></h3>
@@ -4622,7 +4637,7 @@
 <p><strong>Returns:</strong> <code>{"card": &lt;card&gt;, "movement": &lt;movement-or-null&gt;}</code>. <code>movement</code> is <code>null</code> for a pure position reorder within the same cell (no column/swimlane change); otherwise it carries <code>{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by}</code>. Enforces the board's WIP/weight limits exactly as the REST move endpoint does, with no override — a blocked move returns <code>wip_limit_exceeded</code>/<code>wip_hard_blocked</code>/<code>weight_limit_exceeded</code> rather than moving the card.</p>
 <h3 id="update_card"><code>update_card</code><a class="headerlink" href="#update_card" title="Permanent link">&para;</a></h3>
 <p>Updates one or more fields on a card. Requires <code>admin</code> or <code>member</code> board role and the <code>mcp:write</code> scope.</p>
-<p><strong>Arguments:</strong> <code>card_id</code> (required); any of <code>title</code>, <code>description</code>, <code>priority</code>, <code>assignee_email</code>, <code>labels</code>, <code>due_date</code> — omitted fields are left unchanged. <code>labels: []</code> clears every label; <code>assignee_email: ""</code> unassigns the card. Cannot change a card's column or swimlane — use <code>move_card</code>.</p>
+<p><strong>Arguments:</strong> <code>card_id</code> (required); any of <code>title</code>, <code>description</code>, <code>priority</code>, <code>assignee</code> (username), <code>labels</code>, <code>due_date</code> — omitted fields are left unchanged. <code>labels: []</code> clears every label; <code>assignee: ""</code> unassigns the card. Cannot change a card's column or swimlane — use <code>move_card</code>.</p>
 <p><strong>Returns:</strong> the updated card, same shape as <code>create_card</code>. Records a <code>CardActivity</code> audit entry per field that actually changed.</p>
 <h3 id="archive_card"><code>archive_card</code><a class="headerlink" href="#archive_card" title="Permanent link">&para;</a></h3>
 <p>Soft-deletes a card. Idempotent — archiving an already-archived card succeeds and returns its existing <code>archived_at</code>. Requires <code>admin</code> or <code>member</code> board role and the <code>mcp:write</code> scope.</p>
