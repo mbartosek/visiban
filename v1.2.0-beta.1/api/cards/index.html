@@ -5580,9 +5580,11 @@ card without the client needing to know which end is stored as <code>from_card</
 the same row.</p>
 <p>Returns <code>201</code> with the same object shape as the list endpoint, resolved to the
 card in the URL.</p>
-<p><strong>Rejected with <code>400</code>.</strong> The body carries a top-level <code>code</code> alongside <code>detail</code>,
-so a client branches on the code rather than string-matching the message
-(DRF returns both as single-item lists):</p>
+<p><strong>Rejected with <code>400</code>.</strong> The body is <code>{"code": "&lt;code&gt;", "detail": "&lt;message&gt;"}</code>
+— both plain strings, the same shape as <code>feature_disabled</code> and
+<code>export_restricted</code> — so a client branches on <code>body.code === "&lt;code&gt;"</code> rather
+than string-matching the message. (1.2.0-beta.1 returned both values as
+single-item lists; that was normalized before 1.2.0, #1660.)</p>
 <table>
 <thead>
 <tr>

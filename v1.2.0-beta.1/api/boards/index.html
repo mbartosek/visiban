@@ -5058,7 +5058,7 @@
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"code": ["unknown_template"], "detail": ["Unknown board template: '...'."]}</code></td>
+<td><code>{"code": "unknown_template", "detail": "Unknown board template: '...'."}</code> (both plain strings, #1660)</td>
 <td><code>template</code> was sent as a non-blank value that doesn't match an active template's slug. This is deliberately distinct from a generic per-field validation error — a stale or mistyped <code>template</code> value previously created a <code>simple_kanban</code> board with a <code>201</code> instead of surfacing the mistake (#1115).</td>
 </tr>
 </tbody>
