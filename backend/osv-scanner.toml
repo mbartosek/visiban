@@ -1,0 +1,13 @@
+# OSV-Scanner config for backend/requirements.txt (auto-discovered; see
+# scripts/osv-severity-gate.sh for the accepted-risk contract).
+
+[[IgnoredVulns]]
+id = "GHSA-8pqf-f4m5-798g"
+# twisted <= 26.4.0: ReDoS in twisted.mail.imap4.wildcardToRegexp().
+# No patched release exists yet (26.4.0 is the newest and is itself listed
+# as last_affected), so there is nothing to bump. twisted is a transitive
+# of daphne; Visiban never imports twisted.mail or serves IMAP, so the
+# vulnerable function is unreachable. Re-check PyPI for a fixed twisted
+# release and remove this entry when one lands (tracked in #1685).
+ignoreUntil = 2026-11-30
+reason = "No fixed twisted release exists; IMAP-only code path (twisted.mail) that Visiban never loads"
