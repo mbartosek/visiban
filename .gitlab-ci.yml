@@ -2845,6 +2845,10 @@ kaizen-yield-watch:
       else
         python3 scripts/kaizen_yield_watch.py --write-state kaizen-yield-state.json
       fi
+    # #1145: the fast-path table proposer reads this job's state; its table lives
+    # outside the repo, so CI only proves it still fires (it is run by hand).
+    # Last, so a proposer regression cannot stop the watch itself from running.
+    - python3 scripts/kaizen_fastpath_proposal.py --self-test
   artifacts:
     when: always
     expire_in: 30 days

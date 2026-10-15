@@ -139,6 +139,13 @@ preference. If a narrowing proposal has no defensible narrower trigger to
 propose, say the finding is "flagged, no narrowing proposed yet" rather than
 reaching for deletion as the fallback.
 
+The continuous counterpart of this step is `scripts/kaizen_fastpath_proposal.py`
+(#1145): it turns the yield watch's (#1144) consecutive-zero streaks into a
+proposed fast-path table diff plus a cited evidence section for a reviewed MR.
+This skill stays the manual cross-check of that proposal (it sees adoption,
+phantom gates and load-bearing gates, which the streak data does not). See
+`docs/development/kaizen-fastpath-proposal.md`.
+
 ---
 
 ## Step 4 — truthfulness findings rank above speed findings
