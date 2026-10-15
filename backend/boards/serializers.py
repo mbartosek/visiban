@@ -2630,6 +2630,11 @@ class AllowedPrioritiesField(serializers.JSONField):
     """
 
 
+# One message for an unknown group id and for a group the caller may not place
+# a board in (BoardSerializer.validate_group), so the two are indistinguishable.
+_BOARD_GROUP_NOT_ALLOWED_MSG = "Unknown group, or you are not an admin of it."
+
+
 def _group_name_for_board(board) -> str | None:
     """Shared by BoardSerializer.get_group_name and BoardFullSerializer.get_group_name.
 
@@ -2687,7 +2692,81 @@ class BoardSerializer(serializers.ModelSerializer):
         model = Board
         fields = ["id", "uid", "name", "description", "owner", "group", "group_name", "group_detail", "member_count", "card_count", "archived_card_count", "staleness_threshold_days", "stale_warning_pct", "allowed_priorities", "enforce_wip_limits", "enforce_wip_hard", "enforce_weight_limits", "export_min_role", "card_density", "show_wip_at_limit", "show_row_chip_field_names", "created_at", "updated_at", "is_starred", "template"]
         read_only_fields = ["uid", "created_at", "updated_at"]
-        extra_kwargs = _BOARD_ENFORCEMENT_EXTRA_KWARGS
+        # `group` keeps its auto-generated field (same schema type, nullable,
+        # optional); only the unknown-id message is replaced, so that an
+        # unknown id and a group the caller may not use answer with the same
+        # body — see validate_group.
+        extra_kwargs = {
+            **_BOARD_ENFORCEMENT_EXTRA_KWARGS,
+            "group": {"error_messages": {"does_not_exist": _BOARD_GROUP_NOT_ALLOWED_MSG}},
+        }
+
+    def validate_group(self, value):
+        """Restrict placing a board in a group to admins of that group (#1655).
+
+        ``group`` is a documented writable field on ``POST /boards/`` and
+        ``PATCH``/``PUT /boards/{id}/``, so it stays writable for backward
+        compatibility, but it must not be a way around the rule enforced by
+        ``POST /groups/{id}/boards/``: a board placed in a group is visible to
+        that group's members and administered by its admins, so only an admin
+        of the target group (or of an ancestor, or an all-content site admin)
+        may put it there. ``_require_group_admin`` is reused so the two paths
+        cannot drift.
+
+        * ``None`` is always accepted: on create it means a personal board, on
+          update it detaches the board, which ``move-group`` also allows any
+          board admin to do (the board-admin check lives in
+          ``BoardViewSet.perform_update``).
+        * Re-sending the board's current group on update is accepted as a
+          no-op, so a client that round-trips the representation it read
+          (PUT, or PATCH echoing ``group``) keeps working.
+        * Without a request there is no caller to authorize, so the change is
+          refused rather than silently allowed.
+        """
+        current_group_id = self.instance.group_id if self.instance is not None else None
+        self._check_group_change(value, current_group_id)
+        return value
+
+    def _check_group_change(self, value, current_group_id):
+        """Raise the uniform group error unless the caller may move to ``value``.
+
+        Shared by validate_group (against the instance the serializer was bound
+        to) and recheck_group_under_lock (against the row re-read under the
+        board lock), so both apply exactly the same rule and message.
+        """
+        if value is None or value.pk == current_group_id:
+            return
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        # code="does_not_exist" matches the error DRF raises for an unknown id,
+        # so the error detail is identical down to its code.
+        if user is None or not user.is_authenticated:
+            raise serializers.ValidationError(_BOARD_GROUP_NOT_ALLOWED_MSG, code="does_not_exist")
+        from rest_framework.exceptions import PermissionDenied
+        from groups.views import _require_group_admin
+        try:
+            _require_group_admin(user, value)
+        except PermissionDenied:
+            # Same message as an unknown id (Meta.extra_kwargs above), so the
+            # response does not reveal whether the group exists.
+            raise serializers.ValidationError(_BOARD_GROUP_NOT_ALLOWED_MSG, code="does_not_exist")
+
+    def recheck_group_under_lock(self, board):
+        """Re-apply the group rule against ``board`` as re-read under its row lock.
+
+        validate_group accepts re-sending the board's current group without a
+        group-admin check, but "current" there is the snapshot the serializer
+        was bound to, read before BoardViewSet.perform_update takes the lock.
+        If another request changed the board's group in between, the value
+        sent is no longer an echo but a move, so it must pass the same rule.
+        Call after ``refresh_from_db()`` under the lock and before ``save()``.
+        """
+        if "group" not in self.validated_data:
+            return
+        try:
+            self._check_group_change(self.validated_data["group"], board.group_id)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"group": exc.detail})
 
     @extend_schema_field(GroupBriefSerializer(allow_null=True))
     def get_group_detail(self, obj):
@@ -2984,7 +3063,9 @@ class BoardFullSerializer(serializers.ModelSerializer):
             "allowed_priorities", "enforce_wip_limits", "enforce_wip_hard", "enforce_weight_limits", "export_min_role", "card_density", "show_wip_at_limit", "show_row_chip_field_names", "created_at", "updated_at", "current_user_role", "is_starred", "share_token", "share_token_expires_at", "capabilities",
             "archived_card_count",
         ]
-        read_only_fields = ["uid"]
+        # `group` is read-only here: this serializer only renders /full/, and a
+        # group change goes through BoardSerializer.validate_group or move-group.
+        read_only_fields = ["uid", "group"]
         extra_kwargs = _BOARD_ENFORCEMENT_EXTRA_KWARGS
 
     def get_archived_card_count(self, obj) -> int:

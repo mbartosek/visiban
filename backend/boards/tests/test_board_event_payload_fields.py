@@ -104,6 +104,8 @@ class BoardEventPayloadFieldTests(TestCase):
         self._assert_frames_clean(sent)
 
     def test_board_create_in_group(self):
+        # Placing a board in a group via POST /boards/ requires group admin (#1655).
+        GroupMembership.objects.create(group=self.group, user=self.admin, role=GroupMembership.Role.ADMIN)
         with _capture_layer() as sent, self.captureOnCommitCallbacks(execute=True):
             r = self.c.post("/api/v1/boards/", {"name": "Created", "group": self.group.id}, format="json")
         self.assertEqual(r.status_code, 201, r.data)
