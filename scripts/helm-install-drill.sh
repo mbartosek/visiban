@@ -153,6 +153,7 @@ dump_diagnostics() {
 # Do not write a hardcoded system temp path in this file:
 # `helm-structure-check.sh --lint-tmp` (run in CI) rejects it.
 RUN_TMP="$(mktemp -d)"
+export TMPDIR="$RUN_TMP"
 
 teardown() {
   rm -rf "$RUN_TMP"
@@ -446,12 +447,12 @@ step "4. NEGATIVE: the placeholder SECRET_KEY guard fails closed"
 # shellcheck disable=SC2046
 if helm install "${RELEASE}-insecure" "$CHART" $(install_args) \
      --set-string secret.djangoSecretKey="change-me-in-production" \
-     --wait --timeout 3m >$RUN_TMP/insecure-install.log 2>&1; then
+     --wait --timeout 3m >"$RUN_TMP/insecure-install.log" 2>&1; then
   helm uninstall "${RELEASE}-insecure" --namespace "$NAMESPACE" >/dev/null 2>&1 || true
   die "an install with the chart's placeholder SECRET_KEY SUCCEEDED — the fail-closed guard is not firing (#1038)"
 fi
-grep -qi "djangoSecretKey" $RUN_TMP/insecure-install.log \
-  || die "the placeholder install failed, but not for the SECRET_KEY reason — the guard may be masked by an unrelated error. Log: $(head -5 $RUN_TMP/insecure-install.log)"
+grep -qi "djangoSecretKey" "$RUN_TMP/insecure-install.log" \
+  || die "the placeholder install failed, but not for the SECRET_KEY reason — the guard may be masked by an unrelated error. Log: $(head -5 "$RUN_TMP/insecure-install.log")"
 ok "placeholder SECRET_KEY is rejected, and for the right reason"
 helm uninstall "${RELEASE}-insecure" --namespace "$NAMESPACE" >/dev/null 2>&1 || true
 
