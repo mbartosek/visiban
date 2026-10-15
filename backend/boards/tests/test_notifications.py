@@ -384,6 +384,85 @@ class CardAssignmentNotificationTests(TestCase):
         )
 
     @patch("boards.broadcast.broadcast_board_event")
+    def test_card_move_skips_assignee_who_is_not_a_current_member(self, _mock_broadcast):
+        """Recipients of a card-move notification must be current members."""
+        col_b = Column.objects.create(board=self.board, name="Doing", position=2)
+        outsider = User.objects.create_user(
+            username="mover_outsider", password="pass", notif_card_moved=True
+        )
+        self.card.assignee = outsider
+        self.card.save()
+        received = []
+
+        def _receiver(sender, notification=None, **kwargs):
+            received.append(notification)
+
+        post_notification_created.connect(_receiver, dispatch_uid="test_member_scope_move", weak=False)
+        self.addCleanup(post_notification_created.disconnect, dispatch_uid="test_member_scope_move")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                f"/api/v1/boards/{self.board.pk}/cards/{self.card.pk}/move/",
+                {"column_id": col_b.pk, "swimlane_id": self.swim.pk, "position": 0},
+            )
+
+        self.assertFalse(Notification.objects.filter(recipient=outsider).exists())
+        self.assertFalse(any(n.recipient_id == outsider.pk for n in received))
+
+    def _move_with_assignee(self, user):
+        col_b = Column.objects.create(board=self.board, name="Doing", position=2)
+        self.card.assignee = user
+        self.card.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                f"/api/v1/boards/{self.board.pk}/cards/{self.card.pk}/move/",
+                {"column_id": col_b.pk, "swimlane_id": self.swim.pk, "position": 0},
+            )
+
+    @patch("boards.broadcast.broadcast_board_event")
+    def test_card_move_skips_inactive_member_assignee(self, _mock_broadcast):
+        inactive = User.objects.create_user(
+            username="mover_inactive", password="pass", notif_card_moved=True, is_active=False
+        )
+        BoardMembership.objects.create(board=self.board, user=inactive, role=BoardMembership.Role.MEMBER)
+        received = []
+
+        def _receiver(sender, notification=None, **kwargs):
+            received.append(notification)
+
+        post_notification_created.connect(_receiver, dispatch_uid="test_inactive_move", weak=False)
+        self.addCleanup(post_notification_created.disconnect, dispatch_uid="test_inactive_move")
+
+        self._move_with_assignee(inactive)
+
+        self.assertFalse(Notification.objects.filter(recipient=inactive).exists())
+        self.assertFalse(any(n.recipient_id == inactive.pk for n in received))
+
+    @patch("boards.broadcast.broadcast_board_event")
+    def test_card_move_notifies_site_admin_assignee(self, _mock_broadcast):
+        admin = User.objects.create_user(
+            username="mover_siteadmin", password="pass", notif_card_moved=True,
+            can_access_all_content=True,
+        )
+        self._move_with_assignee(admin)
+        self.assertTrue(Notification.objects.filter(recipient=admin, card=self.card).exists())
+
+    @patch("boards.broadcast.broadcast_board_event")
+    def test_card_move_notifies_group_inherited_assignee(self, _mock_broadcast):
+        from groups.models import Group, GroupMembership
+
+        parent = Group.objects.create(name="move_parent_group", owner=self.owner)
+        child = Group.objects.create(name="move_child_group", owner=self.owner, parent=parent)
+        user = User.objects.create_user(
+            username="mover_group", password="pass", notif_card_moved=True
+        )
+        GroupMembership.objects.create(group=parent, user=user, role=GroupMembership.Role.MEMBER)
+        self.board.group = child
+        self.board.save()
+        self._move_with_assignee(user)
+        self.assertTrue(Notification.objects.filter(recipient=user, card=self.card).exists())
+
+    @patch("boards.broadcast.broadcast_board_event")
     def test_card_move_does_not_notify_mover_when_self_assigned(self, _mock_broadcast):
         col_b = Column.objects.create(board=self.board, name="Doing", position=2)
         self.card.assignee = self.owner

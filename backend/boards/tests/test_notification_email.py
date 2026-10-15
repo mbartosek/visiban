@@ -941,10 +941,9 @@ class RevokedBoardAccessTests(TestCase):
         self.membership.delete()
         self._move()
         self.assertEqual(mail.outbox, [])
-        # The in-app row is still created — it is history, and the inbox filters
-        # inaccessible boards on read. Only the email is withheld.
+        # No row is created for a recipient who is no longer a member.
         self.assertEqual(
-            Notification.objects.filter(recipient=self.exmember).count(), 1
+            Notification.objects.filter(recipient=self.exmember).count(), 0
         )
 
     def test_a_removed_member_is_not_emailed_on_assignment(self):
