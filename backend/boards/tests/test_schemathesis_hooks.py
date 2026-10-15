@@ -291,8 +291,12 @@ class PublicTokenAndOwnershipFixtureTests(TestCase):
 
         owner = _make_user()
         board = _make_board(owner, name="Visiban Demo Board")
+        # Import first: the module's import-time _load_real_ids() also consults
+        # is_installed, so a cold import inside the patch would count twice
+        # whenever this test runs before any other that loads the module.
+        hooks = _hooks()
         with mock.patch.object(apps, "is_installed", return_value=False) as is_installed:
-            _hooks()._seed_lens_connection(board)
+            hooks._seed_lens_connection(board)
         is_installed.assert_called_once_with("git_lens")
 
     def test_card_and_children_prefer_rows_owned_by_the_fuzz_user(self):
