@@ -21,6 +21,7 @@ from drf_spectacular.utils import (
 from django.conf import settings as django_settings
 from accounts.models import User, get_uploads_enabled
 from accounts.permissions import TokenHasScope
+from visiban.exceptions import CodedValidationError
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -1783,8 +1784,8 @@ class CardViewSet(viewsets.ModelViewSet):
                 # Belt and braces for the same race on a backend where the lock
                 # above was skipped: the unique constraint caught it, so report
                 # it the way the serializer would have rather than as a 500.
-                raise serializers.ValidationError(
-                    {"code": "relation_exists", "detail": "That relation already exists."}
+                raise CodedValidationError(
+                    "relation_exists", "That relation already exists."
                 ) from None
             self._broadcast_relation_change(board, from_card, to_card, request)
 

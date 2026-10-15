@@ -14,6 +14,7 @@ from accounts.models import User
 from accounts.serializers import BoardUserSerializer
 from visiban import field_enforcement
 from visiban.invite_email import InviteEmailField
+from visiban.exceptions import CodedValidationError
 from visiban.utils import MAX_ALLOWED_PRIORITIES_LENGTH, check_allowed_priorities_length
 # Module-level (not lazy) so ``@extend_schema_field`` can reference it at class-body
 # evaluation time — see BoardSerializer.get_group_detail. No import cycle: neither
@@ -1818,10 +1819,11 @@ class CardRelationCreateSerializer(serializers.Serializer):
 
     @staticmethod
     def _fail(code, detail):
-        # Top-level `code` + `detail`, the shape BoardSerializer.validate()
-        # established for machine-checkable 400s (#1115). DRF coerces both into
-        # single-item lists, so a client reads `"self_relation" in body["code"]`.
-        raise serializers.ValidationError({"code": code, "detail": detail})
+        # Top-level string `code` + `detail` — the 1.1 shape for
+        # machine-checkable errors (#1115, #1660). A plain ValidationError
+        # here would be re-wrapped by DRF into single-item lists; see
+        # visiban/exceptions.py for why CodedValidationError is not one.
+        raise CodedValidationError(code, detail)
 
     def validate(self, attrs):
         board = self.context.get("board")
@@ -2781,13 +2783,13 @@ class BoardSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # `template` is validated at the object level (rather than a normal
         # `validate_template` field validator) so an unknown slug's error
-        # body carries a top-level `code` key — `{"code": ["unknown_template"],
-        # "detail": [...]}` — instead of this codebase's usual
-        # `{"template": ["..."]}` shape nested under the field name. DRF's
-        # `as_serializer_error()` always coerces a `.validate()` dict's
-        # scalar values into single-item lists (the same as every other DRF
-        # field error), so `code` still comes back as a list — a caller
-        # checks `"unknown_template" in body["code"]`. `template` is a
+        # body carries a top-level `code` key — `{"code": "unknown_template",
+        # "detail": "..."}` — instead of this codebase's usual
+        # `{"template": ["..."]}` shape nested under the field name. It is
+        # raised as CodedValidationError, not ValidationError, so DRF's
+        # `as_serializer_error()` does not coerce the values into single-item
+        # lists: `code` is a plain string, the 1.1 shape a caller compares
+        # with `body.code === "unknown_template"` (#1660). `template` is a
         # public, documented request field (docs/api/boards.md) and an
         # unknown slug is a distinct, machine-checkable failure mode a
         # caller needs to branch on (e.g. a stale client's saved slug vs.
@@ -2812,10 +2814,10 @@ class BoardSerializer(serializers.ModelSerializer):
         template_slug = (attrs.get("template") or "").strip()
         if template_slug:
             if not BoardTemplate.objects.filter(slug=template_slug, is_active=True).exists():
-                raise serializers.ValidationError({
-                    "code": "unknown_template",
-                    "detail": f"Unknown board template: {template_slug!r}.",
-                })
+                raise CodedValidationError(
+                    "unknown_template",
+                    f"Unknown board template: {template_slug!r}.",
+                )
             attrs["template"] = template_slug
         else:
             # Omitted, blank, or null all mean "use the default" — only an

@@ -68,10 +68,9 @@ const ERROR_COPY: Record<string, string> = {
 const GENERIC_ADD_ERROR = "Could not add the relation. Try again.";
 
 function errorCopy(err: unknown): string {
-  const raw = (err as { response?: { data?: { code?: string | string[] } } })?.response?.data?.code;
-  // DRF coerces a `.validate()` dict's scalar values into single-item lists.
-  const code = Array.isArray(raw) ? raw[0] : raw;
-  return (code && ERROR_COPY[code]) || GENERIC_ADD_ERROR;
+  // `code` is always a plain string (the 1.1 error shape, #1660).
+  const code = (err as { response?: { data?: { code?: unknown } } })?.response?.data?.code;
+  return (typeof code === "string" && ERROR_COPY[code]) || GENERIC_ADD_ERROR;
 }
 
 /**

@@ -34,7 +34,7 @@ Create a board.
 
 | Status | Body | Condition |
 |---|---|---|
-| `400 Bad Request` | `{"code": ["unknown_template"], "detail": ["Unknown board template: '...'."]}` | `template` was sent as a non-blank value that doesn't match an active template's slug. This is deliberately distinct from a generic per-field validation error — a stale or mistyped `template` value previously created a `simple_kanban` board with a `201` instead of surfacing the mistake (#1115). |
+| `400 Bad Request` | `{"code": "unknown_template", "detail": "Unknown board template: '...'."}` (both plain strings, #1660) | `template` was sent as a non-blank value that doesn't match an active template's slug. This is deliberately distinct from a generic per-field validation error — a stale or mistyped `template` value previously created a `simple_kanban` board with a `201` instead of surfacing the mistake (#1115). |
 
 ### `GET /api/v1/boards/{id}/`
 Get board summary. Response includes:
