@@ -583,7 +583,7 @@ The connection indicator in the toolbar reflects the WebSocket connection to `/w
    docker compose -f docker-compose.prod.yml exec backend python manage.py shell -c "from django.core.cache import cache; cache.set('healthcheck', 'ok'); print(cache.get('healthcheck'))"
    ```
 
-3. **`ALLOWED_HOSTS` missing your domain** — Django rejects WebSocket handshakes from unlisted hosts. Confirm `ALLOWED_HOSTS=yourdomain.com` is set in `.env`.
+3. **`ALLOWED_HOSTS` missing your domain** — A handshake whose `Origin` matches neither `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS` nor a host in `ALLOWED_HOSTS` is refused with `403`. Confirm `ALLOWED_HOSTS=yourdomain.com` is set in `.env`.
 
 4. **Nginx not proxying `/ws/`** — Verify the nginx container started without errors and that its config includes the WebSocket location block:
    ```bash

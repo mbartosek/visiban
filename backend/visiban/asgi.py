@@ -8,6 +8,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "visiban.settings")
 django.setup()
 
 from accounts.ws_auth import TicketAuthMiddleware  # noqa: E402 — must be after setup()
+from accounts.ws_origin import OptionalOriginValidator  # noqa: E402
 from boards.routing import websocket_urlpatterns as board_ws_patterns  # noqa: E402
 from groups.routing import websocket_urlpatterns as group_ws_patterns  # noqa: E402
 
@@ -41,8 +42,13 @@ application = ProtocolTypeRouter(
         # extension point above is deliberately untouched, since enterprise
         # registers against its current shape.
         "http": mount_mcp_server(get_asgi_application()),
-        "websocket": AuthMiddlewareStack(
-            TicketAuthMiddleware(URLRouter(websocket_urlpatterns))
+        # OptionalOriginValidator is outermost: a present Origin header must
+        # match the configured origins; a missing one (non-browser ticket
+        # clients) passes through to the auth middleware unchanged.
+        "websocket": OptionalOriginValidator(
+            AuthMiddlewareStack(
+                TicketAuthMiddleware(URLRouter(websocket_urlpatterns))
+            )
         ),
     }
 )

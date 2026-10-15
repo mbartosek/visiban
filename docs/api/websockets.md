@@ -27,6 +27,8 @@ There are two ways to authenticate the handshake:
 
 - **Ticket** (since 1.2) — used by token-authenticated clients. See [Ticket authentication](#ticket-authentication-since-12) below.
 
+When a handshake carries an `Origin` header (browsers always send one), it must match a configured origin: an entry in `CORS_ALLOWED_ORIGINS` or `CSRF_TRUSTED_ORIGINS`, or an origin whose host matches `ALLOWED_HOSTS`. A handshake whose `Origin` matches none of these is refused before authentication. Clients that send no `Origin` header (CLI, native, and agent clients using a ticket) are not affected. The host match ignores both the scheme and the port (an `http` origin matches an `https` host). A leading-dot entry such as `.example.com` matches that domain and every subdomain, and `*` matches every host, so with either entry the host match accepts every origin whose host the entry covers. List exact hostnames in `ALLOWED_HOSTS` (or exact origins in `CORS_ALLOWED_ORIGINS`) to keep the check narrow. An `Origin` that includes credentials, a path, a query, or a fragment, or more than one `Origin` header, is refused. Existing installs need no new settings.
+
 The server checks board membership before completing the handshake, regardless of which method authenticated the connection. The connection is closed with one of two application-defined codes if either check fails:
 
 | Close code | Meaning |
