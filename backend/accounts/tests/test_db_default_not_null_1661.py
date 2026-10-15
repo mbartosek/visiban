@@ -45,16 +45,18 @@ class DbDefaultNotNullColumnsTests(TestCase):
 
     def test_raw_insert_omitting_columns_succeeds(self):
         """Mimic an old pod: INSERT names only the pre-existing columns."""
-        table = connection.ops.quote_name(SiteSetting._meta.db_table)
+        # Literal table name, no interpolation: bandit B608 / semgrep flag any
+        # string-built SQL, and the assert pins it to the model's real table.
+        self.assertEqual(SiteSetting._meta.db_table, "accounts_sitesetting")
         with connection.cursor() as cursor:
             cursor.execute(
-                f"INSERT INTO {table} (id, registration_mode, uploads_enabled) "
-                "VALUES (%s, %s, %s)",
+                "INSERT INTO accounts_sitesetting "
+                "(id, registration_mode, uploads_enabled) VALUES (%s, %s, %s)",
                 [99, "open", True],
             )
             cursor.execute(
-                f"SELECT maintenance_mode, maintenance_message FROM {table} "
-                "WHERE id = %s",
+                "SELECT maintenance_mode, maintenance_message "
+                "FROM accounts_sitesetting WHERE id = %s",
                 [99],
             )
             mode, message = cursor.fetchone()
