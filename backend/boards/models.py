@@ -140,8 +140,11 @@ class Board(models.Model):
             "Compact / Expanded* toolbar pref. Validated at the serializer layer."
         ),
     )
+    # ``db_default`` keeps the DB-level default so an old pod's INSERT that omits
+    # this column survives a rolling deploy (#1661).
     show_wip_at_limit = models.BooleanField(
         default=False,
+        db_default=False,
         help_text=(
             "When enabled, a column's header stat row shows a calm 'WIP n/n' "
             "indicator (in place of the normal card count) once the column's "

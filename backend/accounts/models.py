@@ -201,6 +201,7 @@ class SiteSetting(models.Model):
     # (never NOT NULL without a default) per the zero-downtime migration rule.
     maintenance_mode = models.BooleanField(
         default=False,
+        db_default=False,
         help_text="When True, non-admin write requests are rejected with 503 and all users see a maintenance notice.",
     )
     # The 1000-character cap is also declared on the admin serializer, which is
@@ -213,6 +214,7 @@ class SiteSetting(models.Model):
     maintenance_message = models.TextField(
         blank=True,
         default="",
+        db_default="",
         validators=[MaxLengthValidator(MAINTENANCE_MESSAGE_MAX_LENGTH)],
         help_text="Plain-text notice shown to users while maintenance mode is active. Blank uses the built-in default.",
     )
@@ -461,7 +463,10 @@ class User(AbstractUser):
     # own is due" while the only thing it actually gated was the staleness scan.
     # Existing values are copied across in the migration, so no user's effective
     # staleness setting changes.
-    notif_stale = models.BooleanField(default=False)
+    # The email_notif_* and notif_stale fields carry ``db_default`` as well as
+    # ``default``: AddField drops the column default on PostgreSQL, so an old pod
+    # inserting a User mid-rolling-deploy would otherwise hit NOT NULL (#1661).
+    notif_stale = models.BooleanField(default=False, db_default=False)
 
     # --- Email notification preferences (#356) ----------------------------
     # Outbound email for the in-app events above that support it (four from #356,
@@ -477,14 +482,14 @@ class User(AbstractUser):
     # Email rides on the in-app notification: the row is what triggers delivery,
     # so an email preference is inert while its in-app counterpart is off. The
     # settings UI disables it and says so.
-    email_notif_card_assigned = models.BooleanField(default=False)
-    email_notif_mentioned = models.BooleanField(default=False)
-    email_notif_due_soon = models.BooleanField(default=False)
-    email_notif_card_moved = models.BooleanField(default=False)
+    email_notif_card_assigned = models.BooleanField(default=False, db_default=False)
+    email_notif_mentioned = models.BooleanField(default=False, db_default=False)
+    email_notif_due_soon = models.BooleanField(default=False, db_default=False)
+    email_notif_card_moved = models.BooleanField(default=False, db_default=False)
     # Added by #1295 for the #1277 COMMENT_ADDED notification. Same default-False
     # rule as the four above, for the same reason: an upgrade must not start
     # mailing card watchers about every comment.
-    email_notif_comment_added = models.BooleanField(default=False)
+    email_notif_comment_added = models.BooleanField(default=False, db_default=False)
     date_format = models.CharField(max_length=16, blank=True, default="MM/DD/YYYY")
     time_format = models.CharField(max_length=4, blank=True, default="12h")
     number_locale = models.CharField(max_length=16, blank=True, default="en-US")
