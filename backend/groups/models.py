@@ -24,6 +24,34 @@ _GROUP_TRAVERSAL_MAX_DEPTH = 6
 GROUP_PARENT_CHAIN = "group" + "__parent" * _GROUP_TRAVERSAL_MAX_DEPTH
 
 
+def user_has_group_access(user, group):
+    """True if ``user`` is a member of ``group`` or of any of its ancestors.
+
+    The single predicate behind REST ``_require_group_member`` and the
+    ``GroupConsumer`` WebSocket check, so the two transports cannot drift.
+    Access inherits downward only: membership in a subgroup grants nothing on
+    its parent (contrast ``get_accessible_group_ids``, which also walks up for
+    sidebar navigation).
+
+    Ancestor PKs are collected in one traversal (capped at
+    ``_GROUP_TRAVERSAL_MAX_DEPTH``) and checked with one batched membership
+    query to avoid N+1 on deep trees. ``can_access_all_content`` bypasses.
+    """
+    if getattr(user, "can_access_all_content", False):
+        return True
+    ancestor_ids = []
+    node = group
+    depth = 0
+    while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
+        ancestor_ids.append(node.pk)
+        node = node.parent
+        depth += 1
+    return GroupMembership.objects.filter(
+        group_id__in=ancestor_ids,
+        user=user,
+    ).exists()
+
+
 def get_accessible_group_ids(user):
     """
     Return all group IDs accessible to user: groups where they are a direct
