@@ -38,8 +38,12 @@ Flag each of the following as 🔴 **Blocking** (must be addressed before merge)
   
   The fix is `visiban.db_operations` (`AddIndexConcurrently`, or `AddConstraintNotValid` + `ValidateConstraint` for a check constraint) with `atomic = False` on the `Migration` class; a unique constraint needs `SeparateDatabaseAndState` plus a vendor-guarded `CREATE UNIQUE INDEX CONCURRENTLY`, because `NOT VALID` is not accepted for uniqueness. The escape hatch is an inline `# concurrency-exempt: <reason>` comment with a real reason. Verify with `cd backend && python manage.py check_migration_concurrency`, and see `docs/development/database-migrations.md`.
 
+- **A `NOT NULL` column added with only a Python-level `default=` to a table that old code still INSERTs into** — on PostgreSQL Django drops the column default after `AddField`, so during a rolling deploy an old pod's INSERT that does not name the new column fails with an IntegrityError until it drains. Any table that is written on a user-facing path (signup, login, board or card creation, membership changes) qualifies. The fix is `db_default=` on the field (Django 5) so the database keeps the default; an additive `AlterField` is acceptable for a migration that has already shipped. Read the existing `db_default` usages in recent migrations for the house pattern.
+
 **🟡 Risky (requires explicit acknowledgement):**
-- Adding a new `NOT NULL` field with a `default` — safe but locks the table on large tables in PostgreSQL
+- Adding a new `NOT NULL` field with `db_default` — safe for rolling deploys. On PostgreSQL 11+ a constant default is a metadata-only change, but it still takes a brief `ACCESS EXCLUSIVE` lock that can queue behind long transactions; a volatile default rewrites the table
+- A `RunPython` UPDATE in the same transaction as the `AddField` that precedes it — holds the schema lock for the duration of the UPDATE; split it or confirm the table is small
+- A data migration that overwrites rows by natural key (slug, name) — confirm it cannot clobber admin edits, and that the reverse restores prior values rather than constants
 - Changing a field type (e.g. `CharField` → `TextField`) — usually safe in PostgreSQL but confirm
 - Data migrations (`RunPython`) — verify idempotency and that they handle empty tables
 
@@ -52,7 +56,7 @@ If a migration file exists or is being created:
 
 ### 4. Multi-step deploy recommendation
 For any 🔴 blocking pattern, recommend the safe multi-step sequence:
-1. **Step 1**: Make the column nullable / add with default / keep old column (deploy)
+1. **Step 1**: Make the column nullable / add with a database default (`db_default`) / keep old column (deploy)
 2. **Step 2**: Backfill data if needed (deploy or management command)
 3. **Step 3**: Add `NOT NULL` constraint / remove old column (deploy after confirming step 2 complete)
 

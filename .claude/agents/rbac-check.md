@@ -36,8 +36,8 @@ Every non-public endpoint must require authentication. Check:
 
 For any endpoint that accesses board-scoped resources:
 - Does it call `get_board_role(request.user, board)` or equivalent?
-- Does it return 403 (not 404) when the user is authenticated but not a member?
-- Does it return 404 for boards that don't exist (don't leak existence to non-members)?
+- Does it return the **same** response (404) for a board that does not exist and for one the caller cannot access, whether the target arrives in the URL or in the request body? Do not leak existence to non-members.
+- Some older nested routes still answer 403 for an inaccessible-but-existing board. That is existing behavior, not a pattern to copy; changing the status code is an API change that needs its own compatibility decision.
 
 ### 3. Verify role enforcement per action
 
@@ -55,6 +55,15 @@ For each HTTP method on the endpoint:
 | POST (invite member, change role) | Admin |
 
 Flag any action where the role check is missing or too permissive.
+
+#### 3a. Request-supplied values that become stored authorization state
+
+Trace every value that arrives in `request.data` (or a writable serializer field) and is persisted as something the permission ladder later reads: a role, a permission flag, a scope, a membership, or a foreign key that places an object inside a container. For each:
+
+- **Validate at the boundary.** Check the value against the model's allowed set where it is accepted; Django `choices` are not enforced on `save()`.
+- **Fail closed.** Code that reads a stored authorization value must treat an unrecognized value as "no access".
+- **Match the canonical path.** Every write path that reaches the same state (create, update, move, import, re-parent) requires the same checks as the dedicated endpoint for it.
+- **Respond uniformly.** A missing target and a forbidden target should be indistinguishable to the caller.
 
 ### 4. Verify cross-board isolation
 
@@ -75,6 +84,12 @@ If the diff touches a `Consumer` class (board, group, or any other channel tied 
 - **Self-eviction on removal**: when the consumer's event handler receives a membership-removal event (e.g. `EVT_MEMBER_REMOVED`) whose subject is the connected user, does it close the socket? A consumer that only re-broadcasts removal events to *other* subscribers, without checking whether the removed user is the one currently connected, leaves a standing live connection to a channel the user no longer belongs to. Check every `*_event` handler on every consumer for this self-check — a consumer added by copying an existing one may have inherited the broadcast-forwarding but not the self-eviction guard (this was missed for `GroupConsumer` when it was added alongside the already-fixed `BoardConsumer`, see #1329).
 - **Role refreshed on demotion, not just on removal**: if the consumer caches a permission/role value on `connect()` (e.g. `self._role`) and uses it to gate per-recipient field visibility on later frames (e.g. stripping `is_moderator`/`is_site_admin` for non-admins), does it also refresh that cached value when a role-change event (not just a removal event) names the connected user? A consumer that only handles the removal case will keep applying the connect-time role to every subsequent frame after a demotion, over-exposing fields that should now be stripped (see #1332 — the inverse of the more commonly-checked under-exposure case).
 
+- **Access predicate parity with REST**: for each consumer, compare the predicate that admits a connection (and the periodic re-check) with the permission the REST endpoint enforces for the *same data*. It must be no broader, including any inheritance rules. Read both predicates; a comment asserting they match is not evidence.
+
+### Anonymous endpoints
+
+For every endpoint with no authentication, confirm that failure responses carry no exception text or infrastructure details. Log server-side and return a status only.
+
 ### Security invariants registry
 
 Read `docs/development/security-invariants.md`. If the diff touches a rule listed there (account-state gates, access revocation, grants and their revocation paths, consume-once tokens, import user scoping), check every surface in that rule's table, not only the surface in the diff, and report any sibling surface that does not enforce the rule as a finding. Report such a finding to the maintainer privately or file it as a confidential issue; never paste it into an MR description, commit message or public doc.
@@ -92,6 +107,8 @@ For each gap, give the specific fix:
 ```python
 # Missing role check — add to view method
 role = get_board_role(request.user, board)
+if role is None:
+    raise Http404  # same answer as a board that does not exist
 if role not in ("admin", "member"):
     return Response(status=status.HTTP_403_FORBIDDEN)
 ```

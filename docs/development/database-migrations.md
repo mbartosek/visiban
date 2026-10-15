@@ -63,6 +63,30 @@ earliest and production at the worst.
 
 ---
 
+### A NOT NULL column with a default
+
+A `NOT NULL` column added with only a Python-level `default=` is safe for the rows that already
+exist, but not for a rolling deploy. On PostgreSQL, Django adds the column with the default and then
+**drops the database default** at the end of `AddField`. Old application pods keep running during the
+rollout, and an `INSERT` from one of them that does not name the new column then fails with a
+`NOT NULL` violation until that pod drains. Any table written on a user-facing path (signup, login,
+board or card creation, membership changes) is exposed.
+
+Use `db_default=` so the database keeps the default:
+
+```python
+migrations.AddField(
+    model_name="user",
+    name="example_flag",
+    field=models.BooleanField(default=False, db_default=False),
+)
+```
+
+Put the same `db_default` on the model field so `makemigrations --check` stays clean. A migration
+that has already shipped gets an additive `AlterField` rather than an edit in place. The
+`check_migration_constraint_safety` scan below accepts any `default=` and so does not catch this;
+`migration-check` does.
+
 ## Adding an index
 
 Use `AddIndexConcurrently` from `visiban.db_operations` and set `atomic = False` on the
