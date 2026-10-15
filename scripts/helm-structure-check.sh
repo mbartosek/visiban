@@ -1859,6 +1859,34 @@ self_test() {
     selftest_failures=$((selftest_failures + 1))
   fi
 
+  # Negative control for --lint-tmp (#1646): a lint that always passes would
+  # leave the per-run-temp-dir rule unenforced. The literal path is built from
+  # pieces so this block does not trip the lint on this very file.
+  local lt="$tmp/lint-tmp" lt_bad='/''tmp/x.log' lt_out
+  local lt_self="$REPO_ROOT/scripts/helm-structure-check.sh" lt_file lt_ok=1
+  mkdir -p "$lt"
+  for lt_file in helm-structure-check.sh helm-install-drill.sh; do
+    printf '# mentions %s in a comment only\n:\n' "$lt_bad" > "$lt/$lt_file"
+  done
+  LINT_TMP_DIR="$lt" bash "$lt_self" --lint-tmp >/dev/null 2>&1 || lt_ok=0
+  for lt_file in helm-structure-check.sh helm-install-drill.sh; do
+    cp "$lt/$lt_file" "$lt/$lt_file.keep"
+    printf 'echo hi > %s\n' "$lt_bad" >> "$lt/$lt_file"
+    if lt_out="$(LINT_TMP_DIR="$lt" bash "$lt_self" --lint-tmp 2>&1)"; then
+      lt_ok=0
+    elif ! printf '%s' "$lt_out" | grep -q "scripts/$lt_file"; then
+      lt_ok=0
+    fi
+    mv "$lt/$lt_file.keep" "$lt/$lt_file"
+  done
+  if [ "$lt_ok" -eq 1 ]; then
+    echo "  ✓ --lint-tmp: flags a literal temp path in each covered file, ignores comments"
+    passes=$((passes + 1))
+  else
+    echo "  ✗ SELF-TEST FAIL: --lint-tmp did not flag a temp path in a covered file, or flagged a comment" >&2
+    selftest_failures=$((selftest_failures + 1))
+  fi
+
   echo
   if [ "$selftest_failures" -gt 0 ]; then
     echo "SELF-TEST FAILED: $selftest_failures of $((passes + selftest_failures)) cases" >&2
@@ -1875,12 +1903,19 @@ if [ "${1:-}" = "--lint-tmp" ]; then
   # trip), and /var/tmp. Comment lines are skipped. The pattern is built from
   # pieces so this block does not match itself.
   lint_re='/(var/)?''tmp([^[:alnum:]_]|$)'
-  if hits="$(grep -nE -- "$lint_re" "$REPO_ROOT/scripts/helm-structure-check.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
-    echo "FAIL: hardcoded temp path in scripts/helm-structure-check.sh; use \$RUN_TMP:" >&2
-    echo "$hits" >&2
-    exit 1
-  fi
-  echo "PASSED: no literal temp paths in scripts/helm-structure-check.sh"
+  # LINT_TMP_DIR lets the self-test point the lint at a throwaway tree.
+  lint_dir="${LINT_TMP_DIR:-$REPO_ROOT/scripts}"
+  # #1646: the install drill is covered by the same lint.
+  lint_rc=0
+  for lint_file in helm-structure-check.sh helm-install-drill.sh; do
+    if hits="$(grep -nE -- "$lint_re" "$lint_dir/$lint_file" | grep -vE '^[0-9]+:[[:space:]]*#')"; then
+      echo "FAIL: hardcoded temp path in scripts/$lint_file; use \$RUN_TMP:" >&2
+      echo "$hits" >&2
+      lint_rc=1
+    fi
+  done
+  [ "$lint_rc" -eq 0 ] || exit 1
+  echo "PASSED: no literal temp paths in scripts/helm-structure-check.sh or scripts/helm-install-drill.sh"
   exit 0
 fi
 
