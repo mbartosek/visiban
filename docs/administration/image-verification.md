@@ -12,9 +12,9 @@ pushed by Visiban's release pipeline rather than trusting the registry:
 
 Signatures and attestations are stored in the same registry as the image, so each registry
 carries its own copy. Verify against the registry you actually pull from. GHCR keeps its
-copies indefinitely. On the GitLab registry, the current cleanup policy can sweep signature
-and attestation tags about 90 days after a release, even though the image itself is kept.
-Extending the policy is tracked in [#1541](https://gitlab.com/visiban/visiban/-/issues/1541).
+copies indefinitely. On the GitLab registry, the cleanup policy's keep-regex protects
+signature and attestation tags, so they are kept as long as the image
+([#1541](https://gitlab.com/visiban/visiban/-/issues/1541)).
 A nightly CI job, `check-release-attestations`, re-verifies the newest signed releases' signatures and SBOM
 attestations on both registries (releases cut before image signing shipped are skipped unless backfilled) so a sweep or delete does not go unnoticed. See
 [CI gate self-tests](../development/ci-gates.md).
@@ -45,7 +45,8 @@ cosign verify ghcr.io/visiban/visiban/backend:v1.2.0 \
 `--certificate-identity` with that exact URL also works on `cosign verify-attestation` and on
 the chart. A release that was signed later by the backfill job needs a wider identity, which
 the exact form never matches. It is described in [Older releases](#older-releases). Use that
-wider identity only for those versions, and on the GitLab registry after a sweep (below).
+wider identity only for those versions, and on the GitLab registry for a release whose
+signatures were re-attached (below).
 
 Keep the regexp anchored (`^...$`) as shown. A loose pattern such as `gitlab\.com/visiban/visiban`
 also matches other projects whose path starts the same way, such as `visiban/visiban-enterprise`.
@@ -129,15 +130,14 @@ signature does not satisfy them, so the tag job signs anyway. On GHCR, every rel
 after this feature shipped therefore verifies with the tag-only `IDENTITY`, even if the
 backfill job touched those digests first.
 
-**Exception: the GitLab registry after a cleanup sweep.** Until its keep-regex is extended
-([#1541](https://gitlab.com/visiban/visiban/-/issues/1541)), the GitLab registry deletes a
-release's signature and attestation tags about 90 days after it ships. If the backfill job
-re-attaches them, the new copies on `registry.gitlab.com/visiban/visiban` carry the
-`@refs/heads/main` identity. The tag-only `IDENTITY` and the exact-release form then **fail**
-for that release on that registry. Use the backfill regexp below for it. The same release
-on GHCR still verifies with the tag-only identity, because GHCR never sweeps. Once #1541's
-keep-regex is applied, tag-pipeline signatures are no longer swept and this exception stops
-arising for new releases.
+**Exception: a GitLab registry release whose signatures were re-attached.** The GitLab
+registry's cleanup keep-regex protects signature and attestation tags
+([#1541](https://gitlab.com/visiban/visiban/-/issues/1541)), so tag-pipeline signatures are
+not swept. If they are deleted anyway (for example by hand) and the backfill job re-attaches
+them, the new copies on `registry.gitlab.com/visiban/visiban` carry the `@refs/heads/main`
+identity. The tag-only `IDENTITY` and the exact-release form then **fail** for that release on
+that registry. Use the backfill regexp below for it. The same release on GHCR still verifies
+with the tag-only identity, because GHCR never sweeps.
 
 A backfilled release's certificate identity ends in `@refs/heads/main` rather than
 `@refs/tags/v…`, because a released tag cannot be re-run without moving it. The tag-only

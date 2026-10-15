@@ -29,7 +29,7 @@ registry-retention half and digest pinning.
 
 ## GitLab container registry
 
-Recorded 2026-10-01 via:
+Recorded 2026-10-14 via:
 
 ```bash
 glab api "projects/visiban%2Fvisiban" | jq '.container_expiration_policy'
@@ -42,8 +42,8 @@ glab api "projects/visiban%2Fvisiban" | jq '.container_expiration_policy'
   "keep_n": 10,
   "older_than": "90d",
   "name_regex": ".*",
-  "name_regex_keep": "^(v[0-9]+\\.[0-9]+\\.[0-9]+(-(alpha|beta|rc)\\.[0-9]+)?|latest)\\z",
-  "next_run_at": "2026-10-02T16:35:33.317Z"
+  "name_regex_keep": "^(v[0-9]+\\.[0-9]+\\.[0-9]+(-(alpha|beta|rc)\\.[0-9]+)?|latest|sha256-[0-9a-f]{64}\\.(sig|att))\\z",
+  "next_run_at": "2026-10-15T22:10:00.561Z"
 }
 ```
 
@@ -63,37 +63,36 @@ this policy against Visiban's actual tag set:
   stops working the moment `main` goes 90+ days without a merge to either image while 10
   other tags get pushed in the meantime. #1190 closes that gap unconditionally instead of
   relying on development cadence.
+- **cosign `sha256-<64 hex>.sig`/`.att` tags are unconditionally protected (#1541).** See
+  [Signature and SBOM attestation tags](#signature-and-sbom-attestation-tags-1153) below.
+- **Everything else is swept** by `keep_n: 10` / `older_than: 90d`: the per-arch
+  `-amd64`/`-arm64` working tags, `MAJOR.MINOR` aliases, `:main` and short-SHA tags (see the
+  sections below).
 
 ### Signature and SBOM attestation tags (#1153)
 
 Since 1.2, cosign stores each release image's signatures and SBOM attestations in the same
 repository as **tags** named `sha256-<64 hex>.sig` and `sha256-<64 hex>.att` (one per signed or
-attested digest). The keep-regex recorded above does not match them, so they fall under the
-ordinary `keep_n: 10` / `older_than: 90d` sweep. **On the GitLab registry, a release's
-signatures and SBOMs are deleted about 90 days after it ships, while the image itself
-survives**, and `cosign verify` against `registry.gitlab.com/visiban/visiban` starts failing
-with `no signatures found`. GHCR has no cleanup policy, so its copies are unaffected.
+attested digest). The live keep-regex recorded above matches exactly that shape
+(`sha256-` plus 64 lowercase hex characters plus `.sig` or `.att`), so the cleanup policy
+never sweeps them, on either the release index digest or the platform digests the per-arch
+`-amd64`/`-arm64` tags pointed at. GHCR has no cleanup policy, so its copies are unaffected
+too. This protection was added by [#1541](https://gitlab.com/visiban/visiban/-/issues/1541)
+(see [#1541 update](#1541-update-cosign-sigatt-tags-added-to-the-keep-regex) below). Before
+it, these tags fell under the `keep_n: 10` / `older_than: 90d` sweep; no signed release had
+reached the 90-day mark by the time the keep-regex went live, so nothing was lost.
 
-Until the policy is extended (tracked in
-[#1541](https://gitlab.com/visiban/visiban/-/issues/1541)), verify against GHCR (see
-[Verifying release images](image-verification.md)). To keep the GitLab copies, a maintainer
-adds the cosign tag shape to `name_regex_keep` (the apply command and resulting policy are in
-[#1541 update](#1541-update-cosign-sigatt-tags-added-to-the-keep-regex) below):
+#1541 is still open for its second acceptance criterion: the nightly
+`check-release-attestations` job must confirm that a signed release older than 90 days still
+verifies on the GitLab registry. The first signed release (`v1.2.0-beta.1`, 2026-10-12) reaches
+that age around 2027-01-10.
 
-```text
-^(v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?|latest|sha256-[0-9a-f]{64}\.(sig|att))\z
-```
-
-This also keeps signatures for intermediate `-amd64`/`-arm64` digests. Those are the same
-digests the release index points at, so keeping them is intended. Record the change here
-the same way #1190 was recorded. The `image-attest-backfill` CI job can re-attach any
-signatures and SBOMs that were already swept, but the re-attached copies carry the backfill
+If a signature or SBOM tag is ever deleted anyway (for example by hand), the
+`image-attest-backfill` CI job can re-attach it, but the re-attached copy carries the backfill
 job's `@refs/heads/main` identity, not the original release tag's. For that release, the
 GitLab registry copy then **fails** the tag-only (and exact-release) verification identity
 that [Verifying release images](image-verification.md) recommends. It needs the main-or-tag
-backfill regexp from that page. The GHCR copy is unaffected. Applying the keep-regex above
-([#1541](https://gitlab.com/visiban/visiban/-/issues/1541)) avoids this entirely, because the
-original tag-pipeline signatures are then never swept.
+backfill regexp from that page. The GHCR copy is unaffected.
 
 The nightly `check-release-attestations` job
 ([#1542](https://gitlab.com/visiban/visiban/-/issues/1542)) checks that the newest signed releases'
@@ -105,10 +104,11 @@ how to re-attach a backfilled release.
 !!! warning "Cleaning up per-arch tags (#1196) must keep the platform manifests"
     The `-amd64`/`-arm64` intermediate tags point at the same platform manifests the release
     index references, and those digests carry the signatures and SBOM attestations. Any
-    cleanup done for [#1196](https://gitlab.com/visiban/visiban/-/issues/1196) may remove the
-    intermediate **tags**, but it must not delete the platform **manifests** or their
-    `sha256-<digest>.sig`/`.att` tags. Deleting them breaks `docker pull` for that platform
-    and removes its signature and SBOM.
+    cleanup of them may remove the intermediate **tags**, but it must not delete the platform
+    **manifests** or their `sha256-<digest>.sig`/`.att` tags. Deleting them breaks
+    `docker pull` for that platform and removes its signature and SBOM. How #1196 resolved
+    this on each registry is under
+    [Per-arch working tags (#1196)](#per-arch-working-tags-1196).
 
 ### History: the semver-anchored form predates #1190
 
@@ -141,10 +141,8 @@ when #1190 began, and this page is only now catching up to it.
   GitLab registry they therefore fall back to the ordinary `keep_n: 10`/`older_than: 90d`
   sweep that `name_regex: ".*"` subjects everything else to — they get cleaned up in due
   course, not retained forever, as a direct result of the 2026-09-27 tightening above. On
-  GHCR there is still no cleanup mechanism at all (see below), so they accumulate there
-  unconditionally regardless of tag shape. Whether reclaiming them only after a `keep_n`/90d
-  wait (versus immediately after manifest assembly) is good enough is a separate question
-  still tracked in **#1196**.
+  GHCR they are still kept, because no safe removal exists yet ([#1650](https://gitlab.com/visiban/visiban/-/issues/1650)). See [Per-arch working tags (#1196)](#per-arch-working-tags-1196)
+  for why each registry is handled the way it is.
 - **`MAJOR.MINOR` alias tags (e.g. `1.2`) are also not protected.** For a stable release,
   `backend-manifest`/`frontend-manifest` additionally alias the manifest onto a bare
   `MAJOR.MINOR` tag with the leading `v` stripped (`manifest-tool ... --tags latest,1.2` from
@@ -155,6 +153,67 @@ when #1190 began, and this page is only now catching up to it.
   tags specifically — it reads as an incidental consequence of the per-arch-tag anchoring
   above rather than a considered choice, and should be treated as unrecorded, not intended,
   until someone confirms otherwise.
+
+### Per-arch working tags (#1196)
+
+Each release pushes `<tag>-amd64` and `<tag>-arm64` to both registries so `manifest-tool` can
+assemble the multi-arch `:<tag>` index. The index references the two platform manifests **by
+digest**, not by tag. Those same digests carry the cosign signatures and SBOM attestations
+(`sha256-<digest>.sig`/`.att`, #1153). `attest-image-sbom.sh` and
+`check-release-attestations.sh` read the digests from the published index, and nothing after
+`backend-manifest`/`frontend-manifest` reads the `-amd64`/`-arm64` tags. (The SBOM's
+`metadata.component.version`, for example `v1.2.0-arm64`, is a label syft is given, not a
+reference to the tag.) So once the index exists, the per-arch **tag** is a disposable label,
+while the platform **manifest** it points at must stay.
+
+That distinction decides what each registry can safely do:
+
+| | What a delete removes | Mechanism used | Result |
+|---|---|---|---|
+| **GitLab registry** | The cleanup policy deletes **tags**, not the manifests behind them. GitLab's registry garbage collection should not remove a manifest that an index still references. That is GitLab's documented behavior, not something this repo checks; confirming it on the first real sweep (around 2026-12-28) is tracked in [#1651](https://gitlab.com/visiban/visiban/-/issues/1651), due 2026-12-14. | The existing cleanup policy. `name_regex_keep` does not match `-amd64`/`-arm64`-suffixed tags, so they fall under `keep_n: 10` / `older_than: 90d`. | Per-arch tags removed about 90 days after the release; the index and the platform manifests it references stay. The `.sig`/`.att` tags on those platform digests are protected by the live keep-regex (#1541), so neither a per-arch sweep nor the policy itself removes them (see [Signature and SBOM attestation tags](#signature-and-sbom-attestation-tags-1153)). |
+| **GHCR** | GHCR has no tag-only delete. GitHub's API deletes a **package version**, and a version is a manifest digest: deleting the version that carries `v1.2.0-amd64` deletes the amd64 platform manifest itself, along with every tag on it. | None yet. No safe tag-only removal is in place; tracked in [#1650](https://gitlab.com/visiban/visiban/-/issues/1650). | Two extra tag names per image per release. They add no storage: each labels a manifest the release index needs anyway. |
+
+**Why not delete them right after manifest assembly (#1196 option 1).** On GHCR a direct
+version delete would break `docker pull` on that platform and orphan its signature and SBOM.
+The known workaround is to push a throwaway manifest onto the per-arch tag (moving the tag off
+the platform manifest) and then delete the throwaway version. That removes the tag, but it
+leaves the platform manifests as **untagged** versions, which the GHCR cleanup recipe in the
+warning below would then delete. It is not used here for that reason. On the GitLab registry a manifest-level delete (the registry
+`DELETE /v2/<repo>/manifests/<digest>` that `crane delete <repo>@<digest>` sends) has the same
+effect. Only GitLab's tag-delete API removes the tag alone, and the existing cleanup policy
+already removes these tags without adding a registry-delete credential to the tag pipeline.
+
+**The keep-regex is pinned by a test.** `scripts/tests/registry-keep-regex.test.sh` (CI job
+`registry-keep-regex-test`, on MRs touching this page, the test or `.gitlab-ci.yml`) reads the
+live `name_regex_keep` from the recorded-policy block at the top of the GitLab section (the one
+with `next_run_at`) and checks it against the tag shapes the pipeline pushes: release tags and
+`latest` kept, `-amd64`/`-arm64` tags (including pre-release ones like `v1.2.0-beta.1-arm64`)
+not kept, and exactly `sha256-<64 hex>.sig`/`.att` kept. It also reads three historical regexes
+and checks why each was replaced: the #1541 PUT body must equal the live regex, the #1190 PUT
+body must not keep `.sig`/`.att`, and the unanchored `v.*` from the history above must keep
+per-arch tags. It checks that `.gitlab-ci.yml` still uses the `-amd64`/`-arm64` suffixes, so a
+change to the naming scheme fails the test instead of slipping past the regex. Built-in
+negative controls prove it goes red when the live block loses the `.sig`/`.att` alternative,
+when the live block is unanchored, and when the #1190 PUT body is loosened to `v.*`. No other
+JSON on this page is read.
+
+!!! warning "A GHCR \"delete untagged versions\" workflow would break multi-arch releases"
+    The common GHCR cleanup recipe (for example `actions/delete-package-versions` with
+    `delete-only-untagged-versions: true`) treats an untagged version as garbage. Today the
+    `-amd64`/`-arm64` tags are what keep each platform manifest tagged on GHCR. If those tags
+    are ever removed, the platform manifests become untagged versions, and such a workflow
+    would delete them, breaking every multi-arch release on GHCR. A GHCR retention workflow
+    must exclude any version referenced by a release index. The same applies to every way of
+    getting rid of the per-arch tag names on GHCR: the throwaway-manifest workaround above, and
+    copying the assembled index from the GitLab registry to GHCR by digest instead of pushing
+    per-arch tags there (`crane copy` copies an index's platform manifests without tags). Both
+    leave the platform manifests untagged, so any GHCR cleanup must skip versions that an
+    index references.
+
+**The GHCR half of #1196 is not resolved by this change.** On GHCR the per-arch tag names
+still accumulate (two per image per release, with no extra storage). Removing them without
+deleting platform manifests is tracked in
+[#1650](https://gitlab.com/visiban/visiban/-/issues/1650).
 
 ### #1190 update: `latest` added to the keep-regex
 
@@ -169,20 +228,25 @@ glab api "projects/visiban%2Fvisiban" --method PUT \
 EOF
 ```
 
-Verified against the same `jq '.container_expiration_policy'` read above — see the recorded
-JSON at the top of this section. (Using `\z` rather than `$` anchors the regex to the true end
+Verified at the time against the same `jq '.container_expiration_policy'` read above; the
+policy recorded on 2026-10-01 carried exactly this regex. It has since been replaced by the
+#1541 regex below. (Using `\z` rather than `$` anchors the regex to the true end
 of string, not "end of line" — GitLab's cleanup policy regex is a Ruby `Regexp`, where `$`
 also matches before a trailing newline.)
 
 ### #1541 update: cosign `.sig`/`.att` tags added to the keep-regex
 
-The target policy that protects signature and SBOM attestation tags (the `sha256-<64 hex>.sig`
-and `.att` tags described above). It is the #1190 policy with one alternative appended; every
-other field is unchanged (the JSON below omits `next_run_at`, which GitLab sets itself).
-A Maintainer applies it (a project setting, not changeable from a branch).
+The policy that protects signature and SBOM attestation tags (the `sha256-<64 hex>.sig` and
+`.att` tags described above). It is the #1190 policy with one alternative appended; every other
+field is unchanged. A Maintainer applies it (a project setting, not changeable from a branch).
 
-**Status: NOT yet applied as of 2026-10-10** (the live policy is the JSON recorded above). A
-Maintainer must run the command, read it back, and replace this line with the apply date.
+**Status: live.** It was not live when this section was written on 2026-10-10, and the
+read-back on 2026-10-14 (the JSON at the top of this section) shows it applied. #1541 does not
+record the exact apply date. #1541 itself stays open until the nightly check confirms a release
+older than 90 days still verifies (see
+[Signature and SBOM attestation tags](#signature-and-sbom-attestation-tags-1153)).
+
+The command:
 
 ```bash
 glab api --method PUT "projects/visiban%2Fvisiban" \
@@ -192,30 +256,14 @@ glab api --method PUT "projects/visiban%2Fvisiban" \
 EOF
 ```
 
-Resulting policy (read back with the `jq '.container_expiration_policy'` command at the top of
-this section):
-
-```json
-{
-  "cadence": "1d",
-  "enabled": true,
-  "keep_n": 10,
-  "older_than": "90d",
-  "name_regex": ".*",
-  "name_regex_keep": "^(v[0-9]+\\.[0-9]+\\.[0-9]+(-(alpha|beta|rc)\\.[0-9]+)?|latest|sha256-[0-9a-f]{64}\\.(sig|att))\\z"
-}
-```
+The resulting policy is the JSON recorded at the top of this section.
 
 `name_regex_keep` is matched against the whole tag name, so the new alternative only protects
 tags that are exactly `sha256-` plus 64 lowercase hex characters plus `.sig` or `.att`. It does
 not protect other `sha256-*` tags, a bare `sha256-<hex>` tag, or longer or shorter hex strings.
 All tag shapes the previous regex kept (`vX.Y.Z`, `vX.Y.Z-alpha|beta|rc.N`, `latest`) are still
 kept. Per-arch tag cleanup ([#1196](https://gitlab.com/visiban/visiban/-/issues/1196)) must
-leave these tags alone for the same reason as the warning above. Once applied, three passages go
-stale and must be updated in the same change: in this page, "The keep-regex recorded above does
-not match them" and "Until the policy is extended" (both under "Signature and SBOM attestation
-tags"), and in [Verifying release images](image-verification.md), "the current cleanup policy
-can sweep signature and attestation tags". They are correct until the apply.
+leave these tags alone for the same reason as the warning above.
 
 ## GHCR (GitHub Container Registry)
 
@@ -229,9 +277,12 @@ Checked 2026-09-27: this repository's only GitHub Actions workflow is
 `.github/workflows/issue-bridge.yml` (unrelated — bridges GitLab issues to GitHub for
 visibility). **No workflow deletes GHCR package versions**, so GHCR-published `backend`/
 `frontend` images are not subject to any automated retention here — they persist until
-someone deletes them by hand. This includes the per-arch `-amd64`/`-arm64` tags #1084 added
-(see the GitLab registry section above) — GHCR has no keep-regex to even consider excluding
-them from, so they accumulate unconditionally until #1196 is addressed.
+someone deletes them by hand. This includes the per-arch `-amd64`/`-arm64` tags #1084 added.
+They are still kept on GHCR: a plain delete removes a whole package version, which for these
+tags is the platform manifest the release index, signature and SBOM depend on. Removing the tag
+names safely is tracked in [#1650](https://gitlab.com/visiban/visiban/-/issues/1650). See
+[Per-arch working tags (#1196)](#per-arch-working-tags-1196), including the warning there
+before adding any GHCR cleanup workflow.
 
 The `gh` CLI used for this audit was authenticated but its token lacked the `read:packages`
 scope needed to list package versions directly (`gh api orgs/visiban/packages` → 403). That
@@ -249,7 +300,8 @@ gh api "orgs/visiban/packages?package_type=container"
 
 If a retention workflow is ever added for GHCR, record its keep-rule here in the same shape
 as the GitLab section above, including whether it protects `v*` tags and `latest`
-unconditionally.
+unconditionally, and how it avoids deleting platform manifests that a release index
+references.
 
 ## The scheduled check: `check-release-images`
 
