@@ -334,7 +334,8 @@ After rolling back, restart the backend container with the previous image versio
 !!! note "Housekeeping for inactive accounts"
     `manage.py migrate` runs a one-time data migration (`groups/0018`) that removes personal
     access tokens and unused invite links belonging to inactive accounts. No operator action
-    is needed; it is idempotent.
+    is needed; it is idempotent. A companion migration (`accounts/0039`) likewise removes the
+    API auth tokens of inactive accounts.
 
 !!! warning "WIP and weight limits now apply to card create, restore, and weight changes"
     Before 1.2, a column's `wip_limit` and `weight_limit` were checked only when a card was

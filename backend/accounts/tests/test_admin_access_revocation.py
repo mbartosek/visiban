@@ -53,6 +53,28 @@ class DjangoAdminRevocationTests(TestCase):
             InviteLink.objects.filter(created_by=self.target, revoked_at__isnull=True).exists()
         )
 
+    def test_deactivation_revokes_auth_token(self):
+        from rest_framework.authtoken.models import Token
+
+        Token.objects.create(user=self.target)
+        other_token = Token.objects.create(user=self.other)
+        self._post(self.target, is_active="")
+        self.assertFalse(Token.objects.filter(user=self.target).exists())
+        self.assertTrue(Token.objects.filter(pk=other_token.pk).exists())
+
+    def test_reactivation_does_not_restore_auth_token(self):
+        from rest_framework.authtoken.models import Token
+        from rest_framework.test import APIClient
+
+        token = Token.objects.create(user=self.target)
+        self._post(self.target, is_active="")
+        self._post(self.target, is_active="on")
+        self.target.refresh_from_db()
+        self.assertTrue(self.target.is_active)
+        api = APIClient()
+        api.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        self.assertEqual(api.get("/api/v1/auth/user/").status_code, 401)
+
     def test_unrelated_user_untouched(self):
         self._post(self.target, is_active="")
         self.assertEqual(self.other.personal_access_tokens.count(), 1)
