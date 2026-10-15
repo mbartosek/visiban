@@ -148,6 +148,16 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         self.assertIsNone(self._deliver(consumer, _board_frame()))
         consumer.close.assert_called_once_with(code=4003)
 
+    def test_owner_without_a_membership_row_is_not_admitted(self):
+        """Matches the REST group endpoints, which gate on membership rows."""
+        lone_owner = User.objects.create_user(username="gar_lone_owner", password="pass")
+        group = Group.objects.create(name="GAR owned", owner=lone_owner)
+        GroupMembership.objects.filter(group=group, user=lone_owner).delete()
+        consumer = GroupConsumer()
+        user = User.objects.get(pk=lone_owner.pk)
+
+        self.assertFalse(asyncio.run(consumer._has_access(user, group.id)))
+
     def test_parent_member_is_admitted_to_the_parent_channel(self):
         consumer = GroupConsumer()
         user = User.objects.get(pk=self.subscriber.pk)

@@ -321,7 +321,7 @@ Pushes board create/update/delete events for boards that currently live in the g
 ws://<host>/ws/groups/<group_id>/
 ```
 
-Authentication uses the same two mechanisms as the board channel — session cookie, or a [ticket](#ticket-authentication-since-12) for token-authenticated clients. The server checks group membership (via `get_accessible_group_ids`) before completing the handshake and closes with the same `4001` / `4003` codes on failure.
+Authentication uses the same two mechanisms as the board channel — session cookie, or a [ticket](#ticket-authentication-since-12) for token-authenticated clients. The server checks that the user is a member of the group or one of its ancestors before completing the handshake and closes with the same `4001` / `4003` codes on failure.
 
 ### Event reference
 
@@ -366,7 +366,7 @@ The socket itself has no at-least-once delivery guarantee. A frame sent while a 
 A user who loses access to a board or group stops receiving its frames even if the `member.removed` frame that announces the removal is lost (since 1.2, #1477). That frame is published best-effort like every other frame, so the server does not rely on it alone:
 
 - When the socket's own user is the subject of a `member.removed` frame, the server closes the socket at once. This is the fast path.
-- Before it forwards **any** frame, the server re-checks that the socket's user still has access. It uses the same rule as the handshake: `get_board_role` for a board channel, `get_accessible_group_ids` for a group channel. A deactivated account has no access. The result is cached per socket for a window of 5 seconds plus a random 0 to 2 seconds, redrawn after every check. The random part keeps the sockets on one board from all re-checking at the same moment. So a busy board costs at most one access query per socket per window. A `member.added` or `member.updated` frame about the socket's own user skips the cache.
+- Before it forwards **any** frame, the server re-checks that the socket's user still has access. It uses the same rule as the handshake: `get_board_role` for a board channel, membership in the group or one of its ancestors for a group channel. A deactivated account has no access. The result is cached per socket for a window of 5 seconds plus a random 0 to 2 seconds, redrawn after every check. The random part keeps the sockets on one board from all re-checking at the same moment. So a busy board costs at most one access query per socket per window. A `member.added` or `member.updated` frame about the socket's own user skips the cache.
 - The re-check also confirms that the credential the socket connected with has not been revoked and that the password has not changed since the handshake. See [Credential revocation](#credential-revocation-since-12).
 - Each keepalive ping (every 30 seconds) runs the same check first, so a socket on a quiet channel is re-checked even when no frames are published.
 - The re-check also applies the same account-state checks as the REST API: an account with a pending password or username change has no access to the channel, at the handshake and on every re-check. Completing the pending change allows a later reconnect.
