@@ -2209,6 +2209,8 @@
       
         
       
+        
+      
     
     
     
@@ -3016,6 +3018,34 @@
     
   
     Kaizen Yield Watch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kaizen-fastpath-proposal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kaizen Fast-Path Proposal
   
 
     
@@ -4253,7 +4283,7 @@ values; never use it to install), and fails if <code>trivy-report.json</code> ha
 <p>Gate scripts that open files named on the command line or via <code>--root</code> do so through <code>scripts/_paths.py::resolve_within</code> (#1377). It canonicalizes the path (collapsing <code>..</code> and following symlinks) and only then checks it sits under an allowed root, so a symlink that leaves the tree is rejected too. A rejected path is a "cannot run" outcome (exit 2 for the rbac, ws-event and broadcast gates), never a clean result.</p>
 <ul>
 <li><code>--root</code>-based gates (<code>check-rbac-coverage.py</code>, <code>check-ws-event-reachability.py</code>, <code>check-broadcast-deferral.py</code>) confine every read to <code>--root</code>.</li>
-<li>Other file arguments (<code>--input</code>, <code>--state</code>, <code>--declined</code>, <code>--write-state</code>, <code>--token-file</code>, <code>--budget-file</code>, <code>--output</code>, <code>--schema</code>, <code>--types</code>) must resolve under the repository, the current directory, or the system temp directory (<code>/tmp</code>). The temp roots are trusted only on ephemeral single-tenant runners; there is no ownership check. A filesystem-root working directory is never treated as a root.</li>
+<li>Other file arguments (<code>--input</code>, <code>--state</code>, <code>--declined</code>, <code>--write-state</code>, <code>--token-file</code>, <code>--budget-file</code>, <code>--output</code>, <code>--schema</code>, <code>--types</code>, <code>--evidence-out</code>) must resolve under the repository, the current directory, or the system temp directory (Python's <code>tempfile.gettempdir()</code>: <code>/tmp</code> on the Linux CI runners, <code>$TMPDIR</code> such as <code>/var/folders/...</code> on macOS, where a literal <code>/tmp/...</code> path is rejected; use <code>"${TMPDIR:-/tmp}/..."</code>). <code>kaizen_fastpath_proposal.py --table</code> may also resolve under <code>~/.claude/</code>, where the global fast-path table lives; it is read only. The temp roots are trusted only on ephemeral single-tenant runners; there is no ownership check. A filesystem-root working directory is never treated as a root.</li>
 <li><code>kaizen_gate_ledger.py</code> validates <code>--window</code> (1..100) and <code>--project</code> (an allowlist: <code>visiban/visiban</code> or <code>visiban/visiban-enterprise</code>) before they reach the <code>glab</code> argv.</li>
 <li><code>check-added-files-covered.mjs</code> rejects a <code>--target-ref</code> that starts with <code>-</code>.</li>
 </ul>
