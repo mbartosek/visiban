@@ -4473,7 +4473,7 @@ matched count into an existence oracle for every account on the instance.</p>
 <tr>
 <td>Invite emails and member add</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.members</code>; <code>groups/views.py</code> <code>GroupViewSet.members</code></td>
-<td>Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule</td>
+<td>Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. <code>BoardViewSet.members</code> also checks the submitted <code>role</code> is a string within <code>BoardMembership.Role.values</code></td>
 </tr>
 <tr>
 <td>MCP</td>

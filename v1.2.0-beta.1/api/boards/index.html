@@ -6934,7 +6934,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>role</code></td>
 <td></td>
-<td>Role to assign (default: <code>"member"</code>). Valid: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></td>
+<td>Role to assign (default: <code>"member"</code>). Valid: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code>. Any other value, or a non-string, returns <code>400 Bad Request</code> with <code>{"detail": "Role must be one of: ..."}</code></td>
 </tr>
 <tr>
 <td><code>is_moderator</code></td>
