@@ -274,10 +274,18 @@ Every error has a `code` your agent can branch on. The common ones:
 | `missing_scope` | Your token lacks the `mcp:write` scope required for this tool — see above. |
 | `maintenance_mode` | The instance is in [maintenance mode](admin.md#maintenance-mode) and your token does not belong to a site admin. Only ever returned by the write tools below (`create_card`, `move_card`, `update_card`, `archive_card`) — the read tools (`list_boards`, `list_columns`, `list_swimlanes`, `list_cards`) keep working regardless. Added in 1.2. |
 | `throttled` | Your token has exceeded its per-token rate limit. Carries a `retry_after` (seconds) — see [Rate limiting](#rate-limiting). Added in 1.2. |
-| `validation_error` | A field failed validation — includes an `errors` object keyed by field name, e.g. an `assignee_email`/label name that does not resolve to a real board member/label. |
+| `validation_error` | A field failed validation — includes an `errors` object keyed by field name, e.g. an `assignee` username or label name that does not resolve to an assignable board member/label. Every unresolved `assignee` returns the same message, whether the username does not exist, belongs to someone with no role on the board, or belongs to a `viewer` (who cannot be assigned). |
 | `wip_limit_exceeded` / `wip_hard_blocked` | The target column is at its WIP limit. Returned by `move_card` and, since 1.2 (#1428), `create_card`. Neither tool overrides either — there is no `force` option over MCP. |
 | `weight_limit_exceeded` | The target column is at its weight limit (`move_card`, and `create_card` since 1.2). |
 | `version_conflict` | `move_card` only. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. Re-read the card and retry. Added in 1.2 (#1522). |
+
+### User fields
+
+Users are identified by username and display name, matching the REST API. Every user-bearing field in tool and resource output — a card's `assignee`, a movement's `moved_by`, an activity's `actor`, and a comment's `author` — is either `null` or a `{username, display_name}` object, the same `username`/`display_name` pair the REST API embeds for board members. `display_name` is an empty string when the user has not set one.
+
+The `assignee` argument of `list_cards`, `create_card`, and `update_card` takes a username, matched case-insensitively.
+
+*Changed in 1.2 (before GA, #1671): the 1.2 pre-releases reported these fields as email address strings and took the `create_card`/`update_card` assignee as `assignee_email`; that argument is now `assignee`. The `list_cards` `assignee` filter kept its name but now matches a username instead of an email address, so an email value returns no cards rather than an error. A call that still passes `assignee_email` (any value, including an empty string) is rejected with a `validation_error` whose `errors` is `` {"assignee_email": ["This argument was replaced by `assignee` (a username)."]} ``, and nothing is written.*
 
 ### `list_columns`
 
@@ -299,15 +307,15 @@ Lists a board's swimlanes, ordered by position. All board roles may call it.
 
 Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Capped at 200 rows, like the REST card list endpoint.
 
-**Arguments:** `board_id` (integer, required); `column_id`, `swimlane_id` (integers), `assignee` (email, case-insensitive), `priority`, `label` (name) — all optional filters, ANDed together; `include_archived` (boolean, default `false`).
+**Arguments:** `board_id` (integer, required); `column_id`, `swimlane_id` (integers), `assignee` (username, case-insensitive), `priority`, `label` (name) — all optional filters, ANDed together; `include_archived` (boolean, default `false`).
 
-**Returns:** an array of `{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}`. `assignee` is an email or `null`; `labels` is an array of names; `column`/`swimlane` are `{id, name}` objects so a result can be fed straight into `move_card`.
+**Returns:** an array of `{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}`. `assignee` is a `{username, display_name}` object or `null` (see [User fields](#user-fields)); `labels` is an array of names; `column`/`swimlane` are `{id, name}` objects so a result can be fed straight into `move_card`.
 
 ### `create_card`
 
 Creates a card, appended to the end of its column/swimlane cell (or inserted at `position` if given). Requires `admin` or `member` board role and the `mcp:write` scope.
 
-**Arguments:** `board_id`, `column_id`, `swimlane_id`, `title` (required); `description`, `priority` (default `"medium"`), `assignee_email`, `labels` (array of names), `due_date` (`YYYY-MM-DD`), `position` — all optional.
+**Arguments:** `board_id`, `column_id`, `swimlane_id`, `title` (required); `description`, `priority` (default `"medium"`), `assignee` (username of any board member whose role is not `viewer`), `labels` (array of names), `due_date` (`YYYY-MM-DD`), `position` — all optional.
 
 **Returns:** the created card, same shape as one row of `list_cards`. Writes a `CardMovement` record with no "from" column (matching how the REST API records card creation) and broadcasts `card.created` on the board's WebSocket channel.
 
@@ -325,7 +333,7 @@ Moves a card to a new column and/or swimlane and/or position. Requires `admin` o
 
 Updates one or more fields on a card. Requires `admin` or `member` board role and the `mcp:write` scope.
 
-**Arguments:** `card_id` (required); any of `title`, `description`, `priority`, `assignee_email`, `labels`, `due_date` — omitted fields are left unchanged. `labels: []` clears every label; `assignee_email: ""` unassigns the card. Cannot change a card's column or swimlane — use `move_card`.
+**Arguments:** `card_id` (required); any of `title`, `description`, `priority`, `assignee` (username), `labels`, `due_date` — omitted fields are left unchanged. `labels: []` clears every label; `assignee: ""` unassigns the card. Cannot change a card's column or swimlane — use `move_card`.
 
 **Returns:** the updated card, same shape as `create_card`. Records a `CardActivity` audit entry per field that actually changed.
 

@@ -680,7 +680,11 @@ class CardResourceTests(McpTestCase):
         self.assertIsNone(data["archived_at"])
         self.assertEqual([i["text"] for i in data["checklist_items"]], ["Write tests"])
         self.assertEqual([c["body"] for c in data["comments"]], ["hello"])
-        self.assertEqual(data["comments"][0]["author"], self.user.email)
+        self.assertEqual(
+            data["comments"][0]["author"],
+            {"username": self.user.username, "display_name": self.user.display_name},
+        )
+        self.assertEqual(data["activities"][0]["actor"]["username"], self.user.username)
         self.assertEqual(
             [a["event_type"] for a in data["activities"]],
             [CardActivity.EventType.TITLE_CHANGE],
@@ -706,7 +710,10 @@ class CardResourceTests(McpTestCase):
         self.assertEqual(len(data["movements"]), 1)
         movement = data["movements"][0]
         self.assertEqual(movement["to_column"], "Done")
-        self.assertEqual(movement["moved_by"], self.user.email)
+        self.assertEqual(
+            movement["moved_by"],
+            {"username": self.user.username, "display_name": self.user.display_name},
+        )
 
     def test_nonexistent_and_forbidden_card_return_the_identical_error(self):
         """IDOR: mirrors the board:// guarantee for a card on a board the caller cannot see."""
@@ -1132,3 +1139,103 @@ class AsgiRoutingTests(McpTestCase):
 
         async_to_sync(drive)()
         self.assertEqual(seen["type"], "websocket")
+
+
+class UserFieldParityTests(McpTestCase):
+    """MCP output identifies users the way the REST API does (#1671).
+
+    REST embeds users through ``BoardUserSerializer`` (id, username,
+    display_name, avatar_url) and never includes another member's email. The
+    MCP read shapes are hand-written, so this pins them to the same rule for
+    the lowest-privilege role: every user-bearing key carries only fields the
+    REST user shape has, every card key exists on ``CardSerializer``, and no
+    member's email address appears anywhere in the serialized output.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user.email = "owner-1671@example.com"
+        self.user.save(update_fields=["email"])
+        self.board = _make_board(self.user, name="Parity")
+        self.column = _make_column(self.board, name="Todo", order=0)
+        self.done = _make_column(self.board, name="Done", order=1)
+        self.swimlane = _make_swimlane(self.board, name="Lane", order=0)
+
+        self.assignee = _make_user(
+            "parity-assignee", email="assignee-1671@example.com", display_name="Pat Assignee",
+        )
+        _make_membership(self.board, self.assignee, role=BoardMembership.Role.MEMBER)
+        self.viewer = _make_user("parity-viewer", email="viewer-1671@example.com")
+        _make_membership(self.board, self.viewer, role=BoardMembership.Role.VIEWER)
+        self.viewer_token = PersonalAccessToken.generate(
+            self.viewer, "mcp", scopes=[SCOPE_MCP_READ],
+        )[1]
+        self.emails = [self.user.email, self.assignee.email, self.viewer.email]
+
+        self.card = _make_card(
+            self.column, self.swimlane, title="Parity card", position=0, assignee=self.assignee,
+        )
+        CardComment.objects.create(card=self.card, author=self.assignee, body="note")
+        CardActivity.objects.create(
+            card=self.card, event_type=CardActivity.EventType.TITLE_CHANGE,
+            from_value="Old", to_value="Parity card", actor=self.assignee,
+        )
+        token = set_current_user(self.assignee)
+        try:
+            moved = tools.move_card(card_id=self.card.id, to_column_id=self.done.id)
+        finally:
+            reset_current_user(token)
+        self.assertNotIn("error", moved, moved)
+
+    def _resource(self, uri):
+        status, body = self._read_resource(uri, self.viewer_token)
+        self.assertEqual(status, 200)
+        payload = _parse_sse(body)
+        self.assertNotIn("error", payload, payload)
+        return json.loads(payload["result"]["contents"][0]["text"])
+
+    def _list_cards(self):
+        status, body = self._tools_call("list_cards", self.viewer_token, {"board_id": self.board.id})
+        self.assertEqual(status, 200)
+        result = _parse_sse(body)["result"]
+        self.assertFalse(result["isError"], result)
+        return result["structuredContent"]["result"]
+
+    def test_no_member_email_in_viewer_output(self):
+        outputs = {
+            "list_cards": self._list_cards(),
+            "board://": self._resource(f"board://{self.board.id}"),
+            "card://": self._resource(f"card://{self.card.id}"),
+        }
+        for name, output in outputs.items():
+            text = json.dumps(output).lower()
+            for email in self.emails:
+                self.assertNotIn(email.lower(), text, f"{name} contains a member email")
+
+    def test_user_and_card_keys_are_a_subset_of_the_rest_shape(self):
+        from accounts.serializers import BoardUserSerializer
+        from boards.serializers import CardSerializer
+
+        rest_user_keys = set(BoardUserSerializer.Meta.fields)
+        rest_card_keys = set(CardSerializer.Meta.fields)
+        detail = self._resource(f"card://{self.card.id}")
+
+        user_values = [
+            detail["assignee"],
+            *(m["moved_by"] for m in detail["movements"]),
+            *(a["actor"] for a in detail["activities"]),
+            *(c["author"] for c in detail["comments"]),
+            *(c["assignee"] for c in self._list_cards()),
+        ]
+        self.assertTrue(user_values)
+        for value in user_values:
+            self.assertIsInstance(value, dict)
+            self.assertLessEqual(set(value), rest_user_keys)
+        self.assertEqual(detail["assignee"]["username"], "parity-assignee")
+        self.assertEqual(detail["assignee"]["display_name"], "Pat Assignee")
+
+        # Card-level keys: everything except the audit-history lists, which
+        # REST serves from their own per-card endpoints.
+        history = {"movements", "checklist_items", "activities", "comments"}
+        for card in (*self._list_cards(), detail):
+            self.assertLessEqual(set(card) - history, rest_card_keys)

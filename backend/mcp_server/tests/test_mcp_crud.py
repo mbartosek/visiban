@@ -159,7 +159,10 @@ class ListCardsTests(CrudToolsTestCase):
             },
         )
         self.assertEqual(row["id"], card.id)
-        self.assertEqual(row["assignee"], self.user.email)
+        self.assertEqual(
+            row["assignee"],
+            {"username": self.user.username, "display_name": self.user.display_name},
+        )
         self.assertEqual(row["column"], {"id": self.column.id, "name": "Backlog"})
         self.assertEqual(row["due_date"], "2026-12-01")
 
@@ -192,16 +195,28 @@ class ListCardsTests(CrudToolsTestCase):
         by_label = self._call("list_cards", self.raw_token, board_id=self.board.id, label="bug")
         self.assertEqual([c["title"] for c in by_label], ["In doing"])
 
-    def test_filters_by_assignee_email(self):
+    def test_filters_by_assignee_username(self):
         other = _make_user("assignee-user", email="assignee@example.com")
         _make_membership(self.board, other, role=BoardMembership.Role.MEMBER)
         _make_card(self.column, self.swimlane, title="Mine", assignee=self.user)
         _make_card(self.column, self.swimlane, title="Theirs", position=1, assignee=other)
 
         result = self._call(
-            "list_cards", self.raw_token, board_id=self.board.id, assignee="assignee@example.com",
+            "list_cards", self.raw_token, board_id=self.board.id, assignee="Assignee-User",
         )
         self.assertEqual([c["title"] for c in result], ["Theirs"])
+
+    def test_assignee_filter_matches_username_only(self):
+        # The filter takes the same identifier the output carries (username),
+        # matching the REST user shape, which has no email field.
+        other = _make_user("assignee-user", email="assignee@example.com")
+        _make_membership(self.board, other, role=BoardMembership.Role.MEMBER)
+        _make_card(self.column, self.swimlane, title="Theirs", assignee=other)
+
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, assignee="assignee@example.com",
+        )
+        self.assertEqual(result, [])
 
 
 class CreateCardTests(CrudToolsTestCase):
@@ -244,53 +259,94 @@ class CreateCardTests(CrudToolsTestCase):
         self.assertEqual(result["error"]["code"], "missing_scope")
         self.assertFalse(Card.objects.filter(title="Should not exist").exists())
 
-    def test_assignee_email_and_labels_resolve(self):
+    def test_assignee_username_and_labels_resolve(self):
         from boards.models import Label
 
-        # _make_user() leaves email blank by default, and an empty string is
-        # deliberately the "unassign" sentinel (see _translate_card_fields) —
-        # a real, non-blank email is needed to exercise assignment.
-        assignee = _make_user("assignee-for-create", email="assignee@example.com")
+        assignee = _make_user(
+            "assignee-for-create", email="assignee@example.com", display_name="Assignee Person",
+        )
         _make_membership(self.board, assignee, role=BoardMembership.Role.MEMBER)
         Label.objects.create(board=self.board, name="urgent")
 
         result = self._call(
             "create_card", self.write_token, board_id=self.board.id,
             column_id=self.column.id, swimlane_id=self.swimlane.id, title="Assigned",
-            assignee_email="assignee@example.com", labels=["urgent"],
+            assignee="ASSIGNEE-for-create", labels=["urgent"],
         )
-        self.assertEqual(result["assignee"], "assignee@example.com")
+        self.assertEqual(
+            result["assignee"],
+            {"username": "assignee-for-create", "display_name": "Assignee Person"},
+        )
         self.assertEqual(result["labels"], ["urgent"])
 
-    def test_unknown_assignee_email_is_a_validation_error(self):
+    def test_unknown_assignee_is_a_validation_error(self):
         result = self._call(
             "create_card", self.write_token, board_id=self.board.id,
             column_id=self.column.id, swimlane_id=self.swimlane.id, title="Bad assignee",
-            assignee_email="nobody@example.com",
+            assignee="nobody",
         )
         self.assertEqual(result["error"]["code"], "validation_error")
-        self.assertIn("assignee_email", result["error"]["errors"])
+        self.assertIn("assignee", result["error"]["errors"])
         self.assertFalse(Card.objects.filter(title="Bad assignee").exists())
 
-    def test_ambiguous_assignee_email_is_a_validation_error(self):
-        # Matching is case-insensitive (email__iexact in _translate_card_fields),
-        # and the User model places no uniqueness constraint on email (only a
-        # performance index — accounts/0033 — not a uniqueness one), so two
-        # assignable board members can legitimately share an email address that
-        # differs only by case.
-        first = _make_user("dup-assignee-1", email="shared@example.com")
-        second = _make_user("dup-assignee-2", email="SHARED@example.com")
-        _make_membership(self.board, first, role=BoardMembership.Role.MEMBER)
-        _make_membership(self.board, second, role=BoardMembership.Role.MEMBER)
+    def test_assignee_lookup_failures_return_one_uniform_error(self):
+        # Every way an assignee can fail to resolve -- no such user, a user with
+        # no role on this board, a member whose role cannot be assigned, or an
+        # identifier that is not a username at all -- returns the identical
+        # error, so the response says only "not an assignable member".
+        assignable = _make_user("assignable-member", email="assignable@example.com")
+        _make_membership(self.board, assignable, role=BoardMembership.Role.MEMBER)
+        viewer = _make_user("viewer-member", email="viewer@example.com")
+        _make_membership(self.board, viewer, role=BoardMembership.Role.VIEWER)
+        _make_user("not-a-member", email="outsider@example.com")
 
-        result = self._call(
-            "create_card", self.write_token, board_id=self.board.id,
-            column_id=self.column.id, swimlane_id=self.swimlane.id, title="Ambiguous assignee",
-            assignee_email="shared@example.com",
-        )
-        self.assertEqual(result["error"]["code"], "validation_error")
-        self.assertIn("assignee_email", result["error"]["errors"])
-        self.assertFalse(Card.objects.filter(title="Ambiguous assignee").exists())
+        errors = []
+        for value in ("nobody", "not-a-member", "viewer-member", "assignable@example.com"):
+            result = self._call(
+                "create_card", self.write_token, board_id=self.board.id,
+                column_id=self.column.id, swimlane_id=self.swimlane.id, title=f"Try {value}",
+                assignee=value,
+            )
+            self.assertIn("error", result, value)
+            errors.append(result["error"])
+            self.assertFalse(Card.objects.filter(title=f"Try {value}").exists(), value)
+        self.assertTrue(all(e == errors[0] for e in errors), errors)
+        self.assertEqual(errors[0]["code"], "validation_error")
+
+    def test_non_writer_roles_denied_before_assignee_lookup(self):
+        # The role check runs before the assignee is resolved, so the result
+        # is the same whether or not the username names an assignable member.
+        assignable = _make_user("assignable-for-role", email="assignable-role@example.com")
+        _make_membership(self.board, assignable, role=BoardMembership.Role.MEMBER)
+        for role in (BoardMembership.Role.VIEWER, BoardMembership.Role.COLLABORATOR):
+            token = self._pat(self._add_member(role))
+            results = [
+                self._call(
+                    "create_card", token, board_id=self.board.id,
+                    column_id=self.column.id, swimlane_id=self.swimlane.id,
+                    title=f"Denied {role} {value}", assignee=value,
+                )
+                for value in ("assignable-for-role", "no-such-user")
+            ]
+            self.assertEqual(results[0], results[1], role)
+            self.assertEqual(results[0]["error"]["code"], "permission_denied", role)
+        self.assertFalse(Card.objects.filter(title__startswith="Denied").exists())
+
+    def test_assignee_email_argument_is_rejected(self):
+        member = _make_user("email-arg-member", email="email-arg@example.com")
+        _make_membership(self.board, member, role=BoardMembership.Role.MEMBER)
+        for value in ("email-arg@example.com", ""):
+            result = self._call(
+                "create_card", self.write_token, board_id=self.board.id,
+                column_id=self.column.id, swimlane_id=self.swimlane.id,
+                title="Old argument", assignee_email=value,
+            )
+            self.assertEqual(result["error"]["code"], "validation_error", value)
+            self.assertEqual(
+                result["error"]["errors"],
+                {"assignee_email": ["This argument was replaced by `assignee` (a username)."]},
+            )
+        self.assertFalse(Card.objects.filter(title="Old argument").exists())
 
     def test_unknown_label_is_a_validation_error(self):
         result = self._call(
@@ -542,10 +598,58 @@ class UpdateCardTests(CrudToolsTestCase):
         result = self._call("update_card", self.write_token, card_id=card.id, labels=[])
         self.assertEqual(result["labels"], [])
 
-    def test_empty_assignee_email_unassigns(self):
+    def test_empty_assignee_unassigns(self):
         card = _make_card(self.column, self.swimlane, title="Assigned", assignee=self.user)
-        result = self._call("update_card", self.write_token, card_id=card.id, assignee_email="")
+        result = self._call("update_card", self.write_token, card_id=card.id, assignee="")
         self.assertIsNone(result["assignee"])
+
+    def test_assignee_email_argument_is_rejected(self):
+        member = _make_user("update-email-arg", email="update-email-arg@example.com")
+        _make_membership(self.board, member, role=BoardMembership.Role.MEMBER)
+        card = _make_card(self.column, self.swimlane, title="Keep", assignee=self.user)
+        for value in ("update-email-arg@example.com", ""):
+            result = self._call(
+                "update_card", self.write_token, card_id=card.id, title="Changed",
+                assignee_email=value,
+            )
+            self.assertEqual(
+                result["error"],
+                {
+                    "code": "validation_error",
+                    "errors": {
+                        "assignee_email": ["This argument was replaced by `assignee` (a username)."],
+                    },
+                },
+            )
+        card.refresh_from_db()
+        self.assertEqual(card.title, "Keep")
+        self.assertEqual(card.assignee_id, self.user.id)
+
+    def test_non_writer_roles_denied_before_assignee_lookup(self):
+        assignable = _make_user("update-assignable", email="update-assignable@example.com")
+        _make_membership(self.board, assignable, role=BoardMembership.Role.MEMBER)
+        card = _make_card(self.column, self.swimlane, title="Guarded assignee")
+        for role in (BoardMembership.Role.VIEWER, BoardMembership.Role.COLLABORATOR):
+            token = self._pat(self._add_member(role))
+            results = [
+                self._call("update_card", token, card_id=card.id, assignee=value)
+                for value in ("update-assignable", "no-such-user")
+            ]
+            self.assertEqual(results[0], results[1], role)
+            self.assertEqual(results[0]["error"]["code"], "permission_denied", role)
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+    def test_assignee_by_username(self):
+        member = _make_user("update-assignee", email="update-assignee@example.com")
+        _make_membership(self.board, member, role=BoardMembership.Role.MEMBER)
+        card = _make_card(self.column, self.swimlane, title="Unassigned")
+        result = self._call(
+            "update_card", self.write_token, card_id=card.id, assignee="update-assignee",
+        )
+        self.assertEqual(result["assignee"]["username"], "update-assignee")
+        card.refresh_from_db()
+        self.assertEqual(card.assignee_id, member.id)
 
     def test_collaborator_and_viewer_denied(self):
         card = _make_card(self.column, self.swimlane, title="Guarded")

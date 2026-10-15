@@ -12,7 +12,7 @@ the role allow-list, WIP/weight enforcement, the ``CardMovement`` audit trail
 and the deferred broadcast all live there, unchanged, exactly as the REST
 ``CardViewSet`` uses them (see ``boards/views/cards.py``). Nothing here
 re-implements a card invariant; this module only translates MCP-shaped
-arguments (an email, a label name, a bare ``card_id``) into what the service
+arguments (a username, a label name, a bare ``card_id``) into what the service
 functions and ``CardSerializer`` already expect, and translates the typed
 errors in :mod:`boards.services.errors` back into a structured dict a caller
 can branch on.
@@ -269,9 +269,12 @@ def _error_payload(exc):
 # ---------------------------------------------------------------------------
 # Card field translation (#512)
 #
-# An MCP agent identifies a person by email and a label by name — it has no
-# reason to know Visiban's internal primary keys, and giving it one would leak
-# an internal identifier space to every connected agent for no benefit. This
+# An MCP agent identifies a person by username and a label by name — it has
+# no reason to know Visiban's internal primary keys, and giving it one would
+# leak an internal identifier space to every connected agent for no benefit.
+# Username, not email, because it is the identifier the REST user shape
+# (``BoardUserSerializer``) already shows every board member, so accepting it
+# here reveals nothing a member could not already read (#1671). This
 # is the one place that translates the agent-facing vocabulary into the
 # `assignee_id`/`label_ids` field names and ids `CardSerializer` expects, so
 # every write tool gets the same resolution rule and the same errors: an
@@ -279,8 +282,24 @@ def _error_payload(exc):
 # DoesNotExist/500.
 # ---------------------------------------------------------------------------
 
+# One message for every way an assignee can fail to resolve: no such user, a
+# user with no role on the board, a member whose role is not assignable
+# (viewer), or a value that is not a username at all. Distinct wording per
+# case would let a caller learn which of those holds for an arbitrary string.
+_ASSIGNEE_NOT_FOUND = "No assignable board member has this username."
+
+
+# `assignee_email` was the assignee argument in the 1.2 pre-releases. The
+# tools still declare it so a caller that sends it gets an explicit error
+# rather than having the SDK drop the unknown argument and write the card
+# with no assignee. It is never used for a lookup.
+_ASSIGNEE_EMAIL_REPLACED = ValidationFailed({
+    "assignee_email": ["This argument was replaced by `assignee` (a username)."],
+})
+
+
 def _translate_card_fields(board, *, title=None, description=None, priority=None,
-                            assignee_email=None, labels=None, due_date=None):
+                            assignee=None, labels=None, due_date=None):
     """Build a CardSerializer-shaped dict from MCP-facing arguments.
 
     Only keys the caller actually supplied (non-``None``) are included, so
@@ -289,15 +308,16 @@ def _translate_card_fields(board, *, title=None, description=None, priority=None
 
     ``labels=[]`` (an explicit empty list, as opposed to omitted/``None``)
     clears every label — the same "empty means clear" convention
-    ``boards.services.custom_fields`` uses. ``assignee_email=""`` likewise
+    ``boards.services.custom_fields`` uses. ``assignee=""`` likewise
     unassigns the card. Neither is exercised by ``create_card`` (there is
     nothing to clear on a new card), only by ``update_card``.
 
-    Raises :class:`ValidationFailed` if an email or label name does not
-    resolve — never lets a bare ``DoesNotExist``/ambiguous-match escape.
-    ``assignee_email`` is never logged (PII); it appears only in the error
-    dict handed back to the caller who supplied it, which is not a log
-    statement.
+    ``assignee`` is a username, matched case-insensitively — the same rule
+    as login, and unique under the ``unique_username_ci`` constraint, so it
+    resolves to at most one user.
+
+    Raises :class:`ValidationFailed` if a username or label name does not
+    resolve — never lets a bare ``DoesNotExist`` escape.
     """
     data = {}
     errors = {}
@@ -311,29 +331,23 @@ def _translate_card_fields(board, *, title=None, description=None, priority=None
     if due_date is not None:
         data["due_date"] = due_date
 
-    if assignee_email is not None:
-        if assignee_email == "":
+    if assignee is not None:
+        if assignee == "":
             data["assignee_id"] = None
         else:
             # Scoped to assignable board members first (excludes viewers, per
-            # _get_assignable_member_ids' own rule), THEN matched by email —
-            # never a bare User.objects.get(email=...), which would be a
-            # cross-tenant IDOR risk: email is not unique on this model
-            # (Django's stock AbstractUser field), so an unscoped lookup could
-            # resolve to a user with no relationship to this board at all.
+            # _get_assignable_member_ids' own rule), THEN matched by username,
+            # so a user with no assignable role on this board never resolves.
+            # `len != 1` rather than `== 0` keeps the uniform error even if
+            # the case-insensitive uniqueness rule were ever relaxed.
             assignable_ids = _get_assignable_member_ids(board)
-            matches = list(User.objects.filter(pk__in=assignable_ids, email__iexact=assignee_email))
+            matches = list(
+                User.objects.filter(pk__in=assignable_ids, username__iexact=assignee)[:2]
+            )
             if len(matches) == 1:
                 data["assignee_id"] = matches[0].pk
-            elif len(matches) == 0:
-                errors["assignee_email"] = [
-                    "No assignable board member was found with this email address."
-                ]
             else:
-                errors["assignee_email"] = [
-                    "Multiple board members share this email address; "
-                    "this card cannot be assigned unambiguously by email."
-                ]
+                errors["assignee"] = [_ASSIGNEE_NOT_FOUND]
 
     if labels is not None:
         if labels:
@@ -361,13 +375,29 @@ def _translate_card_fields(board, *, title=None, description=None, priority=None
 # raises about REST response bodies, applied to the MCP side.
 # ---------------------------------------------------------------------------
 
+def _serialize_user(user):
+    """Identify a user the way the REST API does for other board members.
+
+    A subset of ``BoardUserSerializer`` (``accounts/serializers.py``), which
+    every REST board payload embeds for assignees, movers, commenters and
+    activity actors, and which carries no email. ``id`` and ``avatar_url``
+    are left out: an agent has no use for an internal user id (see "Card
+    field translation" above) or an avatar. A parity test in
+    ``tests/test_mcp.py`` (``UserFieldParityTests``) pins every user-bearing
+    key to that REST shape.
+    """
+    if user is None:
+        return None
+    return {"username": user.username, "display_name": user.display_name}
+
+
 def _serialize_card(card):
     return {
         "id": card.id,
         "title": card.title,
         "description": card.description,
         "priority": card.priority,
-        "assignee": card.assignee.email if card.assignee_id else None,
+        "assignee": _serialize_user(card.assignee) if card.assignee_id else None,
         "labels": sorted(label.name for label in card.labels.all()),
         "column": {"id": card.column_id, "name": card.column.name},
         "swimlane": {"id": card.swimlane_id, "name": card.swimlane.name},
@@ -421,7 +451,7 @@ def _serialize_movement(movement):
         "from_swimlane": movement.from_swimlane_name or None,
         "to_swimlane": movement.to_swimlane_name or None,
         "moved_at": movement.moved_at.isoformat(),
-        "moved_by": movement.moved_by.email if movement.moved_by_id else None,
+        "moved_by": _serialize_user(movement.moved_by) if movement.moved_by_id else None,
     }
 
 
@@ -429,29 +459,16 @@ def _serialize_label(label):
     return {"id": label.id, "name": label.name, "color": label.color}
 
 
-# `actor`/`author` below are emails, matching the existing MCP-wide
-# convention `_serialize_card`'s `assignee` and `_serialize_movement`'s
-# `moved_by` already established (#512) — an MCP agent has no use for an
-# internal user id and no access to the web UI's username, so email is this
-# surface's one consistent way to reference a person (also how
-# `assignee_email` is ACCEPTED as an argument to create_card/update_card).
-# This is a real, already-flagged (security-review, #513) divergence from
-# REST: the same relations rendered through
-# `CardActivitySerializer`/`CardCommentSerializer` go through
-# `BoardUserSerializer`, whose own docstring says it deliberately withholds
-# email from board members other than themselves. Extending the established
-# MCP convention here — rather than making comments/activities the one
-# inconsistent field on this surface — was a deliberate call, not an
-# oversight; see the MR description's security findings section for the
-# tradeoff and the recommendation to revisit the whole family (`assignee`,
-# `moved_by`, `actor`, `author`) together in a follow-up.
+# `actor`/`author` use the same `_serialize_user` shape as `assignee` and
+# `moved_by`, mirroring how `CardActivitySerializer`/`CardCommentSerializer`
+# embed `BoardUserSerializer` on the REST side.
 def _serialize_activity(activity):
     return {
         "id": activity.id,
         "event_type": activity.event_type,
         "from_value": activity.from_value,
         "to_value": activity.to_value,
-        "actor": activity.actor.email if activity.actor_id else None,
+        "actor": _serialize_user(activity.actor) if activity.actor_id else None,
         "created_at": activity.created_at.isoformat(),
     }
 
@@ -460,7 +477,7 @@ def _serialize_comment(comment):
     return {
         "id": comment.id,
         "body": comment.body,
-        "author": comment.author.email if comment.author_id else None,
+        "author": _serialize_user(comment.author) if comment.author_id else None,
         "created_at": comment.created_at.isoformat(),
         "updated_at": comment.updated_at.isoformat(),
     }
@@ -592,7 +609,7 @@ def _cards_payload(board, *, column_id=None, swimlane_id=None, assignee=None,
     if swimlane_id is not None:
         qs = qs.filter(swimlane_id=swimlane_id)
     if assignee is not None:
-        qs = qs.filter(assignee__email__iexact=assignee)
+        qs = qs.filter(assignee__username__iexact=assignee)
     if priority is not None:
         qs = qs.filter(priority=priority)
     if label is not None:
@@ -611,8 +628,9 @@ def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
     """List a board's cards, optionally filtered, ordered by board position.
 
     All filters are optional and compose with AND. ``assignee`` matches by
-    email (case-insensitive), consistent with how ``create_card``/
-    ``update_card`` accept an assignee — never an internal user id.
+    username (case-insensitive), consistent with how ``create_card``/
+    ``update_card`` accept an assignee and how cards report one — never an
+    internal user id.
     """
     user = get_current_user()
     try:
@@ -631,8 +649,8 @@ def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
 # ---------------------------------------------------------------------------
 
 def create_card(*, board_id, column_id, swimlane_id, title, description=None,
-                 priority=None, assignee_email=None, labels=None, due_date=None,
-                 position=None):
+                 priority=None, assignee=None, labels=None, due_date=None,
+                 position=None, assignee_email=None):
     """Create a card, appended to the end of its column/swimlane cell.
 
     ``position`` composes two existing service entry points rather than
@@ -652,14 +670,20 @@ def create_card(*, board_id, column_id, swimlane_id, title, description=None,
     error, and nothing is written.
     """
     user = get_current_user()
+    if assignee_email is not None:
+        return _error_payload(_ASSIGNEE_EMAIL_REPLACED)
     try:
         board, role = _resolve_board(user, board_id)
+        # Role first, before any assignee/label lookup, so a role that may
+        # not write gets permission_denied whatever the other arguments name.
+        # The service repeats the check; this one only fixes the ordering.
+        card_services.require_mutation_role(actor=user, board=board, role=role)
         data = _translate_card_fields(
             board,
             title=title,
             description=description if description is not None else "",
             priority=priority if priority is not None else Card.Priority.MEDIUM,
-            assignee_email=assignee_email,
+            assignee=assignee,
             labels=labels,
             due_date=due_date,
         )
@@ -725,22 +749,26 @@ def move_card(*, card_id, to_column_id=None, to_swimlane_id=None, position=0):
 
 
 def update_card(*, card_id, title=None, description=None, priority=None,
-                 assignee_email=None, labels=None, due_date=None):
+                 assignee=None, labels=None, due_date=None, assignee_email=None):
     """Update one or more fields on a card.
 
     Cannot change ``column``/``swimlane`` — use ``move_card``, which is the
     only path that enforces WIP/weight limits and writes the movement audit
     trail (see ``boards.services.errors.UseMoveEndpoint``). An omitted
     (``None``) argument is left untouched; only ``labels=[]`` and
-    ``assignee_email=""`` are recognized as an explicit "clear" — see
+    ``assignee=""`` are recognized as an explicit "clear" — see
     ``_translate_card_fields``.
     """
     user = get_current_user()
+    if assignee_email is not None:
+        return _error_payload(_ASSIGNEE_EMAIL_REPLACED)
     try:
         board, role, card = _resolve_board_for_card(user, card_id)
+        # Same ordering as create_card: role before argument lookups.
+        card_services.require_mutation_role(actor=user, board=board, role=role)
         submitted = _translate_card_fields(
             board, title=title, description=description, priority=priority,
-            assignee_email=assignee_email, labels=labels, due_date=due_date,
+            assignee=assignee, labels=labels, due_date=due_date,
         )
         serializer = CardSerializer(card, data=submitted, partial=True, context={"board": board})
         serializer.is_valid(raise_exception=True)

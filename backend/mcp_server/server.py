@@ -32,12 +32,14 @@ Later waves register their tools here too:
 """
 import functools
 import logging
+from typing import Annotated
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import Field
 
 from accounts.models import SCOPE_MCP_WRITE, get_maintenance_message, get_maintenance_state
 from visiban.demo import DEMO_READ_ONLY_CODE, DEMO_READ_ONLY_DETAIL
@@ -308,7 +310,8 @@ def build_mcp_server():
         name="list_cards",
         description=(
             "List a board's cards, optionally filtered by column_id, swimlane_id, assignee "
-            "(email), priority, or label (name); include_archived defaults to false."
+            "(username), priority, or label (name); include_archived defaults to false. "
+            "Users are identified by username and display_name, matching the REST API."
         ),
     )
     @_throttled(compute=True)
@@ -386,7 +389,8 @@ def build_mcp_server():
             "is given. Requires admin or member board role and the mcp:write scope. "
             "Enforces the column's WIP and weight limits exactly as move_card does, with no "
             "override: a create into a full column returns a structured "
-            "wip_limit_exceeded/wip_hard_blocked/weight_limit_exceeded error."
+            "wip_limit_exceeded/wip_hard_blocked/weight_limit_exceeded error. "
+            "assignee is the username of an assignable board member."
         ),
     )
     @_throttled()
@@ -397,7 +401,10 @@ def build_mcp_server():
         title: str,
         description: str | None = None,
         priority: str | None = None,
-        assignee_email: str | None = None,
+        assignee: str | None = None,
+        assignee_email: Annotated[
+            str | None, Field(description="Removed; use `assignee` (username).")
+        ] = None,
         labels: list[str] | None = None,
         due_date: str | None = None,
         position: int | None = None,
@@ -407,8 +414,8 @@ def build_mcp_server():
             return denial
         return await sync_to_async(tools.create_card, thread_sensitive=True)(
             board_id=board_id, column_id=column_id, swimlane_id=swimlane_id, title=title,
-            description=description, priority=priority, assignee_email=assignee_email,
-            labels=labels, due_date=due_date, position=position,
+            description=description, priority=priority, assignee=assignee,
+            assignee_email=assignee_email, labels=labels, due_date=due_date, position=position,
         )
 
     @mcp.tool(
@@ -437,7 +444,8 @@ def build_mcp_server():
     @mcp.tool(
         name="update_card",
         description=(
-            "Update a card's title/description/priority/assignee_email/labels/due_date. "
+            "Update a card's title/description/priority/assignee/labels/due_date. "
+            "assignee is a username; an empty string unassigns. "
             "Cannot change column/swimlane — use move_card. Requires admin or member board "
             "role and the mcp:write scope."
         ),
@@ -448,7 +456,10 @@ def build_mcp_server():
         title: str | None = None,
         description: str | None = None,
         priority: str | None = None,
-        assignee_email: str | None = None,
+        assignee: str | None = None,
+        assignee_email: Annotated[
+            str | None, Field(description="Removed; use `assignee` (username).")
+        ] = None,
         labels: list[str] | None = None,
         due_date: str | None = None,
     ) -> _TOOL_OUTPUT:
@@ -457,7 +468,8 @@ def build_mcp_server():
             return denial
         return await sync_to_async(tools.update_card, thread_sensitive=True)(
             card_id=card_id, title=title, description=description, priority=priority,
-            assignee_email=assignee_email, labels=labels, due_date=due_date,
+            assignee=assignee, assignee_email=assignee_email, labels=labels,
+            due_date=due_date,
         )
 
     @mcp.tool(
