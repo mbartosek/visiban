@@ -8,10 +8,13 @@ continuously updated signal (`.claude/kaizen-yield-state.json`, a per
 (gate, diff-shape) streak of consecutive `0 findings` runs). This script reads
 that state and proposes the table edits the data supports.
 
-It NEVER edits the table. It prints a unified diff on stdout (apply it with
-`patch`, in a normal reviewed MR) and a ready-to-paste `## Fast-path evidence`
-MR-description section (to --evidence-out, else stderr) citing gate, diff
-shape, streak, and the MRs in the streak, the way #682 is cited today.
+It NEVER edits the table. It prints a unified diff on stdout and a
+ready-to-paste `## Fast-path evidence` section (to --evidence-out, else stderr)
+citing gate, diff shape, streak, and the MRs in the streak, the way #682 is
+cited today. The table is a local file (normally ~/.claude/CLAUDE.md, which is
+not in this repository): the diff is meant to be reviewed and then applied
+with `patch` by the table's owner, and the evidence section pasted into
+whatever issue or MR records the change.
 
 What it can propose, and what it cannot:
   * narrow a row: a gate named in a row's "Required gates" cell whose streak
@@ -35,9 +38,10 @@ not proposed. Unlike the watch's issue filing, a pair that already had an
 issue filed is still proposed: the issue and the table edit are separate
 steps.
 
-The table lives in the user's global ~/.claude/CLAUDE.md, outside the repo, so
 --table is the normal invocation; without it the repo's CLAUDE.md files are
-searched and the script exits 2 if none holds the table.
+searched and the script exits 2 if none holds the table. A --state file that
+does not exist exits 2 (it would otherwise read as "no candidates"), and a
+state whose watermark is older than STALE_DAYS gets a stale-signal warning.
 
 Usage:
   python3 scripts/kaizen_fastpath_proposal.py --table ~/.claude/CLAUDE.md > fastpath.diff
@@ -55,6 +59,7 @@ import os
 import re
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -68,6 +73,10 @@ HEADER_RE = re.compile(r"^\|\s*Change class\s*\|\s*Required gates")
 # joining gates in one step, with whatever whitespace surrounds them.
 SEP_RE = re.compile(r"\s*(?:→|->|\+)\s*")
 CLUSTER = "pre-MR gate cluster"
+# A state whose watermark (last folded merge) is older than this is reported
+# as stale: the nightly watch has stopped advancing it, or an old copy was
+# passed, and an old streak is weaker evidence than a current one.
+STALE_DAYS = 30
 
 # Diff shape (branch prefix, see kaizen_yield_watch.diff_shape) -> the table
 # rows it covers, matched by case-insensitive prefix of the "Change class"
@@ -98,6 +107,10 @@ PRE_MR_CLUSTER = {
 
 
 class TableNotFound(Exception):
+    pass
+
+
+class StateMissing(Exception):
     pass
 
 
@@ -175,9 +188,27 @@ def tokenize(cell):
 
 
 def names_item(item, gate):
-    """True when *item* is `gate`, optionally followed by a (qualifier)."""
-    m = re.fullmatch(r"\s*`([^`]+)`\s*(\(.*\))?\s*", item, re.S)
-    return bool(m) and m.group(1) == gate
+    """True when *item* is `gate`, optionally followed by ONE (qualifier).
+
+    The qualifier must be a single balanced parenthesized group that ends the
+    item. Anything else after the gate ("`b` (if x) or `c` (if y)") is
+    ambiguous: raise Unsafe rather than guess where the item ends.
+    """
+    m = re.match(r"\s*`([^`]+)`", item)
+    if not m or m.group(1) != gate:
+        return False
+    rest = item[m.end() :].strip()
+    if not rest:
+        return True
+    if rest[0] == "(":
+        depth = 0
+        for pos, c in enumerate(rest):
+            depth += {"(": 1, ")": -1}.get(c, 0)
+            if depth == 0:
+                if pos == len(rest) - 1:
+                    return True
+                break
+    raise Unsafe("ambiguous text after the gate")
 
 
 def remove_gate(cell, gate):
@@ -196,14 +227,16 @@ def remove_gate(cell, gate):
         if f"`{gate}`" in cell:
             raise Unsafe("named, but not as a standalone item")
         return None
+    if len(hits) > 1:
+        raise Unsafe("named more than once")
     if len(tokens) == 1:
         raise Unsafe("it is the only item in the row")
-    for k in reversed(hits):
-        seps = [j for j in (k - 1, k + 1) if 0 < j < len(tokens)]
-        plus = [j for j in seps if tokens[j].strip() == "+"]
-        drop = plus[0] if plus else seps[0]
-        lo, hi = min(k, drop), max(k, drop)
-        del tokens[lo : hi + 1]
+    k = hits[0]
+    seps = [j for j in (k - 1, k + 1) if 0 < j < len(tokens)]
+    plus = [j for j in seps if tokens[j].strip() == "+"]
+    drop = plus[0] if plus else seps[0]
+    lo, hi = min(k, drop), max(k, drop)
+    del tokens[lo : hi + 1]
     return "".join(tokens)
 
 
@@ -220,7 +253,7 @@ def build(state, declined, text):
     state file's own, so a state written with another threshold is honored.
     """
     lines = text.splitlines(keepends=True)
-    span = find_table([ln.rstrip("\n") for ln in lines])
+    span = find_table([ln.rstrip("\r\n") for ln in lines])
     if span is None:
         raise TableNotFound("table file has no fast-path table")
     rows = list(range(*span))
@@ -268,7 +301,8 @@ def build(state, declined, text):
             )
             planned = {}
         for i, (label, _, narrowed) in planned.items():
-            lines[i] = f"| {label} | {narrowed} |\n"
+            body = lines[i].rstrip("\r\n")
+            lines[i] = f"| {label} | {narrowed} |" + lines[i][len(body) :]
         if planned:
             edits.append((gate, shape, p, "; ".join(s for _, s, _ in planned.values())))
         if unsafe:
@@ -301,7 +335,7 @@ def build(state, declined, text):
     return "".join(lines), edits, notes
 
 
-def evidence_md(state, edits, notes, source):
+def evidence_md(state, edits, notes, source, stale=None):
     threshold = state.get("threshold", watch.THRESHOLD)
     mark = state.get("last_iid") or 0
     out = [
@@ -310,9 +344,12 @@ def evidence_md(state, edits, notes, source):
         f"Generated by `scripts/kaizen_fastpath_proposal.py` (#1145) from `{source}`, "
         f"watermark !{mark} ({state.get('last_merged_at') or 'none'}). Threshold: {threshold} consecutive "
         "`0 findings` runs of a gate on one diff shape (the `/kaizen` MIN_RUNS_FOR_VERDICT). "
-        "`n/a` and `skipped` ledger lines are not runs. Nothing was applied; this MR is the review.",
+        "`n/a` and `skipped` ledger lines are not runs. Nothing was applied: the diff is for the "
+        "table's owner to review and apply with `patch`.",
         "",
     ]
+    if stale:
+        out += [f"> **Stale signal:** {stale}", ""]
 
     def row(gate, shape, p, where):
         mrs = ", ".join(f"!{i}" for i in p["evidence"]) or "none recorded"
@@ -322,7 +359,7 @@ def evidence_md(state, edits, notes, source):
     if edits:
         out += [head.format("Row narrowed"), "|---|---|---|---|---|---|"]
         out += [row(g, s, p, label) for g, s, p, label in edits]
-        out += ["", "Before merging, for each narrowed gate:", ""]
+        out += ["", "Before applying the diff, for each narrowed gate:", ""]
         out += [
             f"- [ ] `{g}`: also review the Gate reference row and any prose restating when this gate fires"
             for g in dict.fromkeys(g for g, _, _, _ in edits)
@@ -348,33 +385,73 @@ def evidence_md(state, edits, notes, source):
     return "\n".join(out)
 
 
+def unified_diff(old, new, label):
+    """difflib's unified diff plus git's "\\ No newline at end of file" marker,
+    which difflib omits, so `patch` applies an edit to an unterminated last line.
+    Line endings (CRLF included) are carried through untouched."""
+    for line in difflib.unified_diff(
+        old.splitlines(True), new.splitlines(True), label, label
+    ):
+        if line.endswith("\n"):
+            yield line
+        else:
+            yield line + "\n\\ No newline at end of file\n"
+
+
+def staleness(state, now):
+    """A warning string when the state watermark is older than STALE_DAYS."""
+    raw = state.get("last_merged_at") or ""
+    if not raw:
+        return "the state has no watermark (nothing was ever folded into it)"
+    when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    age = (now - when).days
+    if age > STALE_DAYS:
+        return (
+            f"the state watermark ({raw}, !{state.get('last_iid') or 0}) is {age} days old, over the "
+            f"{STALE_DAYS}-day limit; use the nightly kaizen-yield-watch artifact or re-run the watch"
+        )
+    return None
+
+
 def run(args, out=None, err=None):
     out, err = out or sys.stdout, err or sys.stderr
     roots = cli_roots()
+    state_path = resolve_within(roots, args.state)
+    if not state_path.is_file():
+        raise StateMissing(
+            f"--state file not found: {args.state} (a missing state would read as 'no candidates')"
+        )
     state = watch.load_state(args.state)
+    now = (
+        datetime.fromisoformat(args.now.replace("Z", "+00:00"))
+        if args.now
+        else datetime.now(timezone.utc)
+    )
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    stale = staleness(state, now)
+    if stale:
+        print(f"kaizen-fastpath-proposal: WARNING - STALE SIGNAL: {stale}", file=err)
     declined = watch.load_declined(args.declined)
     table = (
         resolve_within(cli_roots(HOME_CLAUDE), args.table)
         if args.table
         else default_table()
     )
-    text = table.read_text(encoding="utf-8")
+    with open(table, encoding="utf-8", newline="") as fh:  # keep CRLF as-is
+        text = fh.read()
     new, edits, notes = build(state, declined, text)
     label = args.table or os.path.relpath(table, REPO_ROOT)
-    out.writelines(
-        difflib.unified_diff(text.splitlines(True), new.splitlines(True), label, label)
-    )
+    out.writelines(unified_diff(text, new, label))
     src = Path(args.state).resolve()
     md = evidence_md(
         state,
         edits,
         notes,
         src.relative_to(REPO_ROOT) if src.is_relative_to(REPO_ROOT) else args.state,
-    )
-    print(
-        f"kaizen-fastpath-proposal: {len({(g, s) for g, s, _, _ in edits + notes})} candidate(s) over "
-        f"threshold, {len(edits)} diff edit(s), {len(notes)} evidence-only note(s)",
-        file=err,
+        stale,
     )
     if args.evidence_out:
         dest = resolve_within(roots, args.evidence_out)
@@ -385,6 +462,13 @@ def run(args, out=None, err=None):
         dest.write_text(md, encoding="utf-8")
     else:
         err.write(md)
+    # Last line of stderr, after the evidence when that goes to stderr too.
+    print(
+        f"kaizen-fastpath-proposal: {len({(g, s) for g, s, _, _ in edits + notes})} candidate(s) over "
+        f"threshold, {len(edits)} diff edit(s), {len(notes)} evidence-only note(s)"
+        + (" [STALE SIGNAL]" if stale else ""),
+        file=err,
+    )
     return 0
 
 
@@ -477,6 +561,7 @@ def self_test():
             declined=str(Path(d) / "none.json"),
             table=str(tbl),
             evidence_out=str(Path(d) / "ev.md"),
+            now=None,
         )
         buf, err = io.StringIO(), io.StringIO()
         rc = run(ns, out=buf, err=err)
@@ -488,7 +573,21 @@ def self_test():
             "-| Pure bugfix" in buf.getvalue() and "+| Pure bugfix" in buf.getvalue(),
             "run must emit a unified diff",
         )
-        check("2 diff edit(s)" in err.getvalue(), "run must print a one-line summary")
+        check(
+            err.getvalue().rstrip("\n").splitlines()[-1].count("2 diff edit(s)") == 1,
+            "run must end stderr with a one-line summary",
+        )
+        check(
+            "STALE SIGNAL" in err.getvalue(),
+            "a state with no watermark must be flagged stale",
+        )
+        ns.state = str(Path(d) / "typo.json")
+        try:
+            run(ns, out=io.StringIO(), err=io.StringIO())
+            check(False, "a missing --state must be refused")
+        except StateMissing:
+            pass
+        ns.state = str(sp)
         link = Path(d) / "hardlink.md"
         os.link(tbl, link)
         ns.evidence_out = str(link)
@@ -533,6 +632,10 @@ def self_test():
         ("`a` (unclosed → `b`", "b"),
         ("run `b` only if → `c`", "b"),
         ("`b`", "b"),
+        ("`a` → `b` (if x) or `c` (if y) → `d`", "b"),
+        ("`a` → `b` (if x) or `c` (if y) → `d`", "c"),
+        ("`a` + `a` → `d`", "a"),
+        ("`b` → `b`", "b"),
     ):
         try:
             remove_gate(bad, gate)
@@ -552,6 +655,33 @@ def self_test():
     check(
         "Gate reference row" in md,
         "evidence must carry the collateral-review checklist",
+    )
+
+    # Staleness is measured from the watermark against STALE_DAYS.
+    now = datetime(2026, 10, 14, tzinfo=timezone.utc)
+    check(
+        staleness({"last_merged_at": "2026-09-01T00:00:00Z"}, now) is not None,
+        "43 days must be stale",
+    )
+    check(
+        staleness({"last_merged_at": "2026-10-01T00:00:00.5Z"}, now) is None,
+        "13 days must be fresh",
+    )
+
+    # Line endings: CRLF rows keep CRLF; an unterminated last row gets the marker.
+    crlf = SELF_TEST_TABLE.replace("\n", "\r\n")
+    new_crlf, e5, _ = build(st, set(), crlf)
+    check(
+        e5
+        and new_crlf.count("\r\n") == crlf.count("\r\n")
+        and "\n" not in new_crlf.replace("\r\n", ""),
+        "CRLF line endings must be preserved",
+    )
+    tail = SELF_TEST_TABLE.split("\n\noutro")[0]
+    new_tail, _, _ = build(st, set(), tail)
+    check(
+        "\\ No newline at end of file" in "".join(unified_diff(tail, new_tail, "t")),
+        "an unterminated last line must carry the no-newline marker",
     )
     if ok:
         print(
@@ -581,6 +711,9 @@ def main():
         metavar="FILE",
         help="write the MR evidence section here (default: stderr)",
     )
+    ap.add_argument(
+        "--now", help="ISO timestamp to measure staleness against (tests; default: now)"
+    )
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
@@ -595,8 +728,14 @@ def main():
             file=sys.stderr,
         )
         sys.exit(2)
-    except (TableNotFound, OSError, ValueError, KeyError) as exc:
+    except (TableNotFound, StateMissing) as exc:
         print(f"kaizen-fastpath-proposal: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as exc:  # noqa: BLE001 -- never a traceback, never a half-made proposal
+        print(
+            f"kaizen-fastpath-proposal: error ({type(exc).__name__}: {exc}); no proposal made",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
 

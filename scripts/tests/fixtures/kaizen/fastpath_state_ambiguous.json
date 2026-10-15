@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "last_iid": 1200,
+  "last_merged_at": "2026-10-01T00:00:00Z",
+  "threshold": 10,
+  "proposed": [],
+  "pairs": {
+    "regression-check|fix": {"streak": 10, "runs": 10, "zero": 10, "positive": 0, "evidence": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
+    "completeness-check|docs": {"streak": 10, "runs": 10, "zero": 10, "positive": 0, "evidence": [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]}
+  }
+}

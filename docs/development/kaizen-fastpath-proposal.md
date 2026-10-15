@@ -8,9 +8,11 @@ per-gate, per-diff-shape streak of `0 findings` runs, the table's evidence can c
 data instead of from memory (#1145).
 
 `scripts/kaizen_fastpath_proposal.py` reads the yield state and **proposes** table edits. It
-never edits the table. It prints a unified diff and a ready-to-paste MR-description section
-that cites the evidence, and the change goes through a normal reviewed MR. This changes where
-the table's evidence comes from, not how a table change is reviewed.
+never edits the table. It prints a unified diff and a ready-to-paste evidence section. The
+table is a local file (see below), so the diff is meant to be reviewed and then applied with
+`patch` by the table's owner, and the evidence section pasted into whatever issue or MR records
+the change (the repository that carries the table, if there is one). This changes where the
+table's evidence comes from, not who decides on a table change.
 
 ## Running it
 
@@ -28,19 +30,30 @@ python3 scripts/kaizen_fastpath_proposal.py --self-test
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--state FILE` | `.claude/kaizen-yield-state.json` | Yield state from the watch. Use the nightly job's `kaizen-yield-state.json` artifact for the newest data. |
+| `--state FILE` | `.claude/kaizen-yield-state.json` | Yield state from the watch. Use the nightly job's `kaizen-yield-state.json` artifact for the newest data. A file that does not exist exits 2 (it would otherwise read as "no candidates"). |
 | `--declined FILE` | `.claude/kaizen-declined.json` | Gates declined as `<gate>:fast-path-candidate` are not proposed. |
 | `--table FILE` | search repo `CLAUDE.md` files | The file holding the table. Read only. |
-| `--evidence-out FILE` | stderr | Where the `## Fast-path evidence` section goes. Must not be the table file. |
+| `--evidence-out FILE` | stderr | Where the `## Fast-path evidence` section goes. Must not be the table file, or a hard link to it. |
+| `--now ISO` | the current time | Reference time for the staleness check; for tests. |
 
-Stdout is only the diff, so it can be redirected straight into a file for `patch`. Stderr
-always ends with a one-line summary such as `3 candidate(s) over threshold, 1 diff edit(s),
+Stdout is only the diff, so it can be redirected straight into a file for `patch`. Line
+endings (CRLF included) are carried through, and an edited last line without a trailing newline
+gets the `\ No newline at end of file` marker, so the diff applies as-is. The last line of
+stderr is always a one-line summary (after the evidence section when that goes to stderr), such as `3 candidate(s) over threshold, 1 diff edit(s),
 2 evidence-only note(s)`. **An empty diff does not mean nothing reached the threshold**: the
 candidates below that get no automatic edit appear only in the evidence section, so read it
 (or the summary) every time. File paths follow the
 [path containment rules](ci-gates.md#path-containment-for-cli-arguments); `--table` may also
 live under `~/.claude/`. On macOS the temp root is `$TMPDIR`, not `/tmp`; a rejected path
-exits 2 with the allowed roots listed.
+exits 2 with the allowed roots listed. Any other error (a malformed state, an unreadable
+table) exits 2 with a message and no proposal.
+
+**Stale signal.** If the state's watermark (`last_merged_at`, the newest merge folded in) is
+more than **30 days** old (`STALE_DAYS`), or the state has no watermark, the first line of
+stderr is a `STALE SIGNAL` warning, the evidence section carries the same warning, and the
+summary line ends with `[STALE SIGNAL]`. The committed `.claude/kaizen-yield-state.json` only
+advances when someone commits the nightly artifact (its watermark was !925, 2026-09-26, when
+this was written), so prefer the newest artifact with `--state`.
 
 ## What it proposes
 
@@ -72,9 +85,12 @@ For each candidate:
 - **Edit would remove the gate from every row that runs it** (by name or through the pre-MR
   gate cluster): no diff. That is a gate deletion, which `/kaizen`'s hard rule (narrow, never
   delete) reserves for a human; the evidence section says so.
-- **Cell cannot be split safely** (unbalanced parentheses or backticks, or the gate named
-  inside prose rather than as an item): that row is not edited and the evidence section names it.
-  The script never writes markdown it could not parse.
+- **Cell cannot be split safely**: unbalanced parentheses or backticks, the gate named inside
+  prose rather than as an item, text after the gate other than one parenthesized qualifier
+  (for example "`` `b` `` (if x) or `` `c` `` (if y)", where the item boundary is ambiguous), the
+  gate named more than once in the cell, or the gate as the cell's only item. That row is not
+  edited and the evidence section names it with the reason. The script never writes markdown
+  it could not parse.
 - **Gate covered only by "batched pre-MR gate cluster"**: no diff. The evidence section lists
   it as a hand edit, because the cluster's applicability list is prose.
 - **No mapped row names the gate**, or the shape is `other`: no diff, listed with the reason.
@@ -88,7 +104,8 @@ human review. Path-based diff shapes, which would let the proposer add rows, are
 
 ## The evidence section
 
-The `## Fast-path evidence` section goes into the MR description as-is. It names the state
+The `## Fast-path evidence` section is meant to be pasted as-is into the issue or MR that
+records the table change. It names the state
 file and its watermark, the threshold, and for each candidate the gate, diff shape,
 consecutive 0-finding runs, lifetime runs (with how many had findings), the MRs in the streak
 (the most recent 10 the state keeps), and the rows narrowed or the reason no edit was made.
@@ -96,7 +113,8 @@ The table's rationale stays auditable the same way the #682 citation is.
 
 The diff edits only the table, but the same file restates when gates fire (the Gate
 reference rows, and prose such as "before the push, run `completeness-check`"). For every
-narrowed gate the evidence section adds a checklist line to review those too.
+narrowed gate the evidence section adds a checklist line to review those too, before the
+diff is applied.
 
 A streak is absence of evidence. Before merging, confirm the gate was not only run on
 trivially safe diffs. Narrow a trigger; never delete a gate.
