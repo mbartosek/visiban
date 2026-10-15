@@ -709,7 +709,7 @@ def main():
     ap.add_argument(
         "--evidence-out",
         metavar="FILE",
-        help="write the MR evidence section here (default: stderr)",
+        help="write the evidence section here (default: stderr)",
     )
     ap.add_argument(
         "--now", help="ISO timestamp to measure staleness against (tests; default: now)"
