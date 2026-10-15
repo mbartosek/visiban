@@ -52,7 +52,7 @@ from .invite_utils import InviteTokenError
 # Defined in accounts.credentials (#1551) so the allauth signal receivers, the
 # REST reset serializer and the Django admin can share it without importing
 # this module; kept importable from here for existing callers.
-from . import credentials
+from . import credentials, password_attempts
 from .credentials import finalize_password_change
 from .validators import (
     USERNAME_TAKEN_MESSAGE,
@@ -663,6 +663,17 @@ _PASSWORD_CHANGE_RESPONSE = inline_serializer(
 )
 
 
+class PasswordChangeThrottle(UserRateThrottle):
+    """Per-user rate limit for the password-change endpoints (#1673).
+
+    Both endpoints share the one ``password_change`` bucket, so switching
+    between them does not multiply the budget. Failed current-password checks
+    additionally feed the account lockout bucket (accounts.password_attempts).
+    """
+
+    scope = "password_change"
+
+
 # The response can carry a replacement API token (``key``), so it must not be
 # stored by a browser or an intermediate cache (#1562).
 @method_decorator(never_cache, name="dispatch")
@@ -674,6 +685,9 @@ class ChangePasswordView(APIView):
     """
 
     permission_classes = [IsAuthenticated, TokenHasScope]
+
+    def get_throttles(self):
+        return [*super().get_throttles(), PasswordChangeThrottle()]
 
     @extend_schema(responses={200: _PASSWORD_CHANGE_RESPONSE})
     def post(self, request):
@@ -716,11 +730,13 @@ class ChangePasswordView(APIView):
             # Social-only accounts have no usable password — skip the current
             # password check so they can set one for the first time.
             if user.has_usable_password():
+                attempt = password_attempts.begin_current_password_check(request, user)
                 if not user.check_password(current_password):
                     return Response(
                         {"detail": "Current password is incorrect."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+                password_attempts.current_password_accepted(attempt)
             user.set_password(new_password)
             user.save(update_fields=["password"])
             finalize_password_change(user)
@@ -1080,6 +1096,9 @@ class TokenRevokingPasswordChangeView(DjRestAuthPasswordChangeView):
     AUTH_PASSWORD_VALIDATORS), and a successful change clears
     must_change_password through the same finalize_password_change() helper.
     """
+
+    def get_throttles(self):
+        return [*super().get_throttles(), PasswordChangeThrottle()]
 
     @extend_schema(
         responses={

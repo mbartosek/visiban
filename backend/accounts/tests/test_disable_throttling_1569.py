@@ -60,6 +60,7 @@ class DisableThrottlingSettingsTests(SimpleTestCase):
         self.assertEqual(values["RATES"]["user"], "5000/hour")
         self.assertEqual(values["RATES"]["share_link"], "120/hour")
         self.assertEqual(values["RATES"]["login"], "20/hour")
+        self.assertEqual(values["RATES"]["password_change"], "10/hour")
         self.assertEqual(values["ACCOUNT_RATE_LIMITS"], {"login_failed": "10/m/ip,5/300s/key"})
 
     def test_debug_without_override_keeps_share_link_limits(self):

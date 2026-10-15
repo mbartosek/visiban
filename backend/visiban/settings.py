@@ -629,6 +629,12 @@ REST_FRAMEWORK = {
         # self-registered user can become a group admin, so sharing the group
         # ceiling would let one of them make every site-admin invite 429.
         "invite_email_global_site": "9999/hour" if DEBUG else "200/day",
+        # Password change (#1673): per user, shared by both change endpoints.
+        # DRF scopes only support s/m/h/d periods, so "5 per 15 minutes" is
+        # expressed as two layers: the allauth "login_failed" lockout (5 failed
+        # attempts / 5 min per account, shared with login) is the tight
+        # control, and this 10/hour scope is the backstop on request volume.
+        "password_change": "9999/hour" if DEBUG else "10/hour",
     },
 }
 

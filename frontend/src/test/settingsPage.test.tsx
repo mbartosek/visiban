@@ -622,6 +622,22 @@ describe('SecurityTab — password account', () => {
     )
     expect(mockChangePassword).toHaveBeenCalledWith('OldPassword1!', 'NewPassword123!')
   }, 15000)
+
+  it('shows a wait message when the change is rate limited', async () => {
+    mockChangePassword.mockRejectedValueOnce({ response: { status: 429 } })
+    const user = await openSecurityTab()
+    await user.type(screen.getByLabelText('Current password'), 'OldPassword1!')
+    await user.type(screen.getByLabelText('New password'), 'NewPassword123!')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('Too many attempts. Please wait before trying again.'),
+        ).toBeInTheDocument(),
+      { timeout: 10000 },
+    )
+  }, 15000)
 })
 
 describe('SecurityTab — social account (no usable password)', () => {
