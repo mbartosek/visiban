@@ -4129,7 +4129,7 @@ re-checks.</p>
 <tbody>
 <tr>
 <td>REST</td>
-<td><code>boards/permissions.py</code> <code>get_board_role</code>; <code>groups/models.py</code> <code>get_accessible_group_ids</code></td>
+<td><code>boards/permissions.py</code> <code>get_board_role</code>; <code>groups/models.py</code> <code>user_has_group_access</code> (group endpoints)</td>
 <td>Role resolved from current membership on every request</td>
 </tr>
 <tr>
@@ -4165,7 +4165,7 @@ re-checks.</p>
 <tr>
 <td>WebSocket (group)</td>
 <td><code>groups/consumers.py</code> <code>GroupConsumer</code></td>
-<td>Periodic re-check: <code>_refresh_access</code> calls <code>load_live_ws_user</code>; <code>_has_access</code> uses <code>get_accessible_group_ids</code></td>
+<td>Periodic re-check: <code>_refresh_access</code> calls <code>load_live_ws_user</code>; <code>_has_access</code> uses <code>user_has_group_access</code>, the predicate REST group endpoints gate through</td>
 </tr>
 <tr>
 <td>Site invite links</td>
