@@ -334,3 +334,102 @@ class NotifyStaleCardsStdoutTest(TestCase):
 
         output = out.getvalue()
         self.assertIn("skipped", output)
+
+
+class NotifyStaleCardsRecipientMembershipTest(TestCase):
+    """Recipients must be current effective board members."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="owner_members", password="pass", notif_stale=True
+        )
+        self.board = _make_board(self.owner)
+        self.col = Column.objects.create(board=self.board, name="Backlog", position=0, allow_card_creation=True)
+        self.swim = Swimlane.objects.create(board=self.board, name="General", position=0)
+
+    def _stale_card(self, assignee):
+        card = Card.objects.create(
+            board=self.board, column=self.col, swimlane=self.swim,
+            title="Old Card", created_by=self.owner, position=0, assignee=assignee,
+        )
+        _make_stale_movement(card, self.owner, self.col, self.swim, days_ago=60)
+        return card
+
+    def _run_collecting_signals(self):
+        from boards.signals import post_notification_created
+
+        received = []
+
+        def _receiver(sender, notification=None, **kwargs):
+            received.append(notification)
+
+        post_notification_created.connect(_receiver, dispatch_uid="test_member_scope_stale", weak=False)
+        self.addCleanup(post_notification_created.disconnect, dispatch_uid="test_member_scope_stale")
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("notify_stale_cards", stdout=StringIO())
+        return received
+
+    def test_non_member_assignee_gets_no_row_and_no_signal(self):
+        outsider = User.objects.create_user(
+            username="outsider_stale", password="pass", notif_stale=True
+        )
+        card = self._stale_card(outsider)
+
+        received = self._run_collecting_signals()
+
+        self.assertFalse(Notification.objects.filter(recipient=outsider).exists())
+        self.assertFalse(any(n.recipient_id == outsider.pk for n in received))
+        # The owner still receives the notification.
+        self.assertTrue(Notification.objects.filter(recipient=self.owner, card=card).exists())
+
+    def test_current_member_assignee_still_notified(self):
+        member = User.objects.create_user(
+            username="member_stale", password="pass", notif_stale=True
+        )
+        BoardMembership.objects.create(board=self.board, user=member, role=BoardMembership.Role.MEMBER)
+        card = self._stale_card(member)
+
+        received = self._run_collecting_signals()
+
+        self.assertTrue(Notification.objects.filter(recipient=member, card=card).exists())
+        self.assertTrue(any(n.recipient_id == member.pk for n in received))
+
+    def test_inactive_member_assignee_gets_no_row_and_no_signal(self):
+        inactive = User.objects.create_user(
+            username="inactive_stale", password="pass", notif_stale=True, is_active=False
+        )
+        BoardMembership.objects.create(board=self.board, user=inactive, role=BoardMembership.Role.MEMBER)
+        self._stale_card(inactive)
+
+        received = self._run_collecting_signals()
+
+        self.assertFalse(Notification.objects.filter(recipient=inactive).exists())
+        self.assertFalse(any(n.recipient_id == inactive.pk for n in received))
+
+    def test_site_admin_assignee_still_notified(self):
+        admin = User.objects.create_user(
+            username="siteadmin_stale", password="pass", notif_stale=True,
+            can_access_all_content=True,
+        )
+        card = self._stale_card(admin)
+
+        self._run_collecting_signals()
+
+        self.assertTrue(Notification.objects.filter(recipient=admin, card=card).exists())
+
+    def test_group_inherited_member_assignee_still_notified(self):
+        from groups.models import Group, GroupMembership
+
+        parent = Group.objects.create(name="stale_parent_group", owner=self.owner)
+        child = Group.objects.create(name="stale_child_group", owner=self.owner, parent=parent)
+        user = User.objects.create_user(
+            username="group_member_stale", password="pass", notif_stale=True
+        )
+        GroupMembership.objects.create(group=parent, user=user, role=GroupMembership.Role.MEMBER)
+        self.board.group = child
+        self.board.save()
+        card = self._stale_card(user)
+
+        self._run_collecting_signals()
+
+        self.assertTrue(Notification.objects.filter(recipient=user, card=card).exists())

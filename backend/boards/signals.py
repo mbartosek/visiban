@@ -143,7 +143,12 @@ def notify_on_card_moved(sender, instance, created, **kwargs):
     # Don't notify the person who moved it
     if card.assignee_id == instance.moved_by_id:
         return
-    if not card.assignee.notif_card_moved:
+    if not card.assignee.notif_card_moved or not card.assignee.is_active:
+        return
+    # Recipients are limited to current, active board members.
+    from .utils import _get_effective_member_ids
+
+    if card.assignee_id not in _get_effective_member_ids(card.board):
         return
     # Use the denormalized to_column_name (migration 0016) — avoids a FK query.
     to_col = instance.to_column_name or "a new stage"

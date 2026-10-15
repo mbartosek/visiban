@@ -19,6 +19,7 @@ from django.utils import timezone
 from accounts.models import User
 from boards.models import Board, Card, CardMovement, Notification
 from boards.services.notifications import create_notifications
+from boards.utils import _get_effective_member_ids
 
 
 class Command(BaseCommand):
@@ -33,6 +34,11 @@ class Command(BaseCommand):
         # pay the funnel's recipient lookup and its on_commit hook once per board
         # for no benefit — staleness is a single scan, not a per-board event.
         all_notifications = []
+        # Loaded once: the effective-membership check below must not issue a
+        # site-admin query per board.
+        site_admin_ids = set(
+            User.objects.filter(can_access_all_content=True).values_list("id", flat=True)
+        )
 
         for board in Board.objects.prefetch_related("memberships__user"):
             cutoff = now - datetime.timedelta(days=board.staleness_threshold_days)
@@ -53,12 +59,15 @@ class Command(BaseCommand):
                 ).values_list("assignee_id", flat=True).distinct()
             )
             all_candidate_ids |= assignee_ids
+            # Recipients are limited to current, active board members, the
+            # same rule notify_due_soon applies.
+            all_candidate_ids &= _get_effective_member_ids(board, site_admin_ids)
             # notif_stale, not notif_due_soon (#356). The two events were sharing
             # one flag whose own UI label described the *other* one; migration
             # accounts/0030 copies every existing value across, so no user's
             # effective setting changes here.
             opted_in_ids = set(
-                User.objects.filter(pk__in=all_candidate_ids, notif_stale=True)
+                User.objects.filter(pk__in=all_candidate_ids, notif_stale=True, is_active=True)
                 .values_list("pk", flat=True)
             )
 
