@@ -11,7 +11,7 @@ from accounts.ws_auth import WS_CREDENTIAL_SCOPE_KEY, load_live_ws_user
 from visiban.authorization import authorize_account
 
 from .broadcast import EVT_MEMBER_REMOVED, EVT_PING
-from .models import get_accessible_group_ids
+from .models import Group, user_has_group_access
 
 # Mirror BoardConsumer.PING_INTERVAL; NATs and reverse proxies commonly drop idle
 # WebSocket connections after 60–120s of silence, so 30s keeps them warm.
@@ -24,7 +24,7 @@ PING_INTERVAL = 30
 # 7 s. Same values and the same reasoning as boards.consumers.ACCESS_RECHECK_SECONDS: the publish is
 # best-effort since #1462, so eviction cannot rest on that one frame, and a
 # per-frame access query would multiply DB load by the subscriber count.
-# get_accessible_group_ids walks the group tree (a few queries), which makes
+# The access predicate walks the group tree (a few queries), which makes
 # caching it matter more here, not less.
 ACCESS_RECHECK_SECONDS = 5
 
@@ -55,12 +55,22 @@ _now = time.monotonic
 logger = logging.getLogger(__name__)
 
 
+def _user_can_access_group_id(user, group_id):
+    """Resolve ``group_id`` and apply the shared REST membership predicate."""
+    group = Group.objects.select_related("parent").filter(pk=group_id).first()
+    if group is None:
+        return False
+    return user_has_group_access(user, group)
+
+
 class GroupConsumer(AsyncWebsocketConsumer):
     """Per-group WebSocket channel used by the boards-list view on GroupDetail.
 
-    Auth uses ``get_accessible_group_ids`` so the WS visibility rule stays in lock-step
-    with the REST ``/api/v1/groups/<id>/boards/`` view — tightening that rule later
-    automatically tightens this consumer too. The mid-connection re-check (#1477)
+    Auth uses ``user_has_group_access`` (membership in the group or an ancestor,
+    downward inheritance only), the same predicate REST ``_require_group_member``
+    calls, so the WS visibility rule stays in lock-step with the REST group
+    endpoints — tightening that rule later automatically tightens this
+    consumer too. The mid-connection re-check (#1477)
     uses the same predicate, so the handshake and the re-check cannot disagree.
     """
 
@@ -213,7 +223,7 @@ class GroupConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _has_access(self, user, group_id):
-        return group_id in get_accessible_group_ids(user)
+        return _user_can_access_group_id(user, group_id)
 
     @database_sync_to_async
     def _refresh_access(self):
@@ -230,4 +240,4 @@ class GroupConsumer(AsyncWebsocketConsumer):
         user = load_live_ws_user(self.scope)
         if user is None:
             return False
-        return self.group_id in get_accessible_group_ids(user)
+        return _user_can_access_group_id(user, self.group_id)

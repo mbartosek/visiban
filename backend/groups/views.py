@@ -146,20 +146,8 @@ def _require_group_member(user, group):
     """
     from rest_framework.exceptions import PermissionDenied
     from django.utils.translation import gettext_lazy as _
-    from .models import _GROUP_TRAVERSAL_MAX_DEPTH
-    if getattr(user, "can_access_all_content", False):
-        return
-    ancestor_ids = []
-    node = group
-    depth = 0
-    while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
-        ancestor_ids.append(node.pk)
-        node = node.parent
-        depth += 1
-    if GroupMembership.objects.filter(
-        group_id__in=ancestor_ids,
-        user=user,
-    ).exists():
+    from .models import user_has_group_access
+    if user_has_group_access(user, group):
         return
     raise PermissionDenied(_("You must be a group member to perform this action."))
 

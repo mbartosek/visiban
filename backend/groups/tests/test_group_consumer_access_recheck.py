@@ -3,7 +3,7 @@
 Same gap as the board channel: ``GroupConsumer`` self-evicted only on receiving
 ``member.removed`` (#1329), and that publish is best-effort since #1462, so a
 lost frame left a removed member's group socket open. The consumer now
-re-checks access with ``get_accessible_group_ids`` (cached for
+re-checks access with ``user_has_group_access`` (cached for
 ``ACCESS_RECHECK_SECONDS``) before forwarding any frame and closes with
 ``4003`` when the check fails.
 
@@ -121,6 +121,37 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
 
         self.assertIsNotNone(self._deliver(consumer, _board_frame()))
         consumer.close.assert_not_called()
+
+    def test_membership_only_in_a_subgroup_does_not_admit_the_parent_channel(self):
+        """Access inherits downward only, matching the REST group endpoints."""
+        child = Group.objects.create(name="GAR child2", owner=self.owner, parent=self.group)
+        sub_only = User.objects.create_user(username="gar_subonly", password="pass")
+        GroupMembership.objects.create(group=child, user=sub_only, role=GroupMembership.Role.MEMBER)
+        consumer = GroupConsumer()
+        user = User.objects.get(pk=sub_only.pk)
+
+        self.assertFalse(asyncio.run(consumer._has_access(user, self.group.id)))
+        self.assertTrue(asyncio.run(consumer._has_access(user, child.id)))
+
+    def test_recheck_evicts_a_subgroup_only_member_from_the_parent_channel(self):
+        child = Group.objects.create(name="GAR child3", owner=self.owner, parent=self.group)
+        sub_only = User.objects.create_user(username="gar_subonly2", password="pass")
+        GroupMembership.objects.create(group=child, user=sub_only, role=GroupMembership.Role.MEMBER)
+        consumer = self._consumer()
+        consumer.scope = {
+            "url_route": {"kwargs": {"group_id": self.group.id}},
+            "user": User.objects.get(pk=sub_only.pk),
+            **bound_scope(sub_only),
+        }
+        self.clock.advance(ACCESS_RECHECK_SECONDS)
+
+        self.assertIsNone(self._deliver(consumer, _board_frame()))
+        consumer.close.assert_called_once_with(code=4003)
+
+    def test_parent_member_is_admitted_to_the_parent_channel(self):
+        consumer = GroupConsumer()
+        user = User.objects.get(pk=self.subscriber.pk)
+        self.assertTrue(asyncio.run(consumer._has_access(user, self.group.id)))
 
     def test_window_honors_the_jitter_bound(self):
         """Each successful check draws a window of base + jitter, jitter in [0, max]."""
