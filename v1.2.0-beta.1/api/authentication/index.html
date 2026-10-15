@@ -2171,6 +2171,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#rate-limits-for-password-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rate limits for password change
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#api-token-on-password-change" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5142,9 +5153,12 @@
 <li>If <code>must_change_password</code> was set, it is cleared on success</li>
 <li>The API token issued by <code>POST /api/v1/auth/login/</code> is revoked on success; a caller that authenticated with that token receives a replacement in the response's optional <code>key</code> field — see <a href="#api-token-on-password-change">API token on password change</a> below</li>
 </ul>
-<p><strong>Response</strong> <code>200 OK { "detail": "Password changed successfully." }</code> on success; <code>400 Bad Request</code> with field errors on failure; <code>403 Forbidden</code> when a token credential is used to set a first password on an account with no usable password. When the request was authenticated with the login API token, the body also carries <code>key</code>, the replacement token:</p>
+<p><strong>Response</strong> <code>200 OK { "detail": "Password changed successfully." }</code> on success; <code>400 Bad Request</code> with field errors on failure; <code>403 Forbidden</code> when a token credential is used to set a first password on an account with no usable password; <code>429 Too Many Requests</code> when the request limits described under <a href="#rate-limits-for-password-change">Rate limits for password change</a> are exceeded. When the request was authenticated with the login API token, the body also carries <code>key</code>, the replacement token:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Password changed successfully."</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;new-api-token&gt;"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
+<h4 id="rate-limits-for-password-change">Rate limits for password change<a class="headerlink" href="#rate-limits-for-password-change" title="Permanent link">&para;</a></h4>
+<p>Both password-change endpoints share one per-user DRF throttle scope, <code>password_change</code> (10 requests/hour), and exceeding it returns <code>429 Too Many Requests</code>. A wrong current password is also counted against the same per-account <code>login_failed</code> budget as failed logins (5 per 5 minutes), so failures at login and here draw on one allowance; while an account is locked out, both endpoints return <code>429</code> even for a correct password until the window expires. A correct current password is not counted.</p>
+<p>Failed password changes count toward the same per-account and per-IP failed-attempt budgets that sign-in uses, so repeated failures from one IP address can also affect sign-in from that address for a short time.</p>
 <h4 id="api-token-on-password-change">API token on password change<a class="headerlink" href="#api-token-on-password-change" title="Permanent link">&para;</a></h4>
 <p>A password change through this endpoint or <code>POST /api/v1/auth/password/change/</code> below revokes the account's API token issued by <code>POST /api/v1/auth/login/</code>, along with all Personal Access Tokens; a caller authenticated with that token receives a replacement in the optional <code>key</code> field. allauth's change and set pages and the Django admin's own-password form do the same.</p>
 <ul>
@@ -5246,6 +5260,10 @@ plus <code>key</code> when the request was authenticated with the login API toke
 <tr>
 <td><code>401 Unauthorized</code></td>
 <td>Request is not authenticated</td>
+</tr>
+<tr>
+<td><code>429 Too Many Requests</code></td>
+<td>Per-user request limit or per-account attempt limit reached — see <a href="#rate-limits-for-password-change">Rate limits for password change</a></td>
 </tr>
 </tbody>
 </table>

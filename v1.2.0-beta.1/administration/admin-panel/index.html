@@ -4356,7 +4356,7 @@ emailed (each board's admins see those invites move to <strong>Revoked</strong>)
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
-<p>Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login attempts within 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) immediately, letting the user log in again without waiting out the rest of the 5-minute window.</p>
+<p>Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login or password-change attempts within 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) immediately, letting the user log in again without waiting out the rest of the 5-minute window.</p>
 <p>A successful password reset already clears this automatically, so <strong>Clear lockout</strong> is for the case where that isn't an option — for example the user contacts support directly instead of using the reset-password flow, or reset emails aren't reaching them. It is safe to click at any time: if the account isn't currently locked out, nothing happens.</p>
 <h2 id="invite-links-tab">Invite Links tab<a class="headerlink" href="#invite-links-tab" title="Permanent link">&para;</a></h2>
 <blockquote>

@@ -4600,6 +4600,11 @@ used the Bitnami Valkey subchart, also needs
 <td>This DRF throttle only wraps the SPA/API endpoint. Alongside it, allauth's own <code>login_failed</code> gate (<code>ACCOUNT_RATE_LIMITS = "10/m/ip,5/300s/key"</code>) applies to <strong>both</strong> <code>/api/v1/auth/login/</code> (the SPA goes through allauth's rate-limited adapter, #1199) and allauth's own HTML view at <code>/accounts/login/</code> (which this DRF throttle does not wrap at all — the allauth gate is its only rate limit). That gate is two rates, both enforced everywhere it applies: 10 failed attempts / minute per IP (across any accounts), and 5 failed attempts / 5 min per account (across any IPs)</td>
 </tr>
 <tr>
+<td>Password change (<code>/api/v1/auth/change-password/</code>, <code>/api/v1/auth/password/change/</code>)</td>
+<td>10 / hour per user</td>
+<td>One <code>password_change</code> bucket shared by both endpoints. Failed current-password checks here also count toward the same per-account and per-IP <code>login_failed</code> budgets as sign-in</td>
+</tr>
+<tr>
 <td>User search (<code>/api/v1/users/search/</code>)</td>
 <td>30 / minute</td>
 <td>Tighter limit to prevent username enumeration</td>
@@ -4611,7 +4616,7 @@ used the Bitnami Valkey subchart, also needs
 </tr>
 </tbody>
 </table>
-<p>Clients that exceed one of the DRF throttle scopes above receive <code>HTTP 429 Too Many Requests</code>. The standard <code>Retry-After</code> header is not set — clients should implement exponential backoff. Neither <code>login_failed</code> lockout above is a DRF throttle, and neither follows this shape: either one returns <code>HTTP 400 Bad Request</code> with <code>{"non_field_errors": ["Too many failed login attempts. Try again later."]}</code> — identical wording, so the response alone doesn't say which rate tripped. See <a href="../../api/authentication/#1-obtain-a-token">API Authentication</a> for the full set of login error responses.</p>
+<p>Clients that exceed one of the DRF throttle scopes above receive <code>HTTP 429 Too Many Requests</code>. The standard <code>Retry-After</code> header is not set — clients should implement exponential backoff. Neither <code>login_failed</code> lockout above is a DRF throttle, and neither follows this shape: at login either one returns <code>HTTP 400 Bad Request</code> with <code>{"non_field_errors": ["Too many failed login attempts. Try again later."]}</code> — identical wording, so the response alone doesn't say which rate tripped. On the password-change endpoints, which draw on the same budgets, the lockout returns <code>HTTP 429 Too Many Requests</code>. See <a href="../../api/authentication/#1-obtain-a-token">API Authentication</a> for the full set of login error responses.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>These limits are generous for normal interactive use. If you run a very large team or integrate Visiban with automation that makes frequent API calls, monitor your request volume and raise the <code>user</code> limit in <code>DEFAULT_THROTTLE_RATES</code> in <code>settings.py</code> if needed.</p>
