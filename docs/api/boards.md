@@ -1116,7 +1116,7 @@ Add or update a board member. Requires board admin. Cannot modify a site admin's
 | Field | Required | Description |
 |---|---|---|
 | `user_id` | ✓ | ID of the user to add or update |
-| `role` | | Role to assign (default: `"member"`). Valid: `admin`, `member`, `collaborator`, `viewer` |
+| `role` | | Role to assign (default: `"member"`). Valid: `admin`, `member`, `collaborator`, `viewer`. Any other value, or a non-string, returns `400 Bad Request` with `{"detail": "Role must be one of: ..."}` |
 | `is_moderator` | | Boolean. Grants content-moderation rights (delete/archive others' content). Only valid for `member` and `admin` roles — setting `true` on a collaborator or viewer returns `400 Bad Request`. Automatically cleared when demoting to collaborator or viewer. |
 
 **Visibility of `is_moderator` in board responses (since 1.1; self-row exception since 1.2):** the `is_moderator` field is included in the `members` array of `GET /api/v1/boards/{id}/full/` for `admin` and `site_admin` requesters, on every row. A lower-role requester (`member`, `collaborator`, `viewer`) receives the field only on the row belonging to themselves — so a member promoted to moderator can see their own entitlement — and every other row omits it. This endpoint's own response always carries the field, since it requires board admin. The `member.added` / `member.updated` WebSocket broadcast and the [change feed](events.md) apply the identical self-row rule per recipient (#1191): the subscriber's/reader's own row always carries the field, every other non-admin-visible row omits it.

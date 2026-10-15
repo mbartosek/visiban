@@ -189,7 +189,7 @@ matched count into an existence oracle for every account on the instance.
 | JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` |
 | CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` |
 | Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` |
-| Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule |
+| Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. `BoardViewSet.members` also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 
 ## How to add a rule

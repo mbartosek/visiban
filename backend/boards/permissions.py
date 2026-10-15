@@ -138,6 +138,12 @@ def _role_before_groups(user, board, explicit_membership):
         return BoardMembership.Role.ADMIN, True
     # Explicit per-board membership overrides any group-inherited role.
     if explicit_membership is not None:
+        # A stored role outside the allowed set resolves to no access rather
+        # than being trusted: ``choices`` is not enforced on save, and the
+        # ladder's comparisons treat unknown strings as meaningful. Checked
+        # before caching so such a row is never reused downstream.
+        if explicit_membership.role not in BoardMembership.Role.values:
+            return None, True
         board._cached_membership = explicit_membership
         return explicit_membership.role, True
     return None, False
@@ -197,8 +203,13 @@ def _nearest_ancestor_role(ancestor_ids, group_roles):
 
     ``ancestor_ids`` is ordered nearest-first, so the first hit wins.
     """
+    from groups.models import GroupMembership
+
+    allowed = GroupMembership.Role.values
     for gid in ancestor_ids:
-        if gid in group_roles:
+        # Fail closed: a stored group role outside the allowed set is ignored
+        # rather than trusted, same as an out-of-set board membership role.
+        if group_roles.get(gid) in allowed:
             return group_roles[gid]
     return None
 
@@ -400,18 +411,18 @@ def can_modify_others_content(board, role, user):
     # nothing; on a mismatch we fall through to the scan and the live query,
     # which are correct rather than fast (security-review, #1107).
     if membership is not None and membership.user_id == user.id:
-        return membership.is_moderator
+        return membership.is_moderator and membership.role in BoardMembership.Role.values
     # _prefetched_memberships is loaded by get_board_for_user() — scan it first
     # before issuing a live query on every mutation request.
     prefetched = getattr(board, "_prefetched_memberships", None)
     if prefetched is not None:
         for m in prefetched:
             if m.user_id == user.id:
-                return m.is_moderator
+                return m.is_moderator and m.role in BoardMembership.Role.values
         return False
     try:
         membership = BoardMembership.objects.get(board=board, user=user)
-        return membership.is_moderator
+        return membership.is_moderator and membership.role in BoardMembership.Role.values
     except BoardMembership.DoesNotExist:
         return False
 

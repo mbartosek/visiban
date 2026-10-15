@@ -863,7 +863,7 @@ class BoardViewSet(
             200: BoardMembershipSerializer,
             201: BoardMembershipSerializer,
             400: OpenApiResponse(
-                description="Moderator entitlement requested for a collaborator or viewer role.",
+                description="`role` is not a string within the allowed role set, or moderator entitlement was requested for a collaborator or viewer role.",
                 response=inline_serializer(name="AddMemberBadRequest", fields={"detail": serializers.CharField()}),
             ),
             403: OpenApiResponse(
@@ -880,6 +880,13 @@ class BoardViewSet(
             raise PermissionDenied
         user_id = request.data.get("user_id")
         member_role = request.data.get("role", BoardMembership.Role.MEMBER)
+        # Validate at the boundary: only stored membership roles are accepted,
+        # and only as strings (an unhashable value must not reach the lookup).
+        if not isinstance(member_role, str) or member_role not in BoardMembership.Role.values:
+            return Response(
+                {"detail": f"Role must be one of: {', '.join(BoardMembership.Role.values)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         target_user = get_object_or_404(User, pk=user_id)
         # Site-admin protection keys on the caller's own site-admin status,
         # matching groups/views.py's update_member.
