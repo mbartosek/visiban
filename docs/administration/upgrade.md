@@ -304,6 +304,13 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! note "Browser WebSocket connections check the Origin header"
+    A WebSocket handshake that carries an `Origin` header must match `CORS_ALLOWED_ORIGINS`,
+    `CSRF_TRUSTED_ORIGINS`, or a host in `ALLOWED_HOSTS`. If your public hostname differs from
+    `ALLOWED_HOSTS`, add it there (or list the origin in `CORS_ALLOWED_ORIGINS`); otherwise browser
+    WebSocket connections are refused. Clients that send no `Origin` header are unaffected. See the
+    [WebSocket API](../api/websockets.md#connecting).
+
 !!! note "Superuser accounts normalized"
     `manage.py migrate` runs a one-time data migration (`accounts/0036`). On upgrade, existing
     superuser accounts are set to site admin with all-content access, matching how the
