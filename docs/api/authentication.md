@@ -529,11 +529,17 @@ Change the authenticated user's password. Requires authentication.
 - If `must_change_password` was set, it is cleared on success
 - The API token issued by `POST /api/v1/auth/login/` is revoked on success; a caller that authenticated with that token receives a replacement in the response's optional `key` field — see [API token on password change](#api-token-on-password-change) below
 
-**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a token credential is used to set a first password on an account with no usable password. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
+**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a token credential is used to set a first password on an account with no usable password; `429 Too Many Requests` when the request limits described under [Rate limits for password change](#rate-limits-for-password-change) are exceeded. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
 
 ```json
 { "detail": "Password changed successfully.", "key": "<new-api-token>" }
 ```
+
+#### Rate limits for password change
+
+Both password-change endpoints share one per-user DRF throttle scope, `password_change` (10 requests/hour), and exceeding it returns `429 Too Many Requests`. A wrong current password is also counted against the same per-account `login_failed` budget as failed logins (5 per 5 minutes), so failures at login and here draw on one allowance; while an account is locked out, both endpoints return `429` even for a correct password until the window expires. A correct current password is not counted.
+
+Failed password changes count toward the same per-account and per-IP failed-attempt budgets that sign-in uses, so repeated failures from one IP address can also affect sign-in from that address for a short time.
 
 #### API token on password change
 
@@ -614,6 +620,7 @@ Validation errors use DRF's per-field shape, not `/auth/change-password/`'s
 |---|---|
 | `400 Bad Request` | `old_password` missing or incorrect; `new_password1` / `new_password2` missing, mismatched, or failing an `AUTH_PASSWORD_VALIDATORS` check |
 | `401 Unauthorized` | Request is not authenticated |
+| `429 Too Many Requests` | Per-user request limit or per-account attempt limit reached — see [Rate limits for password change](#rate-limits-for-password-change) |
 
 !!! note
     Prefer `POST /api/v1/auth/change-password/` for anything user-facing — the

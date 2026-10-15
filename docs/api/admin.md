@@ -473,7 +473,7 @@ After a successful deactivation with transfers, `owned_boards` will be `[]` — 
 
 ### `POST /api/v1/admin/users/{id}/clear-lockout/`
 
-Clear the target user's per-account login lockout early (#1203). The per-account `login_failed` lockout (5 failed attempts / 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.
+Clear the target user's per-account login lockout early (#1203). The per-account `login_failed` lockout (5 failed login or password-change attempts / 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.
 
 **Permission:** `IsSiteAdmin`. Only a superuser can clear the lockout of a superuser account (`400` otherwise).
 

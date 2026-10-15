@@ -662,9 +662,12 @@ function SecurityTab({ user, connectResult = null }: { user: User; connectResult
       setSaved(true);
       setPasswordJustSet(true);
       setForm({ current_password: "", new_password: "", confirm: "" });
-    } catch {
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
       setError(
-        hasPw
+        status === 429
+          ? "Too many attempts. Please wait before trying again."
+          : hasPw
           ? "Failed to change password. Check your current password and try again."
           : "Failed to set password. Please try again."
       );

@@ -149,7 +149,7 @@ Clears `has_completed_tour` for a user, so they see the [onboarding tour](../get
 
 > **Added in 1.2**
 
-Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login attempts within 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) immediately, letting the user log in again without waiting out the rest of the 5-minute window.
+Clears the per-account login lockout (on a superuser account this is available to superusers only; 5 failed login or password-change attempts within 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) immediately, letting the user log in again without waiting out the rest of the 5-minute window.
 
 A successful password reset already clears this automatically, so **Clear lockout** is for the case where that isn't an option — for example the user contacts support directly instead of using the reset-password flow, or reset emails aren't reaching them. It is safe to click at any time: if the account isn't currently locked out, nothing happens.
 

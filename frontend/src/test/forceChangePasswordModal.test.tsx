@@ -124,4 +124,24 @@ describe('ForceChangePasswordModal', () => {
       expect(screen.getByText('Failed to change password.')).toBeTruthy()
     })
   })
+
+  it('shows a wait message when the API answers 429', async () => {
+    const user = userEvent.setup({ delay: null })
+    mockChangePassword.mockRejectedValue({
+      response: { status: 429, data: { detail: 'Request was throttled.' } },
+    })
+
+    render(<ForceChangePasswordModal user={baseUser} onChanged={onChanged} />)
+
+    await user.type(screen.getByLabelText(/^temporary password/i),'oldpassword123')
+    await user.type(screen.getByLabelText(/^new password/i),'newpassword12345')
+    await user.type(screen.getByLabelText(/^confirm/i),'newpassword12345')
+    await user.click(screen.getByRole('button', { name: /set new password/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Too many attempts. Please wait before trying again.'),
+      ).toBeTruthy()
+    })
+  })
 })

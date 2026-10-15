@@ -356,10 +356,19 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
 
     def validate_old_password(self, value):
         if self.user is not None and self.user.has_usable_password():
+            from . import password_attempts
+
+            request = self.context.get("request")
+            attempt = (
+                password_attempts.begin_current_password_check(request, self.user)
+                if request is not None
+                else None
+            )
             if not self.user.check_password(value):
                 raise serializers.ValidationError(
                     "Your old password was entered incorrectly. Please enter it again."
                 )
+            password_attempts.current_password_accepted(attempt)
         return value
 
     def validate(self, attrs):

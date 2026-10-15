@@ -33,8 +33,12 @@ export default function ForceChangePasswordModal({ user, onChanged }: Props) {
       await changePassword(current, next);
       onChanged({ ...user, must_change_password: false });
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail ?? "Failed to change password.");
+      const response = (err as { response?: { status?: number; data?: { detail?: string } } })?.response;
+      setError(
+        response?.status === 429
+          ? "Too many attempts. Please wait before trying again."
+          : response?.data?.detail ?? "Failed to change password.",
+      );
     } finally {
       setSaving(false);
     }
