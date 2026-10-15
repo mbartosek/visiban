@@ -51,7 +51,7 @@ An earlier decision (#511, 2026-09-14) went the other way, to keep a single surf
 
 Token scopes and the instance switch (`MCP_SERVER_ENABLED`, off by default) are enforced server-side, so they apply however the server is transported.
 
-The one deliberate difference is the **read shape**: MCP returns an agent-friendly card representation (assignee email, label names, nested column and swimlane names) rather than the REST payload. Because that shape is hand-written, it needs a parity test so a new `CardSerializer` field is either exposed to agents or explicitly excluded, never silently missing (#1176).
+The one deliberate difference is the **read shape**: MCP returns an agent-friendly card representation (assignee username and display name, label names, nested column and swimlane names) rather than the REST payload. Because that shape is hand-written, it needs a parity test so a new `CardSerializer` field is either exposed to agents or explicitly excluded, never silently missing (#1176).
 
 ---
 
