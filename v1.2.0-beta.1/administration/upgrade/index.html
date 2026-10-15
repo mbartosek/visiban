@@ -4485,7 +4485,8 @@ for that visitor.</p>
 <p class="admonition-title">Housekeeping for inactive accounts</p>
 <p><code>manage.py migrate</code> runs a one-time data migration (<code>groups/0018</code>) that removes personal
 access tokens and unused invite links belonging to inactive accounts. No operator action
-is needed; it is idempotent.</p>
+is needed; it is idempotent. A companion migration (<code>accounts/0039</code>) likewise removes the
+API auth tokens of inactive accounts.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">WIP and weight limits now apply to card create, restore, and weight changes</p>

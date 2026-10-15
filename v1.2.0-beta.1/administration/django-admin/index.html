@@ -3958,7 +3958,7 @@ by design — Nginx and the SPA router tell them apart by the trailing slash.</p
 <li><strong>Adding a user:</strong> a user created here with a password must choose their own password the first time they sign in, the same as one created from the site-admin panel. A user created with password sign-in disabled is not asked to create one.</li>
 </ul>
 <h2 id="deactivating-users">Deactivating users<a class="headerlink" href="#deactivating-users" title="Permanent link">&para;</a></h2>
-<p>Clearing <strong>Active</strong> on a user deletes their Personal Access Tokens and revokes their pending invite links, the same as deactivating them from the site-admin panel.</p>
+<p>Clearing <strong>Active</strong> on a user deletes their Personal Access Tokens and API token and revokes their pending invite links, the same as deactivating them from the site-admin panel.</p>
 <h2 id="what-you-can-manage">What you can manage<a class="headerlink" href="#what-you-can-manage" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Users</strong> — view/edit user accounts, activate or deactivate accounts, and (superusers only) set <code>is_staff</code>, <code>is_superuser</code>, groups and permissions. The form does not carry <code>is_site_admin</code> or <code>must_change_password</code>; use the site-admin panel or <code>set_site_admin</code> for those. Removing <code>is_superuser</code> also removes the account's site-admin and all-content access; site admin can then be granted again explicitly.</li>

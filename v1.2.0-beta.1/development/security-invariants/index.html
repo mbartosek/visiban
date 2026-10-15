@@ -4148,9 +4148,9 @@ re-checks.</p>
 <td><code>user_can_authenticate</code> refuses inactive users at login; allauth <code>respond_user_inactive</code> handles existing social accounts</td>
 </tr>
 <tr>
-<td>Personal access tokens</td>
+<td>Personal access tokens and DRF auth token</td>
 <td><code>accounts/admin_views.py</code> <code>AdminUserDeactivateView._revoke_invite_links</code></td>
-<td>Deletes the user's PATs; invoked by <code>AdminUserDeactivateView.post</code> and by <code>AdminUserDetailView.patch</code> when <code>is_active</code> becomes false</td>
+<td>Deletes the user's PATs and DRF auth <code>Token</code> (<code>accounts/credentials.py</code> <code>revoke_auth_token</code>); invoked by <code>AdminUserDeactivateView.post</code> and by <code>AdminUserDetailView.patch</code> when <code>is_active</code> becomes false</td>
 </tr>
 <tr>
 <td>MCP</td>
@@ -4205,7 +4205,7 @@ re-checks.</p>
 <tr>
 <td>Admin API</td>
 <td><code>accounts/admin_views.py</code> <code>AdminUserDetailView.patch</code>, <code>AdminUserDeactivateView.post</code></td>
-<td>Deactivation revokes PATs and pending invites in the same operation</td>
+<td>Deactivation revokes PATs, the DRF auth token and pending invites in the same operation</td>
 </tr>
 <tr>
 <td>Superuser status change (model save)</td>
@@ -4279,7 +4279,7 @@ access described in Rule 2.</p>
 <tr>
 <td>DRF auth <code>Token</code></td>
 <td>dj-rest-auth login via <code>accounts/views.py</code> <code>ThrottledLoginView</code>; <code>TokenAuthentication</code></td>
-<td>Logout (dj-rest-auth <code>LogoutView</code> deletes <code>request.user.auth_token</code>); every password change, reset and admin-set password (<code>accounts/credentials.py</code> <code>revoke_auth_token</code>, called from <code>finalize_password_change</code> and <code>require_password_change_after_admin_set</code>, so every caller in the next three rows revokes it); on the REST change routes (<code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>) a request authenticated with the <code>Token</code> gets a replacement in the response's optional <code>key</code> field (<code>reissue_auth_token</code>, same transaction and user-row lock), while a session caller stays signed in through <code>update_session_auth_hash</code>; <code>TokenAuthentication</code> checks <code>user.is_active</code> on each request; an open socket minted from it re-checks the key digest in <code>accounts/ws_auth.py</code> <code>_credential_ref_is_live</code>. Issuance at login (<code>ThrottledLoginView.login</code>) and those helpers are serialized on the user row (<code>accounts/credentials.py</code> <code>lock_user_row</code>); login re-reads the row under the lock and issues the <code>Token</code> only while the stored password hash is the one the credentials were verified against and the account is active (<code>accounts/tests/test_credential_row_lock.py</code>)</td>
+<td>Logout (dj-rest-auth <code>LogoutView</code> deletes <code>request.user.auth_token</code>); account deactivation (<code>AdminUserDeactivateView._revoke_invite_links</code>, also from <code>VisibanUserAdmin.save_model</code> through <code>apply_access_loss_revocations</code>); every password change, reset and admin-set password (<code>accounts/credentials.py</code> <code>revoke_auth_token</code>, called from <code>finalize_password_change</code> and <code>require_password_change_after_admin_set</code>, so every caller in the next three rows revokes it); on the REST change routes (<code>ChangePasswordView</code>, <code>TokenRevokingPasswordChangeView</code>) a request authenticated with the <code>Token</code> gets a replacement in the response's optional <code>key</code> field (<code>reissue_auth_token</code>, same transaction and user-row lock), while a session caller stays signed in through <code>update_session_auth_hash</code>; <code>TokenAuthentication</code> checks <code>user.is_active</code> on each request; an open socket minted from it re-checks the key digest in <code>accounts/ws_auth.py</code> <code>_credential_ref_is_live</code>. Issuance at login (<code>ThrottledLoginView.login</code>) and those helpers are serialized on the user row (<code>accounts/credentials.py</code> <code>lock_user_row</code>); login re-reads the row under the lock and issues the <code>Token</code> only while the stored password hash is the one the credentials were verified against and the account is active (<code>accounts/tests/test_credential_row_lock.py</code>)</td>
 </tr>
 <tr>
 <td>Personal access token</td>
