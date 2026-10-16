@@ -1,7 +1,9 @@
 """Malformed ids and non-object JSON bodies are 4xx, never 500 (#1669).
 
-Same class as #1136. Each case previously raised ValueError/AttributeError/
-TypeError out of a members-only endpoint.
+Same class as #1136. Body/id-type and out-of-range-id cases previously raised ValueError/
+AttributeError/TypeError/OverflowError out of a members-only endpoint. The
+non-numeric path-id route tests and the "still works" controls already passed
+before the fix; they are regression guards, not proof of the fix.
 """
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -11,6 +13,7 @@ from boards.models import Board, BoardMembership, Column, Swimlane, Card
 from groups.models import Group, GroupMembership, GroupLabel
 
 # A null body parses to an empty mapping in DRF, so it was never a 500.
+HUGE = 10**30
 NON_OBJECT_BODIES = ([1, 2], 5, "text", True)
 
 
@@ -99,3 +102,29 @@ class MalformedInputTests(TestCase):
         url = "/api/v1/notifications/mark-read/"
         self.assertEqual(self.client.post(url, {"ids": [1, "2"]}, format="json").status_code, 200)
         self.assertEqual(self.client.post(url, {"all": True}, format="json").status_code, 200)
+
+    # --- ids beyond the database integer range ---
+    def test_huge_path_ids_404(self):
+        g = f"/api/v1/groups/{self.group.id}"
+        for m in ("patch", "delete"):
+            for tail in (f"members/{HUGE}/", f"labels/{HUGE}/"):
+                r = getattr(self.client, m)(f"{g}/{tail}", {}, format="json")
+                self.assertEqual(r.status_code, 404, f"{m} {tail}")
+        r = self.client.delete(f"/api/v1/boards/{self.board.id}/cards/{self.card.id}/relations/{HUGE}/")
+        self.assertEqual(r.status_code, 404)
+
+    def test_huge_ids_in_bodies_400(self):
+        b = f"/api/v1/boards/{self.board.id}"
+        for bad in (HUGE, str(HUGE)):
+            self.assertEqual(
+                self.client.post("/api/v1/notifications/mark-read/", {"ids": [bad]}, format="json").status_code, 400
+            )
+            self.assertEqual(
+                self.client.post(f"{b}/columns/reorder/", {"order": [bad]}, format="json").status_code, 400
+            )
+            self.assertEqual(
+                self.client.post(f"{b}/swimlanes/reorder/", {"order": [bad]}, format="json").status_code, 400
+            )
+            self.assertEqual(
+                self.client.post(f"{b}/members/", {"user_id": bad}, format="json").status_code, 400
+            )

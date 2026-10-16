@@ -9,6 +9,16 @@ These helpers keep the rejection in one place and always a 400.
 from rest_framework.exceptions import ParseError, ValidationError
 
 
+# Largest value a 64-bit signed integer column can hold; anything bigger makes
+# the ORM raise OverflowError (SQLite) or DataError (PostgreSQL) -> a 500.
+MAX_DB_INT = 2**63 - 1
+
+
+def id_in_db_range(value):
+    """True if ``value`` is a non-negative int a database id column can hold."""
+    return 0 <= value <= MAX_DB_INT
+
+
 def require_json_object(request):
     """Return ``request.data`` if it is a JSON object, else raise a 400.
 
@@ -25,14 +35,19 @@ def require_json_object(request):
 def coerce_int_id(value, field="id"):
     """Return ``value`` as an int, or raise a 400 naming ``field``.
 
-    Accepts ints and digit strings (the forms clients already send); rejects
+    Accepts ints and digit strings (the forms clients already send) within the 64-bit
+    range; rejects out-of-range values,
     bools, floats, lists, dicts and non-numeric strings so they never reach an
     ORM ``pk=`` lookup, where they would raise ValueError/TypeError (a 500).
     """
     if isinstance(value, bool):
         raise ValidationError({field: "A valid integer is required."})
     if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.isascii() and value.isdigit():
-        return int(value)
+        parsed = value
+    elif isinstance(value, str) and value.isascii() and value.isdigit():
+        parsed = int(value)
+    else:
+        parsed = None
+    if parsed is not None and id_in_db_range(parsed):
+        return parsed
     raise ValidationError({field: "A valid integer is required."})

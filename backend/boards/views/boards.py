@@ -18,11 +18,11 @@ from drf_spectacular.utils import (
 from accounts.models import User
 from accounts.permissions import TokenHasScope
 from groups.broadcast import broadcast_group_event as _broadcast_group_event
-from visiban.request_shape import coerce_int_id, require_json_object
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.request_shape import coerce_int_id, require_json_object
 
 from .. import broadcast as _broadcast
 from ..models import (
@@ -894,7 +894,7 @@ class BoardViewSet(
         # matching groups/views.py's update_member.
         if target_user.is_site_admin and not request.user.is_site_admin:
             raise PermissionDenied("Cannot modify a site admin's board membership.")
-        raw_mod = request.data.get("is_moderator")
+        raw_mod = body.get("is_moderator")
         # Normalize: None means "not provided", else coerce to bool.
         # Multipart forms send "false"/"true" as strings.
         if raw_mod is None:

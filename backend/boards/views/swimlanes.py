@@ -11,11 +11,11 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from accounts.permissions import TokenHasScope
-from visiban.request_shape import require_json_object
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.request_shape import require_json_object
 
 from .. import broadcast as _broadcast
 from ..models import Board, BoardMembership, Column, Swimlane, SwimlaneCustomFieldDefinition
