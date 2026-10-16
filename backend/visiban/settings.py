@@ -656,6 +656,14 @@ REST_FRAMEWORK = {
 # pattern to accommodate the way the REST "user" scope does.
 MCP_THROTTLE_READ_RATE = env("MCP_THROTTLE_READ_RATE", default="300/min")
 MCP_THROTTLE_COMPUTE_RATE = env("MCP_THROTTLE_COMPUTE_RATE", default="30/min")
+# Per-client-IP cap on FAILED token lookups, checked before the PAT lookup
+# (#1679). The token buckets above cannot see a caller who never presents a
+# valid token; only failures spend this budget, but once an IP is over budget
+# ALL requests from it (valid too) are refused until the window slides, so
+# agents sharing an IP with a failing client are affected. The budget is
+# approximate (concurrent/multi-replica failures can exceed it or lose
+# counts). IP resolution honors NUM_PROXIES.
+MCP_THROTTLE_PREAUTH_RATE = env("MCP_THROTTLE_PREAUTH_RATE", default="30/min")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Visiban API",

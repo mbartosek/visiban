@@ -79,6 +79,8 @@ _PERIODS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 # all, since the whole point of the fallback is to survive their absence.
 DEFAULT_MCP_THROTTLE_READ_RATE = "300/min"
 DEFAULT_MCP_THROTTLE_COMPUTE_RATE = "30/min"
+# Failed credential lookups per client IP (#1679); see PreAuthFailureLimiter.
+DEFAULT_MCP_THROTTLE_PREAUTH_RATE = "30/min"
 
 ERROR_CODE_THROTTLED = "throttled"
 
@@ -233,3 +235,96 @@ async def check_compute():
     See :meth:`McpTokenBucket.check` for the algorithm and fail-closed rules.
     """
     return await sync_to_async(compute_bucket.check, thread_sensitive=True)()
+
+
+class PreAuthFailureLimiter:
+    """Per-client-IP cap on FAILED token lookups, checked before the lookup (#1679).
+
+    The buckets above key on a resolved PAT id, so they cannot see a caller who
+    never presents a valid token: every guess costs a database lookup and no
+    bucket ever fills. Only FAILED lookups spend budget (``record_failure``),
+    but the check itself (``blocked``) runs before the lookup for EVERY request,
+    so once an IP has burned its budget, valid requests from that IP are also
+    refused until the window slides. Agents sharing an egress IP with a client
+    that keeps failing (a looping agent on a revoked token, a hostile host
+    behind the same NAT) are therefore affected too; that is the accepted cost
+    of rejecting before the lookup.
+
+    The IP is resolved with ``visiban.utils.get_client_ip`` so it honors the
+    same ``NUM_PROXIES`` as the DRF throttles and never trusts raw
+    client-supplied ``X-Forwarded-For`` entries. Same sliding-window cache
+    algorithm and fail-loud rate parsing as :class:`McpTokenBucket`; unlike the
+    token buckets there is no "unknown identity" case, because the IP resolver
+    always returns a non-empty fallback.
+
+    Cache outage: ``cache.get``/``cache.set`` are deliberately NOT guarded,
+    exactly like :class:`McpTokenBucket`. A backend error propagates and the
+    request fails (fail closed) rather than silently disabling the limiter.
+    The budget is approximate: the read-modify-write is not atomic, so
+    concurrent failures (or failures spread across replicas) can exceed it or
+    lose counts.
+    """
+
+    def __init__(self, setting_name, default_rate):
+        self.setting_name = setting_name
+        self.default_rate = default_rate
+        # Fail at import/boot on a typo, like McpTokenBucket.__init__.
+        self._rate()
+
+    def _rate(self):
+        raw = getattr(settings, self.setting_name, None)
+        if raw is None:
+            raw = self.default_rate
+        return _parse_rate(raw, self.setting_name)
+
+    @staticmethod
+    def client_ip(scope):
+        """Resolve the client IP from an ASGI scope via the shared resolver."""
+        from types import SimpleNamespace
+
+        from visiban.utils import get_client_ip
+
+        meta = {}
+        client = scope.get("client")
+        if client:
+            meta["REMOTE_ADDR"] = client[0]
+        # Join EVERY x-forwarded-for line with "," exactly as Django's
+        # ASGIRequest does, so get_client_ip's rightmost-by-NUM_PROXIES pick
+        # sees the same list as the REST throttles. Reading only the first
+        # line would let a client prepend its own header line and choose its
+        # bucket.
+        xff = [
+            value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+            if name == b"x-forwarded-for"
+        ]
+        if xff:
+            meta["HTTP_X_FORWARDED_FOR"] = ",".join(xff)
+        return get_client_ip(SimpleNamespace(META=meta))
+
+    @staticmethod
+    def _key(ip):
+        return f"mcp_preauth_fail:{ip}"
+
+    def blocked(self, ip):
+        """Return seconds to retry after if ``ip`` is over budget, else None."""
+        num_requests, duration = self._rate()
+        now = time.time()
+        history = [ts for ts in cache.get(self._key(ip), []) if ts > now - duration]
+        if len(history) >= num_requests:
+            return max(1, round(duration - (now - history[0])))
+        return None
+
+    def record_failure(self, ip):
+        _, duration = self._rate()
+        key = self._key(ip)
+        now = time.time()
+        history = [ts for ts in cache.get(key, []) if ts > now - duration]
+        history.append(now)
+        cache.set(key, history, duration)
+
+
+preauth_limiter = PreAuthFailureLimiter(
+    setting_name="MCP_THROTTLE_PREAUTH_RATE",
+    default_rate=DEFAULT_MCP_THROTTLE_PREAUTH_RATE,
+)

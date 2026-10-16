@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import LoginSerializer as DjRestAuthLoginSerializer
 from dj_rest_auth.serializers import PasswordChangeSerializer as DjRestAuthPasswordChangeSerializer
@@ -48,10 +50,44 @@ class AvatarUrlField(serializers.CharField):
     still leaves the *validator* in place, which re-adds ``format`` from the
     other direction), which is a JSON Schema violation for `""` (schemathesis
     correctly flags it, #1120). Subclassing ``CharField`` instead avoids
-    attaching that validator in the first place; avatar URLs are populated
-    from OAuth providers, not hand-typed, so strict URL-syntax validation on
-    write isn't load-bearing here.
+    attaching that validator in the first place.
+
+    The SPA renders the value as ``<img src>`` (#1679), so on write only a
+    non-blank value must be an absolute ``http``/``https`` URL with a host and
+    no userinfo. This blocks other schemes (``javascript:``, ``data:``,
+    relative paths) and credential-bearing URLs; it does NOT stop a tracking
+    pixel on an arbitrary https host, which remains mitigated only by the
+    deployment's CSP ``img-src``. Reads are untouched, so rows stored before
+    this check keep serializing.
     """
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if value:
+            message = (
+                "Enter an absolute http:// or https:// URL without "
+                "embedded credentials."
+            )
+            # Whitespace/control characters are never legal in a URL and make
+            # parsers disagree about the host.
+            if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+                raise serializers.ValidationError(message)
+            try:
+                parsed = urlsplit(value)
+                # ``.port`` raises ValueError for a non-numeric/out-of-range
+                # port; urlsplit itself raises it for e.g. "http://[bad".
+                parsed.port  # noqa: B018
+            except ValueError:
+                raise serializers.ValidationError(message) from None
+            # ``hostname`` is None for "https:///x" and for scheme-less or
+            # protocol-relative values; "@" in netloc means userinfo.
+            if (
+                parsed.scheme.lower() not in ("http", "https")
+                or not parsed.hostname
+                or "@" in parsed.netloc
+            ):
+                raise serializers.ValidationError(message)
+        return value
 
 
 @extend_schema_field({

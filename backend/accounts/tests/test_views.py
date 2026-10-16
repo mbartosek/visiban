@@ -131,9 +131,57 @@ class UserDetailsFlagExposureTests(TestCase):
         # `format: uri`. The actual DRF `max_length` kwarg has to be set to
         # match, or an overlong value skips validation and hits Postgres's
         # `character varying(200)` column directly as an uncaught DataError.
-        r = self.client.patch("/api/v1/auth/user/", {"avatar_url": "x" * 201})
+        r = self.client.patch("/api/v1/auth/user/", {"avatar_url": "https://example.com/" + "x" * 181})
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("avatar_url", r.json())
+
+    def test_avatar_url_rejects_non_http_schemes_and_userinfo(self):
+        # #1679: the SPA renders avatar_url as <img src>, so only absolute
+        # http(s) URLs without userinfo may be written.
+        for bad in (
+            "javascript:alert(1)",
+            "data:image/svg+xml;base64,PHN2Zz4=",
+            "ftp://example.com/a.png",
+            "/media/avatars/a.png",
+            "//example.com/a.png",
+            "https://user:pw@example.com/a.png",
+            "https:///a.png",
+            "not a url",
+            "http://[bad",
+            "https://exa mple.com/x",
+            "https://example.com/a\tb",
+            "http://a:b/x",
+            "http://a:99999/x",
+        ):
+            with self.subTest(value=bad):
+                r = self.client.patch("/api/v1/auth/user/", {"avatar_url": bad})
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("avatar_url", r.json())
+
+    def test_avatar_url_accepts_http_https_and_blank(self):
+        for good in (
+            "https://avatars.example.com/u/1.png?s=64",
+            "http://example.com/a.png",
+            "HTTPS://example.com/a.png",
+            "",
+        ):
+            with self.subTest(value=good):
+                r = self.client.patch("/api/v1/auth/user/", {"avatar_url": good})
+                self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+                self.assertEqual(r.json()["avatar_url"], good)
+
+    def test_existing_stored_avatar_url_is_still_readable(self):
+        # Validation is write-only: a legacy row holding a non-http value must
+        # still serialize, and an unrelated PATCH must not trip on it.
+        type(self.user).objects.filter(pk=self.user.pk).update(
+            avatar_url="/media/avatars/legacy.png"
+        )
+        self.user.refresh_from_db()  # force_authenticate hands the view this object
+        r = self.client.get("/api/v1/auth/user/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["avatar_url"], "/media/avatars/legacy.png")
+        r = self.client.patch("/api/v1/auth/user/", {"first_name": "Dana"})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
 
     def test_astral_plane_username_is_a_clean_400(self):
         # #1120: backend-schema-fuzz PATCHed this endpoint with a username

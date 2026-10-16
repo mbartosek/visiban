@@ -306,3 +306,115 @@ class ThrottleCoverageTests(ThrottleIntegrationTestCase):
                 payload = _parse_sse(body)
                 self.assertIn("error", payload, f"resource {uri!r} was not denied: {payload!r}")
                 self.assertIn("Rate limit exceeded", payload["error"]["message"])
+
+
+class PreAuthFailureLimiterTests(McpTestCase):
+    """Per-IP limiter on FAILED credential lookups, before the PAT lookup (#1679)."""
+
+    BAD = "vbn_" + "0" * 40
+
+    def _post(self, token, xff=None, full=False, extra_headers=None):
+        # McpRequest has no header hook, so drive the mounted ASGI app directly.
+        from asgiref.sync import async_to_sync
+
+        from .test_mcp import httpx
+
+        async def go():
+            headers = {
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+                "authorization": f"Bearer {token}",
+            }
+            if xff:
+                headers["x-forwarded-for"] = xff
+            if extra_headers is not None:
+                headers = list(headers.items()) + extra_headers
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=self.client_.app),
+                base_url="http://localhost",
+            ) as c:
+                r = await c.post(
+                    "/mcp",
+                    json={"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                    headers=headers,
+                )
+            return r if full else r.status_code
+
+        return async_to_sync(go)()
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_repeated_bad_tokens_from_one_ip_are_throttled(self):
+        codes = [self._post(self.BAD, xff="198.51.100.7") for _ in range(3)]
+        self.assertEqual(codes, [401, 401, 401])
+        self.assertEqual(self._post(self.BAD, xff="198.51.100.7"), 429)
+        # Even a VALID token from the blocked IP is refused before lookup.
+        self.assertEqual(self._post(self.raw_token, xff="198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_other_ips_are_unaffected(self):
+        for _ in range(4):
+            self._post(self.BAD, xff="198.51.100.7")
+        self.assertNotEqual(self._post(self.raw_token, xff="203.0.113.9"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_successful_requests_do_not_consume_the_budget(self):
+        for _ in range(10):
+            self.assertNotEqual(self._post(self.raw_token, xff="198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="2/min")
+    def test_spoofed_leading_xff_entries_do_not_pick_a_bucket(self):
+        # NUM_PROXIES=1: only the rightmost entry is trusted.
+        for i in range(2):
+            self._post(self.BAD, xff=f"10.0.0.{i}, 198.51.100.7")
+        self.assertEqual(self._post(self.BAD, xff="10.9.9.9, 198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="not-a-rate")
+    def test_unparseable_rate_fails_loud(self):
+        with self.assertRaises(ImproperlyConfigured):
+            self._post(self.BAD)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="2/min")
+    def test_valid_token_lacking_scope_does_not_spend_the_budget(self):
+        _, unscoped = PersonalAccessToken.generate(
+            self.user, "wrong-scope", scopes=["boards:read"]
+        )
+        for _ in range(5):
+            self.assertEqual(self._post(unscoped, xff="198.51.100.7"), 401)
+        # Budget untouched: a real guess still gets a 401, not a 429.
+        self.assertEqual(self._post(self.BAD, xff="198.51.100.7"), 401)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="1/min")
+    def test_429_carries_retry_after_and_jsonrpc_envelope(self):
+        self._post(self.BAD, xff="198.51.100.7")
+        r = self._post(self.BAD, xff="198.51.100.7", full=True)
+        self.assertEqual(r.status_code, 429)
+        self.assertGreaterEqual(int(r.headers["retry-after"]), 1)
+        err = r.json()["error"]
+        self.assertEqual(r.json()["jsonrpc"], "2.0")
+        self.assertEqual(err["data"]["code"], "throttled")
+        self.assertEqual(err["data"]["retry_after"], int(r.headers["retry-after"]))
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="2/min")
+    def test_repeated_xff_header_lines_are_joined_like_django(self):
+        # Two header lines: the rightmost entry overall (203.0.113.9) is the
+        # trusted one, so a client-prepended 6.6.6.6 line must not pick the bucket.
+        two = [("x-forwarded-for", "6.6.6.6"), ("x-forwarded-for", "203.0.113.9")]
+        self.assertEqual(self._post(self.BAD, extra_headers=two), 401)
+        self.assertEqual(self._post(self.BAD, extra_headers=two), 401)
+        self.assertEqual(self._post(self.BAD, extra_headers=two), 429)
+        # A different first line with the same trusted last line is the same bucket.
+        other = [("x-forwarded-for", "7.7.7.7"), ("x-forwarded-for", "203.0.113.9")]
+        self.assertEqual(self._post(self.BAD, extra_headers=other), 429)
+        self.assertEqual(self.limiter_ip(two), "203.0.113.9")
+
+    @staticmethod
+    def limiter_ip(pairs):
+        scope = {"headers": [(k.encode(), v.encode()) for k, v in pairs]}
+        return throttling.PreAuthFailureLimiter.client_ip(scope)
+
+    def test_bad_rate_fails_at_construction(self):
+        with override_settings(MCP_THROTTLE_PREAUTH_RATE="nope"):
+            with self.assertRaises(ImproperlyConfigured):
+                throttling.PreAuthFailureLimiter(
+                    "MCP_THROTTLE_PREAUTH_RATE", "30/min"
+                )

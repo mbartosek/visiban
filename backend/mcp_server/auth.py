@@ -22,6 +22,8 @@ from accounts.authentication import (
 
 from visiban.authorization import account_state_denial
 
+from .throttling import ERROR_CODE_THROTTLED, preauth_limiter
+
 from .context import (
     reset_current_scopes, reset_current_token_id, reset_current_user,
     set_current_scopes, set_current_token_id, set_current_user,
@@ -66,7 +68,7 @@ def _enforce_account_state(user):
         raise AccountStateBlocked(gate.message, gate.code)
 
 
-async def _send_json_error(send, status, detail, code=None):
+async def _send_json_error(send, status, detail, code=None, retry_after=None):
     """Send a JSON-RPC error envelope with the given HTTP status.
 
     One writer for every transport-level rejection so the envelope cannot
@@ -77,10 +79,14 @@ async def _send_json_error(send, status, detail, code=None):
     error = {"code": _JSONRPC_INVALID_REQUEST, "message": detail}
     if code is not None:
         error["data"] = {"code": code}
+        if retry_after is not None:
+            error["data"]["retry_after"] = retry_after
     body = json.dumps({"jsonrpc": "2.0", "id": None, "error": error}).encode()
     headers = [(b"content-type", b"application/json")]
     if status == 401:
         headers.append((b"www-authenticate", b'Bearer realm="visiban-mcp"'))
+    if retry_after is not None:
+        headers.append((b"retry-after", str(retry_after).encode()))
     headers.append((b"content-length", str(len(body)).encode()))
     await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})
@@ -112,7 +118,15 @@ def _authenticate_and_authorize(raw_token):
     legacy (unscoped) token can never satisfy it. Usage is stamped last, so a
     request denied for scope never records authority it did not exercise.
     """
-    pat = resolve_personal_access_token(raw_token)
+    try:
+        pat = resolve_personal_access_token(raw_token)
+    except InvalidPersonalAccessToken as exc:
+        # Only a failed credential LOOKUP spends the per-IP pre-auth budget
+        # (#1679). enforce_mcp_scope below raises the same exception type for a
+        # valid token that merely lacks a scope; that caller proved possession
+        # of a real token and must not be counted as guessing.
+        exc.counts_toward_preauth = True
+        raise
     _enforce_account_state(pat.user)
     presented_scope = enforce_mcp_scope(pat)
     record_token_usage(pat, presented_scope)
@@ -151,6 +165,21 @@ class BearerAuthMiddleware:
             )
             return
 
+        # Pre-auth, per-IP: refuse an IP that has already burned its budget of
+        # failed lookups BEFORE touching the database (#1679). The PAT-keyed
+        # buckets cannot do this because they need a resolved token.
+        client_ip = preauth_limiter.client_ip(scope)
+        retry_after = await sync_to_async(
+            preauth_limiter.blocked, thread_sensitive=True
+        )(client_ip)
+        if retry_after is not None:
+            logger.warning("Rejected MCP request: pre-auth failure limit reached")
+            await _send_json_error(
+                send, 429, "Too many failed authentication attempts.",
+                code=ERROR_CODE_THROTTLED, retry_after=retry_after,
+            )
+            return
+
         try:
             # One hop, not three: the lookup and the usage write both touch the
             # ORM and so must leave the event loop, and thread_sensitive=True
@@ -165,6 +194,10 @@ class BearerAuthMiddleware:
             # Never log the token itself, and do not log the username either —
             # this path is reachable by unauthenticated callers.
             logger.warning("Rejected MCP request: %s", exc.detail)
+            if getattr(exc, "counts_toward_preauth", False):
+                await sync_to_async(
+                    preauth_limiter.record_failure, thread_sensitive=True
+                )(client_ip)
             await _send_json_error(send, 401, exc.detail)
             return
         except AccountStateBlocked as exc:
