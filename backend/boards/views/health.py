@@ -1,5 +1,7 @@
 """Health check and version views — liveness, readiness, and version endpoints."""
 
+import logging
+
 from django.conf import settings as django_settings
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,6 +12,12 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+
+logger = logging.getLogger(__name__)
+
+# Fixed value reported for a failing component. Detail stays in server logs:
+# this endpoint is anonymous, so it must not echo driver/exception text.
+_UNAVAILABLE = "unavailable"
 
 
 class VersionView(APIView):
@@ -50,16 +58,19 @@ class ReadinessView(APIView):
             from django.db import connection
             connection.ensure_connection()
         except Exception as exc:
-            errors["db"] = str(exc)
+            logger.warning("Readiness check failed: database", exc_info=exc)
+            errors["db"] = _UNAVAILABLE
 
         # Check Redis cache
         try:
             from django.core.cache import cache
             cache.set("_health", "ok", timeout=5)
             if cache.get("_health") != "ok":
-                errors["redis"] = "cache read/write mismatch"
+                logger.warning("Readiness check failed: cache read/write mismatch")
+                errors["redis"] = _UNAVAILABLE
         except Exception as exc:
-            errors["redis"] = str(exc)
+            logger.warning("Readiness check failed: cache", exc_info=exc)
+            errors["redis"] = _UNAVAILABLE
 
         if errors:
             return Response({"status": "error", "errors": errors}, status=503)

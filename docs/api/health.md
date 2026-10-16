@@ -29,13 +29,13 @@ Returns `200 OK` if both the database and Valkey cache are reachable. No authent
 {
   "status": "error",
   "errors": {
-    "db": "connection refused",
-    "redis": "cache read/write mismatch"
+    "db": "unavailable",
+    "redis": "unavailable"
   }
 }
 ```
 
-Only the failing subsystems appear in `errors`. Use this as a **readiness probe** — traffic should not be routed to the instance until it returns `200`.
+Only the failing subsystems appear in `errors`, each with the fixed value `unavailable`. Failure details are written to the server log, not the response. The `errors` values are fixed strings; only the component keys (`db`, `redis`) are a stable contract. Use this as a **readiness probe** — traffic should not be routed to the instance until it returns `200`.
 
 ---
 
