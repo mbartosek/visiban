@@ -316,7 +316,7 @@ Every notification is created through `boards.services.notifications.create_noti
 which after the transaction commits delivers OSS email for the five events that support it
 and then sends the `post_notification_created` signal once per row. The funnel exists
 because three of the creation sites use `bulk_create`, which sends no `post_save` — so a
-per-model signal would have been invisible to half the events. See
+per-model signal would have been invisible to half the events. The funnel also skips inactive recipients, so no row is created for them. See
 [Open core boundary](open-core-boundary.md#oss-extension-points-implementation-status).
 
 ### InviteLink

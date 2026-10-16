@@ -88,6 +88,19 @@ def create_notifications(notifications, *, context=None):
     if not notifications:
         return []
 
+    # Inactive users are never recipients. Enforced here, in the single funnel,
+    # so every producer (present and future) inherits it rather than each
+    # re-implementing the check. One bulk query per batch, not per recipient.
+    from accounts.models import User
+
+    recipient_ids = {n.recipient_id for n in notifications if n.recipient_id}
+    active_ids = set(
+        User.objects.filter(pk__in=recipient_ids, is_active=True).values_list("pk", flat=True)
+    )
+    notifications = [n for n in notifications if n.recipient_id in active_ids]
+    if not notifications:
+        return []
+
     created = Notification.objects.bulk_create(notifications)
     # Snapshot the context: the caller may mutate or reuse its dict, and this
     # value is read after the transaction commits.
