@@ -59,16 +59,31 @@ for a full release) goes in `scripts/compat-baseline/allowlist.json`. Every entr
 An entry that no longer matches any finding is **stale and fails the job**, so the list can
 only shrink toward the truth. Entries without an issue reference fail the job outright.
 
-### Known baseline inaccuracy (v1.1.0)
+Prefer `key` entries. An `operation` entry silently covers every future finding under that
+operation, so use it only when the whole operation is deliberately retired (the five
+`#1080` catch-all entries are an example). The self-test pins the opposite behavior for
+`key` entries: a *new* finding under an operation that already has entries still fails.
+
+### Frozen snapshot of the v1.1.0 baseline drift
 
 The v1.1.0 schema was generated before the schema-hygiene work (#1135-#1138, #1209, #1080) and
 documented fallback or wrong serializers for a number of operations (for example a card
-serializer standing in for the request body of `checklist/` and `comments/`). Diffing
-against it produces findings that are documentation corrections, not runtime changes. Those
-operations are allow-listed under `#1667` with a note that per-operation runtime
-verification is pending; as each is verified (or fixed if it was a real break) its entry
-should be deleted. The next GA baseline is generated from a corrected schema and does not
-carry this debt.
+serializer standing in for the request body of `checklist/` and `comments/`). Diffing against
+it yields findings that look like documentation corrections rather than runtime changes, but
+**none of them has been verified against runtime behavior yet**.
+
+Those findings are therefore frozen as exact per-finding `key` entries under `#1667`
+(generated once from the gate's own output with an empty allow-list, sorted for stable
+diffs). The snapshot is closed: anything not already in it, including a further change to an
+operation that has entries, fails the job. Never add to it to get a pipeline green; a new
+finding is a real break or needs its own issue-referenced entry.
+
+**Burn-down workflow.** Pick an operation, check its v1.1.0 behavior against the current
+runtime (serializer, status code, response shape). If it is only a documentation correction,
+delete that operation's entries and confirm the job stays green (a deleted entry that still
+matches a finding turns the job red, which is the signal that the break is real and needs a
+fix or a properly justified entry). Entries should only ever be deleted, never added. The next
+GA baseline is generated from a corrected schema and does not carry this debt.
 
 ## Running it locally
 

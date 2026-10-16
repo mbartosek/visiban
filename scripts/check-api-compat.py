@@ -585,6 +585,13 @@ def self_test() -> int:
     check("operation-scoped entry passes", (len(live), len(allowed), stale), (0, 1, []))
     live, _, _ = apply_allowlist(fs, [{"operation": "GET /api/x", "issue": "#1", "reason": "r"}])
     check("operation entry does not prefix-match", len(live), 1)
+    # Frozen-snapshot guard: exact-key entries for an operation's existing
+    # findings must NOT swallow a new finding under the same operation.
+    snap = [{"key": f.key, "issue": "#1", "reason": "r"} for f in fs]
+    worse = _spec(props={"id": {"type": "string"}}, required=["id"])  # drops name AND retypes id
+    live, _, stale = apply_allowlist(diff_schemas(normalize(base), normalize(worse)), snap)
+    check("new finding under allow-listed operation fails", sorted(f.kind for f in live), ["TYPE_CHANGED"])
+    check("snapshot entry for fixed finding goes stale", len(stale), 0)
     live, allowed, stale = apply_allowlist(fs, [{"key": "REMOVED_OPERATION GET /gone/", "issue": "#1", "reason": "r"}])
     check("stale allow-list entry reported", (len(live), stale), (1, ["REMOVED_OPERATION GET /gone/"]))
     with tempfile.TemporaryDirectory() as tmp:
