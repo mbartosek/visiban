@@ -127,6 +127,7 @@ class InactiveRecipientTests(TestCase):
 
     @patch("boards.broadcast.broadcast_board_event")
     def test_comment_watcher(self, _bc):
+        """Regression guard: the watcher query already filtered inactive users."""
         # The assignee is an implicit watcher of the card.
         card_active = self._card(assignee=self.active)
         self._comment(card_active, "plain comment")
@@ -148,10 +149,11 @@ class InactiveRecipientTests(TestCase):
         card = self._card()
         for user in (self.active, self.inactive):
             with self.captureOnCommitCallbacks(execute=True):
-                self.client.patch(
+                resp = self.client.patch(
                     f"/api/v1/boards/{self.board.pk}/cards/{card.pk}/",
                     {"assignee_id": user.pk},
                 )
+            self.assertEqual(resp.status_code, 200)
         self._assert_recipient(self.active, True)
         self._assert_recipient(self.inactive, False)
 

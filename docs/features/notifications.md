@@ -235,6 +235,7 @@ the sender set in the admin UI). There is no separate notification sender.
 
 - Users with no email address on their account
 - Deactivated users — their notification history is kept, their mail is not
+- Deactivated users also get no new notification row; none is created for them
 - Users whose address is unconfirmed, **when** the instance sets
   `EMAIL_VERIFICATION=mandatory`. Under the default `optional` policy unverified
   addresses are normal — the same instance already sends password-reset mail to
