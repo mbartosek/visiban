@@ -1,5 +1,6 @@
 # OSV-Scanner config for backend/requirements.txt (auto-discovered; see
-# scripts/osv-severity-gate.sh for the accepted-risk contract).
+# scripts/osv-severity-gate.sh for the accepted-risk contract). Also consumed by
+# scripts/pip-audit-gate.py (backend-dep-scan), which matches id and aliases.
 
 [[IgnoredVulns]]
 id = "GHSA-8pqf-f4m5-798g"

@@ -2967,7 +2967,8 @@ frontend-sast:
   allow_failure: false
 
 # pip-audit: checks Python packages against the OSV vulnerability database.
-# On MRs: only when requirements.txt changes; allow_failure so a new CVE in an
+# On MRs: only when a backend requirements file, backend/osv-scanner.toml or
+# scripts/pip-audit-gate.py changes; allow_failure so a new CVE in an
 # existing dep doesn't block unrelated MRs.
 # On the Nightly schedule (CVE_SCAN=true, #1383): always runs; allow_failure:
 # false so the pipeline fails and GitLab sends a failure email to maintainers.
@@ -2982,6 +2983,8 @@ backend-dep-scan:
         - backend/requirements.txt
         - backend/requirements.lock
         - backend/requirements-build.lock
+        - backend/osv-scanner.toml
+        - scripts/pip-audit-gate.py
       allow_failure: true
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CVE_SCAN == "true"'
       allow_failure: false
@@ -2991,8 +2994,15 @@ backend-dep-scan:
     # Audit the hash-pinned lock (#1378): it is exactly what the images install,
     # transitive deps included. --require-hashes makes pip-audit trust the pins
     # instead of re-resolving them.
+    #
+    # Bare `pip-audit` ignores backend/osv-scanner.toml, so an accepted advisory
+    # with no fix (twisted, #1688) red-walled the nightly run. Gate its JSON
+    # through scripts/pip-audit-gate.py, which honors the expiring accepted risks
+    # in that file (same source of truth as dep-scan-osv, #1685) and matches each
+    # vuln's id and aliases.
+    - python3 scripts/pip-audit-gate.py --self-test
     - pip-audit --require-hashes -r backend/requirements.lock --format json -o pip-audit-report.json || true
-    - pip-audit --require-hashes -r backend/requirements.lock
+    - python3 scripts/pip-audit-gate.py pip-audit-report.json backend/osv-scanner.toml
   artifacts:
     when: always
     expire_in: 1 week

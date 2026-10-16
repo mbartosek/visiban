@@ -69,3 +69,8 @@ images, so by design they track the latest compatible releases and catch
 upstream breakage early; only the shipped images install from the lock.
 
 `backend-dep-scan` audits `requirements.lock` with `pip-audit --require-hashes`.
+Because `pip-audit` has no ignore list, its JSON report is gated through
+`scripts/pip-audit-gate.py`, which skips advisories accepted in
+`backend/osv-scanner.toml` (matched on id or alias, and only until their
+`ignoreUntil` date). That file is the single source of truth shared with
+`dep-scan-osv`; the frontend counterpart is `scripts/npm-audit-gate.mjs`.
