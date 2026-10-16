@@ -275,7 +275,7 @@ class TrelloImportMemberMatchingTests(TrelloImportBase):
 
     def test_group_members_are_visible_when_importing_into_group(self):
         group = Group.objects.create(name="G", owner=self.user)
-        GroupMembership.objects.create(group=group, user=self.user)
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         GroupMembership.objects.create(group=group, user=self.outsider)
         data = self.post(group_id=group.pk).data
         self.assertEqual(data["members"]["matched"], 2)
@@ -551,31 +551,29 @@ class TrelloImportPermissionTests(TrelloImportBase):
         self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
         self.assertEqual(Board.objects.count(), 0)
 
-    def test_non_member_of_target_group_gets_403(self):
+    def test_non_member_of_target_group_gets_404(self):
         other = User.objects.create_user(username="other", password="x")
         group = Group.objects.create(name="Private", owner=other)
         for mode in ("dry_run", "confirm"):
             with self.subTest(mode=mode):
                 resp = self.post(mode, group_id=group.pk)
-                self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(Board.objects.count(), 0)
 
-    def test_group_member_imports_into_group(self):
+    def test_group_admin_imports_into_group(self):
         other = User.objects.create_user(username="other", password="x")
         group = Group.objects.create(name="Team", owner=other)
-        GroupMembership.objects.create(group=group, user=self.user)
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         resp = self.post("confirm", group_id=group.pk)
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Board.objects.get(pk=resp.data["board"]["id"]).group, group)
 
-    def test_group_viewer_can_import_into_group(self):
-        # Pins the approved model (#456 I1): the Trello import uses the same
-        # _resolve_import_group rule as the native import/ endpoint — any
-        # group membership row, not group-admin as /groups/{id}/boards/ does.
+    def test_group_viewer_cannot_import_into_group(self):
+        # Same rule as the native import/ endpoint and /groups/{id}/boards/.
         other = User.objects.create_user(username="other", password="x")
         group = Group.objects.create(name="Team", owner=other)
         GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.VIEWER)
-        self.assertEqual(self.post("dry_run", group_id=group.pk).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.post("dry_run", group_id=group.pk).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_nonexistent_group_404(self):
         self.assertEqual(self.post("dry_run", group_id=999999).status_code, status.HTTP_404_NOT_FOUND)

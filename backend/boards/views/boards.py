@@ -18,7 +18,6 @@ from drf_spectacular.utils import (
 from accounts.models import User
 from accounts.permissions import TokenHasScope
 from groups.broadcast import broadcast_group_event as _broadcast_group_event
-from groups.models import Group, GroupMembership
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -505,21 +504,15 @@ class BoardViewSet(
 
     @action(detail=True, methods=["post"], url_path="move-group")
     def move_group(self, request, pk=None):
-        """Move a board into a group (or back to personal) that the requesting user belongs to."""
+        """Move a board into a group the requesting user administers (or back to personal)."""
         board, role = get_board_for_user(pk, request.user)
         if board.owner != request.user and role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
 
         group_id = request.data.get("group_id")  # None = move to personal
         if group_id is not None:
-            group = get_object_or_404(Group, pk=group_id)
-            is_member = (
-                group.owner_id == request.user.id or
-                GroupMembership.objects.filter(group=group, user=request.user).exists()
-            )
-            if not is_member:
-                raise PermissionDenied("You are not a member of the target group.")
-            board.group = group
+            from groups.views import resolve_group_for_board_placement
+            board.group = resolve_group_for_board_placement(request.user, group_id)
         else:
             board.group = None
 

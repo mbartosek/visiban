@@ -109,7 +109,7 @@ The **Invite by email** section shows which case applies. A site admin on an inv
 
 ## Moving boards between groups
 
-Any board can move to a different group or back to personal boards, via **Move to group** in board settings (gear icon in the toolbar). Only board admins and site admins can move a board.
+Any board can move to a different group or back to personal boards, via **Move to group** in board settings (gear icon in the toolbar). Only board admins and site admins can move a board, and moving a board into a group also requires being an admin of that group. Importing a board into a group needs the same group role.
 
 **API:** `POST /api/v1/boards/{id}/move-group/` with `{ "group_id": 5 }` or `{ "group_id": null }` for personal.
 

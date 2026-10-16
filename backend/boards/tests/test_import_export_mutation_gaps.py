@@ -1262,26 +1262,23 @@ class ImportGroupTests(ImportBase):
         owner = User.objects.create_user(username="gowner", password="x")
         member = User.objects.create_user(username="gmember", password="x")
         group = Group.objects.create(name="G", owner=owner)
-        GroupMembership.objects.create(group=group, user=member)
+        GroupMembership.objects.create(group=group, user=member, role=GroupMembership.Role.ADMIN)
 
-        # outsider -> 403 with the exact message
+        # outsider -> 404, identical to a missing group
         resp = self.post(_minimal(), group_id=str(group.pk))
-        self.assertEqual(resp.status_code, 403)
-        self.assertEqual(
-            resp.json(), {"detail": "You are not a member of the target group."}
-        )
-
-        # missing group -> 404
-        resp = self.post(_minimal(), group_id="999999")
         self.assertEqual(resp.status_code, 404)
+        missing = self.post(_minimal(), group_id="999999")
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(resp.json(), missing.json())
 
-        # member -> placed in the group
+        # group admin -> placed in the group
         self.client.force_authenticate(member)
         resp = self.post(_minimal(), group_id=str(group.pk))
         self.assertEqual(resp.status_code, 201, resp.content)
         self.assertEqual(Board.objects.get().group, group)
 
-        # group owner -> allowed too
+        # group owner who is also a group admin -> allowed too
+        GroupMembership.objects.create(group=group, user=owner, role=GroupMembership.Role.ADMIN)
         Board.objects.all().delete()
         self.client.force_authenticate(owner)
         resp = self.post(_minimal(), group_id=str(group.pk))
@@ -2785,11 +2782,12 @@ class TrelloViewTests(TestCase):
             with self.subTest(query=query):
                 cache.clear()
                 resp = self.post(query, group_id=str(group.pk))
-                self.assertEqual(resp.status_code, 403)
-                self.assertEqual(
-                    resp.json(), {"detail": "You are not a member of the target group."}
-                )
-        GroupMembership.objects.create(group=group, user=self.user)
+                self.assertEqual(resp.status_code, 404)
+                cache.clear()
+                missing = self.post(query, group_id="999999")
+                self.assertEqual(missing.status_code, 404)
+                self.assertEqual(resp.json(), missing.json())
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         cache.clear()
         resp = self.post("confirm=true", group_id=str(group.pk))
         self.assertEqual(resp.status_code, 201, resp.content)
@@ -2946,6 +2944,7 @@ class ImportCsvTailGapTests(ImportBase):
 
     def test_csv_into_group_sets_group_expands_and_broadcasts_to_group(self):
         group = Group.objects.create(name="G", owner=self.user)
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         with mock.patch(
             "boards.views.import_export._broadcast.broadcast_board_event"
         ), mock.patch("groups.broadcast.broadcast_group_event") as group_event:

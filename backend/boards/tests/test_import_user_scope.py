@@ -87,7 +87,7 @@ class ImportUserScopeTests(TestCase):
 
     def test_group_peer_is_visible_and_target_group_owner_is_visible(self):
         group = Group.objects.create(name="G", owner=self.hidden)
-        GroupMembership.objects.create(group=group, user=self.importer)
+        GroupMembership.objects.create(group=group, user=self.importer, role=GroupMembership.Role.ADMIN)
         board = self._import(_payload(assignee="hidden"), group_id=group.pk)
         self.assertEqual(Card.objects.get(board=board).assignee, self.hidden)
 

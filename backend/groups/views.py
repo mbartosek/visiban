@@ -106,6 +106,37 @@ def _require_group_admin(user, group):
     raise PermissionDenied(_("You must be a group admin to perform this action."))
 
 
+def resolve_group_for_board_placement(user, group_id):
+    """Return the group a board may be placed in, or raise.
+
+    Placing a board in a group (move-group, board import) needs the same role
+    as ``POST /groups/{id}/boards/``, so ``_require_group_admin`` is reused and
+    the rules cannot drift. A group that does not exist, a malformed id, and a
+    group the caller cannot see all answer the same 404; a visible group the
+    caller does not administer answers 403, as the canonical endpoint does.
+    """
+    from django.http import Http404
+    from .models import get_accessible_group_ids
+
+    try:
+        group_pk = int(group_id)
+    except (TypeError, ValueError):
+        raise Http404
+    if not 0 < group_pk < 2**63:
+        # Outside the primary key range: cannot match a group, and must not
+        # reach the database as an out-of-range integer.
+        raise Http404
+    group = (
+        Group.objects.filter(pk=group_pk, pk__in=get_accessible_group_ids(user))
+        .select_related(*["__".join(["parent"] * d) for d in range(1, 7)])
+        .first()
+    )
+    if group is None:
+        raise Http404
+    _require_group_admin(user, group)
+    return group
+
+
 def sender_is_group_admin(link) -> bool:
     """True when the invite link's creator is active and still administers the group.
 

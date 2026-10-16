@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import axios from "axios";
 import { listGroups } from "../../api/groups";
 import { moveBoardToGroup } from "../../api/boards";
 import { buildGroupTree } from "../Group/GroupTree";
@@ -22,6 +23,8 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<number | null>(board.group);
   const [loadError, setLoadError] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const moveButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setLoadError(false);
@@ -34,10 +37,25 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
   const handleMove = async () => {
     if (selected === board.group) { onClose(); return; }
     setSaving(true);
+    setMoveError(null);
     try {
       const updated = await moveBoardToGroup(board.id, selected);
       onMoved(updated);
       onClose();
+    } catch (err) {
+      // Keep the modal open so the user can pick another group. Only a
+      // refusal (403/404) for a group target gets the group-specific copy;
+      // anything else (network, server, personal move) is a generic failure.
+      const code = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const refused = selected !== null && (code === 403 || code === 404);
+      setMoveError(
+        refused
+          ? "Could not move this board to that group. Choose another group, or ask a group admin."
+          : "Could not move this board. Try again.",
+      );
+      // The button is disabled while saving, which drops focus to body;
+      // restore it once re-enabled so the failure does not strand keyboard users.
+      setTimeout(() => moveButtonRef.current?.focus(), 0);
     } finally {
       setSaving(false);
     }
@@ -62,7 +80,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
             label="Personal (no group)"
             icon={"\u{1F3E0}"}
             selected={selected === null}
-            onSelect={() => setSelected(null)}
+            onSelect={() => { setSelected(null); setMoveError(null); }}
           />
 
           {roots.length > 0 && <div className="my-1 h-px bg-surface-hover" />}
@@ -72,7 +90,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
               key={node.group.id}
               node={node}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={(id) => { setSelected(id); setMoveError(null); }}
             />
           ))}
 
@@ -82,6 +100,10 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
         </div>
       )}
 
+      <p role="alert" aria-live="assertive" aria-atomic="true" className="text-xs text-danger mt-3 min-h-4">
+        {moveError}
+      </p>
+
       <div className="flex justify-end gap-3 mt-5">
         <button
           onClick={onClose}
@@ -90,6 +112,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
           Cancel
         </button>
         <button
+          ref={moveButtonRef}
           onClick={handleMove}
           disabled={!hasChanged || saving}
           className="text-sm bg-button-primary text-on-primary px-4 py-1.5 rounded hover:bg-button-primary-hover disabled:opacity-40 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis font-medium"

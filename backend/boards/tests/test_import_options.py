@@ -334,7 +334,7 @@ class ImportOptionsAccessTests(_ImportOptionsBase):
             with self.subTest(options=options):
                 self._assert_importer_is_admin(self._post(options=options, file=_csv_file(self.CSV)))
 
-    def test_non_member_of_group_gets_403_with_valid_options(self):
+    def test_non_member_of_group_gets_404_with_valid_options(self):
         outsider_owner = User.objects.create_user(username="owner", password="pass")
         group = Group.objects.create(name="Private", owner=outsider_owner)
         before = Board.objects.count()
@@ -343,7 +343,7 @@ class ImportOptionsAccessTests(_ImportOptionsBase):
             "group_id": group.pk,
             "options": json.dumps({"cards": False}),
         }, format="multipart")
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(Board.objects.count(), before)
 
     def test_invalid_options_create_no_board(self):

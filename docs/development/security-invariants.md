@@ -42,7 +42,8 @@ recorded forced-change decision (`gated` or `exempt: <reason>`) that the
 middleware keeps for each pending flag.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
+enumerate Rule 3 (the revocation table is a review checklist), Rule 5, or Rule 6
+(whose enumeration test is tracked in #1693), and it
 does not test locking; the concurrent tests for each consume-once path do.
 [Authorization Entry Points](authorization-entry-points.md) says what each
 entry point calls and how that test finds them.
@@ -193,6 +194,32 @@ matched count into an existence oracle for every account on the instance.
 | Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. `BoardViewSet.members` also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 
+## Rule 6: Placing a board in a group needs group admin
+
+**Rule.** Every API path that puts a board into a group requires the caller to
+be an admin of that group or of an ancestor (or a site admin with all-content
+access). The refusal shape differs by surface and is listed per row below.
+
+**Why.** A board placed in a group is visible to its members and administered by
+its admins, so the role needed must not depend on which endpoint is used.
+
+| Surface | Entry point | Enforced via | Refusal |
+|---|---|---|---|
+| Create in group | `groups/views.py` `GroupViewSet.boards` (POST) | `_require_group_admin` | `404` for a group the caller cannot see, `403` for a visible group they do not administer |
+| Board `group` field | `boards/serializers.py` `BoardSerializer.validate_group` | `_require_group_admin` | One `400` (`{"group": [...]}`) for a missing, invisible or non-administered group |
+| Move group | `boards/views/boards.py` `BoardViewSet.move_group` | `resolve_group_for_board_placement` | `404` for a missing, malformed or invisible group, `403` for a visible group they do not administer |
+| JSON, CSV and Trello import | `boards/views/import_export.py` `_resolve_import_group` | `resolve_group_for_board_placement` | Same as move group |
+| Django admin board form | `boards/admin.py` `BoardAdmin` / `BoardAdminForm` (`fields = "__all__"`, so `group` is editable) | Not covered by this rule | Staff-only surface; see the exception below |
+
+Exception: the Django admin board form is limited to staff accounts holding the
+board model permissions and is a site-operator tool, not a group-scoped API, so
+it is intentionally outside the enumeration. The API rows are covered per
+surface: create in group by `groups/tests/test_groups.py`
+`test_non_admin_cannot_create_board_in_group`, the board `group` field by
+`boards/tests/test_board_group_field_validation.py`, and move group and the
+imports by `boards/tests/test_group_placement_roles.py`. The enumeration test
+that checks every surface in this table is tracked in #1693.
+
 ## How to add a rule
 
 1. Write the rule as a statement of behavior, not an implementation: what must
@@ -216,7 +243,13 @@ matched count into an existence oracle for every account on the instance.
    (JSON and CSV reach it through `_resolve_import_users`), and every format
    enters through the one import mixin. With no second transport for a copy to
    drift on, it is intentionally outside the enumeration;
-   `boards/tests/test_import_user_scope.py` covers it.
+   `boards/tests/test_import_user_scope.py` covers it. Rule 6 is not in that
+   position: its API surfaces are several call sites of a shared check
+   (`_require_group_admin`, directly or through
+   `resolve_group_for_board_placement`), so it needs the enumeration test and
+   does not have it yet; that test is tracked in #1693. Until then the
+   per-surface tests listed under Rule 6 are the coverage. The Django admin
+   form is a separate, staff-only exception.
 6. Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.
 

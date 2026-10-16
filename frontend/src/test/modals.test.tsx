@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError } from 'axios'
 import CreateBoardModal from '../components/Board/CreateBoardModal'
 import ImportBoardModal from '../components/Board/ImportBoardModal'
 import MoveBoardModal from '../components/Board/MoveBoardModal'
@@ -73,13 +74,14 @@ vi.mock('../api/auth', () => ({
 
 import { createGroup, listGroups } from '../api/groups'
 import { changePassword } from '../api/auth'
-import { createColumn, updateColumn } from '../api/boards'
+import { createColumn, updateColumn, moveBoardToGroup } from '../api/boards'
 
 const mockCreateGroup = createGroup as ReturnType<typeof vi.fn>
 const mockChangePassword = changePassword as ReturnType<typeof vi.fn>
 const mockListGroups = listGroups as ReturnType<typeof vi.fn>
 const mockCreateColumn = createColumn as ReturnType<typeof vi.fn>
 const mockUpdateColumn = updateColumn as ReturnType<typeof vi.fn>
+const mockMoveBoardToGroup = moveBoardToGroup as ReturnType<typeof vi.fn>
 
 const fakeUser: User = {
   id: 1, username: 'jdoe', email: 'j@example.com', first_name: 'Jane',
@@ -295,6 +297,46 @@ describe('MoveBoardModal', () => {
     render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
     expect(await screen.findByText('Could not load groups. Please try again.')).toBeInTheDocument()
     expect(screen.queryByText('No groups available.')).not.toBeInTheDocument()
+  })
+
+  const teamGroup = { id: 7, name: 'Team Group', parent: null } as never
+  const httpError = (status: number) =>
+    new AxiosError('failed', 'ERR_BAD_REQUEST', undefined, undefined, { status } as never)
+
+  it.each([403, 404])('shows the group-specific message when a group move is refused with %i', async (status) => {
+    mockMoveBoardToGroup.mockRejectedValueOnce(httpError(status))
+    const onMoved = vi.fn()
+    const onClose = vi.fn()
+    mockListGroups.mockResolvedValueOnce([teamGroup])
+    render(<MoveBoardModal board={fakeBoard} onMoved={onMoved} onClose={onClose} />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Team Group'))
+    await user.click(screen.getByText('Move'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not move this board to that group')
+    expect(onMoved).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText('Move')).not.toBeDisabled()
+    await waitFor(() => expect(screen.getByText('Move')).toHaveFocus())
+  })
+
+  it('shows a generic message when a move to personal fails', async () => {
+    mockMoveBoardToGroup.mockRejectedValueOnce(httpError(403))
+    const boardInGroup: Board = { ...fakeBoard, group: 5 }
+    render(<MoveBoardModal board={boardInGroup} onMoved={vi.fn()} onClose={vi.fn()} />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Personal (no group)'))
+    await user.click(screen.getByText('Move'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not move this board. Try again.')
+  })
+
+  it('shows a generic message for a server error on a group move', async () => {
+    mockMoveBoardToGroup.mockRejectedValueOnce(httpError(500))
+    mockListGroups.mockResolvedValueOnce([teamGroup])
+    render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Team Group'))
+    await user.click(screen.getByText('Move'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not move this board. Try again.')
   })
 })
 

@@ -43,7 +43,7 @@ from boards.models import (
     SwimlaneCustomFieldDefinition,
 )
 from boards.views._helpers import lock_board_and_row_or_404
-from groups.models import Group
+from groups.models import Group, GroupMembership
 
 HOLD_TIMEOUT = 10.0
 BLOCK_PROBE = 0.5
@@ -96,6 +96,14 @@ class _RaceBase(TransactionTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.base = f"/api/v1/boards/{self.board.pk}"
+
+    def _admin_group(self, name):
+        # move-group needs group admin (#1658); a bare owner has no membership.
+        group = Group.objects.create(name=name, owner=self.owner)
+        GroupMembership.objects.create(
+            group=group, user=self.owner, role=GroupMembership.Role.ADMIN
+        )
+        return group
 
     def _client(self):
         client = APIClient()
@@ -166,7 +174,7 @@ class BoardPatchStaleSnapshotTests(_RaceBase):
         self.assertIsNone(board.share_token_expires_at)
 
     def test_name_patch_queued_behind_move_group_keeps_the_group(self):
-        group = Group.objects.create(name="G", owner=self.owner)
+        group = self._admin_group("G")
         move, patch_name = self._race(
             self.LOCK,
             lambda: self._client().post(
@@ -185,7 +193,7 @@ class MoveGroupOldGroupTests(_RaceBase):
     """move_group notifies the group the board actually left."""
 
     def test_second_move_sends_board_deleted_to_the_group_it_left(self):
-        g1, g2, g3 = (Group.objects.create(name=n, owner=self.owner) for n in ("G1", "G2", "G3"))
+        g1, g2, g3 = (self._admin_group(n) for n in ("G1", "G2", "G3"))
         Board.objects.filter(pk=self.board.pk).update(group=g1)
         calls = []
         lock = threading.Lock()
