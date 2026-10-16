@@ -158,7 +158,24 @@ class ScannerTests(SimpleTestCase):
 
         hint = mod.GUIDANCE["AddField-not-null"]
         self.assertIn("db_default=", hint)
-        self.assertIn("default=", hint)
+        self.assertIn("ORM-side", hint)
+
+    def test_add_field_not_null_with_db_default_only_is_not_flagged(self):
+        findings = self._scan(
+            """
+            from django.db import migrations, models
+
+            class Migration(migrations.Migration):
+                operations = [
+                    migrations.AddField(
+                        model_name="card",
+                        name="priority",
+                        field=models.IntegerField(db_default=0),
+                    ),
+                ]
+            """
+        )
+        self.assertEqual(findings, [])
 
     def test_add_field_nullable_is_never_flagged(self):
         findings = self._scan(

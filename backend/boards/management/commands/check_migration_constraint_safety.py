@@ -37,7 +37,7 @@ What is flagged
    ``ValidateConstraint`` that follows it still scans the table and can fail.
 3. ``AlterUniqueTogether`` / ``AlterIndexTogether`` — rebuilds the table's unique index and
    fails on any duplicate.
-4. ``AddField`` that is not nullable and carries no ``default`` — Django cannot add such a
+4. ``AddField`` that is not nullable and carries no ``default=`` or ``db_default=`` — Django cannot add such a
    column to a table with existing rows at all; there is no value to give them.
 5. ``AlterField`` that explicitly sets ``null=False`` — making an existing column NOT NULL
    fails if any row is still NULL.
@@ -248,7 +248,10 @@ def _field_risk(node: ast.Call, op_name: str) -> str | None:
     is_unique = _is_true(_keyword(field, "unique"))
 
     if op_name == "AddField":
-        has_default = _keyword(field, "default") is not None
+        has_default = (
+            _keyword(field, "default") is not None
+            or _keyword(field, "db_default") is not None
+        )
         if is_unique and not _is_true(null_kw):
             return "unique=True"
         if not _is_true(null_kw) and not has_default:
@@ -650,6 +653,19 @@ _BAD_FIXTURES = {
 }
 
 _GOOD_FIXTURES = {
+    "AddField not-null with db_default only": """
+        from django.db import migrations, models
+
+        class Migration(migrations.Migration):
+            dependencies = [("boards", "0001_initial")]
+            operations = [
+                migrations.AddField(
+                    model_name="card",
+                    name="priority",
+                    field=models.IntegerField(db_default=0),
+                ),
+            ]
+        """,
     "AddConstraint preceded by RunPython in the same migration": """
         from django.db import migrations, models
 
