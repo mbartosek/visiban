@@ -5218,7 +5218,7 @@
 <p>List only boards the requesting user has starred.</p>
 <h3 id="post-apiv1boardsidmove-group"><code>POST /api/v1/boards/{id}/move-group/</code><a class="headerlink" href="#post-apiv1boardsidmove-group" title="Permanent link">&para;</a></h3>
 <p>Move board to a different group (or <code>null</code> for personal).</p>
-<p><strong>Minimum role:</strong> Board owner, board admin, or site admin. The caller must also be a member of the target group.</p>
+<p><strong>Minimum role:</strong> Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a>. Moving to personal (<code>null</code>) needs only the board role above.</p>
 <p><strong>Request</strong> <code>{ "group_id": 5 }</code> or <code>{ "group_id": null }</code></p>
 <p><strong>Errors</strong></p>
 <table>
@@ -5233,12 +5233,12 @@
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td>Caller is not board owner/admin, or is not a member of the target group</td>
+<td>Caller is not board owner/admin, or can see the target group but is not an admin of it</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td>Target group does not exist</td>
+<td>Target group does not exist or is not visible to the caller (both answer the same; before 1.2 a group the caller was not a member of returned <code>403</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -6072,7 +6072,7 @@ caller below <code>admin</code> — the same role gate this export already appli
 </table>
 <h3 id="post-apiv1boardsimport"><code>POST /api/v1/boards/import/</code><a class="headerlink" href="#post-apiv1boardsimport" title="Permanent link">&para;</a></h3>
 <p>Import a board from a Visiban JSON or CSV export file. Accepts <code>multipart/form-data</code> with a <code>file</code> field, an optional <code>name</code> field to override the board name, an optional <code>group_id</code> field to place the imported board into a group, and an optional <code>options</code> field to choose what to import. Creates a new board atomically.</p>
-<p><strong>Permission:</strong> authenticated user. When <code>group_id</code> is set, the caller must be a member of that group (any role — viewer and above); a non-member receives <code>403 Forbidden</code>.</p>
+<p><strong>Permission:</strong> authenticated user. When <code>group_id</code> is set, since 1.2 the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access), the same rule as <code>POST /api/v1/groups/{id}/boards/</code>. A group the caller can see but does not administer returns <code>403 Forbidden</code>; a group that does not exist or is not visible returns <code>404 Not Found</code>.</p>
 <p><strong>Rate limit:</strong> 10 imports/hour per authenticated user (scope: <code>board_import</code>). Exceeding the limit returns <code>429 Too Many Requests</code>.</p>
 <p><strong>Import limits:</strong> up to 500 cards, 50 columns, and 100 swimlanes per import. Payloads exceeding these limits return <code>400 Bad Request</code>.</p>
 <p>A JSON import also caps its child collections (#1507). The caps sit well above what a real board carries, but they are hard limits: a file over any of them, including a board's own export, is refused with <code>400 Bad Request</code>.</p>
@@ -6153,7 +6153,7 @@ caller below <code>admin</code> — the same role gate this export already appli
 <tr>
 <td><code>group_id</code></td>
 <td></td>
-<td>Place the imported board into this group. Requires group membership (any role).</td>
+<td>Place the imported board into this group. Requires group admin.</td>
 </tr>
 <tr>
 <td><code>options</code></td>
@@ -6456,12 +6456,12 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> was supplied but the caller is not a member of that group.</td>
+<td><code>group_id</code> was supplied for a group the caller can see but is not an admin of. Since 1.2; before 1.2 a caller who was not a member of the group received <code>403</code>, and any member could import.</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> does not match an existing group.</td>
+<td><code>group_id</code> does not match a group that exists and is visible to the caller.</td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code></td>
@@ -6476,7 +6476,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 </blockquote>
 <p>Import a Trello JSON export (Trello: <strong>Menu → Print, export, and share → Export as JSON</strong>) into a new board. The flow is stateless and has two steps: call with <code>?dry_run=true</code> to get a preview of exactly what will be created, then re-upload the same file with <code>?confirm=true</code> to create the board. Both modes run the same parsing and mapping code, so the preview is what the confirmed import does.</p>
 <p>The import is <strong>synchronous</strong>: the board exists when the <code>201</code> returns. It is bounded by the upload size cap, the count caps below, and the rate limits. Imported content does not send notifications (no @mention, assignment, or card-moved notifications), and no movement history is recorded for imported cards.</p>
-<p><strong>Permission:</strong> authenticated user. When <code>group_id</code> is set, the caller must be the group owner or a member of that group (any role) in <strong>both</strong> modes, so a preview cannot be used to probe a group the caller could not import into. The caller becomes the board's owner and admin.</p>
+<p><strong>Permission:</strong> authenticated user. When <code>group_id</code> is set, the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access) in <strong>both</strong> modes, so a preview cannot be used to probe a group the caller could not import into. The caller becomes the board's owner and admin.</p>
 <p><strong>Query parameters</strong> — specify exactly one:</p>
 <table>
 <thead>
@@ -6524,7 +6524,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <td><code>group_id</code></td>
 <td>integer</td>
 <td>no</td>
-<td>Place the imported board into this group. Also widens the pool used for <a href="#member-matching">member matching</a>.</td>
+<td>Place the imported board into this group. Requires group admin. Also widens the pool used for <a href="#member-matching">member matching</a>.</td>
 </tr>
 <tr>
 <td><code>mapping</code></td>
@@ -6899,12 +6899,12 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> was supplied but the caller is not a member of that group; or the account has a pending password or username change.</td>
+<td><code>group_id</code> was supplied for a group the caller can see but is not an admin of (since 1.2; before 1.2 a caller who was not a member of the group received <code>403</code>, and any member could import); or the account has a pending password or username change.</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> does not match an existing group.</td>
+<td><code>group_id</code> does not match a group that exists and is visible to the caller.</td>
 </tr>
 <tr>
 <td><code>413 Content Too Large</code></td>

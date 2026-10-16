@@ -4016,6 +4016,11 @@ does not.</p>
 <td><code>InviteRegisterView</code>, <code>SocialRegistrationAdapter.save_user</code></td>
 </tr>
 <tr>
+<td>Placing a board in a group (Rule 6)</td>
+<td><code>groups/views.py</code> <code>_require_group_admin</code>; <code>resolve_group_for_board_placement</code> (move group and JSON, CSV and Trello import)</td>
+<td>Not yet enumerated by the entry-point test; that test is tracked in #1693. Covered per surface by <code>groups/tests/test_groups.py</code>, <code>boards/tests/test_board_group_field_validation.py</code> and <code>boards/tests/test_group_placement_roles.py</code></td>
+</tr>
+<tr>
 <td>Import user scoping (Rule 5)</td>
 <td><code>boards/services/trello_import.py</code> <code>visible_users</code> (unchanged); JSON and CSV reach it through <code>boards/views/import_export.py</code> <code>_resolve_import_users</code></td>
 <td><code>BoardImportExportMixin</code> only. Intentionally outside the enumeration test: it is already one shared function, and every import format enters through the one mixin, so there is no second transport for a copy to drift on. <code>boards/tests/test_import_user_scope.py</code> covers it</td>

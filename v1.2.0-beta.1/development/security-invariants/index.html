@@ -2877,6 +2877,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rule-6-placing-a-board-in-a-group-needs-group-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 6: Placing a board in a group needs group admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-add-a-rule" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4008,7 +4019,8 @@ recorded forced-change decision (<code>gated</code> or <code>exempt: &lt;reason&
 middleware keeps for each pending flag.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to <code>registration_token_kind</code> (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
+enumerate Rule 3 (the revocation table is a review checklist), Rule 5, or Rule 6
+(whose enumeration test is tracked in #1693), and it
 does not test locking; the concurrent tests for each consume-once path do.
 <a href="../authorization-entry-points/">Authorization Entry Points</a> says what each
 entry point calls and how that test finds them.</p>
@@ -4487,6 +4499,62 @@ matched count into an existence oracle for every account on the instance.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="rule-6-placing-a-board-in-a-group-needs-group-admin">Rule 6: Placing a board in a group needs group admin<a class="headerlink" href="#rule-6-placing-a-board-in-a-group-needs-group-admin" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> Every API path that puts a board into a group requires the caller to
+be an admin of that group or of an ancestor (or a site admin with all-content
+access). The refusal shape differs by surface and is listed per row below.</p>
+<p><strong>Why.</strong> A board placed in a group is visible to its members and administered by
+its admins, so the role needed must not depend on which endpoint is used.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+<th>Refusal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create in group</td>
+<td><code>groups/views.py</code> <code>GroupViewSet.boards</code> (POST)</td>
+<td><code>_require_group_admin</code></td>
+<td><code>404</code> for a group the caller cannot see, <code>403</code> for a visible group they do not administer</td>
+</tr>
+<tr>
+<td>Board <code>group</code> field</td>
+<td><code>boards/serializers.py</code> <code>BoardSerializer.validate_group</code></td>
+<td><code>_require_group_admin</code></td>
+<td>One <code>400</code> (<code>{"group": [...]}</code>) for a missing, invisible or non-administered group</td>
+</tr>
+<tr>
+<td>Move group</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.move_group</code></td>
+<td><code>resolve_group_for_board_placement</code></td>
+<td><code>404</code> for a missing, malformed or invisible group, <code>403</code> for a visible group they do not administer</td>
+</tr>
+<tr>
+<td>JSON, CSV and Trello import</td>
+<td><code>boards/views/import_export.py</code> <code>_resolve_import_group</code></td>
+<td><code>resolve_group_for_board_placement</code></td>
+<td>Same as move group</td>
+</tr>
+<tr>
+<td>Django admin board form</td>
+<td><code>boards/admin.py</code> <code>BoardAdmin</code> / <code>BoardAdminForm</code> (<code>fields = "__all__"</code>, so <code>group</code> is editable)</td>
+<td>Not covered by this rule</td>
+<td>Staff-only surface; see the exception below</td>
+</tr>
+</tbody>
+</table>
+<p>Exception: the Django admin board form is limited to staff accounts holding the
+board model permissions and is a site-operator tool, not a group-scoped API, so
+it is intentionally outside the enumeration. The API rows are covered per
+surface: create in group by <code>groups/tests/test_groups.py</code>
+<code>test_non_admin_cannot_create_board_in_group</code>, the board <code>group</code> field by
+<code>boards/tests/test_board_group_field_validation.py</code>, and move group and the
+imports by <code>boards/tests/test_group_placement_roles.py</code>. The enumeration test
+that checks every surface in this table is tracked in #1693.</p>
 <h2 id="how-to-add-a-rule">How to add a rule<a class="headerlink" href="#how-to-add-a-rule" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Write the rule as a statement of behavior, not an implementation: what must
@@ -4510,7 +4578,13 @@ matched count into an existence oracle for every account on the instance.</p>
    (JSON and CSV reach it through <code>_resolve_import_users</code>), and every format
    enters through the one import mixin. With no second transport for a copy to
    drift on, it is intentionally outside the enumeration;
-   <code>boards/tests/test_import_user_scope.py</code> covers it.</li>
+   <code>boards/tests/test_import_user_scope.py</code> covers it. Rule 6 is not in that
+   position: its API surfaces are several call sites of a shared check
+   (<code>_require_group_admin</code>, directly or through
+   <code>resolve_group_for_board_placement</code>), so it needs the enumeration test and
+   does not have it yet; that test is tracked in #1693. Until then the
+   per-surface tests listed under Rule 6 are the coverage. The Django admin
+   form is a separate, staff-only exception.</li>
 <li>Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.</li>
 </ol>
