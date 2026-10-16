@@ -3983,7 +3983,12 @@ appears, <code>uv pip compile --only-binary :all:</code> fails loudly; add it to
 <p>Test jobs still <code>pip install -r backend/requirements.txt</code>. They do not build
 images, so by design they track the latest compatible releases and catch
 upstream breakage early; only the shipped images install from the lock.</p>
-<p><code>backend-dep-scan</code> audits <code>requirements.lock</code> with <code>pip-audit --require-hashes</code>.</p>
+<p><code>backend-dep-scan</code> audits <code>requirements.lock</code> with <code>pip-audit --require-hashes</code>.
+Because <code>pip-audit</code> has no ignore list, its JSON report is gated through
+<code>scripts/pip-audit-gate.py</code>, which skips advisories accepted in
+<code>backend/osv-scanner.toml</code> (matched on id or alias, and only until their
+<code>ignoreUntil</code> date). That file is the single source of truth shared with
+<code>dep-scan-osv</code>; the frontend counterpart is <code>scripts/npm-audit-gate.mjs</code>.</p>
 
 
 

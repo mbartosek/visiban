@@ -4208,8 +4208,8 @@
 </tr>
 <tr>
 <td><code>backend-dep-scan</code> (pip-audit)</td>
-<td>CVEs in <code>backend/requirements.lock</code></td>
-<td>MR when a backend requirements file changed; nightly (<code>CVE_SCAN=true</code>)</td>
+<td>CVEs in <code>backend/requirements.lock</code>, minus expiring accepted risks</td>
+<td>MR when a backend requirements file, <code>backend/osv-scanner.toml</code>, or <code>scripts/pip-audit-gate.py</code> changed; nightly (<code>CVE_SCAN=true</code>)</td>
 <td>No (<code>allow_failure: true</code> on MRs)</td>
 <td>Yes (<code>allow_failure: false</code>)</td>
 </tr>
