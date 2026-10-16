@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import axios from "axios";
 import { listGroups } from "../../api/groups";
 import { moveBoardToGroup } from "../../api/boards";
 import { buildGroupTree } from "../Group/GroupTree";
@@ -23,6 +24,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
   const [selected, setSelected] = useState<number | null>(board.group);
   const [loadError, setLoadError] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const moveButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setLoadError(false);
@@ -40,9 +42,20 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
       const updated = await moveBoardToGroup(board.id, selected);
       onMoved(updated);
       onClose();
-    } catch {
-      // Keep the modal open so the user can pick another group.
-      setMoveError("Could not move this board to that group. Choose another group, or ask a group admin.");
+    } catch (err) {
+      // Keep the modal open so the user can pick another group. Only a
+      // refusal (403/404) for a group target gets the group-specific copy;
+      // anything else (network, server, personal move) is a generic failure.
+      const code = axios.isAxiosError(err) ? err.response?.status : undefined;
+      const refused = selected !== null && (code === 403 || code === 404);
+      setMoveError(
+        refused
+          ? "Could not move this board to that group. Choose another group, or ask a group admin."
+          : "Could not move this board. Try again.",
+      );
+      // The button is disabled while saving, which drops focus to body;
+      // restore it once re-enabled so the failure does not strand keyboard users.
+      setTimeout(() => moveButtonRef.current?.focus(), 0);
     } finally {
       setSaving(false);
     }
@@ -87,9 +100,9 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
         </div>
       )}
 
-      {moveError && (
-        <p role="alert" className="text-xs text-danger mt-3">{moveError}</p>
-      )}
+      <p role="alert" aria-live="assertive" aria-atomic="true" className="text-xs text-danger mt-3 min-h-4">
+        {moveError}
+      </p>
 
       <div className="flex justify-end gap-3 mt-5">
         <button
@@ -99,6 +112,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
           Cancel
         </button>
         <button
+          ref={moveButtonRef}
           onClick={handleMove}
           disabled={!hasChanged || saving}
           className="text-sm bg-button-primary text-on-primary px-4 py-1.5 rounded hover:bg-button-primary-hover disabled:opacity-40 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis font-medium"

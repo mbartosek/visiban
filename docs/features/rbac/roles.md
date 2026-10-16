@@ -28,7 +28,9 @@ Visiban has five roles that control access at the group, board, and site level. 
 | **Boards** | | | | | |
 | Create board in group | ✓ | ✓ | — | — | — |
 | Create personal board | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Import board from file | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Import board from file (personal) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Import board into a group | ✓ | ✓ | — | — | — |
+| Move board into a group | ✓ | ✓ | — | — | — |
 | Delete board | ✓ | owner only | — | — | — |
 | Create / edit / delete columns | ✓ | ✓ | — | — | — |
 | Reorder columns | ✓ | ✓ | — | — | — |

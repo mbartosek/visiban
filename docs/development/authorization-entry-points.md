@@ -30,6 +30,7 @@ does not.
 | Who may admit new accounts | `sender_may_admit_accounts(sender)` | Registration through a board or group invite, before `invite_creator_is_valid`; the site invite creator rule (`accounts/invite_utils.py` `site_invite_creator_admits`) |
 | Current role on a board or group (Rule 2) | `boards.permissions.get_board_role`, `groups.models.user_has_group_access` | REST, MCP tools, both consumers' handshake and re-check |
 | Consume-once registration tokens (Rule 4) | `accounts.registration_tokens.registration_token_kind` (unchanged) | `InviteRegisterView`, `SocialRegistrationAdapter.save_user` |
+| Placing a board in a group (Rule 6) | `groups/views.py` `_require_group_admin`; `resolve_group_for_board_placement` (move group and JSON, CSV and Trello import) | Not yet enumerated by the entry-point test; that test is tracked in #1693. Covered per surface by `groups/tests/test_groups.py`, `boards/tests/test_board_group_field_validation.py` and `boards/tests/test_group_placement_roles.py` |
 | Import user scoping (Rule 5) | `boards/services/trello_import.py` `visible_users` (unchanged); JSON and CSV reach it through `boards/views/import_export.py` `_resolve_import_users` | `BoardImportExportMixin` only. Intentionally outside the enumeration test: it is already one shared function, and every import format enters through the one mixin, so there is no second transport for a copy to drift on. `boards/tests/test_import_user_scope.py` covers it |
 
 The session-based HTML surfaces, allauth's pages under `/accounts/` and the

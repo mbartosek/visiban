@@ -122,6 +122,10 @@ def resolve_group_for_board_placement(user, group_id):
         group_pk = int(group_id)
     except (TypeError, ValueError):
         raise Http404
+    if not 0 < group_pk < 2**63:
+        # Outside the primary key range: cannot match a group, and must not
+        # reach the database as an out-of-range integer.
+        raise Http404
     group = (
         Group.objects.filter(pk=group_pk, pk__in=get_accessible_group_ids(user))
         .select_related(*["__".join(["parent"] * d) for d in range(1, 7)])

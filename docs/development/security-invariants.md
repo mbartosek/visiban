@@ -42,7 +42,8 @@ recorded forced-change decision (`gated` or `exempt: <reason>`) that the
 middleware keeps for each pending flag.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
+enumerate Rule 3 (the revocation table is a review checklist), Rule 5, or Rule 6
+(whose enumeration test is tracked in #1693), and it
 does not test locking; the concurrent tests for each consume-once path do.
 [Authorization Entry Points](authorization-entry-points.md) says what each
 entry point calls and how that test finds them.
@@ -212,9 +213,12 @@ its admins, so the role needed must not depend on which endpoint is used.
 
 Exception: the Django admin board form is limited to staff accounts holding the
 board model permissions and is a site-operator tool, not a group-scoped API, so
-it is intentionally outside the enumeration test, like Rule 5. The four API rows
-above are covered by `boards/tests/test_group_placement_roles.py` and
-`boards/tests/test_board_group_field_validation.py`.
+it is intentionally outside the enumeration. The API rows are covered per
+surface: create in group by `groups/tests/test_groups.py`
+`test_non_admin_cannot_create_board_in_group`, the board `group` field by
+`boards/tests/test_board_group_field_validation.py`, and move group and the
+imports by `boards/tests/test_group_placement_roles.py`. The enumeration test
+that checks every surface in this table is tracked in #1693.
 
 ## How to add a rule
 
@@ -239,10 +243,13 @@ above are covered by `boards/tests/test_group_placement_roles.py` and
    (JSON and CSV reach it through `_resolve_import_users`), and every format
    enters through the one import mixin. With no second transport for a copy to
    drift on, it is intentionally outside the enumeration;
-   `boards/tests/test_import_user_scope.py` covers it. Rule 6 is likewise
-   outside the enumeration: its API surfaces share `_require_group_admin`
-   (directly or through `resolve_group_for_board_placement`) and the Django
-   admin form is a staff-only exception.
+   `boards/tests/test_import_user_scope.py` covers it. Rule 6 is not in that
+   position: its API surfaces are several call sites of a shared check
+   (`_require_group_admin`, directly or through
+   `resolve_group_for_board_placement`), so it needs the enumeration test and
+   does not have it yet; that test is tracked in #1693. Until then the
+   per-surface tests listed under Rule 6 are the coverage. The Django admin
+   form is a separate, staff-only exception.
 6. Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.
 

@@ -218,3 +218,26 @@ class GroupPlacementRoleTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
         board.refresh_from_db()
         self.assertIsNone(board.group_id)
+
+    # --- malformed ids -------------------------------------------------
+
+    MALFORMED_IDS = ("abc", "[1]", "99999999999999999999999999", "-1", "1.5")
+
+    def test_malformed_group_id_answers_like_a_missing_group(self):
+        self._join(Role.ADMIN)
+        baseline, _ = self._move(999999)
+        self.assertEqual(baseline.status_code, status.HTTP_404_NOT_FOUND)
+        for bad in self.MALFORMED_IDS:
+            with self.subTest(group_id=bad, path="move-group"):
+                resp, board = self._move(bad)
+                self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertEqual(resp.json(), baseline.json())
+                self.assertIsNone(board.group_id)
+        import_baseline = self._import("json", 999999)
+        for kind in ("json", "csv", "trello"):
+            for bad in self.MALFORMED_IDS:
+                with self.subTest(group_id=bad, path=kind):
+                    resp = self._import(kind, bad)
+                    self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+                    self.assertEqual(resp.json(), import_baseline.json())
+        self.assertFalse(Board.objects.filter(group__isnull=False).exists())

@@ -855,7 +855,7 @@ The `board.created` event for the new board carries the resolved options as an a
 |---|---|---|
 | `400 Bad Request` | `{"detail": "..."}` | File is missing, empty, has an unsupported extension, exceeds the upload size limit (`MAX_UPLOAD_SIZE_BYTES`, default 10 MB — the same env var and default as [card attachment uploads](cards.md#attachments), and distinct from the Trello importer's own `VISIBAN_IMPORT_MAX_SIZE`), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when `options` is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets `comments`, `checklist`, or `history` to `true` with `cards` set to `false`, or — for a CSV file — has any key other than `labels` and `cards`. A CSV file also returns `400` for a cell over the [CSV cell limits](#csv-cell-limits), a NUL byte, or an impossible `Due Date`. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
-| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of. |
+| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of. Since 1.2; before 1.2 a caller who was not a member of the group received `403`, and any member could import. |
 | `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. |
 | `429 Too Many Requests` | `{"detail": "..."}` | The `board_import` rate limit was exceeded. |
 
@@ -1102,7 +1102,7 @@ Creating the board broadcasts `board.created` on the same channels as the native
 |---|---|---|
 | `400 Bad Request` | `{"detail": "..."}` | Neither or both of `dry_run` / `confirm` given; `file` missing; the file is not valid UTF-8 JSON or is nested too deeply; it is not a Trello export (`lists` and `cards` are required); a schema or type error (the message names the offending field); an [import cap](#post-apiv1boardsimporttrello) is exceeded; `mapping` is not a JSON object, has an unknown key, has a wrong type, lists a label that is not a named label in the export, or uses a `default_swimlane_name` that collides with a mapped label; on `confirm`, `file_sha256` does not match the uploaded file; on `confirm`, there are no lists to import (for example, every list is archived and `include_archived_lists` is `false`). |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
-| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of; or the account has a pending password or username change. |
+| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of (since 1.2; before 1.2 a caller who was not a member of the group received `403`, and any member could import); or the account has a pending password or username change. |
 | `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. |
 | `413 Content Too Large` | `{"detail": "File too large. The maximum size for a Trello import is 25 MB."}` | The file is larger than `VISIBAN_IMPORT_MAX_SIZE`. Note that the native import endpoint returns `400` for an oversized file. |
 | `429 Too Many Requests` | `{"detail": "Request was throttled. ..."}` | Rate limit exceeded; see **Rate limits** above. |
