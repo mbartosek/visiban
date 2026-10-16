@@ -90,13 +90,13 @@ The same comparison found no serializer field and no URL route removed between v
 `main` (the `dj_rest_auth` `include()` became explicit routes, and five declarations were
 rewritten as same-name `SerializerMethodField`s). **All other entries remain unverified.**
 
-Those findings are therefore frozen as exact per-finding `key` entries under `#1667`
+Those findings are therefore frozen as exact per-finding `key` entries under `#1695`, the burn-down tracker,
 (generated once from the gate's own output with an empty allow-list, sorted for stable
 diffs). The snapshot is closed: anything not already in it, including a further change to an
 operation that has entries, fails the job. Never add to it to get a pipeline green; a new
 finding is a real break or needs its own issue-referenced entry.
 
-**Burn-down workflow.** Pick an operation, check its v1.1.0 behavior against the current
+**Burn-down workflow** (tracked in #1695). Pick an operation, check its v1.1.0 behavior against the current
 runtime (serializer, status code, response shape). If it is only a documentation correction,
 delete that operation's entries and confirm the job stays green (a deleted entry that still
 matches a finding turns the job red, which is the signal that the break is real and needs a
