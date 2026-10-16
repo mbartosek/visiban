@@ -195,22 +195,26 @@ matched count into an existence oracle for every account on the instance.
 
 ## Rule 6: Placing a board in a group needs group admin
 
-**Rule.** Every path that puts a board into a group requires the caller to be an
-admin of that group or of an ancestor (or a site admin with all-content
-access). A group that does not exist and a group the caller cannot see answer
-the same `404`; a visible group the caller does not administer answers `403`.
+**Rule.** Every API path that puts a board into a group requires the caller to
+be an admin of that group or of an ancestor (or a site admin with all-content
+access). The refusal shape differs by surface and is listed per row below.
 
 **Why.** A board placed in a group is visible to its members and administered by
 its admins, so the role needed must not depend on which endpoint is used.
 
-| Surface | Entry point | Enforced via |
-|---|---|---|
-| Create in group | `groups/views.py` `GroupViewSet.boards` (POST) | `_require_group_admin` |
-| Board `group` field | `boards/serializers.py` `BoardSerializer.validate_group` | `_require_group_admin` |
-| Move group | `boards/views/boards.py` `BoardViewSet.move_group` | `resolve_group_for_board_placement` |
-| JSON, CSV and Trello import | `boards/views/import_export.py` `_resolve_import_group` | `resolve_group_for_board_placement` |
+| Surface | Entry point | Enforced via | Refusal |
+|---|---|---|---|
+| Create in group | `groups/views.py` `GroupViewSet.boards` (POST) | `_require_group_admin` | `404` for a group the caller cannot see, `403` for a visible group they do not administer |
+| Board `group` field | `boards/serializers.py` `BoardSerializer.validate_group` | `_require_group_admin` | One `400` (`{"group": [...]}`) for a missing, invisible or non-administered group |
+| Move group | `boards/views/boards.py` `BoardViewSet.move_group` | `resolve_group_for_board_placement` | `404` for a missing, malformed or invisible group, `403` for a visible group they do not administer |
+| JSON, CSV and Trello import | `boards/views/import_export.py` `_resolve_import_group` | `resolve_group_for_board_placement` | Same as move group |
+| Django admin board form | `boards/admin.py` `BoardAdmin` / `BoardAdminForm` (`fields = "__all__"`, so `group` is editable) | Not covered by this rule | Staff-only surface; see the exception below |
 
-Tests: `boards/tests/test_group_placement_roles.py`.
+Exception: the Django admin board form is limited to staff accounts holding the
+board model permissions and is a site-operator tool, not a group-scoped API, so
+it is intentionally outside the enumeration test, like Rule 5. The four API rows
+above are covered by `boards/tests/test_group_placement_roles.py` and
+`boards/tests/test_board_group_field_validation.py`.
 
 ## How to add a rule
 
@@ -235,7 +239,10 @@ Tests: `boards/tests/test_group_placement_roles.py`.
    (JSON and CSV reach it through `_resolve_import_users`), and every format
    enters through the one import mixin. With no second transport for a copy to
    drift on, it is intentionally outside the enumeration;
-   `boards/tests/test_import_user_scope.py` covers it.
+   `boards/tests/test_import_user_scope.py` covers it. Rule 6 is likewise
+   outside the enumeration: its API surfaces share `_require_group_admin`
+   (directly or through `resolve_group_for_board_placement`) and the Django
+   admin form is a staff-only exception.
 6. Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.
 

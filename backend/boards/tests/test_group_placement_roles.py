@@ -163,3 +163,58 @@ class GroupPlacementRoleTests(TestCase):
             format="multipart",
         )
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_trello_dry_run_denied_for_each_role_below_admin(self):
+        for role in DENIED_ROLES:
+            with self.subTest(role=role):
+                GroupMembership.objects.filter(group=self.group, user=self.user).delete()
+                self._join(role)
+                resp = self.client.post(
+                    TRELLO_URL + "?dry_run=true",
+                    {"file": _trello_file(), "group_id": self.group.pk},
+                    format="multipart",
+                )
+                self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- ancestors, owners, all-content site admins ---------------------
+
+    def test_ancestor_group_admin_allowed_on_move_and_imports(self):
+        child = Group.objects.create(name="Child", owner=self.owner, parent=self.group)
+        self._join(Role.ADMIN)  # admin of the parent only
+        resp, board = self._move(child.pk)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(board.group_id, child.pk)
+        for kind in ("json", "csv", "trello"):
+            with self.subTest(kind=kind):
+                self.assertEqual(self._import(kind, child.pk).status_code, status.HTTP_201_CREATED)
+
+    def test_child_group_admin_cannot_use_parent_group(self):
+        child = Group.objects.create(name="Child", owner=self.owner, parent=self.group)
+        GroupMembership.objects.create(group=child, user=self.user, role=Role.ADMIN)
+        resp, board = self._move(self.group.pk)
+        # The parent is visible for navigation but not administered.
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(board.group_id)
+
+    def test_all_content_site_admin_allowed_without_membership(self):
+        self.user.can_access_all_content = True
+        self.user.save(update_fields=["can_access_all_content"])
+        resp, board = self._move(self.group.pk)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(board.group_id, self.group.pk)
+        self.assertEqual(self._import("json", self.group.pk).status_code, status.HTTP_201_CREATED)
+
+    def test_group_owner_without_admin_membership_row_is_refused(self):
+        owner_client = APIClient()
+        owner_client.force_authenticate(self.owner)
+        board = Board.objects.create(name="Owned", owner=self.owner)
+        resp = owner_client.post(
+            f"/api/v1/boards/{board.pk}/move-group/", {"group_id": self.group.pk}, format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        resp = owner_client.post(
+            JSON_URL, {"file": _json_file(), "group_id": self.group.pk}, format="multipart"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        board.refresh_from_db()
+        self.assertIsNone(board.group_id)

@@ -125,7 +125,7 @@ List only boards the requesting user has starred.
 ### `POST /api/v1/boards/{id}/move-group/`
 Move board to a different group (or `null` for personal).
 
-**Minimum role:** Board owner, board admin, or site admin. To move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
+**Minimum role:** Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
 
 **Request** `{ "group_id": 5 }` or `{ "group_id": null }`
 
@@ -134,7 +134,7 @@ Move board to a different group (or `null` for personal).
 | Status | Body | Condition |
 |---|---|---|
 | `403 Forbidden` | `{"detail": "..."}` | Caller is not board owner/admin, or can see the target group but is not an admin of it |
-| `404 Not Found` | `{"detail": "..."}` | Target group does not exist or is not visible to the caller (both answer the same) |
+| `404 Not Found` | `{"detail": "..."}` | Target group does not exist or is not visible to the caller (both answer the same; before 1.2 a group the caller was not a member of returned `403`) |
 
 ---
 
@@ -628,7 +628,7 @@ Return recent successful board exports for audit purposes (#842). Requires board
 ### `POST /api/v1/boards/import/`
 Import a board from a Visiban JSON or CSV export file. Accepts `multipart/form-data` with a `file` field, an optional `name` field to override the board name, an optional `group_id` field to place the imported board into a group, and an optional `options` field to choose what to import. Creates a new board atomically.
 
-**Permission:** authenticated user. When `group_id` is set, the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access), the same rule as `POST /api/v1/groups/{id}/boards/`. A group the caller can see but does not administer returns `403 Forbidden`; a group that does not exist or is not visible returns `404 Not Found`.
+**Permission:** authenticated user. When `group_id` is set, since 1.2 the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access), the same rule as `POST /api/v1/groups/{id}/boards/`. A group the caller can see but does not administer returns `403 Forbidden`; a group that does not exist or is not visible returns `404 Not Found`.
 
 **Rate limit:** 10 imports/hour per authenticated user (scope: `board_import`). Exceeding the limit returns `429 Too Many Requests`.
 

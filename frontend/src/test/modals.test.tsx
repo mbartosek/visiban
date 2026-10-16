@@ -73,13 +73,14 @@ vi.mock('../api/auth', () => ({
 
 import { createGroup, listGroups } from '../api/groups'
 import { changePassword } from '../api/auth'
-import { createColumn, updateColumn } from '../api/boards'
+import { createColumn, updateColumn, moveBoardToGroup } from '../api/boards'
 
 const mockCreateGroup = createGroup as ReturnType<typeof vi.fn>
 const mockChangePassword = changePassword as ReturnType<typeof vi.fn>
 const mockListGroups = listGroups as ReturnType<typeof vi.fn>
 const mockCreateColumn = createColumn as ReturnType<typeof vi.fn>
 const mockUpdateColumn = updateColumn as ReturnType<typeof vi.fn>
+const mockMoveBoardToGroup = moveBoardToGroup as ReturnType<typeof vi.fn>
 
 const fakeUser: User = {
   id: 1, username: 'jdoe', email: 'j@example.com', first_name: 'Jane',
@@ -295,6 +296,21 @@ describe('MoveBoardModal', () => {
     render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
     expect(await screen.findByText('Could not load groups. Please try again.')).toBeInTheDocument()
     expect(screen.queryByText('No groups available.')).not.toBeInTheDocument()
+  })
+
+  it('shows an error and stays open when the move is refused', async () => {
+    mockMoveBoardToGroup.mockRejectedValueOnce(new Error('403'))
+    const onMoved = vi.fn()
+    const onClose = vi.fn()
+    const boardInGroup: Board = { ...fakeBoard, group: 5 }
+    render(<MoveBoardModal board={boardInGroup} onMoved={onMoved} onClose={onClose} />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Personal (no group)'))
+    await user.click(screen.getByText('Move'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not move this board')
+    expect(onMoved).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText('Move')).not.toBeDisabled()
   })
 })
 

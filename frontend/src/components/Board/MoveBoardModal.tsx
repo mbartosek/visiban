@@ -22,6 +22,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<number | null>(board.group);
   const [loadError, setLoadError] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadError(false);
@@ -34,10 +35,14 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
   const handleMove = async () => {
     if (selected === board.group) { onClose(); return; }
     setSaving(true);
+    setMoveError(null);
     try {
       const updated = await moveBoardToGroup(board.id, selected);
       onMoved(updated);
       onClose();
+    } catch {
+      // Keep the modal open so the user can pick another group.
+      setMoveError("Could not move this board to that group. Choose another group, or ask a group admin.");
     } finally {
       setSaving(false);
     }
@@ -62,7 +67,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
             label="Personal (no group)"
             icon={"\u{1F3E0}"}
             selected={selected === null}
-            onSelect={() => setSelected(null)}
+            onSelect={() => { setSelected(null); setMoveError(null); }}
           />
 
           {roots.length > 0 && <div className="my-1 h-px bg-surface-hover" />}
@@ -72,7 +77,7 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
               key={node.group.id}
               node={node}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={(id) => { setSelected(id); setMoveError(null); }}
             />
           ))}
 
@@ -80,6 +85,10 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
             <p className="text-sm text-fg-muted px-3 py-2">No groups available.</p>
           )}
         </div>
+      )}
+
+      {moveError && (
+        <p role="alert" className="text-xs text-danger mt-3">{moveError}</p>
       )}
 
       <div className="flex justify-end gap-3 mt-5">
