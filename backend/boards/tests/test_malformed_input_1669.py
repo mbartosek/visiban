@@ -128,3 +128,48 @@ class MalformedInputTests(TestCase):
             self.assertEqual(
                 self.client.post(f"{b}/members/", {"user_id": bad}, format="json").status_code, 400
             )
+
+    # --- sibling sites fixed in the follow-up commit ---
+    def test_custom_field_reorders_malformed(self):
+        for path in ("custom-fields", "swimlane-custom-fields"):
+            url = f"/api/v1/boards/{self.board.id}/{path}/reorder/"
+            for method in (self.client.post, self.client.put):
+                for bad in NON_OBJECT_BODIES:
+                    self.assertEqual(method(url, bad, format="json").status_code, 400, f"{path} {bad!r}")
+                for bad in (HUGE, str(HUGE), "abc", [1]):
+                    r = method(url, {"order": [bad]}, format="json")
+                    self.assertEqual(r.status_code, 400, f"{path} {bad!r}")
+            # Valid (empty) order is unchanged.
+            self.assertEqual(self.client.post(url, {"order": []}, format="json").status_code, 200)
+
+    def test_transfer_ownership_new_owner_id_malformed(self):
+        url = f"/api/v1/groups/{self.group.id}/transfer-ownership/"
+        for bad in ("abc", [1], {"a": 1}, HUGE, str(HUGE), True):
+            r = self.client.post(url, {"new_owner_id": bad, "confirmation": "G"}, format="json")
+            self.assertEqual(r.status_code, 400, repr(bad))
+        # Missing / unknown member keep the existing 400.
+        r = self.client.post(url, {"confirmation": "G"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post(url, {"new_owner_id": 999999, "confirmation": "G"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("already be a group member", r.data["detail"])
+
+    def test_swimlane_set_collapsed_non_object_body(self):
+        url = f"/api/v1/boards/{self.board.id}/swimlanes/{self.swim.id}/set-collapsed/"
+        for bad in NON_OBJECT_BODIES:
+            self.assertEqual(self.client.patch(url, bad, format="json").status_code, 400, repr(bad))
+        self.assertEqual(self.client.patch(url, {"is_collapsed": True}, format="json").status_code, 200)
+
+    def test_move_group_non_object_body(self):
+        url = f"/api/v1/boards/{self.board.id}/move-group/"
+        for bad in NON_OBJECT_BODIES:
+            self.assertEqual(self.client.post(url, bad, format="json").status_code, 400, repr(bad))
+        self.assertEqual(self.client.post(url, {"group_id": None}, format="json").status_code, 200)
+
+    def test_group_member_patch_non_object_body(self):
+        other = User.objects.create_user(username="oth", password="pass")
+        GroupMembership.objects.create(group=self.group, user=other, role=GroupMembership.Role.MEMBER)
+        url = f"/api/v1/groups/{self.group.id}/members/{other.id}/"
+        for bad in NON_OBJECT_BODIES:
+            self.assertEqual(self.client.patch(url, bad, format="json").status_code, 400, repr(bad))
+        self.assertEqual(self.client.patch(url, {"role": "viewer"}, format="json").status_code, 200)

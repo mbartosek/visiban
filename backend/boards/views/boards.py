@@ -510,7 +510,7 @@ class BoardViewSet(
         if board.owner != request.user and role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
 
-        group_id = request.data.get("group_id")  # None = move to personal
+        group_id = require_json_object(request).get("group_id")  # None = move to personal
         if group_id is not None:
             from groups.views import resolve_group_for_board_placement
             board.group = resolve_group_for_board_placement(request.user, group_id)

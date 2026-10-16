@@ -96,6 +96,8 @@ Change a member's role. Requires group admin. Cannot modify a site admin.
 
 Valid roles: `admin`, `member`, `collaborator`, `viewer`
 
+Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+
 *(1.2+)* Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
@@ -299,6 +301,8 @@ Transfer group ownership to another user. Requires the **current owner** (not ju
 
 - `new_owner_id` — the user ID of the new owner; must already be a group **admin**
 - `confirmation` — must exactly match the group's name (case-sensitive) to prevent accidental transfers
+
+Since 1.2, a `new_owner_id` that is not an integer in the 64-bit range, or a body that is not a JSON object, returns `400 Bad Request` (previously `500`).
 
 The previous owner becomes a regular admin after transfer. Returns the updated group object.
 

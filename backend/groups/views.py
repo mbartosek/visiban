@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from accounts.permissions import TokenHasScope
 from visiban.authorization import invite_creator_is_valid, principal_is_active
 from visiban.permissions import MustNotHavePendingPasswordChange, MustNotHavePendingUsernameChange
+from visiban.request_shape import coerce_int_id, require_json_object
 from visiban.utils import get_client_ip
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -664,7 +665,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         # PATCH — update role
         membership = get_object_or_404(GroupMembership, group=group, user=target_user)
-        role = request.data.get("role")
+        role = require_json_object(request).get("role")
         if role not in GroupMembership.Role.values:
             return Response({"detail": f"Must be one of: {', '.join(GroupMembership.Role.values)}"}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
@@ -985,6 +986,10 @@ class GroupViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only the group owner can transfer ownership.")
 
         new_owner_id = request.data.get("new_owner_id")
+        if new_owner_id is not None:
+            # Missing keeps the existing 400 "must already be a member"; a
+            # present but non-integer/out-of-range id is a 400, not a 500 (#1669).
+            new_owner_id = coerce_int_id(new_owner_id, "new_owner_id")
         confirmation = request.data.get("confirmation", "")
 
         # Require typing the group name as confirmation

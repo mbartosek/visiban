@@ -30,6 +30,8 @@ from visiban.permissions import (
     MustNotHavePendingUsernameChange,
 )
 
+from visiban.request_shape import id_in_db_range, require_json_object
+
 from .. import broadcast as _broadcast
 from ..models import BoardMembership, CustomFieldDefinition
 from ..permissions import SITE_ADMIN
@@ -198,7 +200,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     def reorder(self, request, board_pk=None):
         """Reorder custom fields by a list of IDs in the desired order (admin only)."""
         board = self._require_admin()
-        order = request.data.get("order", [])
+        order = require_json_object(request).get("order", [])
         if not isinstance(order, list):
             raise drf_serializers.ValidationError(
                 {"order": "Expected a list of custom field IDs."}
@@ -209,6 +211,10 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             raise drf_serializers.ValidationError(
                 {"order": "Every entry must be a custom field ID."}
             ) from None
+        if not all(id_in_db_range(i) for i in order_ints):
+            raise drf_serializers.ValidationError(
+                {"order": "Every entry must be a custom field ID."}
+            )
 
         with transaction.atomic():
             # Two-pass bulk_update to stay inside unique_together(board,

@@ -293,7 +293,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied("Only board admins can modify swimlane display state.")
         swimlane = get_object_or_404(Swimlane, pk=pk, board=board)
-        is_collapsed = request.data.get("is_collapsed")
+        is_collapsed = require_json_object(request).get("is_collapsed")
         if not isinstance(is_collapsed, bool):
             raise ValidationError({"is_collapsed": "This field must be a boolean."})
         swimlane.is_collapsed = is_collapsed
