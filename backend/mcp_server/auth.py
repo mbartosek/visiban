@@ -22,6 +22,8 @@ from accounts.authentication import (
 
 from visiban.authorization import account_state_denial
 
+from .throttling import preauth_limiter
+
 from .context import (
     reset_current_scopes, reset_current_token_id, reset_current_user,
     set_current_scopes, set_current_token_id, set_current_user,
@@ -66,7 +68,7 @@ def _enforce_account_state(user):
         raise AccountStateBlocked(gate.message, gate.code)
 
 
-async def _send_json_error(send, status, detail, code=None):
+async def _send_json_error(send, status, detail, code=None, retry_after=None):
     """Send a JSON-RPC error envelope with the given HTTP status.
 
     One writer for every transport-level rejection so the envelope cannot
@@ -81,6 +83,8 @@ async def _send_json_error(send, status, detail, code=None):
     headers = [(b"content-type", b"application/json")]
     if status == 401:
         headers.append((b"www-authenticate", b'Bearer realm="visiban-mcp"'))
+    if retry_after is not None:
+        headers.append((b"retry-after", str(retry_after).encode()))
     headers.append((b"content-length", str(len(body)).encode()))
     await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})
@@ -151,6 +155,21 @@ class BearerAuthMiddleware:
             )
             return
 
+        # Pre-auth, per-IP: refuse an IP that has already burned its budget of
+        # failed lookups BEFORE touching the database (#1679). The PAT-keyed
+        # buckets cannot do this because they need a resolved token.
+        client_ip = preauth_limiter.client_ip(scope)
+        retry_after = await sync_to_async(
+            preauth_limiter.blocked, thread_sensitive=True
+        )(client_ip)
+        if retry_after is not None:
+            logger.warning("Rejected MCP request: pre-auth failure limit reached")
+            await _send_json_error(
+                send, 429, "Too many failed authentication attempts.",
+                retry_after=retry_after,
+            )
+            return
+
         try:
             # One hop, not three: the lookup and the usage write both touch the
             # ORM and so must leave the event loop, and thread_sensitive=True
@@ -165,6 +184,9 @@ class BearerAuthMiddleware:
             # Never log the token itself, and do not log the username either —
             # this path is reachable by unauthenticated callers.
             logger.warning("Rejected MCP request: %s", exc.detail)
+            await sync_to_async(
+                preauth_limiter.record_failure, thread_sensitive=True
+            )(client_ip)
             await _send_json_error(send, 401, exc.detail)
             return
         except AccountStateBlocked as exc:

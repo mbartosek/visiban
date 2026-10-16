@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import LoginSerializer as DjRestAuthLoginSerializer
 from dj_rest_auth.serializers import PasswordChangeSerializer as DjRestAuthPasswordChangeSerializer
@@ -51,7 +53,31 @@ class AvatarUrlField(serializers.CharField):
     attaching that validator in the first place; avatar URLs are populated
     from OAuth providers, not hand-typed, so strict URL-syntax validation on
     write isn't load-bearing here.
+
+    Syntax is still not the same as safety (#1679): the SPA renders the value
+    as ``<img src>``, so a ``tracking.example/pixel.gif`` URL is fetched by
+    every co-member's browser. On write only, a non-blank value must therefore
+    be an absolute ``http``/``https`` URL with a host and no userinfo. Reads
+    are untouched, so rows stored before this check keep serializing.
     """
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if value:
+            parsed = urlsplit(value)
+            # ``hostname`` is None for "https:///x" and for scheme-less or
+            # protocol-relative values; ``username``/``password`` are set
+            # whenever userinfo ("user:pw@") is present, even if empty.
+            if (
+                parsed.scheme.lower() not in ("http", "https")
+                or not parsed.hostname
+                or "@" in parsed.netloc
+            ):
+                raise serializers.ValidationError(
+                    "Enter an absolute http:// or https:// URL without "
+                    "embedded credentials."
+                )
+        return value
 
 
 @extend_schema_field({

@@ -91,7 +91,7 @@ Both resources are read-only and require only the `mcp:read` scope. See [API Ref
 
 > **Added in 1.2**
 
-Every tool call and resource read counts against a per-token limit (`300/min` by default, configurable via `MCP_THROTTLE_READ_RATE`). `list_cards`/`board://{board_id}` also count against a tighter, second limit for expensive reads (`30/min` by default, `MCP_THROTTLE_COMPUTE_RATE`). Limits are per token, not per IP, and hold across every backend replica. A call over the limit gets a structured error with a `retry_after` hint instead of hanging or 500ing. See [API Reference — MCP Server — Rate limiting](../api/mcp.md#rate-limiting) for exact settings, defaults, and error shape.
+Every tool call and resource read counts against a per-token limit (`300/min` by default, configurable via `MCP_THROTTLE_READ_RATE`). `list_cards`/`board://{board_id}` also count against a tighter, second limit for expensive reads (`30/min` by default, `MCP_THROTTLE_COMPUTE_RATE`). Limits are per token, not per IP (a separate per-IP cap, `MCP_THROTTLE_PREAUTH_RATE`, applies only to failed authentication attempts), and hold across every backend replica. A call over the limit gets a structured error with a `retry_after` hint instead of hanging or 500ing. See [API Reference — MCP Server — Rate limiting](../api/mcp.md#rate-limiting) for exact settings, defaults, and error shape.
 
 ## Self-hosted / Docker Compose deployment notes
 

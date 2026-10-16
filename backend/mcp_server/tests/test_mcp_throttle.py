@@ -306,3 +306,67 @@ class ThrottleCoverageTests(ThrottleIntegrationTestCase):
                 payload = _parse_sse(body)
                 self.assertIn("error", payload, f"resource {uri!r} was not denied: {payload!r}")
                 self.assertIn("Rate limit exceeded", payload["error"]["message"])
+
+
+class PreAuthFailureLimiterTests(McpTestCase):
+    """Per-IP limiter on FAILED credential lookups, before the PAT lookup (#1679)."""
+
+    BAD = "vbn_" + "0" * 40
+
+    def _post(self, token, xff=None):
+        # McpRequest has no header hook, so drive the mounted ASGI app directly.
+        from asgiref.sync import async_to_sync
+
+        from .test_mcp import httpx
+
+        async def go():
+            headers = {
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+                "authorization": f"Bearer {token}",
+            }
+            if xff:
+                headers["x-forwarded-for"] = xff
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=self.client_.app),
+                base_url="http://localhost",
+            ) as c:
+                r = await c.post(
+                    "/mcp",
+                    json={"jsonrpc": "2.0", "id": 1, "method": "ping"},
+                    headers=headers,
+                )
+            return r.status_code
+
+        return async_to_sync(go)()
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_repeated_bad_tokens_from_one_ip_are_throttled(self):
+        codes = [self._post(self.BAD, xff="198.51.100.7") for _ in range(3)]
+        self.assertEqual(codes, [401, 401, 401])
+        self.assertEqual(self._post(self.BAD, xff="198.51.100.7"), 429)
+        # Even a VALID token from the blocked IP is refused before lookup.
+        self.assertEqual(self._post(self.raw_token, xff="198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_other_ips_are_unaffected(self):
+        for _ in range(4):
+            self._post(self.BAD, xff="198.51.100.7")
+        self.assertNotEqual(self._post(self.raw_token, xff="203.0.113.9"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="3/min")
+    def test_successful_requests_do_not_consume_the_budget(self):
+        for _ in range(10):
+            self.assertNotEqual(self._post(self.raw_token, xff="198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="2/min")
+    def test_spoofed_leading_xff_entries_do_not_pick_a_bucket(self):
+        # NUM_PROXIES=1: only the rightmost entry is trusted.
+        for i in range(2):
+            self._post(self.BAD, xff=f"10.0.0.{i}, 198.51.100.7")
+        self.assertEqual(self._post(self.BAD, xff="10.9.9.9, 198.51.100.7"), 429)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="not-a-rate")
+    def test_unparseable_rate_fails_loud(self):
+        with self.assertRaises(ImproperlyConfigured):
+            self._post(self.BAD)
