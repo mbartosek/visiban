@@ -2789,9 +2789,10 @@ changelog-check:
 # permanently intentional) carries a SUPPRESSED-UNTIL(#N) marker naming the
 # issue that would remove it. This job greps for the marker, looks up each
 # cited issue via the GitLab API, and fails — naming file, line, and issue —
-# if any cited issue is already closed. See scripts/check-suppression-issues.sh
-# and docs/development/suppressions.md for the full contract; unit-tested in
-# scripts/tests/check-suppression-issues.test.sh.
+# if any cited issue is already closed. See scripts/check-suppression-issues.sh,
+# scripts/lib/gitlab-issues.sh, and docs/development/suppressions.md for the
+# full contract; unit-tested in scripts/tests/check-suppression-issues.test.sh
+# and scripts/tests/gitlab-issues.test.sh, both run here.
 #
 # Deliberately NOT MR-only: the triggering event is "an issue closed", not
 # "a commit landed" on the branch that added the marker. That commit may have
@@ -2802,6 +2803,12 @@ changelog-check:
 # --self-test runs immediately before the real invocation, on the same
 # image, per #1093's meta-gate (every bespoke CI gate must carry a self-test
 # or main goes red when that gate lands).
+#
+# #1694: the script and its shared lib are bash (array-based batching of
+# every cited issue into one GitLab API call), not the `sh` this job used to
+# run them with — hence `bash` here and `apk add bash curl jq` (jq parses
+# the batched issues response; this job previously only needed curl, sent
+# directly on alpine's /bin/sh, with no jq dependency at all).
 suppressions-check:
   stage: lint
   needs: []
@@ -2811,10 +2818,12 @@ suppressions-check:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
   before_script:
-    - apk add --no-cache curl
+    - apk add --no-cache bash curl jq
   script:
-    - sh scripts/check-suppression-issues.sh --self-test
-    - sh scripts/check-suppression-issues.sh
+    - bash scripts/tests/gitlab-issues.test.sh
+    - bash scripts/tests/check-suppression-issues.test.sh
+    - bash scripts/check-suppression-issues.sh --self-test
+    - bash scripts/check-suppression-issues.sh
 
 # ─── Kaizen yield watch (scheduled, report-only by default) ──────────────────
 #

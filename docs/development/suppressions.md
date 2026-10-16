@@ -43,9 +43,12 @@ away, it's permanent — write a plain reason instead.
 ## What CI enforces
 
 The `suppressions-check` CI job (`scripts/check-suppression-issues.sh`) greps the tree for
-`SUPPRESSED-UNTIL(#N)`, looks up each cited issue via the GitLab API, and **fails — naming
-file, line, and issue — if any cited issue is already closed.** An open issue passes silently.
-A plain `-- reason` suppression with no marker is never touched.
+`SUPPRESSED-UNTIL(#N)`, collects the *unique* issue numbers cited, resolves all of them in one
+batched GitLab API call via the shared `scripts/lib/gitlab-issues.sh` helper, and **fails —
+naming file, line, and issue — if any cited issue is already closed, or if the tracker did not
+return it at all** (it doesn't exist, or it's confidential and not visible to the token or
+anonymous request used). An open issue passes silently. A plain `-- reason` suppression with no
+marker is never touched.
 
 This job runs on **merge requests, `main`, and scheduled pipelines** — deliberately not
 MR-only. The triggering event is "an issue closed," not "a commit landed": the commit that
@@ -55,13 +58,25 @@ issue actually get caught.
 
 ```bash
 # Run it locally the same way CI does:
-sh scripts/check-suppression-issues.sh
+bash scripts/check-suppression-issues.sh
 ```
 
-The gate fails **open** on an inconclusive GitLab API lookup (network hiccup, missing token
-scope) rather than blocking the pipeline on a lookup that didn't complete — this is a hygiene
-gate, not a security gate, and a false block on every pipeline would just teach people to
-ignore it. It only blocks on a *confirmed* closed issue.
+**Authentication (#1694):** the lookup uses `GITLAB_API_TOKEN` if set, else `ISSUES_API_TOKEN`,
+else an anonymous request — this project is public, so an anonymous call already sees every
+non-confidential issue. It **never** sends `CI_JOB_TOKEN`: the Issues API answers 401 to *any*
+job token, including a valid one, while the identical request with no auth header at all
+answers 200. An earlier version of this gate sent `JOB-TOKEN` and had `curl -sf` silently
+swallow that 401 into the same "inconclusive" state as a genuinely unreachable tracker — so it
+had never actually blocked a closed-issue citation in CI. If a configured token *is* rejected
+(expired, wrong scope), the gate warns once and retries anonymously rather than treating the
+whole lookup as inconclusive.
+
+The gate fails **open** only on a lookup that genuinely never got a usable response (network
+failure, every retry exhausted, a malformed body) rather than blocking the pipeline on a lookup
+that didn't complete — this is a hygiene gate, not a security gate, and a false block on every
+pipeline would just teach people to ignore it. It fails **closed** on anything the tracker
+*did* answer conclusively: a confirmed closed issue, or a cited issue the tracker's response
+simply didn't contain.
 
 ### Self-test
 
@@ -72,11 +87,16 @@ fires on a closed-issue marker, passes an open-issue marker, and leaves a plain-
 suppression alone.
 
 ```bash
-sh scripts/check-suppression-issues.sh --self-test
+bash scripts/check-suppression-issues.sh --self-test
 ```
 
 The CI job runs `--self-test` immediately before the real invocation, on the same image, so a
 regression in the gate itself fails the pipeline before the gate's real result can be trusted.
+Unlike `--self-test` (which only drives the `CHECK_SUPPRESSION_MOCK_CLOSED` mock),
+`scripts/tests/gitlab-issues.test.sh` and `scripts/tests/check-suppression-issues.test.sh` —
+both also run in this job — exercise the *real* fetch path (batching, retries, the
+never-send-`JOB-TOKEN` guarantee, and the 401-falls-back-to-anonymous behavior) against a fake
+`curl` on `PATH`, with no network access.
 
 ## Scope
 

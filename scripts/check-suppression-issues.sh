@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # scripts/check-suppression-issues.sh — SUPPRESSED-UNTIL(#NNNN) marker gate.
 #
 # Problem (#1092): a suppression (`pytest.mark.skip`, `eslint-disable`, a
@@ -25,25 +25,44 @@
 # triggering event is "an issue closed", not "a commit landed" — an MR-only
 # job would never fire once the suppression's branch has already merged.
 #
-# Portability: this runs in the `changelog-check` job's `alpine:3.19` image
-# elsewhere in this pipeline family, which ships BusyBox grep/sed — no
-# --exclude-dir, no -P, no GNU-only flags, no interval expressions ({1,}).
-# Every pattern below is plain POSIX basic-regex-safe (parens and `*` only).
+# #1694: the previous version sent `JOB-TOKEN: $CI_JOB_TOKEN` to
+# `GET /projects/:id/issues/:iid` — which answers 401 to ANY job token on
+# this public project, while the identical request with no auth header at
+# all answers 200. `curl -sf` swallowed that 401 into an empty body, every
+# lookup read "unknown", and the gate's own documented fail-open policy for
+# an unreachable tracker silently absorbed what should have been a hard
+# "closed" finding: this gate had never actually blocked a closed-issue
+# citation in CI, because `frontend/src`/`backend` held zero markers to
+# notice it with. It also made one request per marker site with no retry
+# (429 risk against GitLab's per-IP anonymous budget) and used `sed | head`
+# behind a pipe. Fixed by porting scripts/lib/gitlab-issues.sh
+# (trueppm/trueppm#4452): resolve every *unique* cited issue in one batched
+# call, retrying transient failures, with GITLAB_API_TOKEN / ISSUES_API_TOKEN
+# only — never JOB-TOKEN. The job now runs this script with `bash` (was
+# `sh`) to use that library; see docs/development/suppressions.md.
 #
 # Usage:
-#   sh scripts/check-suppression-issues.sh              # real run
-#   sh scripts/check-suppression-issues.sh --self-test   # gate self-test
+#   bash scripts/check-suppression-issues.sh              # real run
+#   bash scripts/check-suppression-issues.sh --self-test   # gate self-test
 #
 # Self-test (issue #1093's meta-gate requires every bespoke CI gate to carry
 # one): builds a small fixture tree, points the issue-state lookup at a mock
 # (no network), and asserts the detection logic actually fires on a marker
 # citing a "closed" issue, passes one citing an "open" issue, and leaves a
 # plain `-- reason` suppression alone. Exits non-zero if any of that does not
-# hold — i.e. if the gate itself is broken.
-set -eu
+# hold — i.e. if the gate itself is broken. The real-fetch path (batching,
+# the JOB-TOKEN-never-sent guarantee, and the new "tracker didn't return
+# this issue" state) is covered separately, with a fake `curl` on PATH, by
+# scripts/tests/check-suppression-issues.test.sh and
+# scripts/tests/gitlab-issues.test.sh — this inline self-test only exercises
+# CHECK_SUPPRESSION_MOCK_CLOSED, which never touches the network.
+set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# shellcheck source=scripts/lib/gitlab-issues.sh
+source "${REPO_ROOT}/scripts/lib/gitlab-issues.sh"
 
 # Paths this gate scans for the marker. Kept in sync with the areas #1092
 # audited: frontend eslint-disable sites and backend pytest skip/xfail sites.
@@ -53,58 +72,38 @@ cd "$REPO_ROOT"
 SCAN_PATHS="frontend/src backend"
 
 # The marker pattern, as a POSIX basic regular expression (no -E needed):
-# parentheses are literal in BRE, so no escaping is required either.
+# parentheses are literal in BRE, so no escaping is required either. Still
+# matched with plain `grep -rn` (no GNU-only flags) even though this job now
+# runs under bash — the pattern itself is unchanged from #1092.
 MARKER_PATTERN='SUPPRESSED-UNTIL(#[0-9]*)'
 
-# gitlab_issue_state <issue_iid> — prints "closed", "opened", or "unknown"
-# (API/network failure — fail OPEN/non-blocking, this is a hygiene gate, not
-# a security gate; see script header) for the given issue IID in this
-# project.
+# resolve_issue_state <issue_iid> <states_blob>
 #
-# CHECK_SUPPRESSION_MOCK_CLOSED, if set, is a comma-separated list of issue
-# numbers to treat as closed and short-circuits the real API call entirely —
-# used only by --self-test so the gate's own test needs no network access
-# and no real issue to exist.
-gitlab_issue_state() {
-  issue_iid="$1"
-
-  if [ -n "${CHECK_SUPPRESSION_MOCK_CLOSED:-}" ]; then
-    case ",${CHECK_SUPPRESSION_MOCK_CLOSED}," in
-      *",${issue_iid},"*) echo "closed" ;;
-      *) echo "opened" ;;
-    esac
-    return 0
-  fi
-
-  api_base="${CI_API_V4_URL:-https://gitlab.com/api/v4}"
-  project="${CI_PROJECT_ID:-visiban%2Fvisiban}"
-  url="${api_base}/projects/${project}/issues/${issue_iid}"
-
-  response=""
-  if [ -n "${CI_JOB_TOKEN:-}" ]; then
-    response="$(curl -sf -H "JOB-TOKEN: ${CI_JOB_TOKEN}" "$url" 2>/dev/null)" || true
-  elif [ -n "${GITLAB_API_TOKEN:-}" ]; then
-    response="$(curl -sf -H "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" "$url" 2>/dev/null)" || true
-  else
-    response="$(curl -sf "$url" 2>/dev/null)" || true
-  fi
-
-  if [ -z "$response" ]; then
-    echo "unknown"
-    return 0
-  fi
-
-  state="$(printf '%s' "$response" | sed -n 's/.*"state":"\([a-z]*\)".*/\1/p' | head -n 1)"
-  case "$state" in
-    closed) echo "closed" ;;
-    opened) echo "opened" ;;
-    *) echo "unknown" ;;
-  esac
+# <states_blob> is the "<iid><TAB><state>" lines already resolved for this
+# run (see run_scan). Prints "opened", "closed", or "missing" — "missing"
+# covers both a nonexistent issue number and one that exists but is
+# confidential/invisible to the token in use; the API makes no distinction,
+# and this gate must not treat either as a free pass (#1694).
+resolve_issue_state() {
+  local issue_iid="$1" states="$2" iid state
+  while IFS=$'\t' read -r iid state; do
+    [ -n "${iid:-}" ] || continue
+    if [ "$iid" = "$issue_iid" ]; then
+      printf '%s' "$state"
+      return 0
+    fi
+  done <<< "$states"
+  printf '%s' "missing"
 }
 
 # run_scan <path...> — scans the given paths for the marker and prints one
-# finding line per closed-issue citation. Returns 1 if any citation is
-# closed, 0 otherwise (including when the paths contain no markers at all).
+# finding line per citation whose issue is closed, or whose issue the
+# tracker did not return at all. Returns 1 if any citation is closed or
+# missing, 0 otherwise (including when the paths contain no markers at all,
+# or when the tracker lookup itself is inconclusive — this is a hygiene
+# gate, not a security gate, and fails open on a lookup failure rather than
+# blocking the pipeline on an inconclusive one; see
+# docs/development/suppressions.md).
 #
 # A missing scan path is itself a failure, not a clean scan: `grep -r` on a
 # nonexistent path errors on stderr (which we otherwise discard) and `|| true`
@@ -121,27 +120,80 @@ run_scan() {
     fi
   done
 
+  local tmp_matches
   tmp_matches="$(mktemp)"
   # grep -rn: recursive + line numbers, supported by both GNU and BusyBox
   # grep. No -E: the marker pattern above is plain BRE.
   grep -rn "$MARKER_PATTERN" "$@" > "$tmp_matches" 2>/dev/null || true
 
-  # Read from a file, not a pipe: a `... | while read` pipeline runs the loop
-  # in a subshell under POSIX sh (dash/ash), so `scan_fail` set inside it
-  # would be lost. Redirection keeps the loop in the current shell.
+  # Pass 1: collect every *unique* issue number cited across all marker
+  # sites, so the lookup (real or CHECK_SUPPRESSION_MOCK_CLOSED) runs once
+  # per run, not once per marker (#1694). Read from a file, not a pipe: a
+  # `... | while read` pipeline runs the loop in a subshell under POSIX
+  # sh/dash, and even under bash it would leave `ids`/`seen` edits trapped in
+  # the pipeline's subshell — redirection keeps the loop in this shell.
+  local issue ids=() seen=","
+  while IFS=: read -r file lineno rest; do
+    [ -n "${file:-}" ] || continue
+    issue="$(printf '%s' "$rest" | sed -n 's/.*SUPPRESSED-UNTIL(#\([0-9][0-9]*\)).*/\1/p')"
+    [ -n "$issue" ] || continue
+    case "$seen" in
+      *",${issue},"*) ;;
+      *)
+        ids+=("$issue")
+        seen="${seen}${issue},"
+        ;;
+    esac
+  done < "$tmp_matches"
+
+  local states="" lookup_rc=0
+  if [ "${#ids[@]}" -gt 0 ]; then
+    if [ -n "${CHECK_SUPPRESSION_MOCK_CLOSED:-}" ]; then
+      # Test-only short-circuit (--self-test and
+      # scripts/tests/check-suppression-issues.test.sh): never touches the
+      # network. Comma-separated issue numbers in CHECK_SUPPRESSION_MOCK_CLOSED
+      # are "closed"; everything else cited is "opened" — this mock never
+      # produces "missing", by design (the real-fetch "missing" path is
+      # covered separately with a fake curl on PATH).
+      local lines=""
+      for issue in "${ids[@]}"; do
+        case ",${CHECK_SUPPRESSION_MOCK_CLOSED}," in
+          *",${issue},"*) lines="${lines}${issue}$(printf '\t')closed"$'\n' ;;
+          *) lines="${lines}${issue}$(printf '\t')opened"$'\n' ;;
+        esac
+      done
+      states="$lines"
+    else
+      states="$(gitlab_issue_states "${ids[@]}")" || lookup_rc=1
+    fi
+  fi
+
+  if [ "$lookup_rc" -ne 0 ]; then
+    echo "check-suppression-issues: WARNING — could not resolve the cited issues' state (tracker unreachable, or no usable token/anonymous access); not blocking on an inconclusive lookup." >&2
+  fi
+
+  # Pass 2: evaluate every marker site against the states resolved above.
   while IFS=: read -r file lineno rest; do
     [ -n "${file:-}" ] || continue
     issue="$(printf '%s' "$rest" | sed -n 's/.*SUPPRESSED-UNTIL(#\([0-9][0-9]*\)).*/\1/p')"
     [ -n "$issue" ] || continue
 
-    state="$(gitlab_issue_state "$issue")"
+    if [ "$lookup_rc" -ne 0 ]; then
+      # Already warned once above; every citation is equally inconclusive
+      # when the batch lookup itself failed.
+      continue
+    fi
+
+    local state
+    state="$(resolve_issue_state "$issue" "$states")"
     case "$state" in
       closed)
         scan_fail=1
         echo "check-suppression-issues: ${file}:${lineno}: SUPPRESSED-UNTIL(#${issue}) cites issue #${issue}, which is CLOSED — remove the suppression or re-scope the marker to a new tracked issue." >&2
         ;;
-      unknown)
-        echo "check-suppression-issues: WARNING — could not determine the state of #${issue} (${file}:${lineno}); not blocking on an inconclusive lookup." >&2
+      missing)
+        scan_fail=1
+        echo "check-suppression-issues: ${file}:${lineno}: SUPPRESSED-UNTIL(#${issue}) cites issue #${issue}, which the tracker did not return (it does not exist, or is confidential to the token/anonymous access used) — re-scope the marker to a real, visible issue." >&2
         ;;
     esac
   done < "$tmp_matches"
@@ -184,11 +236,23 @@ EOF
     ok=0
   fi
 
+  mkdir -p "$fixture_dir/mixed-dedup"
+  cat > "$fixture_dir/mixed-dedup/a.ts" <<'EOF'
+// eslint-disable-next-line react-hooks/exhaustive-deps -- SUPPRESSED-UNTIL(#7777): self-test fixture, not a real issue
+EOF
+  cat > "$fixture_dir/mixed-dedup/b.ts" <<'EOF'
+// eslint-disable-next-line react-hooks/exhaustive-deps -- SUPPRESSED-UNTIL(#7777): self-test fixture, not a real issue
+EOF
+  if ! CHECK_SUPPRESSION_MOCK_CLOSED="9999" run_scan "$fixture_dir/mixed-dedup"; then
+    echo "check-suppression-issues --self-test: FAIL — two markers citing the SAME open issue were incorrectly blocked (dedup regression)." >&2
+    ok=0
+  fi
+
   rm -rf "$fixture_dir"
   trap - EXIT
 
   if [ "$ok" -eq 1 ]; then
-    echo "check-suppression-issues --self-test: OK — fires on a closed-issue marker, passes an open-issue marker, ignores a plain reason."
+    echo "check-suppression-issues --self-test: OK — fires on a closed-issue marker, passes an open-issue marker, ignores a plain reason, dedupes repeated citations."
     return 0
   fi
   return 1
@@ -202,11 +266,11 @@ main() {
 
   # shellcheck disable=SC2086  # SCAN_PATHS is intentionally word-split (two bare paths, no globs/spaces).
   if run_scan $SCAN_PATHS; then
-    echo "check-suppression-issues: OK — no SUPPRESSED-UNTIL(#N) marker cites a closed issue."
+    echo "check-suppression-issues: OK — no SUPPRESSED-UNTIL(#N) marker cites a closed or unresolvable issue."
     exit 0
   else
     echo "" >&2
-    echo "check-suppression-issues: FAIL — one or more SUPPRESSED-UNTIL(#N) markers cite a closed issue." >&2
+    echo "check-suppression-issues: FAIL — one or more SUPPRESSED-UNTIL(#N) markers cite a closed issue, or an issue the tracker could not confirm exists and is open." >&2
     exit 1
   fi
 }
