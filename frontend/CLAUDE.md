@@ -821,6 +821,8 @@ Icon-only buttons that toggle a persistent mode (e.g. focus mode, collapse) must
 
 ## User preference persistence
 
+**Instance-level flags** never go on the TS `User` / `CurrentUserSerializer` (frozen, #1664) — add them to `SiteConfig` (`/auth/site-config/`); see `docs/api/authentication.md#frozen-instance-flags-on-authuser`.
+
 **User-scoped UI preferences** (toggles reflecting a reading habit or display style not tied to a specific board) use a single flat localStorage key in the format `user:prefs:{preference-name}`. Do not embed a board ID. Do not extend `useViewPrefs`. Create a dedicated hook following the try/catch + fallback pattern in `useViewPrefs.ts`. Never store UI-only preferences in the backend `UserSerializer` unless cross-device sync is an explicit requirement.
 
 - **Board-scoped keys:** `board:{boardId}:{pref-name}` — for preferences that are per-board (hidden columns, filters, column widths)
