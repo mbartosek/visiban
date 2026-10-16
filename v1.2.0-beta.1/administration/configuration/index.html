@@ -4400,7 +4400,7 @@
 <blockquote>
 <p><strong>Added in 1.2</strong> (#1180).</p>
 </blockquote>
-<p>Per-IP rate limits (the login throttle, the anonymous request ceiling, allauth's failed-login lockout) and the <code>/admin/</code> IP allowlist all need the visitor's real address. Behind proxies, Visiban reads it from <code>X-Forwarded-For</code>, trusting the entry that the configured number of proxies appended. Everything to the left of those entries is client-supplied.</p>
+<p>Per-IP rate limits (the login throttle, the anonymous request ceiling, allauth's failed-login lockout, the <a href="../../api/mcp/#failed-authentication-limit-per-ip">MCP pre-auth failure limit</a>, <code>MCP_THROTTLE_PREAUTH_RATE</code>) and the <code>/admin/</code> IP allowlist all need the visitor's real address. Behind proxies, Visiban reads it from <code>X-Forwarded-For</code>, trusting the entry that the configured number of proxies appended. Everything to the left of those entries is client-supplied.</p>
 <table>
 <thead>
 <tr>

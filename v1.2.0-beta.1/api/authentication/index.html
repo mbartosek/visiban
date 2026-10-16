@@ -5450,9 +5450,9 @@ actually bootstraps from) returns the identical shape — both are served by
 </tr>
 <tr>
 <td><code>avatar_url</code></td>
-<td>string / null</td>
+<td>string</td>
 <td>No</td>
-<td>URL of the user's avatar image. Accepts any absolute URL or <code>null</code> to clear.</td>
+<td>URL of the user's avatar image. Must be an absolute <code>http://</code> or <code>https://</code> URL with a host and no embedded credentials (<code>user:pass@</code>), or an empty string to clear. Any other value (<code>javascript:</code>, <code>data:</code>, relative paths, <code>ftp:</code>) is rejected with <code>400</code> and an <code>avatar_url</code> error. Validated on write only; values stored earlier are returned unchanged.</td>
 </tr>
 <tr>
 <td><code>theme</code></td>
