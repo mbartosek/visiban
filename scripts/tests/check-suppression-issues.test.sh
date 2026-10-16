@@ -11,11 +11,20 @@
 # (the same one --self-test uses) against small fixture trees, so it needs no
 # network access and depends on no real GitLab issue existing or closing.
 #
+# #1694 added a second kind of case below (see "REAL FETCH PATH"): the mock
+# hook never exercised check-suppression-issues.sh's actual GitLab API call,
+# which is exactly how the JOB-TOKEN-401 defect went unnoticed — those cases
+# drive gitlab_issue_states through a fake `curl` placed first on PATH
+# instead, with no mock hook involved, proving the real request shape:
+# unique-iid batching, a closed issue still blocking, an open issue still
+# passing, and JOB-TOKEN never sent even when CI_JOB_TOKEN is set.
+#
 # Run: bash scripts/tests/check-suppression-issues.test.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GATE="$REPO_ROOT/scripts/check-suppression-issues.sh"
+LIB="$REPO_ROOT/scripts/lib/gitlab-issues.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -62,21 +71,28 @@ EOF
 
 # The gate always scans SCAN_PATHS ("frontend/src backend"), not an arbitrary
 # directory, so to test it against small fixture trees instead of the whole
-# real repo we source its function definitions (run_scan, gitlab_issue_state)
-# and call run_scan directly. The gate is POSIX sh, which bash can source
-# fine; the only wrinkle is its trailing `main "$@"` line, which would run on
-# source too and scan the real repo as a side effect — so we source a scratch
-# copy with that last line stripped instead of the gate file itself.
+# real repo we source its function definitions (run_scan, resolve_issue_state)
+# and call run_scan directly. The gate is bash; the only wrinkle is its
+# trailing `main "$@"` line, which would run on source too and scan the real
+# repo as a side effect — so we source a scratch copy with that last line
+# stripped instead of the gate file itself.
 #
 # The sourced file also defines and immediately runs its own top-level
-# `REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"` (outside
-# any function). Sourcing re-executes that in *this* shell, where `$0` is
-# still this test script's path, not the gate's — so it would silently
-# clobber our own (correctly-computed) $REPO_ROOT and cd one directory off
-# from the real repo root. Save it under a distinct name and restore both
-# the variable and the cwd right after sourcing.
+# `REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$REPO_ROOT"`
+# (outside any function) AND, since #1694, a `source
+# "${REPO_ROOT}/scripts/lib/gitlab-issues.sh"` that depends on that
+# REPO_ROOT being right — unlike `$0`, `${BASH_SOURCE[0]}` DOES follow a
+# sourced file, so sourcing a bare copy dropped directly into $TMP computes
+# a REPO_ROOT that is wrong *and consequential*: the inner `source` fails
+# immediately, before we would ever get a chance to restore anything. Fixed
+# by mirroring the real scripts/ layout under $TMP (copy the library to the
+# same relative path) so that inner source resolves correctly either way,
+# then overwriting our own $REPO_ROOT/cwd back to the real repo root
+# afterward regardless.
 OWN_REPO_ROOT="$REPO_ROOT"
-GATE_LIB="$TMP/gate_lib.sh"
+mkdir -p "$TMP/scripts/lib"
+cp "$LIB" "$TMP/scripts/lib/gitlab-issues.sh"
+GATE_LIB="$TMP/scripts/gate_lib.sh"
 sed '$ d' "$GATE" > "$GATE_LIB"   # drop the trailing `main "$@"` line
 # shellcheck source=/dev/null
 source "$GATE_LIB"
@@ -140,11 +156,79 @@ check "a missing scan path names itself in the failure" \
 
 # --- The gate's own --self-test mode passes as a subprocess (no network) ---
 set +e
-SELFTEST_OUT="$(sh "$GATE" --self-test 2>&1)"
+SELFTEST_OUT="$(bash "$GATE" --self-test 2>&1)"
 SELFTEST_RC=$?
 set -e
 check "the gate's own --self-test exits 0" "$([ "$SELFTEST_RC" -eq 0 ] && echo 0 || echo 1)"
 check "the gate's own --self-test reports OK" "$(echo "$SELFTEST_OUT" | grep -q "self-test: OK" && echo 0 || echo 1)"
+
+# === REAL FETCH PATH (#1694) ================================================
+#
+# Everything above drives CHECK_SUPPRESSION_MOCK_CLOSED, which never touches
+# gitlab_issue_states or curl at all — exactly the blind spot that let the
+# JOB-TOKEN/401 defect ship unnoticed. These cases instead put a fake `curl`
+# first on PATH and run the gate's *actual* fetch path end to end, with
+# CHECK_SUPPRESSION_MOCK_CLOSED deliberately unset.
+install_fake_curl() {
+  local dir="$1" body="$2"
+  mkdir -p "$dir"
+  {
+    echo '#!/usr/bin/env bash'
+    # shellcheck disable=SC2016
+    echo 'echo "$*" >> "$CALL_LOG"'
+    echo "$body"
+  } > "$dir/curl"
+  chmod +x "$dir/curl"
+}
+
+FAKE_CURL_DIR="$TMP/fake-curl-real-path"
+# shellcheck disable=SC2016
+install_fake_curl "$FAKE_CURL_DIR" '
+for a in "$@"; do
+  case "$a" in
+    JOB-TOKEN:*) echo "JOB-TOKEN SENT: $a" >&2; exit 99 ;;
+  esac
+done
+printf '"'"'[{"iid":6060,"state":"opened"},{"iid":6161,"state":"closed"}]'"'"'
+printf '"'"'\nHTTPSTATUS:200'"'"'
+'
+
+mkdir -p "$TMP/real-fetch/open" "$TMP/real-fetch/closed"
+cat > "$TMP/real-fetch/open/a.tsx" <<'EOF'
+// eslint-disable-next-line react-hooks/exhaustive-deps -- SUPPRESSED-UNTIL(#6060): fixture only, real-fetch-path case
+EOF
+cat > "$TMP/real-fetch/closed/b.tsx" <<'EOF'
+// eslint-disable-next-line react-hooks/exhaustive-deps -- SUPPRESSED-UNTIL(#6161): fixture only, real-fetch-path case
+EOF
+
+REAL_CALL_LOG="$TMP/real-fetch-calls.log"
+: > "$REAL_CALL_LOG"
+set +e
+REAL_OUT="$(
+  unset CHECK_SUPPRESSION_MOCK_CLOSED
+  export CALL_LOG="$REAL_CALL_LOG"
+  export CI_JOB_TOKEN="definitely-set-but-must-never-be-sent"
+  export CI_PROJECT_ID="visiban%2Fvisiban"
+  unset GITLAB_API_TOKEN ISSUES_API_TOKEN
+  PATH="$FAKE_CURL_DIR:$PATH" run_scan "$TMP/real-fetch" 2>&1
+)"
+REAL_RC=$?
+set -e
+
+check "real fetch path: closed issue blocks through the real curl call (exit 1)" \
+  "$([ "$REAL_RC" -eq 1 ] && echo 0 || echo 1)"
+check "real fetch path: failure names the closed file" \
+  "$(echo "$REAL_OUT" | grep -q "b.tsx" && echo 0 || echo 1)"
+check "real fetch path: failure names the closed issue and says CLOSED" \
+  "$(echo "$REAL_OUT" | grep -q "#6161" && echo "$REAL_OUT" | grep -q "CLOSED" && echo 0 || echo 1)"
+check "real fetch path: the open issue's file is never reported as a finding" \
+  "$(echo "$REAL_OUT" | grep -q "a.tsx" && echo 1 || echo 0)"
+check "real fetch path: both cited iids reached curl in one batched call" \
+  "$(grep -q 'iids\[\]=6060' "$REAL_CALL_LOG" && grep -q 'iids\[\]=6161' "$REAL_CALL_LOG" && echo 0 || echo 1)"
+check "real fetch path: exactly one HTTP call made (batched, not per-marker)" \
+  "$([ "$(grep -c 'per_page=100' "$REAL_CALL_LOG")" -eq 1 ] && echo 0 || echo 1)"
+check "real fetch path: JOB-TOKEN was never sent even though CI_JOB_TOKEN was set" \
+  "$(grep -q 'JOB-TOKEN' "$REAL_CALL_LOG" && echo 1 || echo 0)"
 
 echo ""
 if [[ "$fail" -eq 0 ]]; then
