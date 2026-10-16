@@ -1,0 +1,284 @@
+{
+ "allow": [
+  {
+   "operation": "DELETE /api/v1/boards/{id}/share/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "DELETE /api/v{var}[\\w]/",
+   "issue": "#1080",
+   "reason": "UnsupportedVersionView is now excluded from the schema (@extend_schema(exclude=True)); the catch-all version path was never a served endpoint"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/archived/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/activities/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/attachments/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/checklist/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/comments/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/movements/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/status/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{board_pk}/cards/{id}/timeline/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/export-history/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/full/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/movements/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/saved-filters/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/boards/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/descendant-boards/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/invite-links/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/labels/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/members/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v1/groups/{id}/subgroups/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "GET /api/v{var}[\\w]/",
+   "issue": "#1080",
+   "reason": "UnsupportedVersionView is now excluded from the schema (@extend_schema(exclude=True)); the catch-all version path was never a served endpoint"
+  },
+  {
+   "operation": "PATCH /api/v1/boards/{board_pk}/cards/{id}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "PATCH /api/v1/boards/{board_pk}/cards/{id}/checklist/{item_pk}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "PATCH /api/v1/groups/{id}/labels/{label_id}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "PATCH /api/v1/groups/{id}/members/{user_id}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "PATCH /api/v{var}[\\w]/",
+   "issue": "#1080",
+   "reason": "UnsupportedVersionView is now excluded from the schema (@extend_schema(exclude=True)); the catch-all version path was never a served endpoint"
+  },
+  {
+   "operation": "POST /api/v1/admin/invite-links/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/admin/users/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/login/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/password/change/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/password/reset/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/password/reset/confirm/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/registration/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/auth/tokens/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/import/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/archive/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/attachments/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/checklist/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/comments/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/move/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/unarchive/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/columns/reorder/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/swimlanes/reorder/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/members/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/saved-filters/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/share/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/boards/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/invite-links/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/labels/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/star/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "POST /api/v{var}[\\w]/",
+   "issue": "#1080",
+   "reason": "UnsupportedVersionView is now excluded from the schema (@extend_schema(exclude=True)); the catch-all version path was never a served endpoint"
+  },
+  {
+   "operation": "PUT /api/v1/boards/{board_pk}/cards/{id}/",
+   "issue": "#1667",
+   "reason": "v1.1.0 baseline documented a fallback or wrong serializer for this operation and the schema has since been corrected; pending per-operation runtime verification (see docs/development/api-compat-gate.md)"
+  },
+  {
+   "operation": "PUT /api/v{var}[\\w]/",
+   "issue": "#1080",
+   "reason": "UnsupportedVersionView is now excluded from the schema (@extend_schema(exclude=True)); the catch-all version path was never a served endpoint"
+  }
+ ]
+}
