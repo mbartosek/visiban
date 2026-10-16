@@ -28,8 +28,8 @@ An account with a forced password or username change pending (`must_change_passw
 ## Passwords
 
 - **Your own password:** the admin's **Change password** link opens the web app, where you change it like any other user.
-- **Another user's password** (the user's **Password** form at `/admin/accounts/user/<id>/password/`): saving a new password, or disabling password sign-in, deletes that user's Personal Access Tokens and API token and ends their sessions. If a new password was set, the user must change it the next time they sign in.
-- **Adding a user:** a user created here with a password must choose their own password the first time they sign in, the same as one created from the site-admin panel. A user created with password sign-in disabled is not asked to create one.
+- **Another user's password** (the user's **Password** form at `/admin/accounts/user/<id>/password/`): saving a new password, or disabling password sign-in, deletes that user's Personal Access Tokens and API token and ends their sessions. If a new password was set, the user must change it the next time they sign in. The action is recorded in the [admin action log](../api/admin.md) with who made the change and which account it applied to; the password itself is never recorded.
+- **Adding a user:** a user created here with a password must choose their own password the first time they sign in, the same as one created from the site-admin panel. Adding a user with a password is recorded in the admin action log; the password itself is not. A user created with password sign-in disabled is not asked to create one.
 
 ## Deactivating users
 

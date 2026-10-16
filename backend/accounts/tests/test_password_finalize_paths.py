@@ -9,7 +9,7 @@ from django.test import Client, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts import credentials
-from accounts.models import PersonalAccessToken, User
+from accounts.models import AdminActionLog, PersonalAccessToken, User
 
 OLD = "old-password-1234"
 NEW = "brand-new-password-5678"
@@ -192,6 +192,96 @@ class AdminPasswordFormTests(TestCase):
         stored = User.objects.get(pk=target.pk)
         self.assertEqual(stored.password, before)
         self.assertEqual(stored.personal_access_tokens.count(), 2)
+
+    def test_other_user_password_set_is_recorded_without_secrets(self):
+        target = _user("tgt7")
+        r = self._post(target, password1=NEW, password2=NEW, usable_password="true")
+        self.assertEqual(r.status_code, 302)
+        entry = AdminActionLog.objects.get(action=AdminActionLog.Action.USER_PASSWORD_SET)
+        self.assertEqual(entry.actor_id, self.admin_user.pk)
+        self.assertEqual(entry.actor_username, "adm")
+        self.assertEqual(entry.source, AdminActionLog.Source.DJANGO_ADMIN)
+        self.assertEqual(
+            entry.metadata, {"target_id": target.pk, "target_username": "tgt7"}
+        )
+        self.assertIsNotNone(entry.created_at)
+        stored = User.objects.get(pk=target.pk)
+        blob = f"{entry.metadata}{entry.action}{entry.actor_username}"
+        self.assertNotIn(NEW, blob)
+        self.assertNotIn(stored.password, blob)
+
+    def test_disabling_password_sign_in_is_recorded(self):
+        target = _user("tgt8")
+        self._post(target, usable_password="false", **{"unset-password": "1"})
+        entry = AdminActionLog.objects.get(action=AdminActionLog.Action.USER_PASSWORD_DISABLED)
+        self.assertEqual(entry.metadata["target_id"], target.pk)
+        self.assertFalse(
+            AdminActionLog.objects.filter(action=AdminActionLog.Action.USER_PASSWORD_SET).exists()
+        )
+
+    def test_no_entry_on_get_invalid_submit_or_own_password(self):
+        target = _user("tgt9")
+        self.assertEqual(self.client.get(self._url(target)).status_code, 200)
+        r = self._post(target, password1=NEW, password2=NEW + "x", usable_password="true")
+        self.assertEqual(r.status_code, 200)
+        self._post(self.admin_user, password1=NEW, password2=NEW, usable_password="true")
+        self.assertEqual(AdminActionLog.objects.count(), 0)
+
+    def test_no_entry_when_follow_up_rolls_back(self):
+        target = _user("tgt10")
+        self.client.raise_request_exception = False
+        with mock.patch(
+            "accounts.admin.require_password_change_after_admin_set",
+            side_effect=RuntimeError("boom"),
+        ):
+            self._post(target, password1=NEW, password2=NEW, usable_password="true")
+        self.assertEqual(AdminActionLog.objects.count(), 0)
+
+    def test_audit_write_failure_rolls_back_the_password_change(self):
+        target = _user("tgt11")
+        before = User.objects.get(pk=target.pk).password
+        self.client.raise_request_exception = False
+        with mock.patch(
+            "accounts.admin.AdminActionLog.record", side_effect=RuntimeError("boom")
+        ):
+            r = self._post(target, password1=NEW, password2=NEW, usable_password="true")
+        self.assertGreaterEqual(r.status_code, 500)
+        self.assertEqual(User.objects.get(pk=target.pk).password, before)
+
+    def _add_user(self, **data):
+        return self.client.post("/admin/accounts/user/add/", data)
+
+    def test_user_added_with_password_is_recorded_without_secrets(self):
+        r = self._add_user(
+            username="newbie", password1=NEW, password2=NEW, usable_password="true"
+        )
+        self.assertEqual(r.status_code, 302)
+        added = User.objects.get(username="newbie")
+        entry = AdminActionLog.objects.get(action=AdminActionLog.Action.USER_PASSWORD_SET)
+        self.assertEqual(entry.actor_id, self.admin_user.pk)
+        self.assertEqual(entry.source, AdminActionLog.Source.DJANGO_ADMIN)
+        self.assertEqual(
+            entry.metadata, {"target_id": added.pk, "target_username": "newbie"}
+        )
+        self.assertNotIn(NEW, str(entry.metadata))
+        self.assertNotIn(added.password, str(entry.metadata))
+
+    def test_user_added_without_password_writes_no_entry(self):
+        r = self._add_user(username="nopw", usable_password="false")
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(User.objects.filter(username="nopw").exists())
+        self.assertEqual(AdminActionLog.objects.count(), 0)
+
+    def test_audit_write_failure_rolls_back_user_creation(self):
+        self.client.raise_request_exception = False
+        with mock.patch(
+            "accounts.admin.AdminActionLog.record", side_effect=RuntimeError("boom")
+        ):
+            r = self._add_user(
+                username="ghost", password1=NEW, password2=NEW, usable_password="true"
+            )
+        self.assertGreaterEqual(r.status_code, 500)
+        self.assertFalse(User.objects.filter(username="ghost").exists())
 
     def _snapshot(self, target):
         stored = User.objects.get(pk=target.pk)
