@@ -2991,8 +2991,15 @@ backend-dep-scan:
     # Audit the hash-pinned lock (#1378): it is exactly what the images install,
     # transitive deps included. --require-hashes makes pip-audit trust the pins
     # instead of re-resolving them.
+    #
+    # Bare `pip-audit` ignores backend/osv-scanner.toml, so an accepted advisory
+    # with no fix (twisted, #1688) red-walled the nightly run. Gate its JSON
+    # through scripts/pip-audit-gate.py, which honors the expiring accepted risks
+    # in that file (same source of truth as dep-scan-osv, #1685) and matches each
+    # vuln's id and aliases.
+    - python3 scripts/pip-audit-gate.py --self-test
     - pip-audit --require-hashes -r backend/requirements.lock --format json -o pip-audit-report.json || true
-    - pip-audit --require-hashes -r backend/requirements.lock
+    - python3 scripts/pip-audit-gate.py pip-audit-report.json backend/osv-scanner.toml
   artifacts:
     when: always
     expire_in: 1 week
