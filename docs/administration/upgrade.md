@@ -304,6 +304,21 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! warning "Edits to seeded system board templates are overwritten"
+    `boards/0054` (#1115) rewrites `columns_json` for the built-in system templates, matched by
+    slug, to correct drift in `project_delivery` and `legal_compliance` and to add `is_done`
+    flags. Any admin edit to a seeded system template's columns is lost on upgrade, and
+    rolling the migration back restores the original constants, not your previous values.
+    Before upgrading, note any customized system template columns, then re-apply them
+    afterward in the Django admin (Board templates). Existing boards are not affected; only
+    future board creations and the template preview use these rows.
+
+!!! note "Very large `users` tables"
+    `accounts/0030` and `accounts/0036` run `UPDATE` statements on `users` in the same
+    transaction as the column additions, which holds a table lock for the duration of the
+    update. This is fast at typical sizes. On installs with millions of user rows, run
+    `migrate` during a maintenance window.
+
 !!! note "Browser WebSocket connections check the Origin header"
     A WebSocket handshake that carries an `Origin` header must match `CORS_ALLOWED_ORIGINS`,
     `CSRF_TRUSTED_ORIGINS`, or a host in `ALLOWED_HOSTS`. If your public hostname differs from

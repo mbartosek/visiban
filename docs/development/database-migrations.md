@@ -742,6 +742,33 @@ fourteen above, without any of them changing.
 
 ---
 
+## Known gaps in the 1.1 to 1.2 migrations
+
+Found by the 1.2 pre-release audit (#1662). The shipped migrations were not edited, because
+installs have already run them; these are documented instead.
+
+- **Foreign keys are not flagged by the concurrency checker.** `accounts/0031` adds a nullable
+  FK (`pending_email_address`). Even with `db_index=False`, PostgreSQL emits
+  `ADD CONSTRAINT ... FOREIGN KEY`, which takes `SHARE ROW EXCLUSIVE` on `users` and
+  `account_emailaddress` briefly. With every row `NULL` this is fast. For future FKs on large
+  tables use the `NOT VALID` then `VALIDATE` pattern above.
+- **`RunPython` UPDATEs share a transaction with `ADD COLUMN`.** `accounts/0030` and
+  `accounts/0036` update `users` in the same transaction as column additions, so the UPDATE
+  runs while `ACCESS EXCLUSIVE` is held. Fine for typical sizes; see the
+  [upgrade guide](../administration/upgrade.md#upgrading-to-12x) for very large installs.
+- **`boards/0054` overwrites system template columns** by slug, and its reverse restores
+  constants rather than prior database values. See the upgrade guide.
+- **`accounts/0033` has an unneeded dependency** on `boards/0061` and `auth/0012` (an
+  autodetector artifact). Remove it at the next squash; do not edit it now.
+- **Frozen history:** the duplicate `boards/0033` (merged by `0035`) and the missing
+  `boards/0053` are not to be renumbered.
+- **allauth pin:** `accounts/0031` and `0033` depend on allauth's
+  `account.0009_emailaddress_unique_primary_email`. 1.1.0 and 1.2 both pin
+  `django-allauth==65.14.3`, which ships it;
+  `accounts/tests/test_migration_upgrade_path_1662.py` fails if a pin change drops it.
+
+---
+
 ## When migrations are squashed
 
 `squashmigrations` reproduces historical operations into a new file, under a name that is not
