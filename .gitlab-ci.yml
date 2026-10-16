@@ -2967,7 +2967,8 @@ frontend-sast:
   allow_failure: false
 
 # pip-audit: checks Python packages against the OSV vulnerability database.
-# On MRs: only when requirements.txt changes; allow_failure so a new CVE in an
+# On MRs: only when a backend requirements file, backend/osv-scanner.toml or
+# scripts/pip-audit-gate.py changes; allow_failure so a new CVE in an
 # existing dep doesn't block unrelated MRs.
 # On the Nightly schedule (CVE_SCAN=true, #1383): always runs; allow_failure:
 # false so the pipeline fails and GitLab sends a failure email to maintainers.
