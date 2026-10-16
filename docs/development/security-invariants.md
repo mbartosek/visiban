@@ -193,6 +193,25 @@ matched count into an existence oracle for every account on the instance.
 | Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. `BoardViewSet.members` also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 
+## Rule 6: Placing a board in a group needs group admin
+
+**Rule.** Every path that puts a board into a group requires the caller to be an
+admin of that group or of an ancestor (or a site admin with all-content
+access). A group that does not exist and a group the caller cannot see answer
+the same `404`; a visible group the caller does not administer answers `403`.
+
+**Why.** A board placed in a group is visible to its members and administered by
+its admins, so the role needed must not depend on which endpoint is used.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Create in group | `groups/views.py` `GroupViewSet.boards` (POST) | `_require_group_admin` |
+| Board `group` field | `boards/serializers.py` `BoardSerializer.validate_group` | `_require_group_admin` |
+| Move group | `boards/views/boards.py` `BoardViewSet.move_group` | `resolve_group_for_board_placement` |
+| JSON, CSV and Trello import | `boards/views/import_export.py` `_resolve_import_group` | `resolve_group_for_board_placement` |
+
+Tests: `boards/tests/test_group_placement_roles.py`.
+
 ## How to add a rule
 
 1. Write the rule as a statement of behavior, not an implementation: what must

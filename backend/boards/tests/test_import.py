@@ -661,7 +661,7 @@ class BoardImportEdgeCaseTests(TestCase):
             {"file": self._make_json_file(data), "group_id": group.pk},
             format="multipart",
         )
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(Board.objects.filter(name__contains="Exported Board").count(), 0)
 
 

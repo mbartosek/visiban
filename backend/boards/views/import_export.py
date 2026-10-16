@@ -22,19 +22,17 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import DataError, IntegrityError, transaction
 from django.db.models import Prefetch
 from django.http import HttpResponse
-from rest_framework.generics import get_object_or_404
 from django.utils import timezone as django_timezone
 from django.utils.text import slugify
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ParseError, PermissionDenied
+from rest_framework.exceptions import ParseError
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiTypes
 
-from groups.models import Group, GroupMembership
 
 from ..models import (
     Board, BoardExportLog, BoardFavorite, BoardMembership as BoardMembershipModel, Card,
@@ -1074,15 +1072,9 @@ class BoardImportExportMixin:
         group_id = request.data.get("group_id")
         if not group_id:
             return None
-        group = get_object_or_404(Group, pk=group_id)
-        is_member = (
-            group.owner_id == request.user.id
-            or request.user.can_access_all_content
-            or GroupMembership.objects.filter(group=group, user=request.user).exists()
-        )
-        if not is_member:
-            raise PermissionDenied("You are not a member of the target group.")
-        return group
+        from groups.views import resolve_group_for_board_placement
+
+        return resolve_group_for_board_placement(request.user, group_id)
 
     def _import_json(self, request, file, options):
         """Create a new board from a Visiban JSON export file.

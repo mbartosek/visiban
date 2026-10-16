@@ -391,7 +391,7 @@ class CsvCustomFieldImportTests(TestCase):
         self.assertEqual(Board.objects.count(), before)
         self.assertFalse(CustomFieldDefinition.objects.exists())
 
-    def test_non_member_group_id_is_forbidden_and_creates_nothing(self, *_):
+    def test_non_member_group_id_is_not_found_and_creates_nothing(self, *_):
         owner = User.objects.create_user(username="gowner", password="pass")
         group = Group.objects.create(name="G", owner=owner)
         content = _csv(
@@ -403,7 +403,7 @@ class CsvCustomFieldImportTests(TestCase):
             {"file": _csv_file(content), "group_id": str(group.pk)},
             format="multipart",
         )
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(Board.objects.exists())
         self.assertFalse(CustomFieldDefinition.objects.exists())
         self.assertFalse(SwimlaneCustomFieldDefinition.objects.exists())

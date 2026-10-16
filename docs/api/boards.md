@@ -125,7 +125,7 @@ List only boards the requesting user has starred.
 ### `POST /api/v1/boards/{id}/move-group/`
 Move board to a different group (or `null` for personal).
 
-**Minimum role:** Board owner, board admin, or site admin. The caller must also be a member of the target group.
+**Minimum role:** Board owner, board admin, or site admin. To move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
 
 **Request** `{ "group_id": 5 }` or `{ "group_id": null }`
 
@@ -133,8 +133,8 @@ Move board to a different group (or `null` for personal).
 
 | Status | Body | Condition |
 |---|---|---|
-| `403 Forbidden` | `{"detail": "..."}` | Caller is not board owner/admin, or is not a member of the target group |
-| `404 Not Found` | `{"detail": "..."}` | Target group does not exist |
+| `403 Forbidden` | `{"detail": "..."}` | Caller is not board owner/admin, or can see the target group but is not an admin of it |
+| `404 Not Found` | `{"detail": "..."}` | Target group does not exist or is not visible to the caller (both answer the same) |
 
 ---
 
@@ -628,7 +628,7 @@ Return recent successful board exports for audit purposes (#842). Requires board
 ### `POST /api/v1/boards/import/`
 Import a board from a Visiban JSON or CSV export file. Accepts `multipart/form-data` with a `file` field, an optional `name` field to override the board name, an optional `group_id` field to place the imported board into a group, and an optional `options` field to choose what to import. Creates a new board atomically.
 
-**Permission:** authenticated user. When `group_id` is set, the caller must be a member of that group (any role — viewer and above); a non-member receives `403 Forbidden`.
+**Permission:** authenticated user. When `group_id` is set, the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access), the same rule as `POST /api/v1/groups/{id}/boards/`. A group the caller can see but does not administer returns `403 Forbidden`; a group that does not exist or is not visible returns `404 Not Found`.
 
 **Rate limit:** 10 imports/hour per authenticated user (scope: `board_import`). Exceeding the limit returns `429 Too Many Requests`.
 
@@ -667,7 +667,7 @@ Error messages quote at most a short, truncated part of any value from the file.
 |---|---|---|
 | `file` | ✓ | The JSON or CSV export file. The file is treated as JSON if its name ends in `.json` **or** its content type contains `json`; otherwise as CSV if its name ends in `.csv` or its content type contains `csv`; anything else is rejected. The JSON check runs first, so a `.csv` file uploaded with a JSON content type is parsed as JSON. |
 | `name` | | Board name to use, exactly as given — no prefix and no duplicate suffix. When omitted, the board is named by the rule in [Default board name](#default-board-name). |
-| `group_id` | | Place the imported board into this group. Requires group membership (any role). |
+| `group_id` | | Place the imported board into this group. Requires group admin. |
 | `options` | | A JSON object, sent as a string, choosing what to import. Omit it to import everything. See [Import options](#import-options). |
 
 #### Default board name
@@ -855,8 +855,8 @@ The `board.created` event for the new board carries the resolved options as an a
 |---|---|---|
 | `400 Bad Request` | `{"detail": "..."}` | File is missing, empty, has an unsupported extension, exceeds the upload size limit (`MAX_UPLOAD_SIZE_BYTES`, default 10 MB — the same env var and default as [card attachment uploads](cards.md#attachments), and distinct from the Trello importer's own `VISIBAN_IMPORT_MAX_SIZE`), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when `options` is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets `comments`, `checklist`, or `history` to `true` with `cards` set to `false`, or — for a CSV file — has any key other than `labels` and `cards`. A CSV file also returns `400` for a cell over the [CSV cell limits](#csv-cell-limits), a NUL byte, or an impossible `Due Date`. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
-| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied but the caller is not a member of that group. |
-| `404 Not Found` | `{"detail": "..."}` | `group_id` does not match an existing group. |
+| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of. |
+| `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. |
 | `429 Too Many Requests` | `{"detail": "..."}` | The `board_import` rate limit was exceeded. |
 
 ### `POST /api/v1/boards/import/trello/`
@@ -867,7 +867,7 @@ Import a Trello JSON export (Trello: **Menu → Print, export, and share → Exp
 
 The import is **synchronous**: the board exists when the `201` returns. It is bounded by the upload size cap, the count caps below, and the rate limits. Imported content does not send notifications (no @mention, assignment, or card-moved notifications), and no movement history is recorded for imported cards.
 
-**Permission:** authenticated user. When `group_id` is set, the caller must be the group owner or a member of that group (any role) in **both** modes, so a preview cannot be used to probe a group the caller could not import into. The caller becomes the board's owner and admin.
+**Permission:** authenticated user. When `group_id` is set, the caller must be an admin of that group or of one of its ancestor groups (or a site admin with all-content access) in **both** modes, so a preview cannot be used to probe a group the caller could not import into. The caller becomes the board's owner and admin.
 
 **Query parameters** — specify exactly one:
 
@@ -884,7 +884,7 @@ Sending neither, or both, returns `400 Bad Request` (`"Specify exactly one of ?d
 |---|---|---|---|
 | `file` | file | yes | The Trello JSON export. Maximum size is `VISIBAN_IMPORT_MAX_SIZE` (default 25 MB). |
 | `name` | string | no | Board name. Defaults to the Trello board's name. Maximum 255 characters. Only used on `confirm`. |
-| `group_id` | integer | no | Place the imported board into this group. Also widens the pool used for [member matching](#member-matching). |
+| `group_id` | integer | no | Place the imported board into this group. Requires group admin. Also widens the pool used for [member matching](#member-matching). |
 | `mapping` | string (JSON) | no | JSON-encoded object of mapping options, described below. Omitted or blank means all defaults. Send the same `mapping` on `dry_run` and `confirm`. |
 | `file_sha256` | string | no | On `confirm`, the `file_sha256` returned by the preview. If present and it does not match the uploaded file, the request is rejected with `400`, so a different file cannot be swapped in between preview and confirm. |
 
@@ -1102,8 +1102,8 @@ Creating the board broadcasts `board.created` on the same channels as the native
 |---|---|---|
 | `400 Bad Request` | `{"detail": "..."}` | Neither or both of `dry_run` / `confirm` given; `file` missing; the file is not valid UTF-8 JSON or is nested too deeply; it is not a Trello export (`lists` and `cards` are required); a schema or type error (the message names the offending field); an [import cap](#post-apiv1boardsimporttrello) is exceeded; `mapping` is not a JSON object, has an unknown key, has a wrong type, lists a label that is not a named label in the export, or uses a `default_swimlane_name` that collides with a mapped label; on `confirm`, `file_sha256` does not match the uploaded file; on `confirm`, there are no lists to import (for example, every list is archived and `include_archived_lists` is `false`). |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
-| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied but the caller is not a member of that group; or the account has a pending password or username change. |
-| `404 Not Found` | `{"detail": "..."}` | `group_id` does not match an existing group. |
+| `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of; or the account has a pending password or username change. |
+| `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. |
 | `413 Content Too Large` | `{"detail": "File too large. The maximum size for a Trello import is 25 MB."}` | The file is larger than `VISIBAN_IMPORT_MAX_SIZE`. Note that the native import endpoint returns `400` for an oversized file. |
 | `429 Too Many Requests` | `{"detail": "Request was throttled. ..."}` | Rate limit exceeded; see **Rate limits** above. |
 

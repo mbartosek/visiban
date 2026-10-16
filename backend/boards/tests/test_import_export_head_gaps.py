@@ -814,9 +814,10 @@ class ImportJsonTailTests(TestCase):
     def test_json_into_group_expands_group_and_broadcasts_to_group(self):
         from unittest import mock
 
-        from groups.models import Group
+        from groups.models import Group, GroupMembership
 
         group = Group.objects.create(name="G", owner=self.user)
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         with mock.patch("boards.views.import_export._broadcast.broadcast_board_event"), mock.patch(
             "groups.broadcast.broadcast_group_event"
         ) as group_event:
@@ -988,9 +989,10 @@ class ImportTrelloTailTests(TestCase):
     def test_import_into_group_expands_group_and_broadcasts_to_group(self):
         from unittest import mock
 
-        from groups.models import Group
+        from groups.models import Group, GroupMembership
 
         group = Group.objects.create(name="G", owner=self.user)
+        GroupMembership.objects.create(group=group, user=self.user, role=GroupMembership.Role.ADMIN)
         with mock.patch("boards.views.import_export._broadcast.broadcast_board_event"), mock.patch(
             "groups.broadcast.broadcast_group_event"
         ) as group_event:

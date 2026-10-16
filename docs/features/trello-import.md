@@ -23,7 +23,7 @@ Files up to 25 MB are accepted by default. Administrators can change this limit 
 2. Click **Import**.
 3. Click the **Import a Trello export** link.
 
-From the Dashboard, the new board is created in your personal boards. From a group page, it is created in that group, and you must be a member of the group to import into it.
+From the Dashboard, the new board is created in your personal boards. From a group page, it is created in that group, and you must be an admin of the group to import into it.
 
 ## Step 1: Choose the file
 

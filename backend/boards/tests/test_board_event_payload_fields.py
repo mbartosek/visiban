@@ -88,6 +88,7 @@ class BoardEventPayloadFieldTests(TestCase):
 
     def test_move_group(self):
         self.c.post(f"/api/v1/boards/{self.board.id}/share/", {}, format="json")
+        GroupMembership.objects.create(group=self.other_group, user=self.admin, role=GroupMembership.Role.ADMIN)
         with _capture_layer() as sent, self.captureOnCommitCallbacks(execute=True):
             r = self.c.post(
                 f"/api/v1/boards/{self.board.id}/move-group/", {"group_id": self.other_group.id}, format="json",

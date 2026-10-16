@@ -376,7 +376,7 @@ class BoardMoveGroupTests(TestCase):
         self.assertIsNone(self.board.group_id)
 
     @patch(PATCH_BROADCAST)
-    def test_non_group_member_cannot_move_to_group(self, _):
+    def test_non_group_member_cannot_move_to_group_and_sees_not_found(self, _):
         # other has no group membership
         BoardMembership.objects.create(
             board=self.board, user=self.other, role=BoardMembership.Role.ADMIN
@@ -387,7 +387,7 @@ class BoardMoveGroupTests(TestCase):
             {"group_id": self.group.id},
             format="json",
         )
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ---------------------------------------------------------------------------
