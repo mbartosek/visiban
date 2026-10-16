@@ -310,10 +310,14 @@ After rolling back, restart the backend container with the previous image versio
     flags. Any admin edit to a seeded system template's columns is lost on upgrade, and
     rolling the migration back restores the original constants, not your previous values.
     Board templates have no admin page and no write API (`GET /api/v1/boards/templates/` is
-    read-only), so before upgrading, record the `columns_json` of any customized system
-    template (read it from that endpoint). After upgrading, re-apply it from
-    `manage.py shell`: `BoardTemplate.objects.filter(slug="...").update(columns_json=[...])`
-    (import `BoardTemplate` from `boards.models`). Existing boards are not affected; only
+    read-only). Before upgrading, save the `columns_json` of any customized system template from
+    that endpoint, only as a reference for which columns you changed. Do not re-apply it
+    verbatim: it lacks the `is_done` flags and the corrected `project_delivery` and
+    `legal_compliance` columns that `boards/0054` adds. After upgrading, read the new
+    `columns_json` (from the endpoint or `manage.py shell`), re-apply only your own edits on top
+    of it, and keep `is_done: true` on terminal columns. In `manage.py shell`:
+    `t = BoardTemplate.objects.get(slug="..."); t.columns_json = [...]; t.save()` (import
+    `BoardTemplate` from `boards.models`). Existing boards are not affected; only
     future board creations and the template preview use these rows.
 
 !!! note "Very large `users` tables"
