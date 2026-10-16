@@ -69,8 +69,26 @@ operation, so use it only when the whole operation is deliberately retired (the 
 The v1.1.0 schema was generated before the schema-hygiene work (#1135-#1138, #1209, #1080) and
 documented fallback or wrong serializers for a number of operations (for example a card
 serializer standing in for the request body of `checklist/` and `comments/`). Diffing against
-it yields findings that look like documentation corrections rather than runtime changes, but
-**none of them has been verified against runtime behavior yet**.
+it yields findings that look like documentation corrections rather than runtime changes.
+
+A read-only comparison of the v1.1.0 and current runtime code verified these classes as
+**documentation-only baseline errors, not breaks**:
+
+- `card_count` / `member_count` on `GET /boards/{id}/full/`: the v1.1.0 `BoardFullSerializer`
+  never had them; the v1.1.0 schema showed the viewset's default `BoardSerializer`.
+- `assignee` / `created_by` nullable on cards: v1.1.0 already returned `null` for the
+  `SET_NULL` foreign keys; only the schema (`allow_null=True`) changed.
+- `POST /boards/import/` `file`: v1.1.0 was already multipart-only and answered 400
+  "No file provided." without it.
+- `object` -> `array` list responses (activities, attachments, movements, saved-filters, and
+  the group boards / descendant-boards / invite-links / labels / subgroups actions): these
+  hand-written `@action`s returned bare arrays in both versions; only the schema's
+  `pagination_class` was fixed.
+- 2xx status changes: an AST scan found none that differ at runtime.
+
+The same comparison found no serializer field and no URL route removed between v1.1.0 and
+`main` (the `dj_rest_auth` `include()` became explicit routes, and five declarations were
+rewritten as same-name `SerializerMethodField`s). **All other entries remain unverified.**
 
 Those findings are therefore frozen as exact per-finding `key` entries under `#1667`
 (generated once from the gate's own output with an empty allow-list, sorted for stable
@@ -101,11 +119,12 @@ temporary worktree outside the repo and delete it afterward.
 
 ```bash
 TAG=v1.2.0
+VENV_PY="$PWD/backend/.venv/bin/python"   # run from the repository root
 git worktree add --detach /tmp/visiban-$TAG $TAG
 ( cd /tmp/visiban-$TAG/backend \
   && DATABASE_URL=postgres://u:p@localhost:5432/d REDIS_URL=redis://localhost:6379/0 \
      DJANGO_SECRET_KEY=x DEBUG=True ALLOWED_HOSTS=localhost GIT_LENS_ENABLED=True \
-     /path/to/backend/.venv/bin/python manage.py spectacular --format openapi-json --file /tmp/$TAG.json )
+     "$VENV_PY" manage.py spectacular --format openapi-json --file /tmp/$TAG.json )
 mkdir -p scripts/compat-baseline/$TAG
 python3 scripts/check-api-compat.py --normalize /tmp/$TAG.json scripts/compat-baseline/$TAG/openapi.json
 python3 scripts/check-api-compat.py --dump-env /tmp/visiban-$TAG/backend/visiban/settings.py \
@@ -113,7 +132,9 @@ python3 scripts/check-api-compat.py --dump-env /tmp/visiban-$TAG/backend/visiban
 git worktree remove /tmp/visiban-$TAG
 ```
 
-Then point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py` at the new
+Then, as a manual step on the
+release checklist, point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`
+(lines 52-53) at the new
 directory, clear the allow-list entries the new baseline no longer needs, and delete the old
 baseline directory. `--normalize` strips prose, examples, and `x-` extensions so the fixture
 stays small and docs edits never read as contract changes.
