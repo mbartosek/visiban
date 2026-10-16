@@ -64,8 +64,8 @@ Changing `parent` revokes unused invite links in the moved subtree whose creator
 
 | Status | When |
 |---|---|
-| `403 Forbidden` | The caller is not a group admin; or `parent` names a group the caller does not administer, or an ID that does not resolve to a group (the same response in both cases: `{"detail": "You must be an admin of the new parent group."}`); or `"parent": null` from a caller who is neither the owner nor an ancestor-group admin |
-| `400 Bad Request` | `{"parent": [...]}` — the new parent is the group itself or one of its subgroups, or the move would nest groups more than 6 levels deep. Also the usual per-field validation errors |
+| `400 Bad Request` | `{"parent": ["Select a parent group you administer."]}` — `parent` names a group the caller does not administer, or an ID that does not resolve to a group (the same response in both cases). `{"parent": [...]}` — the new parent is the group itself or one of its subgroups, or the move would nest groups more than 6 levels deep. Also the usual per-field validation errors |
+| `403 Forbidden` | The caller is not a group admin; or `"parent": null` from a caller who is neither the owner nor an ancestor-group admin |
 | `404 Not Found` | The caller cannot see the group being updated |
 
 ### `DELETE /api/v1/groups/{id}/`

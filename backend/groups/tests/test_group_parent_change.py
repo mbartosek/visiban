@@ -5,7 +5,11 @@ who may make a group top-level, no self or subgroup as parent, and the
 ``_GROUP_TRAVERSAL_MAX_DEPTH`` bound on the resulting tree.
 """
 
-from django.test import TestCase
+import threading
+from unittest.mock import patch
+
+from django.db import connection, connections
+from django.test import TestCase, TransactionTestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -50,7 +54,8 @@ class GroupParentChangeTests(TestCase):
 
     def test_admin_of_group_but_not_new_parent_is_denied(self):
         r = self._patch(self.group_admin, self.group, self.unrelated.pk)
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent", r.json())
         self.assertEqual(self._parent_id(self.group), self.root.pk)
 
     def test_admin_of_group_and_new_parent_succeeds(self):
@@ -70,14 +75,14 @@ class GroupParentChangeTests(TestCase):
     def test_non_admin_member_of_new_parent_is_denied(self):
         GroupMembership.objects.create(group=self.target, user=self.group_admin, role="member")
         r = self._patch(self.group_admin, self.group, self.target.pk)
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self._parent_id(self.group), self.root.pk)
 
     def test_unknown_parent_id_gets_same_response_as_unadministered_parent(self):
         missing_pk = Group.objects.order_by("-pk").first().pk + 1000
         r_missing = self._patch(self.group_admin, self.group, missing_pk)
         r_unrelated = self._patch(self.group_admin, self.group, self.unrelated.pk)
-        self.assertEqual(r_missing.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r_missing.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(r_missing.status_code, r_unrelated.status_code)
         self.assertEqual(r_missing.json(), r_unrelated.json())
         self.assertEqual(self._parent_id(self.group), self.root.pk)
@@ -95,7 +100,7 @@ class GroupParentChangeTests(TestCase):
             {"name": "Team", "parent": self.unrelated.pk},
             format="json",
         )
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self._parent_id(self.group), self.root.pk)
 
     # --- self / subgroup ----------------------------------------------------
@@ -163,6 +168,43 @@ class GroupParentChangeTests(TestCase):
         )
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
 
+    def test_parent_changed_after_validation_is_rechecked_under_lock(self):
+        # The request echoes the parent it read; the group is moved by someone
+        # else after validation and before the locked save. The echo is now a
+        # move back under a group the caller does not administer.
+        from groups.serializers import GroupSerializer
+        original = GroupSerializer.validate_parent
+
+        def validate_then_move(serializer, value):
+            result = original(serializer, value)
+            Group.objects.filter(pk=self.group.pk).update(parent=self.target)
+            return result
+
+        GroupMembership.objects.create(group=self.target, user=self.group_admin, role=ADMIN)
+        with patch.object(GroupSerializer, "validate_parent", validate_then_move):
+            r = self._patch(self.group_admin, self.group, self.root.pk)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("parent", r.json())
+        # The simulated concurrent move ran inside the request's transaction,
+        # so the refusal rolls it back too.
+        self.assertEqual(self._parent_id(self.group), self.root.pk)
+
+    def test_rename_does_not_write_back_a_stale_parent(self):
+        from groups.serializers import GroupSerializer
+        self.assertFalse(hasattr(GroupSerializer, "validate_name"))
+
+        def validate_then_move(serializer, value):
+            Group.objects.filter(pk=self.group.pk).update(parent=self.target)
+            return value
+
+        with patch.object(GroupSerializer, "validate_name", validate_then_move, create=True):
+            self.client.force_authenticate(self.group_admin)
+            r = self.client.patch(f"/api/v1/groups/{self.group.pk}/", {"name": "Renamed"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.name, "Renamed")
+        self.assertEqual(self.group.parent_id, self.target.pk)
+
     def test_rename_without_parent_by_plain_admin_succeeds(self):
         self.client.force_authenticate(self.group_admin)
         r = self.client.patch(f"/api/v1/groups/{self.group.pk}/", {"name": "X"}, format="json")
@@ -219,3 +261,48 @@ class GroupParentDepthTests(TestCase):
         GroupMembership.objects.create(group=deeper, user=self.user, role=ADMIN)
         r = self._patch(deeper)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class GroupParentConcurrentMoveTests(TransactionTestCase):
+    """Two crossing parent changes cannot both succeed.
+
+    TransactionTestCase so the worker threads see committed rows; PostgreSQL
+    only, since SQLite has no row locks.
+    """
+
+    def setUp(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("Requires PostgreSQL row locks.")
+        self.user = User.objects.create_user(username="mover", password="pw")
+        self.x = Group.objects.create(name="X", owner=self.user)
+        self.y = Group.objects.create(name="Y", owner=self.user)
+        for g in (self.x, self.y):
+            GroupMembership.objects.create(group=g, user=self.user, role=ADMIN)
+
+    def test_crossing_moves_yield_exactly_one_success(self):
+        results = []
+        barrier = threading.Barrier(2)
+
+        def attempt(group, parent):
+            try:
+                client = APIClient()
+                client.force_authenticate(self.user)
+                barrier.wait()
+                r = client.patch(f"/api/v1/groups/{group.pk}/", {"parent": parent.pk}, format="json")
+                results.append(r.status_code)
+            finally:
+                connections.close_all()
+
+        threads = [
+            threading.Thread(target=attempt, args=(self.x, self.y)),
+            threading.Thread(target=attempt, args=(self.y, self.x)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(sorted(results), [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST])
+        self.x.refresh_from_db()
+        self.y.refresh_from_db()
+        self.assertEqual([self.x.parent_id is None, self.y.parent_id is None].count(True), 1)

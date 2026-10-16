@@ -400,6 +400,12 @@ class GroupViewSet(viewsets.ModelViewSet):
         _require_group_admin(request.user, group)
         return self._update_with_broadcast(request, group, partial=True, args=args, kwargs=kwargs)
 
+    def perform_update(self, serializer):
+        # Runs inside _update_with_broadcast's transaction: lock and reload the
+        # row, and re-check a parent change against the locked state.
+        serializer.recheck_parent_under_lock(serializer.instance)
+        serializer.save()
+
     def _update_with_broadcast(self, request, group, *, partial, args, kwargs):
         """Run the default DRF update path then broadcast group.updated (#998).
 

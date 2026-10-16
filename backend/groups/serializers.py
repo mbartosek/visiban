@@ -1,4 +1,3 @@
-from django.db import transaction
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -128,7 +127,9 @@ class AllowedPrioritiesField(serializers.JSONField):
     """
 
 
-_PARENT_ADMIN_REQUIRED = "You must be an admin of the new parent group."
+# One message, with DRF's own error code, for both an unknown parent id and a
+# parent the caller may not use, so the two update responses are identical.
+_PARENT_NOT_ALLOWED = "Select a parent group you administer."
 _TOP_LEVEL_MOVE_REQUIRES = (
     "Only the group owner or an admin of a parent group can make this a top-level group."
 )
@@ -138,13 +139,17 @@ _TOP_LEVEL_MOVE_REQUIRES = (
 _PARENT_CHAIN_RELATED = ["__".join(["parent"] * d) for d in range(1, _GROUP_TRAVERSAL_MAX_DEPTH + 1)]
 
 
+def _parent_not_allowed():
+    return serializers.ValidationError(_PARENT_NOT_ALLOWED, code="does_not_exist")
+
+
 class ParentGroupField(serializers.PrimaryKeyRelatedField):
     """``parent`` on :class:`GroupSerializer`.
 
-    On update, an id that does not resolve to a group is answered with the same
-    403 as a group the caller does not administer (see
-    ``GroupSerializer.validate_parent``), so the response is the same whether
-    or not the id exists. On create the field behaves as DRF's default.
+    On update, an id that does not resolve to a group gets the same 400 body
+    (message and code) as a group the caller does not administer (see
+    ``GroupSerializer.validate_parent``). On create the field behaves as DRF's
+    default.
     """
 
     def to_internal_value(self, data):
@@ -153,12 +158,8 @@ class ParentGroupField(serializers.PrimaryKeyRelatedField):
         except serializers.ValidationError as exc:
             updating = getattr(self.parent, "instance", None) is not None
             if updating and exc.get_codes() == ["does_not_exist"]:
-                raise PermissionDenied(_PARENT_ADMIN_REQUIRED)
+                raise _parent_not_allowed()
             raise
-
-
-def _group_with_ancestors(pk):
-    return Group.objects.select_related(*_PARENT_CHAIN_RELATED).get(pk=pk)
 
 
 def _ancestor_chain(parent):
@@ -400,76 +401,104 @@ class GroupSerializer(serializers.ModelSerializer):
         return value
 
     def validate_parent(self, value):
-        """Authorize and check a change of ``parent`` on an existing group.
+        """Check a change of ``parent`` on an existing group.
 
-        Create is authorized in ``GroupViewSet.perform_create``; this runs only
-        when an update actually changes the parent. The view has already
-        required group admin on the group itself. On top of that:
+        Create is authorized in ``GroupViewSet.perform_create``; on update this
+        applies the rules in ``_check_parent_change`` to the instance the
+        serializer was bound to. ``GroupViewSet.perform_update`` applies them
+        again to the row re-read under its lock (``recheck_parent_under_lock``)
+        before saving.
+        """
+        if self.instance is None:
+            return value
+        self._check_parent_change(value, self.instance)
+        return value
+
+    def _check_parent_change(self, value, group):
+        """Raise unless the caller may set ``group.parent`` to ``value``.
+
+        The view has already required group admin on ``group``. A value equal
+        to the current parent is not a change. Otherwise:
 
         - Moving under a new parent requires admin on that parent (or one of
           its ancestors), the same check create applies, because the moved
-          subtree inherits the new parent chain's roles.
+          subtree inherits the new parent chain's roles. A parent the caller
+          may not use answers like an unknown id: 400 on ``parent``.
         - Making the group top-level requires the group owner or an admin of
-          one of its current ancestors: admin on the group alone does not
-          confer authority over its place in the parent's tree.
+          one of its current ancestors (403): admin on the group alone does
+          not confer authority over its place in the parent's tree.
         - The new parent may not be the group or one of its subgroups, and the
           resulting tree may not be deeper than ``_GROUP_TRAVERSAL_MAX_DEPTH``
-          levels, the depth every ancestor walk covers.
+          levels, the depth every ancestor walk covers (400).
 
-        Authorization refusals are a uniform 403 and are checked before the
-        structural 400s.
+        The admin check on the new parent runs before the structural checks.
         """
-        instance = self.instance
-        if instance is None:
-            return value
         new_parent_id = value.pk if value is not None else None
-        if new_parent_id == instance.parent_id:
-            return value
+        if new_parent_id == group.parent_id:
+            return
 
         request = self.context.get("request")
         user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            raise _parent_not_allowed() if value is not None else PermissionDenied(_TOP_LEVEL_MOVE_REQUIRES)
 
         if value is None:
-            if user is None:
-                raise PermissionDenied(_TOP_LEVEL_MOVE_REQUIRES)
             if (
                 getattr(user, "can_access_all_content", False)
-                or instance.owner_id == user.pk
-                or (instance.parent is not None and user_is_group_admin(user, instance.parent))
+                or group.owner_id == user.pk
+                or (group.parent is not None and user_is_group_admin(user, group.parent))
             ):
-                return value
+                return
             raise PermissionDenied(_TOP_LEVEL_MOVE_REQUIRES)
 
-        if user is None or not user_is_group_admin(user, _group_with_ancestors(value.pk)):
-            raise PermissionDenied(_PARENT_ADMIN_REQUIRED)
+        parent = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
+        if parent is None or not user_is_group_admin(user, parent):
+            raise _parent_not_allowed()
 
-        with transaction.atomic():
-            # Serialize concurrent parent changes that touch the same chain:
-            # lock the moved group and the new parent's current ancestors in pk
-            # order, then re-read the chain so the checks below see committed
-            # state.
-            chain, _ = _ancestor_chain(_group_with_ancestors(value.pk))
-            lock_ids = {instance.pk} | {g.pk for g in chain}
-            list(
-                Group.objects.select_for_update()
-                .filter(pk__in=lock_ids)
-                .order_by("pk")
-                .values_list("pk", flat=True)
+        chain, reached_root = _ancestor_chain(parent)
+        if any(g.pk == group.pk for g in chain):
+            raise serializers.ValidationError(
+                "A group cannot be moved under itself or one of its subgroups."
             )
-            chain, reached_root = _ancestor_chain(_group_with_ancestors(value.pk))
+        # The moved group sits at level len(chain) + 1; its subgroups add
+        # their own height below it.
+        room_below = _GROUP_TRAVERSAL_MAX_DEPTH - (len(chain) + 1)
+        if not reached_root or room_below < 0 or _subtree_height(group, room_below) > room_below:
+            raise serializers.ValidationError(
+                f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
+            )
 
-            if any(g.pk == instance.pk for g in chain):
-                raise serializers.ValidationError(
-                    "A group cannot be moved under itself or one of its subgroups."
-                )
-            # The moved group sits at level len(chain) + 1; its subgroups add
-            # their own height below it.
-            room_below = _GROUP_TRAVERSAL_MAX_DEPTH - (len(chain) + 1)
-            if not reached_root or room_below < 0 or _subtree_height(instance, room_below) > room_below:
-                raise serializers.ValidationError(
-                    f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
-                )
-        return value
+    def recheck_parent_under_lock(self, group):
+        """Lock ``group`` (and a requested new parent's chain), reload it, re-check.
+
+        Call inside ``transaction.atomic()`` before ``save()``. validate_parent
+        judged the snapshot read before the lock; another request may have
+        changed this group's parent, or the new parent's chain, since. The
+        group row and the new parent's ancestor rows are locked in one
+        pk-ordered statement, so two requests moving groups in the same chain
+        are serialized without lock-order inversion; every decision is then
+        made again against the reloaded state. Reloading also keeps ``save()``
+        from writing a stale ``parent`` back when the request did not send one.
+        """
+        lock_ids = {group.pk}
+        value = self.validated_data.get("parent") if "parent" in self.validated_data else None
+        if value is not None:
+            current = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
+            if current is not None:
+                lock_ids |= {g.pk for g in _ancestor_chain(current)[0]}
+        list(
+            Group.objects.select_for_update()
+            .filter(pk__in=lock_ids)
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+        group.refresh_from_db()
+        if "parent" not in self.validated_data:
+            return
+        try:
+            self._check_parent_change(self.validated_data["parent"], group)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"parent": exc.detail})
 
 
 class GroupMembershipSerializer(serializers.ModelSerializer):
