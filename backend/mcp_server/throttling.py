@@ -254,6 +254,12 @@ class PreAuthFailureLimiter:
     algorithm and fail-loud rate parsing as :class:`McpTokenBucket`; unlike the
     token buckets there is no "unknown identity" case, because the IP resolver
     always returns a non-empty fallback.
+
+    Cache outage: ``cache.get``/``cache.set`` are deliberately NOT guarded,
+    exactly like :class:`McpTokenBucket`. A backend error propagates and the
+    request fails (fail closed) rather than silently disabling the limiter.
+    The window is also approximate: the read-modify-write is not atomic, so
+    concurrent failures from one IP can slightly exceed the budget.
     """
 
     def __init__(self, setting_name, default_rate):

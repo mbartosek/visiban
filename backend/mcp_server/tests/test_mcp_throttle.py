@@ -370,3 +370,13 @@ class PreAuthFailureLimiterTests(McpTestCase):
     def test_unparseable_rate_fails_loud(self):
         with self.assertRaises(ImproperlyConfigured):
             self._post(self.BAD)
+
+    @override_settings(MCP_THROTTLE_PREAUTH_RATE="2/min")
+    def test_valid_token_lacking_scope_does_not_spend_the_budget(self):
+        _, unscoped = PersonalAccessToken.generate(
+            self.user, "wrong-scope", scopes=["boards:read"]
+        )
+        for _ in range(5):
+            self.assertEqual(self._post(unscoped, xff="198.51.100.7"), 401)
+        # Budget untouched: a real guess still gets a 401, not a 429.
+        self.assertEqual(self._post(self.BAD, xff="198.51.100.7"), 401)

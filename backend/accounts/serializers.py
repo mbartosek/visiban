@@ -64,19 +64,29 @@ class AvatarUrlField(serializers.CharField):
     def to_internal_value(self, data):
         value = super().to_internal_value(data)
         if value:
-            parsed = urlsplit(value)
+            message = (
+                "Enter an absolute http:// or https:// URL without "
+                "embedded credentials."
+            )
+            # Whitespace/control characters are never legal in a URL and make
+            # parsers disagree about the host.
+            if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+                raise serializers.ValidationError(message)
+            try:
+                parsed = urlsplit(value)
+                # ``.port`` raises ValueError for a non-numeric/out-of-range
+                # port; urlsplit itself raises it for e.g. "http://[bad".
+                parsed.port  # noqa: B018
+            except ValueError:
+                raise serializers.ValidationError(message) from None
             # ``hostname`` is None for "https:///x" and for scheme-less or
-            # protocol-relative values; ``username``/``password`` are set
-            # whenever userinfo ("user:pw@") is present, even if empty.
+            # protocol-relative values; "@" in netloc means userinfo.
             if (
                 parsed.scheme.lower() not in ("http", "https")
                 or not parsed.hostname
                 or "@" in parsed.netloc
             ):
-                raise serializers.ValidationError(
-                    "Enter an absolute http:// or https:// URL without "
-                    "embedded credentials."
-                )
+                raise serializers.ValidationError(message)
         return value
 
 

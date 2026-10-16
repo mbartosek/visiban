@@ -116,7 +116,15 @@ def _authenticate_and_authorize(raw_token):
     legacy (unscoped) token can never satisfy it. Usage is stamped last, so a
     request denied for scope never records authority it did not exercise.
     """
-    pat = resolve_personal_access_token(raw_token)
+    try:
+        pat = resolve_personal_access_token(raw_token)
+    except InvalidPersonalAccessToken as exc:
+        # Only a failed credential LOOKUP spends the per-IP pre-auth budget
+        # (#1679). enforce_mcp_scope below raises the same exception type for a
+        # valid token that merely lacks a scope; that caller proved possession
+        # of a real token and must not be counted as guessing.
+        exc.counts_toward_preauth = True
+        raise
     _enforce_account_state(pat.user)
     presented_scope = enforce_mcp_scope(pat)
     record_token_usage(pat, presented_scope)
@@ -184,9 +192,10 @@ class BearerAuthMiddleware:
             # Never log the token itself, and do not log the username either —
             # this path is reachable by unauthenticated callers.
             logger.warning("Rejected MCP request: %s", exc.detail)
-            await sync_to_async(
-                preauth_limiter.record_failure, thread_sensitive=True
-            )(client_ip)
+            if getattr(exc, "counts_toward_preauth", False):
+                await sync_to_async(
+                    preauth_limiter.record_failure, thread_sensitive=True
+                )(client_ip)
             await _send_json_error(send, 401, exc.detail)
             return
         except AccountStateBlocked as exc:

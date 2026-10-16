@@ -155,13 +155,13 @@ MCP_THROTTLE_COMPUTE_RATE=30/min
 
 > **Added in 1.2** (#1679)
 
-The per-token limits above only apply once a token has resolved, so they cannot slow a caller who keeps presenting invalid tokens. `/mcp` therefore also caps **failed** token lookups per client IP:
+The per-token limits above only apply once a token has resolved, so they cannot slow a caller who keeps presenting invalid tokens. `/mcp` therefore also applies an approximate per-IP limit to **failed** token lookups:
 
 | Bucket | Applies to | Default | Setting |
 |---|---|---|---|
-| Pre-auth failures | Requests whose Bearer token fails to authenticate (HTTP `401`) | `30/min` per client IP | `MCP_THROTTLE_PREAUTH_RATE` |
+| Pre-auth failures | Requests whose Bearer token is unknown, revoked, expired, or otherwise fails lookup (HTTP `401`) | `30/min` per client IP | `MCP_THROTTLE_PREAUTH_RATE` |
 
-Only failures spend this budget, so agents with valid tokens that share an egress IP are never limited by it. Once an IP has used its budget, further requests from it (valid or not) are answered `429` with a `Retry-After` header and a JSON-RPC error envelope, before any token lookup, until the window slides. The client IP is resolved with the same `NUM_PROXIES` logic as the REST throttles; set `NUM_PROXIES` to match your proxy chain or all clients behind a proxy will share one bucket. The setting is optional, uses the same `<count>/<period>` syntax as the others, and an unparseable value raises `ImproperlyConfigured`.
+Only failed lookups spend this budget. A valid token that merely lacks the `mcp:read` scope is not counted, and neither are successful requests, so agents with valid tokens that share an egress IP are not limited by it. Once an IP has used its budget, further requests from it (valid or not) are answered `429` with a `Retry-After` header and a JSON-RPC error envelope, before any token lookup, until the window slides. This is a best-effort brake on guessing, not a hard cap: the counter is not atomic, so concurrent failures can slightly exceed the budget. The client IP is resolved with the same `NUM_PROXIES` logic as the REST throttles; set `NUM_PROXIES` to match your proxy chain or all clients behind a proxy will share one bucket. The setting is optional, uses the same `<count>/<period>` syntax as the others, and an unparseable value raises `ImproperlyConfigured`. Like the per-token buckets, the limiter fails closed: if the cache backend is unavailable the request errors rather than skipping the check.
 
 ### Throttled tool calls
 

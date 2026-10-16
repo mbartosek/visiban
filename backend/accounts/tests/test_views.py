@@ -147,6 +147,11 @@ class UserDetailsFlagExposureTests(TestCase):
             "https://user:pw@example.com/a.png",
             "https:///a.png",
             "not a url",
+            "http://[bad",
+            "https://exa mple.com/x",
+            "https://example.com/a\tb",
+            "http://a:b/x",
+            "http://a:99999/x",
         ):
             with self.subTest(value=bad):
                 r = self.client.patch("/api/v1/auth/user/", {"avatar_url": bad})
