@@ -22,8 +22,8 @@ Visiban has five roles that control access at the group, board, and site level. 
 | **Groups** | | | | | |
 | Create top-level group | ✓ | ✓ | ✓ | — | — |
 | Create subgroup | ✓ | ✓ *(of parent)* | — | — | — |
-| Move group under another group | ✓ | ✓ *(of the group and the new parent)* | — | — | — |
-| Make a subgroup top-level | ✓ | owner, or admin of a parent group | — | — | — |
+| Move group under another group | ✓ | owner, or admin of a current parent group; plus admin of the new parent | — | — | — |
+| Make a subgroup top-level | ✓ | owner, or admin of a current parent group | — | — | — |
 | Delete group | ✓ | owner only | — | — | — |
 | Manage group members | ✓ | ✓ | — | — | — |
 | View group & boards | ✓ | ✓ | ✓ | ✓ | ✓ |

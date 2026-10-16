@@ -52,11 +52,11 @@ Update group fields. Both `PUT` and `PATCH` are accepted. Requires group admin.
 
 **Writable fields:** `name`, `description`, `parent`, `default_board_member_role`, `allowed_priorities`. The latter two duplicate what [`PATCH /groups/{id}/board-defaults/`](#board-defaults) does — either endpoint can set them.
 
-**Changing `parent`** *(1.2+)*. Sending the group's current `parent` value is not a change and needs nothing beyond group admin. A change is accepted only when:
+**Changing `parent`** *(1.2+)*. Sending the group's current `parent` value is not a change and needs nothing beyond group admin. A change is accepted only when, in this order:
 
-- **Moving under another group:** the caller is also an admin of the new parent group (directly or through one of its ancestors) — the same check `POST /api/v1/groups/` applies to a new subgroup.
-- **Making the group top-level (`"parent": null`):** the caller is the group's owner or an admin of one of its current ancestor groups. An admin of the group itself, without either of those, cannot.
-- The new parent is not the group itself or one of its subgroups, and the resulting tree is at most 6 levels deep, counting the moved group's own subgroups.
+1. **Authority over the group's place in the tree** — required for every change, to another group or to top level (`"parent": null`): the caller is the group's owner, an admin of one of its current ancestor groups, or has access to all content. An admin of the group itself, without one of those, cannot change its parent. A top-level group has no ancestors, so only its owner (or a user with access to all content) can move it under another group.
+2. **Admin of the new parent** — when moving under another group: the caller is also an admin of the new parent group (directly or through one of its ancestors), the same check `POST /api/v1/groups/` applies to a new subgroup.
+3. **Structure** — the new parent is not the group itself or one of its subgroups, and the resulting tree is at most 6 levels deep, counting the moved group's own subgroups.
 
 Changing `parent` revokes unused invite links in the moved subtree whose creator no longer administers the link's group through the new ancestor chain (see [Invite links](#invite-links)).
 
@@ -64,8 +64,8 @@ Changing `parent` revokes unused invite links in the moved subtree whose creator
 
 | Status | When |
 |---|---|
-| `400 Bad Request` | `{"parent": ["Select a parent group you administer."]}` — `parent` names a group the caller does not administer, or an ID that does not resolve to a group (the same response in both cases). `{"parent": [...]}` — the new parent is the group itself or one of its subgroups, or the move would nest groups more than 6 levels deep. Also the usual per-field validation errors |
-| `403 Forbidden` | The caller is not a group admin; or `"parent": null` from a caller who is neither the owner nor an ancestor-group admin |
+| `400 Bad Request` | `{"parent": ["Select a parent group you administer."]}` — the caller passes rule 1, and `parent` names a group they do not administer or an ID that does not resolve to a group (the same response in both cases). `{"parent": [...]}` — the new parent is the group itself or one of its subgroups, or the move would nest groups more than 6 levels deep. Also the usual per-field validation errors |
+| `403 Forbidden` | The caller is not a group admin; or the request changes `parent` (to any value, including an ID that does not resolve) and the caller fails rule 1 |
 | `404 Not Found` | The caller cannot see the group being updated |
 
 ### `DELETE /api/v1/groups/{id}/`

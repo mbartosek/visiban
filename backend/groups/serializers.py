@@ -130,8 +130,8 @@ class AllowedPrioritiesField(serializers.JSONField):
 # One message, with DRF's own error code, for both an unknown parent id and a
 # parent the caller may not use, so the two update responses are identical.
 _PARENT_NOT_ALLOWED = "Select a parent group you administer."
-_TOP_LEVEL_MOVE_REQUIRES = (
-    "Only the group owner or an admin of a parent group can make this a top-level group."
+_MOVE_REQUIRES = (
+    "Only the group owner or an admin of a parent group can change this group's parent."
 )
 
 # Same ancestor depth GroupViewSet.get_queryset() loads, so walking a parent's
@@ -143,13 +143,20 @@ def _parent_not_allowed():
     return serializers.ValidationError(_PARENT_NOT_ALLOWED, code="does_not_exist")
 
 
+# Stand-in for a ``parent`` id that does not resolve to a group, on update only.
+# It never reaches save(): ``GroupSerializer._check_parent_change`` always
+# raises for it, after the same authority check as any other parent change.
+_UNKNOWN_PARENT = object()
+
+
 class ParentGroupField(serializers.PrimaryKeyRelatedField):
     """``parent`` on :class:`GroupSerializer`.
 
-    On update, an id that does not resolve to a group gets the same 400 body
-    (message and code) as a group the caller does not administer (see
-    ``GroupSerializer.validate_parent``). On create the field behaves as DRF's
-    default.
+    On update, an id that does not resolve to a group is passed on as
+    ``_UNKNOWN_PARENT`` so ``GroupSerializer.validate_parent`` answers it
+    exactly as it answers a group the caller may not use: 403 when the caller
+    may not change this group's parent at all, otherwise the same 400 body
+    (message and code). On create the field behaves as DRF's default.
     """
 
     def to_internal_value(self, data):
@@ -158,7 +165,7 @@ class ParentGroupField(serializers.PrimaryKeyRelatedField):
         except serializers.ValidationError as exc:
             updating = getattr(self.parent, "instance", None) is not None
             if updating and exc.get_codes() == ["does_not_exist"]:
-                raise _parent_not_allowed()
+                return _UNKNOWN_PARENT
             raise
 
 
@@ -418,38 +425,47 @@ class GroupSerializer(serializers.ModelSerializer):
         """Raise unless the caller may set ``group.parent`` to ``value``.
 
         The view has already required group admin on ``group``. A value equal
-        to the current parent is not a change. Otherwise:
+        to the current parent is not a change. Otherwise, in this order:
 
-        - Moving under a new parent requires admin on that parent (or one of
-          its ancestors), the same check create applies, because the moved
+        - Any change of parent (to another group or to top level) requires the
+          group owner, an admin of one of the group's current ancestors, or
+          ``can_access_all_content`` (403): admin on the group alone does not
+          confer authority over its place in the tree. A top-level group has
+          no ancestors, so only its owner (or ``can_access_all_content``) may
+          move it.
+        - Moving under a new parent also requires admin on that parent (or one
+          of its ancestors), the same check create applies, because the moved
           subtree inherits the new parent chain's roles. A parent the caller
           may not use answers like an unknown id: 400 on ``parent``.
-        - Making the group top-level requires the group owner or an admin of
-          one of its current ancestors (403): admin on the group alone does
-          not confer authority over its place in the parent's tree.
         - The new parent may not be the group or one of its subgroups, and the
           resulting tree may not be deeper than ``_GROUP_TRAVERSAL_MAX_DEPTH``
           levels, the depth every ancestor walk covers (400).
 
-        The admin check on the new parent runs before the structural checks.
+        Under ``recheck_parent_under_lock`` ``group`` is the reloaded, locked
+        row, so every rule is evaluated against its current owner and parent.
         """
-        new_parent_id = value.pk if value is not None else None
-        if new_parent_id == group.parent_id:
-            return
+        unknown = value is _UNKNOWN_PARENT
+        if not unknown:
+            new_parent_id = value.pk if value is not None else None
+            if new_parent_id == group.parent_id:
+                return
 
         request = self.context.get("request")
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
-            raise _parent_not_allowed() if value is not None else PermissionDenied(_TOP_LEVEL_MOVE_REQUIRES)
+            raise PermissionDenied(_MOVE_REQUIRES)
+
+        if not (
+            getattr(user, "can_access_all_content", False)
+            or group.owner_id == user.pk
+            or (group.parent is not None and user_is_group_admin(user, group.parent))
+        ):
+            raise PermissionDenied(_MOVE_REQUIRES)
 
         if value is None:
-            if (
-                getattr(user, "can_access_all_content", False)
-                or group.owner_id == user.pk
-                or (group.parent is not None and user_is_group_admin(user, group.parent))
-            ):
-                return
-            raise PermissionDenied(_TOP_LEVEL_MOVE_REQUIRES)
+            return
+        if unknown:
+            raise _parent_not_allowed()
 
         parent = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
         if parent is None or not user_is_group_admin(user, parent):
@@ -481,8 +497,8 @@ class GroupSerializer(serializers.ModelSerializer):
         from writing a stale ``parent`` back when the request did not send one.
         """
         lock_ids = {group.pk}
-        value = self.validated_data.get("parent") if "parent" in self.validated_data else None
-        if value is not None:
+        value = self.validated_data.get("parent")
+        if isinstance(value, Group):
             current = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
             if current is not None:
                 lock_ids |= {g.pk for g in _ancestor_chain(current)[0]}
