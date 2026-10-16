@@ -8,6 +8,7 @@ import {
 import type {
   EmailConfigSource,
   EmailTestErrorCode,
+  EmailTestFailure,
   SiteEmailSettings,
   SiteEmailSettingsPatch,
   User,
@@ -360,7 +361,10 @@ export default function EmailSettingsSection({ currentUser }: Props) {
       })
       .catch((err: unknown) => {
         const response = (err as {
-          response?: { status?: number; data?: { code?: EmailTestErrorCode } };
+          // A failure reaches here as an axios 400 rejection carrying the
+          // EmailTestFailure envelope; the UI keeps its own per-code copy and
+          // switches on `code`, not on the server's `detail`.
+          response?: { status?: number; data?: Partial<EmailTestFailure> };
         })?.response;
         if (response?.status === 429) {
           setTestResult({ kind: "throttled" });

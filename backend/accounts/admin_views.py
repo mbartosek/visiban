@@ -26,7 +26,14 @@ from visiban.invite_email import (
 )
 from .adapter import clear_login_lockout
 from visiban.mail import (
+    ERROR_AUTH_FAILED,
     ERROR_BACKEND_PINNED,
+    ERROR_CONFIG_UNUSABLE,
+    ERROR_CONNECTION_REFUSED,
+    ERROR_DNS_FAILURE,
+    ERROR_TIMEOUT,
+    ERROR_TLS_FAILURE,
+    ERROR_UNKNOWN,
     EmailConfigUnusable,
     build_smtp_backend,
     classify_smtp_error,
@@ -350,6 +357,51 @@ class EmailTestThrottle(UserRateThrottle):
     scope = "email_test"
 
 
+ERROR_NO_RECIPIENT = "no_recipient"
+
+# Fixed, neutral `detail` for every failure `code` the test endpoint returns
+# (#1682). The response follows the 1.1 machine-error shape — a string `code`
+# plus an always-present string `detail` — so `detail` is never null. It is
+# deliberately constant per code rather than derived from the exception:
+# smtplib error text is remote-controlled and on a rejected AUTH can echo
+# base64-encoded credentials back, so nothing from the exception may reach the
+# response. The single exception is `config_unusable`, whose EmailConfigUnusable
+# carries one of a few fixed literals from visiban.mail (never interpolated
+# from config or an exception); the entry here is its fallback.
+EMAIL_TEST_ERROR_DETAILS: dict[str, str] = {
+    ERROR_DNS_FAILURE: "The mail server's hostname could not be resolved. Check the host name.",
+    ERROR_CONNECTION_REFUSED: "Nothing accepted a connection on the configured host and port. "
+                              "Check the host, the port, and any firewall in between.",
+    ERROR_TLS_FAILURE: "The secure connection to the mail server could not be established. "
+                       "Check that STARTTLS or SSL matches the port.",
+    ERROR_AUTH_FAILED: "The mail server rejected the username or password.",
+    ERROR_TIMEOUT: "The mail server did not respond within the configured timeout.",
+    ERROR_CONFIG_UNUSABLE: "The selected email configuration cannot be used to send mail. "
+                           "Review Admin → Settings → Email.",
+    ERROR_NO_RECIPIENT: "Your account has no email address, so there is nowhere "
+                        "to send the test. Add one in your profile first.",
+    ERROR_BACKEND_PINNED: "EMAIL_BACKEND is set on the server, so Visiban cannot test "
+                          "the configuration below — it is not what sends mail.",
+    ERROR_UNKNOWN: "The test email could not be sent. The error type is recorded in the "
+                   "server log.",
+}
+
+
+def _email_test_failure(code: str, detail: str | None = None) -> Response:
+    """Build the 400 failure envelope: ``{success: false, code, detail}``.
+
+    ``detail`` falls back to the fixed per-code message, and an unrecognized
+    code falls back to the ``unknown`` message, so ``detail`` is always a
+    non-empty string and never exception text.
+    """
+    if not detail:
+        detail = EMAIL_TEST_ERROR_DETAILS.get(code, EMAIL_TEST_ERROR_DETAILS[ERROR_UNKNOWN])
+    return Response(
+        {"success": False, "code": code, "detail": detail},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
 class AdminEmailTestView(APIView):
     """POST /api/v1/admin/email-settings/test/ — send a test email (#306).
 
@@ -371,15 +423,7 @@ class AdminEmailTestView(APIView):
     def post(self, request):
         recipient = (request.user.email or "").strip()
         if not recipient:
-            return Response(
-                {
-                    "success": False,
-                    "code": "no_recipient",
-                    "detail": "Your account has no email address, so there is nowhere "
-                              "to send the test. Add one in your profile first.",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _email_test_failure(ERROR_NO_RECIPIENT)
 
         # An operator who pinned EMAIL_BACKEND has opted out of both sources, so
         # opening an SMTP connection to the resolved host:port would test a path
@@ -387,15 +431,7 @@ class AdminEmailTestView(APIView):
         # thing — while still making an outbound connection on an install that
         # deliberately opted out of this feature.
         if getattr(settings, "EMAIL_BACKEND_EXPLICIT", False):
-            return Response(
-                {
-                    "success": False,
-                    "code": ERROR_BACKEND_PINNED,
-                    "detail": "EMAIL_BACKEND is set on the server, so Visiban cannot test "
-                              "the configuration below — it is not what sends mail.",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _email_test_failure(ERROR_BACKEND_PINNED)
 
         try:
             config = resolve_email_config()
@@ -439,11 +475,11 @@ class AdminEmailTestView(APIView):
                     actor=request.user,
                     source=AdminActionLog.Source.ADMIN_API,
                 )
+            # EmailConfigUnusable.detail is always one of visiban.mail's fixed
+            # operator-facing literals; every other exception gets the fixed
+            # per-code message and its text is discarded.
             detail = exc.detail if isinstance(exc, EmailConfigUnusable) else None
-            return Response(
-                {"success": False, "code": code, "detail": detail},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _email_test_failure(code, detail)
 
         with transaction.atomic():
             record_email_test(

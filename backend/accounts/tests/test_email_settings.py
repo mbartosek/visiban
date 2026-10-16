@@ -10,6 +10,7 @@ reaches the client.
 """
 import smtplib
 import socket
+import ssl
 from unittest import mock
 
 from django.core import mail
@@ -20,6 +21,7 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.admin_views import EMAIL_TEST_ERROR_DETAILS
 from accounts.models import AdminActionLog, SiteEmailSetting, User
 from visiban.crypto import (
     SecretDecryptionError,
@@ -561,6 +563,7 @@ class AdminEmailTestEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["code"], "auth_failed")
+        self.assertEqual(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS["auth_failed"])
         body = response.content.decode()
         self.assertNotIn("AUTH PLAIN", body)
         self.assertNotIn("AGFkbWluAGh1bnRlcjI=", body)
@@ -601,6 +604,7 @@ class AdminEmailTestEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["code"], "backend_pinned")
+        self.assertEqual(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS["backend_pinned"])
 
     def test_connection_refused_is_classified(self):
         with mock.patch("accounts.admin_views.build_smtp_backend") as build:
@@ -615,6 +619,13 @@ class AdminEmailTestEndpointTests(TestCase):
         response = self.client.post(TEST_URL)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["code"], "config_unusable")
+        # config_unusable keeps visiban.mail's fixed operator-facing literal,
+        # which says *which* problem it is; it is never interpolated.
+        self.assertEqual(
+            response.json()["detail"],
+            "Email is set to use the configuration stored in the admin UI, but it is "
+            "incomplete. Set a host and a sender address in Admin → Settings → Email.",
+        )
 
     def test_admin_without_email_gets_actionable_error(self):
         self.admin.email = ""
@@ -622,6 +633,97 @@ class AdminEmailTestEndpointTests(TestCase):
         response = self.client.post(TEST_URL)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.json()["code"], "no_recipient")
+        self.assertEqual(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS["no_recipient"])
+
+    def test_every_smtp_failure_code_carries_its_fixed_string_detail(self):
+        """#1682: the failure envelope matches the 1.1 machine-error shape —
+        a string ``code`` and an always-present, non-null string ``detail``."""
+        cases = [
+            ("dns_failure", socket.gaierror(-2, "Name or service not known")),
+            ("connection_refused", ConnectionRefusedError()),
+            ("tls_failure", ssl.SSLError("wrong version number")),
+            ("auth_failed", smtplib.SMTPAuthenticationError(535, b"rejected")),
+            ("timeout", socket.timeout("timed out")),
+            ("unknown", RuntimeError("boom")),
+        ]
+        for code, exc in cases:
+            with self.subTest(code=code):
+                with mock.patch("accounts.admin_views.build_smtp_backend") as build:
+                    build.return_value.send_messages.side_effect = exc
+                    response = self.client.post(TEST_URL)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                body = response.json()
+                self.assertEqual(set(body), {"success", "code", "detail"})
+                self.assertIs(body["success"], False)
+                self.assertEqual(body["code"], code)
+                self.assertIsInstance(body["detail"], str)
+                self.assertTrue(body["detail"])
+                self.assertEqual(body["detail"], EMAIL_TEST_ERROR_DETAILS[code])
+
+    def test_exception_text_never_appears_anywhere_in_the_response(self):
+        """No SMTP or exception text crosses the API boundary, for any code —
+        not in ``detail`` and not in any other key."""
+        marker = "LEAKMARKER-7f3a9c"
+        exceptions = [
+            smtplib.SMTPAuthenticationError(535, f"5.7.8 {marker}".encode()),
+            smtplib.SMTPConnectError(421, marker),
+            smtplib.SMTPServerDisconnected(marker),
+            socket.gaierror(-2, marker),
+            ssl.SSLError(marker),
+            socket.timeout(marker),
+            OSError(marker),
+            smtplib.SMTPRecipientsRefused({"admin@visiban.test": (550, marker.encode())}),
+            RuntimeError(marker),
+        ]
+        for exc in exceptions:
+            with self.subTest(exc=type(exc).__name__):
+                with mock.patch("accounts.admin_views.build_smtp_backend") as build:
+                    build.return_value.send_messages.side_effect = exc
+                    response = self.client.post(TEST_URL)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertNotIn(marker, response.content.decode())
+                self.assertIn(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS.values())
+
+    def test_detail_map_covers_every_code_with_non_empty_text(self):
+        self.assertEqual(
+            set(EMAIL_TEST_ERROR_DETAILS),
+            {
+                "dns_failure", "connection_refused", "tls_failure", "auth_failed",
+                "timeout", "config_unusable", "no_recipient", "backend_pinned", "unknown",
+            },
+        )
+        for code, detail in EMAIL_TEST_ERROR_DETAILS.items():
+            with self.subTest(code=code):
+                self.assertIsInstance(detail, str)
+                self.assertTrue(detail.strip())
+
+    def test_unrecognized_code_falls_back_to_the_unknown_detail(self):
+        with mock.patch("accounts.admin_views.classify_smtp_error", return_value="brand_new"):
+            with mock.patch("accounts.admin_views.build_smtp_backend") as build:
+                build.return_value.send_messages.side_effect = RuntimeError("boom")
+                response = self.client.post(TEST_URL)
+        self.assertEqual(response.json()["code"], "brand_new")
+        self.assertEqual(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS["unknown"])
+
+    def test_config_unusable_without_detail_falls_back_to_the_fixed_message(self):
+        with mock.patch(
+            "accounts.admin_views.resolve_email_config",
+            side_effect=EmailConfigUnusable("config_unusable", ""),
+        ):
+            response = self.client.post(TEST_URL)
+        self.assertEqual(response.json()["code"], "config_unusable")
+        self.assertEqual(response.json()["detail"], EMAIL_TEST_ERROR_DETAILS["config_unusable"])
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_success_shape_is_unchanged(self):
+        with mock.patch("accounts.admin_views.build_smtp_backend") as build:
+            build.return_value = mail.get_connection(
+                "django.core.mail.backends.locmem.EmailBackend"
+            )
+            response = self.client.post(TEST_URL)
+        self.assertEqual(
+            response.json(), {"success": True, "code": None, "sent_to": "admin@visiban.test"}
+        )
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_outcome_is_audited_without_the_recipient(self):

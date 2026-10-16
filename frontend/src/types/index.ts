@@ -923,13 +923,25 @@ export type SiteEmailSettingsPatch = Partial<
   >
 > & { password?: string };
 
-export interface EmailTestResult {
-  success: boolean;
-  code: EmailTestErrorCode | null;
-  /** Present only for config_unusable / no_recipient; never a raw SMTP error. */
-  detail?: string | null;
-  sent_to?: string;
+/** 200 from POST /admin/email-settings/test/. */
+export interface EmailTestSuccess {
+  success: true;
+  code: null;
+  sent_to: string;
 }
+
+/**
+ * 400 from POST /admin/email-settings/test/ — the 1.1 `{code, detail}` machine-error
+ * shape plus `success`. `detail` is always a fixed, neutral message for the code
+ * (never raw SMTP error text); switch on `code`, not on `detail`.
+ */
+export interface EmailTestFailure {
+  success: false;
+  code: EmailTestErrorCode;
+  detail: string;
+}
+
+export type EmailTestResult = EmailTestSuccess | EmailTestFailure;
 
 export interface OwnedBoardSummary {
   id: number;
