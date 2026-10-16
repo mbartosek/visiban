@@ -131,7 +131,7 @@ class UserDetailsFlagExposureTests(TestCase):
         # `format: uri`. The actual DRF `max_length` kwarg has to be set to
         # match, or an overlong value skips validation and hits Postgres's
         # `character varying(200)` column directly as an uncaught DataError.
-        r = self.client.patch("/api/v1/auth/user/", {"avatar_url": "x" * 201})
+        r = self.client.patch("/api/v1/auth/user/", {"avatar_url": "https://example.com/" + "x" * 181})
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("avatar_url", r.json())
 

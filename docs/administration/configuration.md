@@ -124,7 +124,7 @@ helm upgrade --install visiban ./helm/visiban \
 
 > **Added in 1.2** (#1180).
 
-Per-IP rate limits (the login throttle, the anonymous request ceiling, allauth's failed-login lockout) and the `/admin/` IP allowlist all need the visitor's real address. Behind proxies, Visiban reads it from `X-Forwarded-For`, trusting the entry that the configured number of proxies appended. Everything to the left of those entries is client-supplied.
+Per-IP rate limits (the login throttle, the anonymous request ceiling, allauth's failed-login lockout, the [MCP pre-auth failure limit](../api/mcp.md#failed-authentication-limit-per-ip), `MCP_THROTTLE_PREAUTH_RATE`) and the `/admin/` IP allowlist all need the visitor's real address. Behind proxies, Visiban reads it from `X-Forwarded-For`, trusting the entry that the configured number of proxies appended. Everything to the left of those entries is client-supplied.
 
 | Variable | Default | Description |
 |---|---|---|

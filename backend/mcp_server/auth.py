@@ -22,7 +22,7 @@ from accounts.authentication import (
 
 from visiban.authorization import account_state_denial
 
-from .throttling import preauth_limiter
+from .throttling import ERROR_CODE_THROTTLED, preauth_limiter
 
 from .context import (
     reset_current_scopes, reset_current_token_id, reset_current_user,
@@ -79,6 +79,8 @@ async def _send_json_error(send, status, detail, code=None, retry_after=None):
     error = {"code": _JSONRPC_INVALID_REQUEST, "message": detail}
     if code is not None:
         error["data"] = {"code": code}
+        if retry_after is not None:
+            error["data"]["retry_after"] = retry_after
     body = json.dumps({"jsonrpc": "2.0", "id": None, "error": error}).encode()
     headers = [(b"content-type", b"application/json")]
     if status == 401:
@@ -174,7 +176,7 @@ class BearerAuthMiddleware:
             logger.warning("Rejected MCP request: pre-auth failure limit reached")
             await _send_json_error(
                 send, 429, "Too many failed authentication attempts.",
-                retry_after=retry_after,
+                code=ERROR_CODE_THROTTLED, retry_after=retry_after,
             )
             return
 

@@ -50,15 +50,15 @@ class AvatarUrlField(serializers.CharField):
     still leaves the *validator* in place, which re-adds ``format`` from the
     other direction), which is a JSON Schema violation for `""` (schemathesis
     correctly flags it, #1120). Subclassing ``CharField`` instead avoids
-    attaching that validator in the first place; avatar URLs are populated
-    from OAuth providers, not hand-typed, so strict URL-syntax validation on
-    write isn't load-bearing here.
+    attaching that validator in the first place.
 
-    Syntax is still not the same as safety (#1679): the SPA renders the value
-    as ``<img src>``, so a ``tracking.example/pixel.gif`` URL is fetched by
-    every co-member's browser. On write only, a non-blank value must therefore
-    be an absolute ``http``/``https`` URL with a host and no userinfo. Reads
-    are untouched, so rows stored before this check keep serializing.
+    The SPA renders the value as ``<img src>`` (#1679), so on write only a
+    non-blank value must be an absolute ``http``/``https`` URL with a host and
+    no userinfo. This blocks other schemes (``javascript:``, ``data:``,
+    relative paths) and credential-bearing URLs; it does NOT stop a tracking
+    pixel on an arbitrary https host, which remains mitigated only by the
+    deployment's CSP ``img-src``. Reads are untouched, so rows stored before
+    this check keep serializing.
     """
 
     def to_internal_value(self, data):

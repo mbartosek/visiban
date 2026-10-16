@@ -242,11 +242,13 @@ class PreAuthFailureLimiter:
 
     The buckets above key on a resolved PAT id, so they cannot see a caller who
     never presents a valid token: every guess costs a database lookup and no
-    bucket ever fills. This limiter closes that gap without touching legitimate
-    traffic. Only FAILED lookups spend budget (``record_failure``), so a fleet of
-    agents sharing one egress IP and holding valid tokens is never throttled by
-    it; once an IP has burned its budget, ``blocked`` short-circuits further
-    requests (valid or not) before any lookup until the window slides.
+    bucket ever fills. Only FAILED lookups spend budget (``record_failure``),
+    but the check itself (``blocked``) runs before the lookup for EVERY request,
+    so once an IP has burned its budget, valid requests from that IP are also
+    refused until the window slides. Agents sharing an egress IP with a client
+    that keeps failing (a looping agent on a revoked token, a hostile host
+    behind the same NAT) are therefore affected too; that is the accepted cost
+    of rejecting before the lookup.
 
     The IP is resolved with ``visiban.utils.get_client_ip`` so it honors the
     same ``NUM_PROXIES`` as the DRF throttles and never trusts raw
@@ -258,13 +260,16 @@ class PreAuthFailureLimiter:
     Cache outage: ``cache.get``/``cache.set`` are deliberately NOT guarded,
     exactly like :class:`McpTokenBucket`. A backend error propagates and the
     request fails (fail closed) rather than silently disabling the limiter.
-    The window is also approximate: the read-modify-write is not atomic, so
-    concurrent failures from one IP can slightly exceed the budget.
+    The budget is approximate: the read-modify-write is not atomic, so
+    concurrent failures (or failures spread across replicas) can exceed it or
+    lose counts.
     """
 
     def __init__(self, setting_name, default_rate):
         self.setting_name = setting_name
         self.default_rate = default_rate
+        # Fail at import/boot on a typo, like McpTokenBucket.__init__.
+        self._rate()
 
     def _rate(self):
         raw = getattr(settings, self.setting_name, None)
@@ -283,10 +288,18 @@ class PreAuthFailureLimiter:
         client = scope.get("client")
         if client:
             meta["REMOTE_ADDR"] = client[0]
-        for name, value in scope.get("headers", []):
-            if name == b"x-forwarded-for":
-                meta["HTTP_X_FORWARDED_FOR"] = value.decode("latin-1")
-                break
+        # Join EVERY x-forwarded-for line with "," exactly as Django's
+        # ASGIRequest does, so get_client_ip's rightmost-by-NUM_PROXIES pick
+        # sees the same list as the REST throttles. Reading only the first
+        # line would let a client prepend its own header line and choose its
+        # bucket.
+        xff = [
+            value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+            if name == b"x-forwarded-for"
+        ]
+        if xff:
+            meta["HTTP_X_FORWARDED_FOR"] = ",".join(xff)
         return get_client_ip(SimpleNamespace(META=meta))
 
     @staticmethod
