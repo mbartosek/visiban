@@ -68,6 +68,12 @@ What is not flagged
 - An operation carrying an inline ``# constraint-safe: <reason>`` comment, on the operation's
   own line or within the four lines above it. The reason after the colon is mandatory.
 
+Advisory on ``db_default`` (#1680): this scan only checks that a NOT NULL ``AddField`` has
+*some* ``default=`` so existing rows can be backfilled. It deliberately does not fail a
+``default=``-only column, even though PostgreSQL drops a Python-level default after
+``AddField`` and a rolling deploy's old pods can then hit a NOT NULL violation on INSERT.
+The fix hint recommends ``db_default=``; enforcing it is the ``migration-check`` agent's job.
+
 Migrations from before this rule are listed in ``GRANDFATHERED`` by filename, the same
 convention #1081 uses, and for the same reason: re-checking applied history buys nothing and
 editing it is worse than leaving it alone.
@@ -142,7 +148,8 @@ GUIDANCE = {
     "AddField-not-null": (
         "Django cannot add a NOT NULL column with no default to a table that already has "
         "rows — add `null=True` (and tighten it in a later migration once backfilled) or "
-        "give the field a `default=`"
+        "give the field `db_default=` (keep `default=` for the ORM-side value; a "
+        "Python-level `default=` alone is dropped from the database after AddField)"
     ),
     "AlterField-null-false": (
         "making an existing column NOT NULL fails if any row is still NULL — backfill the "

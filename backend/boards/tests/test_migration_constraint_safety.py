@@ -153,6 +153,13 @@ class ScannerTests(SimpleTestCase):
         )
         self.assertEqual([f.operation for f in findings], ["AddField(not-null)"])
 
+    def test_not_null_hint_recommends_db_default(self):
+        from boards.management.commands import check_migration_constraint_safety as mod
+
+        hint = mod.GUIDANCE["AddField-not-null"]
+        self.assertIn("db_default=", hint)
+        self.assertIn("default=", hint)
+
     def test_add_field_nullable_is_never_flagged(self):
         findings = self._scan(
             """

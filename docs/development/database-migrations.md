@@ -84,8 +84,9 @@ migrations.AddField(
 
 Put the same `db_default` on the model field so `makemigrations --check` stays clean. A migration
 that has already shipped gets an additive `AlterField` rather than an edit in place. The
-`check_migration_constraint_safety` scan below accepts any `default=` and so does not catch this;
-`migration-check` does.
+`check_migration_constraint_safety` scan below accepts any `default=` and so does not fail on this;
+`migration-check` enforces it. The scan stays advisory by decision (#1680): its fix hint
+recommends `db_default=` (alongside `default=`), but it never fails a `default=`-only column.
 
 ## Adding an index
 
