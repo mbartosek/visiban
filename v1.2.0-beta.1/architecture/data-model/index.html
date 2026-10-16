@@ -4268,7 +4268,7 @@ choice type.</p>
 which after the transaction commits delivers OSS email for the five events that support it
 and then sends the <code>post_notification_created</code> signal once per row. The funnel exists
 because three of the creation sites use <code>bulk_create</code>, which sends no <code>post_save</code> — so a
-per-model signal would have been invisible to half the events. See
+per-model signal would have been invisible to half the events. The funnel also skips inactive recipients, so no row is created for them. See
 <a href="../open-core-boundary/#oss-extension-points-implementation-status">Open core boundary</a>.</p>
 <h3 id="invitelink">InviteLink<a class="headerlink" href="#invitelink" title="Permanent link">&para;</a></h3>
 <p>Site-level registration invite links live in the accounts app and are distinct from <code>GroupInviteLink</code> (which controls group membership). The raw token value is generated once and never stored — only a SHA-256 hash is persisted. The raw value is returned exactly once at creation.</p>
