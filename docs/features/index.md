@@ -134,7 +134,7 @@ The group detail page auto-refreshes its board list over WebSocket. Boards creat
 
 ## Groups & access control
 
-Boards can be organized into groups and subgroups (unlimited nesting). Group membership cascades down the hierarchy — add someone to "Acme Corp" and they automatically gain access to all boards in "Engineering", "Backend Team", and every other descendant group.
+Boards can be organized into groups and subgroups (access is inherited through up to 6 levels; moving a group past that depth is refused). Group membership cascades down the hierarchy — add someone to "Acme Corp" and they automatically gain access to all boards in "Engineering", "Backend Team", and every other descendant group.
 
 ```
 Acme Corp  ← add user here

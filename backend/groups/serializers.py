@@ -1,10 +1,14 @@
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from accounts.serializers import BoardUserSerializer
 from visiban import field_enforcement
 from visiban.utils import MAX_ALLOWED_PRIORITIES_LENGTH, check_allowed_priorities_length
 from visiban.invite_email import InviteEmailField
-from .models import Group, GroupLabel, GroupMembership, GroupInviteLink, GroupFavorite, _GROUP_TRAVERSAL_MAX_DEPTH
+from .models import (
+    Group, GroupLabel, GroupMembership, GroupInviteLink, GroupFavorite,
+    _GROUP_TRAVERSAL_MAX_DEPTH, user_is_group_admin,
+)
 
 # Schema for the root-first ancestor breadcrumb returned by
 # GroupDetailSerializer.get_ancestors (#1119) — a plain list-of-``{id, name}`` dict, not
@@ -123,6 +127,83 @@ class AllowedPrioritiesField(serializers.JSONField):
     """
 
 
+# One message, with DRF's own error code, for both an unknown parent id and a
+# parent the caller may not use, so the two update responses are identical.
+_PARENT_NOT_ALLOWED = "Select a parent group you administer."
+_MOVE_REQUIRES = (
+    "Only the group owner or an admin of a parent group can change this group's parent."
+)
+
+# Same ancestor depth GroupViewSet.get_queryset() loads, so walking a parent's
+# chain reads already-loaded objects instead of one lazy query per level.
+_PARENT_CHAIN_RELATED = ["__".join(["parent"] * d) for d in range(1, _GROUP_TRAVERSAL_MAX_DEPTH + 1)]
+
+
+def _parent_not_allowed():
+    return serializers.ValidationError(_PARENT_NOT_ALLOWED, code="does_not_exist")
+
+
+# Stand-in for a ``parent`` id that does not resolve to a group, on update only.
+# It never reaches save(): ``GroupSerializer._check_parent_change`` always
+# raises for it, after the same authority check as any other parent change.
+_UNKNOWN_PARENT = object()
+
+
+class ParentGroupField(serializers.PrimaryKeyRelatedField):
+    """``parent`` on :class:`GroupSerializer`.
+
+    On update, an id that does not resolve to a group is passed on as
+    ``_UNKNOWN_PARENT`` so ``GroupSerializer.validate_parent`` answers it
+    exactly as it answers a group the caller may not use: 403 when the caller
+    may not change this group's parent at all, otherwise the same 400 body
+    (message and code). On create the field behaves as DRF's default.
+    """
+
+    def to_internal_value(self, data):
+        try:
+            return super().to_internal_value(data)
+        except serializers.ValidationError as exc:
+            updating = getattr(self.parent, "instance", None) is not None
+            if updating and exc.get_codes() == ["does_not_exist"]:
+                return _UNKNOWN_PARENT
+            raise
+
+
+def _ancestor_chain(parent):
+    """[parent, grandparent, ...] up to the root, capped at the traversal depth.
+
+    Returns ``(chain, reached_root)``; ``reached_root`` is False when the walk
+    stopped at the cap with ancestors remaining.
+    """
+    chain = []
+    node = parent
+    while node is not None and len(chain) < _GROUP_TRAVERSAL_MAX_DEPTH:
+        chain.append(node)
+        node = node.parent
+    return chain, node is None
+
+
+def _subtree_height(group, limit):
+    """Levels of subgroups below ``group``, counting at most ``limit + 1`` levels.
+
+    One query per level, bounded by ``limit``; a result above ``limit`` means
+    "deeper than allowed" without walking the rest of the subtree.
+    """
+    frontier = [group.pk]
+    seen = {group.pk}
+    for height in range(limit + 1):
+        children = list(
+            Group.objects.filter(parent_id__in=frontier)
+            .exclude(pk__in=seen)
+            .values_list("pk", flat=True)
+        )
+        if not children:
+            return height
+        seen.update(children)
+        frontier = children
+    return limit + 1
+
+
 class GroupLabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupLabel
@@ -226,6 +307,11 @@ class GroupSerializer(serializers.ModelSerializer):
         required=False,
         help_text=field_enforcement.GROUP_ALLOWED_PRIORITIES,
     )
+    # Same kwargs ModelSerializer derives for the nullable FK; see
+    # ParentGroupField for the update-time behavior.
+    parent = ParentGroupField(
+        queryset=Group.objects.all(), allow_null=True, required=False,
+    )
 
     class Meta:
         model = Group
@@ -320,6 +406,115 @@ class GroupSerializer(serializers.ModelSerializer):
                 f"'{value}' is not a valid role. Choose from: {', '.join(sorted(valid))}."
             )
         return value
+
+    def validate_parent(self, value):
+        """Check a change of ``parent`` on an existing group.
+
+        Create is authorized in ``GroupViewSet.perform_create``; on update this
+        applies the rules in ``_check_parent_change`` to the instance the
+        serializer was bound to. ``GroupViewSet.perform_update`` applies them
+        again to the row re-read under its lock (``recheck_parent_under_lock``)
+        before saving.
+        """
+        if self.instance is None:
+            return value
+        self._check_parent_change(value, self.instance)
+        return value
+
+    def _check_parent_change(self, value, group):
+        """Raise unless the caller may set ``group.parent`` to ``value``.
+
+        The view has already required group admin on ``group``. A value equal
+        to the current parent is not a change. Otherwise, in this order:
+
+        - Any change of parent (to another group or to top level) requires the
+          group owner, an admin of one of the group's current ancestors, or
+          ``can_access_all_content`` (403): admin on the group alone does not
+          confer authority over its place in the tree. A top-level group has
+          no ancestors, so only its owner (or ``can_access_all_content``) may
+          move it.
+        - Moving under a new parent also requires admin on that parent (or one
+          of its ancestors), the same check create applies, because the moved
+          subtree inherits the new parent chain's roles. A parent the caller
+          may not use answers like an unknown id: 400 on ``parent``.
+        - The new parent may not be the group or one of its subgroups, and the
+          resulting tree may not be deeper than ``_GROUP_TRAVERSAL_MAX_DEPTH``
+          levels, the depth every ancestor walk covers (400).
+
+        Under ``recheck_parent_under_lock`` ``group`` is the reloaded, locked
+        row, so every rule is evaluated against its current owner and parent.
+        """
+        unknown = value is _UNKNOWN_PARENT
+        if not unknown:
+            new_parent_id = value.pk if value is not None else None
+            if new_parent_id == group.parent_id:
+                return
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            raise PermissionDenied(_MOVE_REQUIRES)
+
+        if not (
+            getattr(user, "can_access_all_content", False)
+            or group.owner_id == user.pk
+            or (group.parent is not None and user_is_group_admin(user, group.parent))
+        ):
+            raise PermissionDenied(_MOVE_REQUIRES)
+
+        if value is None:
+            return
+        if unknown:
+            raise _parent_not_allowed()
+
+        parent = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
+        if parent is None or not user_is_group_admin(user, parent):
+            raise _parent_not_allowed()
+
+        chain, reached_root = _ancestor_chain(parent)
+        if any(g.pk == group.pk for g in chain):
+            raise serializers.ValidationError(
+                "A group cannot be moved under itself or one of its subgroups."
+            )
+        # The moved group sits at level len(chain) + 1; its subgroups add
+        # their own height below it.
+        room_below = _GROUP_TRAVERSAL_MAX_DEPTH - (len(chain) + 1)
+        if not reached_root or room_below < 0 or _subtree_height(group, room_below) > room_below:
+            raise serializers.ValidationError(
+                f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
+            )
+
+    def recheck_parent_under_lock(self, group):
+        """Lock ``group`` (and a requested new parent's chain), reload it, re-check.
+
+        Call inside ``transaction.atomic()`` before ``save()``. validate_parent
+        judged the snapshot read before the lock; another request may have
+        changed this group's parent, or the new parent's chain, since. The
+        group row and the new parent's ancestor rows are locked in one
+        pk-ordered statement, so two requests moving groups in the same chain
+        are serialized without lock-order inversion; every decision is then
+        made again against the reloaded state. Reloading also keeps ``save()``
+        from writing a stale ``parent`` back when the request did not send one.
+        """
+        lock_ids = {group.pk}
+        value = self.validated_data.get("parent")
+        if isinstance(value, Group):
+            current = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
+            if current is not None:
+                lock_ids |= {g.pk for g in _ancestor_chain(current)[0]}
+        list(
+            Group.objects.select_for_update()
+            .filter(pk__in=lock_ids)
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+        group.refresh_from_db()
+        if "parent" not in self.validated_data:
+            return
+        try:
+            self._check_parent_change(self.validated_data["parent"], group)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"parent": exc.detail})
 
 
 class GroupMembershipSerializer(serializers.ModelSerializer):

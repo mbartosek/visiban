@@ -87,21 +87,8 @@ def _require_group_admin(user, group):
     """
     from rest_framework.exceptions import PermissionDenied
     from django.utils.translation import gettext_lazy as _
-    from .models import _GROUP_TRAVERSAL_MAX_DEPTH
-    if getattr(user, "can_access_all_content", False):
-        return
-    ancestor_ids = []
-    node = group
-    depth = 0
-    while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
-        ancestor_ids.append(node.pk)
-        node = node.parent
-        depth += 1
-    if GroupMembership.objects.filter(
-        group_id__in=ancestor_ids,
-        user=user,
-        role=GroupMembership.Role.ADMIN,
-    ).exists():
+    from .models import user_is_group_admin
+    if user_is_group_admin(user, group):
         return
     raise PermissionDenied(_("You must be a group admin to perform this action."))
 
@@ -331,15 +318,23 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from .models import get_accessible_group_ids
+        qs = self._annotated_groups().filter(id__in=get_accessible_group_ids(self.request.user))
+        if self.request.query_params.get("starred") == "true":
+            qs = qs.filter(favorites__user=self.request.user)
+        return qs
+
+    def _annotated_groups(self):
+        """Every group, with the select_related chain and count annotations
+        ``GroupSerializer`` reads. Not visibility-scoped: callers either filter
+        it (``get_queryset``) or re-fetch a group the request already authorized.
+        """
         user = self.request.user
         # Pre-fetch the full ancestor chain for all actions (not just "retrieve")
         # so _require_group_admin() and _require_group_member() read from already-
         # loaded parent objects instead of issuing up to 5 lazy FK queries per
         # write action on nested groups. Six levels matches _GROUP_TRAVERSAL_MAX_DEPTH.
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
-        qs = Group.objects.filter(
-            id__in=get_accessible_group_ids(user)
-        ).select_related(*related).prefetch_related(
+        return Group.objects.select_related(*related).prefetch_related(
             # Prefetch shared labels to avoid one query per group in list responses.
             "labels",
         ).annotate(
@@ -352,9 +347,6 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupFavorite.objects.filter(user=user, group=OuterRef("pk"))
             ),
         )
-        if self.request.query_params.get("starred") == "true":
-            qs = qs.filter(favorites__user=user)
-        return qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -408,11 +400,19 @@ class GroupViewSet(viewsets.ModelViewSet):
         _require_group_admin(request.user, group)
         return self._update_with_broadcast(request, group, partial=True, args=args, kwargs=kwargs)
 
+    def perform_update(self, serializer):
+        # Runs inside _update_with_broadcast's transaction: lock and reload the
+        # row, and re-check a parent change against the locked state.
+        serializer.recheck_parent_under_lock(serializer.instance)
+        serializer.save()
+
     def _update_with_broadcast(self, request, group, *, partial, args, kwargs):
         """Run the default DRF update path then broadcast group.updated (#998).
 
-        Re-fetches through ``get_queryset`` so the broadcast payload includes
-        the count annotations and resolves any rename / re-parent change.
+        Re-fetches with the count annotations so the broadcast payload resolves
+        any rename / parent change. The re-fetch is not visibility-scoped: the
+        request was authorized before the write, and a parent change can leave
+        the caller without visibility of the group afterward.
         """
         old_parent_id = group.parent_id
         with transaction.atomic():
@@ -421,7 +421,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             if group.parent_id != old_parent_id:
                 # Inherited admin rights moved with the subtree (#1513).
                 _revoke_lapsed_subtree_invite_links(group)
-            annotated = self.get_queryset().get(pk=group.pk)
+            annotated = self._annotated_groups().get(pk=group.pk)
             group_data = GroupSerializer(annotated, context={"request": request}).data
 
             def _broadcast_updated(gid=group.pk, data=group_data):

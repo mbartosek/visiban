@@ -52,6 +52,31 @@ def user_has_group_access(user, group):
     ).exists()
 
 
+def user_is_group_admin(user, group):
+    """True if ``user`` holds the admin role on ``group`` or on any of its ancestors.
+
+    The predicate behind ``groups.views._require_group_admin`` and the group
+    parent validation in ``GroupSerializer.validate_parent``, so the two cannot
+    drift. Same traversal shape as ``user_has_group_access``: one capped walk
+    up the parent chain, then one batched membership query.
+    ``can_access_all_content`` bypasses.
+    """
+    if getattr(user, "can_access_all_content", False):
+        return True
+    ancestor_ids = []
+    node = group
+    depth = 0
+    while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
+        ancestor_ids.append(node.pk)
+        node = node.parent
+        depth += 1
+    return GroupMembership.objects.filter(
+        group_id__in=ancestor_ids,
+        user=user,
+        role=GroupMembership.Role.ADMIN,
+    ).exists()
+
+
 def get_accessible_group_ids(user):
     """
     Return all group IDs accessible to user: groups where they are a direct
