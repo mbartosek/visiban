@@ -59,3 +59,20 @@ class ReadinessViewTests(TestCase):
         data = resp.json()
         self.assertEqual(data["status"], "error")
         self.assertIn("redis", data["errors"])
+
+    @patch("django.db.backends.base.base.BaseDatabaseWrapper.ensure_connection")
+    @patch("django.core.cache.cache.set")
+    def test_readiness_failure_body_has_no_exception_text(self, mock_set, mock_ensure):
+        """The anonymous failure response carries only component names and a fixed value."""
+        mock_ensure.side_effect = Exception("host=10.1.2.3 port=5432 user=svc dbname=prod")
+        mock_set.side_effect = Exception("redis://cache.internal:6379 refused")
+        with self.assertLogs("boards.views.health", level="WARNING"):
+            resp = self.client.get("/api/health/readiness/")
+        self.assertEqual(resp.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(
+            resp.json(),
+            {"status": "error", "errors": {"db": "unavailable", "redis": "unavailable"}},
+        )
+        body = resp.content.decode()
+        for fragment in ("10.1.2.3", "5432", "svc", "prod", "cache.internal", "6379"):
+            self.assertNotIn(fragment, body)
