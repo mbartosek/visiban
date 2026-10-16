@@ -66,13 +66,28 @@ class ReadinessViewTests(TestCase):
         """The anonymous failure response carries only component names and a fixed value."""
         mock_ensure.side_effect = Exception("host=10.1.2.3 port=5432 user=svc dbname=prod")
         mock_set.side_effect = Exception("redis://cache.internal:6379 refused")
-        with self.assertLogs("boards.views.health", level="WARNING"):
+        with self.assertLogs("boards.views.health", level="WARNING") as logs:
             resp = self.client.get("/api/health/readiness/")
         self.assertEqual(resp.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(
             resp.json(),
             {"status": "error", "errors": {"db": "unavailable", "redis": "unavailable"}},
         )
+        # The detail goes to the server log, with the exception attached.
+        logged = " ".join(str(r.exc_info[1]) for r in logs.records if r.exc_info)
+        self.assertIn("10.1.2.3", logged)
+        self.assertIn("cache.internal", logged)
         body = resp.content.decode()
         for fragment in ("10.1.2.3", "5432", "svc", "prod", "cache.internal", "6379"):
             self.assertNotIn(fragment, body)
+
+    @patch("django.core.cache.cache.get", return_value=None)
+    def test_readiness_503_on_cache_mismatch(self, mock_get):
+        """A cache read that does not return the written value is reported as unavailable."""
+        with self.assertLogs("boards.views.health", level="WARNING") as logs:
+            resp = self.client.get("/api/health/readiness/")
+        self.assertEqual(resp.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(
+            resp.json(), {"status": "error", "errors": {"redis": "unavailable"}}
+        )
+        self.assertTrue(any("cache" in r.getMessage() for r in logs.records))
