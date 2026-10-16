@@ -752,9 +752,10 @@ installs have already run them; these are documented instead.
   `ADD CONSTRAINT ... FOREIGN KEY`, which takes `SHARE ROW EXCLUSIVE` on `users` and
   `account_emailaddress` briefly. With every row `NULL` this is fast. For future FKs on large
   tables use the `NOT VALID` then `VALIDATE` pattern above.
-- **`RunPython` UPDATEs share a transaction with `ADD COLUMN`.** `accounts/0030` and
-  `accounts/0036` update `users` in the same transaction as column additions, so the UPDATE
-  runs while `ACCESS EXCLUSIVE` is held. Fine for typical sizes; see the
+- **`RunPython` UPDATE shares a transaction with `ADD COLUMN`.** `accounts/0030` updates
+  `users` in the same transaction as its column additions, so the UPDATE runs while
+  `ACCESS EXCLUSIVE` is held. (`accounts/0036` is a standalone `RunPython` with no schema
+  change; it only row-locks superuser rows, which is negligible.) Fine for typical sizes; see the
   [upgrade guide](../administration/upgrade.md#upgrading-to-12x) for very large installs.
 - **`boards/0054` overwrites system template columns** by slug, and its reverse restores
   constants rather than prior database values. See the upgrade guide.

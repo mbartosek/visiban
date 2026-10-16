@@ -309,14 +309,18 @@ After rolling back, restart the backend container with the previous image versio
     slug, to correct drift in `project_delivery` and `legal_compliance` and to add `is_done`
     flags. Any admin edit to a seeded system template's columns is lost on upgrade, and
     rolling the migration back restores the original constants, not your previous values.
-    Before upgrading, note any customized system template columns, then re-apply them
-    afterward in the Django admin (Board templates). Existing boards are not affected; only
+    Board templates have no admin page and no write API (`GET /api/v1/boards/templates/` is
+    read-only), so before upgrading, record the `columns_json` of any customized system
+    template (read it from that endpoint). After upgrading, re-apply it from
+    `manage.py shell`: `BoardTemplate.objects.filter(slug="...").update(columns_json=[...])`
+    (import `BoardTemplate` from `boards.models`). Existing boards are not affected; only
     future board creations and the template preview use these rows.
 
 !!! note "Very large `users` tables"
-    `accounts/0030` and `accounts/0036` run `UPDATE` statements on `users` in the same
-    transaction as the column additions, which holds a table lock for the duration of the
-    update. This is fast at typical sizes. On installs with millions of user rows, run
+    `accounts/0030` runs an `UPDATE` on `users` in the same transaction as its column
+    additions, so the table lock (`ACCESS EXCLUSIVE`) is held while the update runs. This is
+    fast at typical sizes. `accounts/0036` is a standalone data migration that only
+    row-locks superuser rows, which is negligible. On installs with millions of user rows, run
     `migrate` during a maintenance window.
 
 !!! note "Browser WebSocket connections check the Origin header"
