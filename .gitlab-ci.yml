@@ -2982,6 +2982,8 @@ backend-dep-scan:
         - backend/requirements.txt
         - backend/requirements.lock
         - backend/requirements-build.lock
+        - backend/osv-scanner.toml
+        - scripts/pip-audit-gate.py
       allow_failure: true
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $CVE_SCAN == "true"'
       allow_failure: false
