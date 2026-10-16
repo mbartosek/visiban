@@ -4476,7 +4476,36 @@
 <h3 id="put-apiv1groupsid-patch-apiv1groupsid"><code>PUT /api/v1/groups/{id}/</code> / <code>PATCH /api/v1/groups/{id}/</code><a class="headerlink" href="#put-apiv1groupsid-patch-apiv1groupsid" title="Permanent link">&para;</a></h3>
 <p>Update group fields. Both <code>PUT</code> and <code>PATCH</code> are accepted. Requires group admin.</p>
 <p><strong>Writable fields:</strong> <code>name</code>, <code>description</code>, <code>parent</code>, <code>default_board_member_role</code>, <code>allowed_priorities</code>. The latter two duplicate what <a href="#board-defaults"><code>PATCH /groups/{id}/board-defaults/</code></a> does — either endpoint can set them.</p>
+<p><strong>Changing <code>parent</code></strong> <em>(1.2+)</em>. Sending the group's current <code>parent</code> value is not a change and needs nothing beyond group admin. A change is accepted only when, in this order:</p>
+<ol>
+<li><strong>Authority over the group's place in the tree</strong> — required for every change, to another group or to top level (<code>"parent": null</code>): the caller is the group's owner, an admin of one of its current ancestor groups, or has access to all content. An admin of the group itself, without one of those, cannot change its parent. A top-level group has no ancestors, so only its owner (or a user with access to all content) can move it under another group.</li>
+<li><strong>Admin of the new parent</strong> — when moving under another group: the caller is also an admin of the new parent group (directly or through one of its ancestors), the same check <code>POST /api/v1/groups/</code> applies to a new subgroup.</li>
+<li><strong>Structure</strong> — the new parent is not the group itself or one of its subgroups, and the resulting tree is at most 6 levels deep, counting the moved group's own subgroups.</li>
+</ol>
 <p>Changing <code>parent</code> revokes unused invite links in the moved subtree whose creator no longer administers the link's group through the new ancestor chain (see <a href="#invite-links">Invite links</a>).</p>
+<p><strong>Errors:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>400 Bad Request</code></td>
+<td><code>{"parent": ["Select a parent group you administer."]}</code> — the caller passes rule 1, and <code>parent</code> names a group they do not administer or an ID that does not resolve to a group (the same response in both cases). <code>{"parent": [...]}</code> — the new parent is the group itself or one of its subgroups, or the move would nest groups more than 6 levels deep. Also the usual per-field validation errors</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td>The caller is not a group admin; or the request changes <code>parent</code> (to any value, including an ID that does not resolve) and the caller fails rule 1</td>
+</tr>
+<tr>
+<td><code>404 Not Found</code></td>
+<td>The caller cannot see the group being updated</td>
+</tr>
+</tbody>
+</table>
 <h3 id="delete-apiv1groupsid"><code>DELETE /api/v1/groups/{id}/</code><a class="headerlink" href="#delete-apiv1groupsid" title="Permanent link">&para;</a></h3>
 <p>Delete a group. Requires group owner or site admin. A group member who is not the owner gets <code>403 Forbidden</code> with <code>{"detail": "Only the group owner can delete this group."}</code>; a caller who cannot see the group at all gets <code>404</code>.</p>
 <hr />
