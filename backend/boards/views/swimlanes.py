@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from accounts.permissions import TokenHasScope
+from visiban.request_shape import require_json_object
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -339,7 +340,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
-        order = request.data.get("order", [])
+        order = require_json_object(request).get("order", [])
         with transaction.atomic():
             # Lock the board row before reading the current swimlane set and
             # updating positions, so a concurrent create/delete/reorder can't

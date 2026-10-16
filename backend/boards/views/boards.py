@@ -18,6 +18,7 @@ from drf_spectacular.utils import (
 from accounts.models import User
 from accounts.permissions import TokenHasScope
 from groups.broadcast import broadcast_group_event as _broadcast_group_event
+from visiban.request_shape import coerce_int_id, require_json_object
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -874,8 +875,13 @@ class BoardViewSet(
         board, role = get_board_for_user(pk, request.user)
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
-        user_id = request.data.get("user_id")
-        member_role = request.data.get("role", BoardMembership.Role.MEMBER)
+        body = require_json_object(request)
+        user_id = body.get("user_id")
+        if user_id is not None:
+            # Missing user_id keeps its existing 404; a present but non-integer
+            # one must be a 400, not a ValueError out of the pk lookup (#1669).
+            user_id = coerce_int_id(user_id, "user_id")
+        member_role = body.get("role", BoardMembership.Role.MEMBER)
         # Validate at the boundary: only stored membership roles are accepted,
         # and only as strings (an unhashable value must not reach the lookup).
         if not isinstance(member_role, str) or member_role not in BoardMembership.Role.values:

@@ -522,7 +522,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     @extend_schema(summary="Update a member's role", methods=["PATCH"], responses=GroupMembershipSerializer)
     @extend_schema(summary="Remove a member", methods=["DELETE"], responses={204: None})
-    @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[^/.]+)")
+    @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>\d+)")
     def update_member(self, request, pk=None, user_id=None):
         from accounts.models import User
         group = self.get_object()
@@ -1312,7 +1312,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         request=GroupLabelSerializer, responses=GroupLabelSerializer,
     )
     @extend_schema(summary="Delete a group shared label", methods=["DELETE"], responses={204: None})
-    @action(detail=True, methods=["patch", "delete"], url_path=r"labels/(?P<label_id>[^/.]+)")
+    @action(detail=True, methods=["patch", "delete"], url_path=r"labels/(?P<label_id>\d+)")
     def update_group_label(self, request, pk=None, label_id=None):
         """PATCH or DELETE a group shared label."""
         group = self.get_object()
