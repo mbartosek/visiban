@@ -13,16 +13,19 @@ import socket
 import ssl
 from unittest import mock
 
+import jsonschema
 from django.core import mail
 from django.core.mail import EmailMessage
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
+from drf_spectacular.generators import SchemaGenerator
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.admin_views import EMAIL_TEST_ERROR_DETAILS
 from accounts.models import AdminActionLog, SiteEmailSetting, User
+from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
 from visiban.crypto import (
     SecretDecryptionError,
     decrypt_secret,
@@ -768,3 +771,43 @@ class AdminEmailTestEndpointTests(TestCase):
             self.client.post(TEST_URL)
         row = AdminActionLog.objects.get(action=AdminActionLog.Action.EMAIL_TEST_SENT)
         self.assertEqual(row.metadata, {"result": "failure"})
+
+
+class AdminEmailTestSchemaContractTests(TestCase):
+    """The OpenAPI spec declares the aligned 200/400 bodies (#1682).
+
+    Validates real response bodies against the generated schema, the same
+    technique as ``groups/tests/test_invite_email_schema_contract.py``.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.schema = SchemaGenerator().get_schema(request=None, public=True)
+        cls.responses = cls.schema["paths"][TEST_URL]["post"]["responses"]
+
+    def _assert_valid(self, status_code, body):
+        fragment = self.responses[status_code]["content"]["application/json"]["schema"]
+        combined = {**fragment, "components": self.schema["components"]}
+        jsonschema.validate(instance=body, schema=_openapi3_nullable_to_jsonschema(combined))
+
+    def test_declares_success_and_failure_bodies(self):
+        self.assertIn("200", self.responses)
+        self.assertIn("400", self.responses)
+        failure = self.schema["components"]["schemas"]["AdminEmailTestFailure"]
+        self.assertEqual(set(failure["required"]), {"success", "code", "detail"})
+        self.assertNotIn("nullable", failure["properties"]["detail"])
+
+    def test_success_body_matches_schema(self):
+        self._assert_valid(
+            "200", {"success": True, "code": None, "sent_to": "admin@visiban.test"}
+        )
+
+    def test_every_failure_body_matches_schema(self):
+        for code, detail in EMAIL_TEST_ERROR_DETAILS.items():
+            with self.subTest(code=code):
+                self._assert_valid("400", {"success": False, "code": code, "detail": detail})
+
+    def test_null_detail_is_rejected_by_schema(self):
+        with self.assertRaises(jsonschema.ValidationError):
+            self._assert_valid("400", {"success": False, "code": "timeout", "detail": None})

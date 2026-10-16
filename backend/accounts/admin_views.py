@@ -420,6 +420,35 @@ class AdminEmailTestView(APIView):
     permission_classes = _ADMIN_PERMISSIONS
     throttle_classes = [EmailTestThrottle]
 
+    # `code` is a CharField, not an enum: the taxonomy may grow in any minor
+    # release and clients are told to treat an unrecognized code as `unknown`,
+    # so an enum would make a new code a schema violation (#1682).
+    @extend_schema(
+        request=None,
+        responses={
+            200: inline_serializer(
+                name="AdminEmailTestSuccess",
+                fields={
+                    "success": drf_serializers.BooleanField(),
+                    "code": drf_serializers.CharField(allow_null=True),
+                    "sent_to": drf_serializers.CharField(),
+                },
+            ),
+            400: inline_serializer(
+                name="AdminEmailTestFailure",
+                fields={
+                    "success": drf_serializers.BooleanField(),
+                    "code": drf_serializers.CharField(
+                        help_text="One of: " + ", ".join(EMAIL_TEST_ERROR_DETAILS) + ". "
+                                  "Treat an unrecognized value as `unknown`.",
+                    ),
+                    "detail": drf_serializers.CharField(
+                        help_text="Fixed, neutral message for the code; never SMTP error text.",
+                    ),
+                },
+            ),
+        },
+    )
     def post(self, request):
         recipient = (request.user.email or "").strip()
         if not recipient:
