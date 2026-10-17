@@ -192,6 +192,33 @@ class InactiveRecipientTests(TestCase):
         self.assertGreaterEqual(rows, 1)
         self.assertIn(f"{rows} notifications created", out.getvalue())
 
+    def test_stale_count_follows_funnel_return(self):
+        """#1689: the reported total comes from the funnel's rows, not the
+        number offered to it."""
+        for user in (self.owner, self.active):
+            user.notif_stale = True
+            user.save()
+        card = self._card()
+        Card.objects.filter(pk=card.pk).update(
+            created_at=timezone.now() - datetime.timedelta(days=60)
+        )
+        target = "boards.management.commands.notify_stale_cards.create_notifications"
+        out = StringIO()
+        with patch(target, return_value=[]):
+            call_command("notify_stale_cards", stdout=out)
+        self.assertIn("0 notifications created", out.getvalue())
+
+    def test_due_soon_count_follows_funnel_return(self):
+        self.active.notif_due_soon = True
+        self.active.save()
+        tomorrow = timezone.localdate() + datetime.timedelta(days=1)
+        self._card(assignee=self.active, due_date=tomorrow)
+        target = "boards.management.commands.notify_due_soon.create_notifications"
+        out = StringIO()
+        with patch(target, return_value=[]):
+            call_command("notify_due_soon", stdout=out)
+        self.assertIn("0 notifications created", out.getvalue())
+
     @patch("boards.broadcast.broadcast_board_event")
     def test_assignment(self, _bc):
         card = self._card()
