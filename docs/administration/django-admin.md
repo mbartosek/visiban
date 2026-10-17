@@ -40,15 +40,27 @@ Clearing **Active** on a user deletes their Personal Access Tokens and API token
 - **Users** — view/edit user accounts, activate or deactivate accounts, and (superusers only) set `is_staff`, `is_superuser`, groups and permissions. The form does not carry `is_site_admin` or `must_change_password`; use the site-admin panel or `set_site_admin` for those. Removing `is_superuser` also removes the account's site-admin and all-content access; site admin can then be granted again explicitly.
   - For staff who are not superusers, `is_staff`, `is_superuser`, groups and permissions are read-only, `email`, `username`, `first_name`, `last_name` and `is_active` are read-only on staff, superuser and site-admin accounts other than their own, superuser accounts are not listed, and the **Password** form is refused for those accounts. Changing or deleting another staff, superuser or site-admin account is left to superusers.
   - For every user, superusers included, the form applies the same guards as the site-admin panel: you cannot deactivate your own account, a user who owns boards without transferring them, or the last active site admin, and you cannot remove your own superuser status, the last active superuser's status, or the last active site admin's access. The shell and management commands are the only routes without these guards.
-  - Deleting a user, from the user's delete page or the **Delete selected users** action, applies the same guards: you cannot delete your own account, a user who owns boards (transfer the boards first), a user who owns groups (the owner transfers or removes the groups; deactivating the account remains available), the last active site admin, or the last active superuser; staff accounts that are not superusers cannot delete another staff, superuser or site-admin account. A bulk delete is all-or-nothing: if any selected user is refused, none are deleted and each reason is shown.
+  - Deleting a user, from the user's delete page or the **Delete selected users** action, applies the same guards: you cannot delete your own account, a user who owns boards (transfer the boards first), a user who owns groups (transfer the groups first, see [Transferring a group's ownership](#transferring-a-groups-ownership); deactivating the account remains available), the last active site admin, or the last active superuser; staff accounts that are not superusers cannot delete another staff, superuser or site-admin account. A bulk delete is all-or-nothing: if any selected user is refused, none are deleted and each reason is shown.
   - If the account changed after you opened its form, the save is refused with a message asking you to reload the page and make your changes again.
-- **Groups** (Django auth permission groups) — visible and editable by superusers only; staff accounts do not see this entry even when granted the group permissions
+- **Groups** (workspace groups, under the **Groups** app) — visible to superusers only and read-only: fields cannot be edited and groups cannot be deleted here. The one write is the **Transfer ownership of the selected group** action, intended for a group whose owner is deactivated or gone; it works on any group (see [Transferring a group's ownership](#transferring-a-groups-ownership)).
+- **Authentication and Authorization → Groups** (Django auth permission groups) — visible and editable by superusers only; staff accounts do not see this entry even when granted the group permissions
 - **Site settings** — instance-wide configuration (registration mode, file uploads, [maintenance mode](maintenance-mode.md)); clicking the entry goes directly to the settings form — there is always exactly one row
 - **Boards, columns, swimlanes** — direct database access for debugging
 - **Board memberships** — view and correct membership records
 - **Email addresses, social accounts, social tokens, social apps, API tokens and Sites** — available to superusers only. Staff accounts do not see these entries.
 
 The change forms for users, groups, site settings, boards and board memberships save only the fields you changed; a field you left alone keeps its current stored value. If the record changed after you opened its form, the save is refused with a message asking you to reload the page and make your changes again.
+
+## Transferring a group's ownership
+
+A user who owns groups cannot be deleted until ownership moves, and only the owner can transfer a group through the web app. When the owner is deactivated or gone, a superuser does it from the Django admin:
+
+1. Open **Groups** under the **Groups** app and tick exactly one group. The list shows each owner and whether the owner is active.
+2. Choose **Transfer ownership of the selected group** and click **Go**.
+3. Pick the new owner. The list holds only active members of that group other than the current owner; add the person to the group first if they are not a member.
+4. Confirm. The new owner becomes an admin member of the group and its owner, the previous owner stays on the group as an admin member, and open sessions receive the same group update the web app sends.
+
+The action shares its transfer code with the web app, but its rules are deliberately looser, since it is a superuser's judgment call: there is no group-name confirmation, the new owner can be any active member of the group (not only an existing admin) and is made an admin, and it works on any group, not only those with a departed owner. The page records the owner it showed; if the owner changed before you confirmed, the transfer is refused and you retry from a reloaded page. Each transfer is recorded in the admin log. The action is available to superusers only. Staff accounts that are not superusers do not see the Groups entry. Once the groups are transferred, the former owner can be deleted.
 
 ## Production note
 

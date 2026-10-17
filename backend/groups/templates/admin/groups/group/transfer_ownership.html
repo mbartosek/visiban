@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:groups_group_changelist' %}">Groups</a>
+  &rsaquo; Transfer ownership
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  {% csrf_token %}
+  <p>
+    Group: <strong>{{ group.name }}</strong><br>
+    Current owner: <strong>{{ group.owner }}</strong>{% if not group.owner.is_active %} (inactive){% endif %}
+  </p>
+  <p>The new owner becomes an admin member of the group. The current owner stays on the group as an admin member.</p>
+  {{ form.as_p }}
+  <input type="hidden" name="action" value="transfer_ownership">
+  <input type="hidden" name="{{ action_checkbox_name }}" value="{{ group.pk }}">
+  <input type="hidden" name="step" value="confirm">
+  <input type="hidden" name="expected_owner" value="{{ group.owner_id }}">
+  <input type="submit" class="default" value="Transfer ownership">
+  <a href="{% url 'admin:groups_group_changelist' %}" class="button cancel-link">Cancel</a>
+</form>
+{% endblock %}
