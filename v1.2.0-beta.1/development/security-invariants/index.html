@@ -4450,7 +4450,7 @@ canonical wording.</p>
 <tr>
 <td>Site invite (registration)</td>
 <td><code>accounts/invite_utils.py</code> <code>validate_invite_token</code>, <code>consume_invite_token</code></td>
-<td><code>select_for_update()</code> on validation; conditional <code>used_at IS NULL</code> update checked by row count</td>
+<td><code>select_for_update()</code> on validation; conditional <code>used_at IS NULL</code> update checked by row count. An emailed invite's recipient binding (<code>visiban/invite_recipient.py</code> <code>require_recipient</code>, #1703) is checked first in <code>consume_invite_token</code> on the locked row, so a mismatch consumes nothing; a bound invite redeemed without an account is refused</td>
 </tr>
 <tr>
 <td>Group invite (registration)</td>
@@ -4480,12 +4480,12 @@ canonical wording.</p>
 <tr>
 <td>Email and password signup</td>
 <td><code>accounts/views.py</code> <code>InviteRegisterView.post</code></td>
-<td>Runs in <code>transaction.atomic</code>; validates and redeems through <code>registration_token_kind</code>. A submitted address that does not match an emailed group or board invite's binding (<code>InviteRegisterView.perform_create</code> through <code>signup_address_admits</code>, #1678) is refused with <code>400</code> after the form validates and before the account is created; redemption re-checks it on the created account</td>
+<td>Runs in <code>transaction.atomic</code>; validates and redeems through <code>registration_token_kind</code>. A submitted address that does not match an emailed site, group or board invite's binding (<code>InviteRegisterView.perform_create</code> through <code>signup_address_admits</code>, #1678, #1703) is refused with <code>400</code> after the form validates and before the account is created; redemption re-checks it on the created account</td>
 </tr>
 <tr>
 <td>OAuth signup</td>
 <td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.save_user</code>, <code>_redeem_invite</code></td>
-<td>Validate and redeem in one transaction; a recipient-binding mismatch at redemption (#1678) rolls the account back and redirects with <code>auth_error=invite_recipient_mismatch</code></td>
+<td>Validate and redeem in one transaction; a recipient-binding mismatch at redemption (#1678, #1703; site invites through <code>consume_invite_token</code>) rolls the account back and redirects with <code>auth_error=invite_recipient_mismatch</code></td>
 </tr>
 <tr>
 <td>WebSocket ticket</td>

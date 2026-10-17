@@ -5258,7 +5258,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <td><code>email</code></td>
 <td>string</td>
 <td>Yes</td>
-<td>Recipient address. Surrounding spaces are stripped; an address with a line break is rejected. Used for this one send and <strong>never stored</strong> or logged.</td>
+<td>Recipient address. Surrounding spaces are stripped; an address with a line break is rejected. The address itself is <strong>never stored</strong> or logged; the invite keeps only a keyed hash of it, and registration with it requires this address (<code>invite_recipient_mismatch</code> otherwise, #1703).</td>
 </tr>
 <tr>
 <td><code>expires_in_days</code></td>
