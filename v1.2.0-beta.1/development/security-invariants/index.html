@@ -4058,10 +4058,12 @@ It also checks that each top-level path segment with a route is either gated by
 that every route under the gated prefixes, Django admin views included, has a
 recorded forced-change decision (<code>gated</code> or <code>exempt: &lt;reason&gt;</code>) that the
 middleware keeps for each pending flag.
+It enumerates Rule 6 too, through <code>GroupPlacementEntryPointTests</code>: every
+function that writes <code>Board.group</code> must call the shared group-admin check or be
+allowlisted.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to <code>registration_token_kind</code> (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist), Rule 5, or Rule 6
-(whose enumeration test is tracked in #1693), and it
+enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
 does not test locking; the concurrent tests for each consume-once path do.
 <a href="../authorization-entry-points/">Authorization Entry Points</a> says what each
 entry point calls and how that test finds them.</p>
@@ -4604,8 +4606,9 @@ it is intentionally outside the enumeration. The API rows are covered per
 surface: create in group by <code>groups/tests/test_groups.py</code>
 <code>test_non_admin_cannot_create_board_in_group</code>, the board <code>group</code> field by
 <code>boards/tests/test_board_group_field_validation.py</code>, and move group and the
-imports by <code>boards/tests/test_group_placement_roles.py</code>. The enumeration test
-that checks every surface in this table is tracked in #1693.</p>
+imports by <code>boards/tests/test_group_placement_roles.py</code>. The entry-point test
+(<code>GroupPlacementEntryPointTests</code>) checks every API surface in this table; the
+Django admin row is the exception named above.</p>
 <h2 id="rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface">Rule 8: Per-recipient event fields are gated on every broadcast and replay surface<a class="headerlink" href="#rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface" title="Permanent link">&para;</a></h2>
 <p><strong>Rule.</strong> A board event is fanned out to every subscriber and stored once in the
 change feed. The events and fields listed here are filtered per recipient on
@@ -4705,10 +4708,9 @@ shared-helper identity check), <code>boards/tests/test_consumer_role_refresh.py<
    <code>boards/tests/test_import_user_scope.py</code> covers it. Rule 6 is not in that
    position: its API surfaces are several call sites of a shared check
    (<code>_require_group_admin</code>, directly or through
-   <code>resolve_group_for_board_placement</code>), so it needs the enumeration test and
-   does not have it yet; that test is tracked in #1693. Until then the
-   per-surface tests listed under Rule 6 are the coverage. The Django admin
-   form is a separate, staff-only exception.</li>
+   <code>resolve_group_for_board_placement</code>), so the test finds every function that
+   writes <code>Board.group</code> and requires it to call the check or be allowlisted.
+   The Django admin form is a separate, staff-only exception.</li>
 <li>Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.</li>
 </ol>

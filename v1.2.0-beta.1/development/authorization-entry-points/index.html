@@ -2945,6 +2945,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#how-the-group-placement-scan-finds-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the group-placement scan finds them
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4048,7 +4059,7 @@ does not.</p>
 <tr>
 <td>Placing a board in a group (Rule 6)</td>
 <td><code>groups/views.py</code> <code>_require_group_admin</code>; <code>resolve_group_for_board_placement</code> (move group and JSON, CSV and Trello import)</td>
-<td>Not yet enumerated by the entry-point test; that test is tracked in #1693. Covered per surface by <code>groups/tests/test_groups.py</code>, <code>boards/tests/test_board_group_field_validation.py</code> and <code>boards/tests/test_group_placement_roles.py</code></td>
+<td>Every function in the installed apps that writes <code>Board.group</code> (an attribute assignment, or <code>group=</code> passed to <code>Board</code> create or to <code>.save()</code> and <code>.update()</code>) must call the shared check or be in <code>GROUP_PLACEMENT_ALLOWLIST</code> with a reason; every writable <code>group</code> field on a <code>Board</code> serializer must have a <code>validate_group</code> that reaches <code>_require_group_admin</code>; the wrappers are pinned in <code>GROUP_PLACEMENT_PINS</code>. Per-surface role behavior is covered by <code>groups/tests/test_groups.py</code>, <code>boards/tests/test_board_group_field_validation.py</code> and <code>boards/tests/test_group_placement_roles.py</code></td>
 </tr>
 <tr>
 <td>Import user scoping (Rule 5)</td>
@@ -4300,6 +4311,17 @@ backend CI job runs with the flag off, so the <code>backend-test-git-lens</code>
 runs this test with the flag on, and the lens views are enumerated there. The
 allowlists contain no flag-dependent entries, so the stale-entry check passes
 either way.</p>
+<h2 id="how-the-group-placement-scan-finds-them">How the group-placement scan finds them<a class="headerlink" href="#how-the-group-placement-scan-finds-them" title="Permanent link">&para;</a></h2>
+<p><code>GroupPlacementEntryPointTests</code> parses every non-test module of the installed
+apps with <code>ast</code> and reports each function that assigns <code>.group</code> or <code>.group_id</code>,
+passes <code>group=</code> to a <code>Board</code> create or to <code>.save()</code> / <code>.update()</code>, or calls the
+reverse manager <code>.boards.add</code>, <code>.boards.set</code> or <code>.boards.create</code>. Each reported
+function must call <code>_require_group_admin</code>, <code>resolve_group_for_board_placement</code>,
+<code>_check_group_change</code> or <code>_resolve_import_group</code>, or be listed in
+<code>GROUP_PLACEMENT_ALLOWLIST</code> with a reason. A runtime pass also requires every
+writable <code>group</code> field on a <code>Board</code> serializer to validate through the check.
+The scan is syntactic and presence-only; it misses <code>setattr</code>, <code>**kwargs</code>
+create or update, <code>bulk_update</code> and <code>save(update_fields=["group"])</code>.</p>
 
 
 
