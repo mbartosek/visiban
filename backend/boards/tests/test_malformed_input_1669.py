@@ -173,3 +173,11 @@ class MalformedInputTests(TestCase):
         for bad in NON_OBJECT_BODIES:
             self.assertEqual(self.client.patch(url, bad, format="json").status_code, 400, repr(bad))
         self.assertEqual(self.client.patch(url, {"role": "viewer"}, format="json").status_code, 200)
+
+    def test_board_create_non_object_body(self):
+        # boards.py perform_create / groups create_board read swimlane_name from
+        # request.data after the serializer; confirmed 400, not 500.
+        for url in ("/api/v1/boards/", f"/api/v1/groups/{self.group.id}/boards/"):
+            for bad in NON_OBJECT_BODIES:
+                r = self.client.post(url, bad, format="json")
+                self.assertTrue(400 <= r.status_code < 500, f"{url} {bad!r}: {r.status_code}")

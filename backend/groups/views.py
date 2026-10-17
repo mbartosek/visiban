@@ -776,7 +776,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         # it), so a `group` in the body is dropped before validation: it has
         # always been ignored here, and BoardSerializer.validate_group must not
         # turn an ignored key into a 400 (#1655).
-        data = request.data
+        data = require_json_object(request)
         if "group" in data:
             data = data.copy()
             data.pop("group")

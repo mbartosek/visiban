@@ -120,6 +120,8 @@ List direct subgroups of this group that are visible to the requesting user. Req
 List boards in this group. Requires group membership.
 
 ### `POST /api/v1/groups/{id}/boards/`
+
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (previously `500`).
 Create a board in this group. Requires group admin. Boards created here inherit the group's `shared_labels` and `allowed_priorities` automatically. The seeded `allowed_priorities` value is not enforced on cards (see [Field Enforcement](../architecture/field-enforcement.md)).
 
 **Request**

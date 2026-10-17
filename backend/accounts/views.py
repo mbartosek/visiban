@@ -38,6 +38,7 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.request_shape import require_json_object
 from rest_framework import status
 from rest_framework.exceptions import NotAuthenticated
 from .permissions import TokenHasScope
@@ -691,8 +692,15 @@ class ChangePasswordView(APIView):
 
     @extend_schema(responses={200: _PASSWORD_CHANGE_RESPONSE})
     def post(self, request):
-        current_password = request.data.get("current_password", "")
-        new_password = request.data.get("new_password", "")
+        body = require_json_object(request)
+        current_password = body.get("current_password", "")
+        new_password = body.get("new_password", "")
+        # A non-string value is no password: it takes the same "too short" /
+        # wrong-password path as an empty one instead of raising TypeError (#1669).
+        if not isinstance(current_password, str):
+            current_password = ""
+        if not isinstance(new_password, str):
+            new_password = ""
 
         # Checked here as well as by AUTH_PASSWORD_VALIDATORS' MinimumLengthValidator
         # (same PASSWORD_MIN_LENGTH) so this endpoint keeps its documented
@@ -822,7 +830,9 @@ class ChooseUsernameView(APIView):
     throttle_classes = [ChooseUsernameThrottle]
 
     def post(self, request):
-        username = (request.data.get("username") or "").strip()
+        username = require_json_object(request).get("username") or ""
+        # A non-string username is treated as missing (same 400), not a 500.
+        username = username.strip() if isinstance(username, str) else ""
 
         if not username:
             return Response(
@@ -986,16 +996,19 @@ class PersonalAccessTokenListCreateView(APIView):
         responses={201: PersonalAccessTokenCreateResponseSerializer},
     )
     def post(self, request):
-        name = (request.data.get("name") or "").strip()
+        body = require_json_object(request)
+        name = body.get("name") or ""
+        name = name.strip() if isinstance(name, str) else ""
         if not name:
             return Response({"detail": "Token name is required."}, status=status.HTTP_400_BAD_REQUEST)
         if len(name) > 64:
             return Response({"detail": "Token name must be 64 characters or fewer."}, status=status.HTTP_400_BAD_REQUEST)
 
         expires_at = None
-        raw_expires = request.data.get("expires_at")
+        raw_expires = body.get("expires_at")
         if raw_expires:
-            expires_at = parse_datetime(raw_expires)
+            # parse_datetime raises TypeError on a non-string (#1669).
+            expires_at = parse_datetime(raw_expires) if isinstance(raw_expires, str) else None
             if expires_at is None:
                 return Response({"detail": "Invalid expires_at value."}, status=status.HTTP_400_BAD_REQUEST)
             max_expiry = timezone.now() + timedelta(days=365)
@@ -1271,7 +1284,9 @@ class InviteRegisterView(RegisterView):
         if mode != SiteSetting.RegistrationMode.INVITE_ONLY:
             return super().create(request, *args, **kwargs)
 
-        token_raw = request.data.get("invite_token") or ""
+        # A non-object body carries no token: it takes the same missing-token
+        # refusal below, so the response reveals nothing about token validity.
+        token_raw = (request.data.get("invite_token") if isinstance(request.data, dict) else None) or ""
         # A non-string JSON value (number, list, object) is no token at all —
         # refuse it as missing instead of letting .strip() raise a 500.
         token_raw = token_raw.strip() if isinstance(token_raw, str) else ""
