@@ -530,6 +530,25 @@ mutation-score-selftest:
     # file and class it names exists, and backend-mutation's `parallel:` equals its shards.
     - python3 backend/mutmut_config.py self-test --ci-file .gitlab-ci.yml
 
+# ─── Unobserved-baseline logger self-test (#1582) ────────────────────────────
+#
+# scripts/fuzz_baseline_unobserved.py runs in backend-schema-fuzz's after_script,
+# log-only and always exit 0, so a broken parser would never turn a job red. This
+# runs its --self-test on MRs that touch it or the CI file (#1093 house rule), and
+# on main.
+fuzz-baseline-unobserved-selftest:
+  stage: lint
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/python:3.12-slim
+  rules:
+    - changes: &fuzz-baseline-unobserved-paths
+        - scripts/fuzz_baseline_unobserved.py
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *fuzz-baseline-unobserved-paths
+  script:
+    - python3 scripts/fuzz_baseline_unobserved.py --self-test
+
 # ─── Sonar exclusion-integrity guard (#1380) ─────────────────────────────────
 #
 # Every sonar.issue.ignore.multicriteria criterion is a reviewed false positive;
