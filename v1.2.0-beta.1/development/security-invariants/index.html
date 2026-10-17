@@ -4491,11 +4491,16 @@ canonical wording.</p>
 </tbody>
 </table>
 <h2 id="rule-5-user-references-in-imports-resolve-only-within-the-callers-scope">Rule 5: User references in imports resolve only within the caller's scope<a class="headerlink" href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" title="Permanent link">&para;</a></h2>
-<p><strong>Rule.</strong> When an import file names users (assignee, actor, mover), the names
+<p><strong>Rule.</strong> When an import file names users as assignees, the names
 resolve only against users the importer can already see: the importer,
 co-members of their boards and groups, and the target group. A name outside that
 pool is dropped, so the import neither assigns to nor confirms the existence of
 any other account.</p>
+<p>Imported history rows (JSON movement <code>moved_by</code>, activity <code>actor</code>) are not
+resolved at all, inside the pool or out of it: each row is recorded under the
+importer and keeps the file's name as text in <code>imported_from_username</code> (#1675),
+which the timeline, History view and exports display. A new import path that
+writes history rows applies the same rule rather than linking them to accounts.</p>
 <p><strong>Why.</strong> The uploader controls the file. Resolving against all users turns the
 matched count into an existence oracle for every account on the instance.</p>
 <table>
@@ -4510,17 +4515,17 @@ matched count into an existence oracle for every account on the instance.</p>
 <tr>
 <td>JSON import</td>
 <td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin._import_json</code></td>
-<td><code>_resolve_import_users</code></td>
+<td><code>_resolve_import_users</code> (assignee); history rows use the importer plus <code>_imported_from_username</code></td>
 </tr>
 <tr>
 <td>CSV import</td>
 <td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin._import_csv</code></td>
-<td><code>_resolve_import_users</code></td>
+<td><code>_resolve_import_users</code> (assignee; CSV import writes no history rows)</td>
 </tr>
 <tr>
 <td>Trello import</td>
 <td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin.import_trello</code></td>
-<td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code></td>
+<td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code> (card members and comment authors; Trello import writes no movement or activity rows)</td>
 </tr>
 <tr>
 <td>Invite emails and member add</td>

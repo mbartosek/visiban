@@ -1285,6 +1285,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#imported-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Imported history
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#activity-log" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4050,6 +4061,18 @@
 <p>Pure position reorders within the same cell don't create a movement record.</p>
 <p><code>archived</code> and <code>unarchived</code> events appear in the card's own timeline and in the board-level History view.</p>
 <p>Find the movement timeline in the card detail panel's <strong>Activity</strong> tab.</p>
+<h2 id="imported-history">Imported history<a class="headerlink" href="#imported-history" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1675)</p>
+</blockquote>
+<p>A board created by a <a href="../board/#import">JSON import</a> with <strong>Card history</strong> included brings the file's movements and activity entries with it. Each imported entry:</p>
+<ul>
+<li>keeps the time the file gives it, so the timeline reads in its original order;</li>
+<li>is recorded under the user who ran the import (<code>moved_by</code> / <code>actor</code>);</li>
+<li>keeps the username the file named as plain text in <code>imported_from_username</code>. It is shown next to the importer's name — "by Kelly · imported, originally alice" in the card's <strong>Activity</strong> tab, and "imported, originally alice" under the mover in the board's <strong>History</strong> view. When the file named nobody, the entry just says "imported".</li>
+</ul>
+<p>The source name is never matched to an account here: imported entries are shown under the importer's name. Entries recorded on the board after the import have <code>imported_from_username: null</code> and show no note. History imported by earlier versions also carries <code>null</code>, since the original name was not kept.</p>
+<p>Exports carry the field too: JSON export writes <code>imported_from_username</code> on every movement and activity, and re-importing such a file keeps the original source name (not the name of whoever imported it first). CSV export appends the note to the mover in <strong>Movement History</strong>, for example <code>…|Kelly (imported, originally alice)</code>.</p>
 <h2 id="activity-log">Activity log<a class="headerlink" href="#activity-log" title="Permanent link">&para;</a></h2>
 <p>The activity log also tracks field changes:</p>
 <table>
