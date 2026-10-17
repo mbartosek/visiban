@@ -57,11 +57,11 @@ from boards.models import (
 )
 from boards.services import cards as card_services
 from boards.tests.test_admin_card_cell_entry_race import _admin_post_data
+from boards.tests.lock_wait import wait_until_blocked_on_lock
 
 BOARD_LOCK = "lock_board_for_card_write"
 
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 
 
 @skipUnless(
@@ -134,8 +134,7 @@ class _Base(TransactionTestCase):
                 paused.wait(HOLD_TIMEOUT), "holder never reached its hold point"
             )
             other = self._thread("other", other_fn, results)
-            other.join(BLOCK_PROBE)
-            waited = other.is_alive()
+            waited = wait_until_blocked_on_lock(other)
             release.set()
             holder.join(HOLD_TIMEOUT)
             other.join(HOLD_TIMEOUT)

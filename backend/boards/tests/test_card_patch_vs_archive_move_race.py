@@ -42,12 +42,12 @@ from boards.models import (
     Swimlane,
 )
 from boards.services import cards as card_services
+from boards.tests.lock_wait import assert_blocked_on_lock
 from mcp_server import tools as mcp_tools
 from mcp_server.context import reset_current_user, set_current_user
 
 SERVICES = "boards.services.cards"
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 
 
 def _fixture(test, username):
@@ -204,6 +204,7 @@ class CardPatchVsArchiveMoveRaceTests(TransactionTestCase):
             patcher = self._thread("patcher", self._patch(body), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "PATCH never reached its lock")
             other_t = self._thread("other", other, results)
+            # Negative check, no lock helper: finishing within HOLD_TIMEOUT proves it never blocked.
             other_t.join(HOLD_TIMEOUT)
             self.assertFalse(
                 other_t.is_alive(), "the other write blocked on an unlocked PATCH"
@@ -224,10 +225,7 @@ class CardPatchVsArchiveMoveRaceTests(TransactionTestCase):
                 paused.wait(HOLD_TIMEOUT), "PATCH never reached its hold point"
             )
             other_t = self._thread("other", other, results)
-            other_t.join(BLOCK_PROBE)
-            self.assertTrue(
-                other_t.is_alive(), "the other write did not wait for the PATCH's lock"
-            )
+            assert_blocked_on_lock(self, other_t, "the other write did not wait for the PATCH's lock")
             release.set()
             patcher.join(HOLD_TIMEOUT)
             other_t.join(HOLD_TIMEOUT)

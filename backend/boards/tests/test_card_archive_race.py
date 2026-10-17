@@ -291,6 +291,7 @@ class CardArchiveConcurrentRaceTests(TransactionTestCase):
             first_t = self._thread("first", first, results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "first never reached its lock")
             other_t = self._thread("other", other, results)
+            # Negative check, no lock helper: finishing within HOLD_TIMEOUT proves it never blocked.
             other_t.join(HOLD_TIMEOUT)
             self.assertFalse(other_t.is_alive(), "other blocked on an unlocked request")
             release.set()

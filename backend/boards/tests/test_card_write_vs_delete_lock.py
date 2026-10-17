@@ -42,12 +42,10 @@ from boards.models import (
     CardComment, CardMovement, CardRelation, Column, Swimlane,
 )
 from boards.services import cards as card_services
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 SERVICES = "boards.services.cards"
 HOLD_TIMEOUT = 10.0
-# How long the second request is given to (wrongly) get past the lock before
-# the test asserts it is still waiting on it.
-BLOCK_PROBE = 0.5
 
 
 def _fixture(test, username):
@@ -274,8 +272,7 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
             writer = self._thread("writer", _requests(self)[name], results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "writer never reached its hold point")
             deleter = self._thread("deleter", lambda c: c.delete(f"{self.base}/"), results)
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(deleter.is_alive(), "delete did not wait for the writer's card lock")
+            assert_blocked_on_lock(self, deleter, "delete did not wait for the writer's card lock")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -293,8 +290,7 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
             deleter = self._thread("deleter", lambda c: c.delete(f"{self.base}/"), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold point")
             writer = self._thread("writer", _requests(self)[name], results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), "write did not wait for the delete's card lock")
+            assert_blocked_on_lock(self, writer, "write did not wait for the delete's card lock")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -377,8 +373,7 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
             writer = self._thread("writer", _requests(self)["archive"], results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "archive never reached its hold point")
             deleter = self._thread("deleter", lambda c: c.delete(f"{self.base}/"), results)
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(deleter.is_alive(), "delete did not wait for the archive's card lock")
+            assert_blocked_on_lock(self, deleter, "delete did not wait for the archive's card lock")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -409,8 +404,7 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
         deleter = self._thread("deleter", self._raw_deleter((paused, release)), results)
         self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold point")
         writer = self._thread("writer", _requests(self)["unarchive"], results)
-        writer.join(BLOCK_PROBE)
-        self.assertTrue(writer.is_alive(), "unarchive did not wait for the delete's card lock")
+        assert_blocked_on_lock(self, writer, "unarchive did not wait for the delete's card lock")
         release.set()
         deleter.join(HOLD_TIMEOUT)
         writer.join(HOLD_TIMEOUT)
@@ -426,8 +420,7 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
             writer = self._thread("writer", _requests(self)["unarchive"], results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "unarchive never reached its hold point")
             deleter = self._thread("deleter", self._raw_deleter(), results)
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(deleter.is_alive(), "delete did not wait for the unarchive's card lock")
+            assert_blocked_on_lock(self, deleter, "delete did not wait for the unarchive's card lock")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)

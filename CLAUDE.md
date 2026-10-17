@@ -128,6 +128,8 @@ t.start(); t.join()
 
 **Why:** Django opens a per-thread database connection on first ORM access. The test runner only knows about the main thread's connection. Thread-local connections remain open after the thread exits, causing `TransactionTestCase.teardown_databases()` to fail with `"database is being accessed by other users"` when it tries to `DROP` the test database — breaking every subsequent pipeline job. This applies to any test that uses `threading.Thread`, `concurrent.futures`, or any other concurrency primitive.
 
+**Proving a thread waits on a lock:** use `boards.tests.lock_wait.assert_blocked_on_lock` (it reads `pg_stat_activity`), never `thread.join(<small timeout>)` plus `is_alive()`. A thread that is still alive may just be slow, and on a loaded runner that makes the test flaky (#1700).
+
 ---
 
 ## Suppression markers — `SUPPRESSED-UNTIL(#NNNN)`

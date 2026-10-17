@@ -63,12 +63,10 @@ from boards.models import (
 from boards.services import cards as card_services
 from boards.services.errors import ColumnNotFound, ContainerChanged, SwimlaneNotFound
 from boards.tests.test_admin_card_cell_entry_race import _admin_post_data
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 SERVICES = "boards.services.cards"
 HOLD_TIMEOUT = 10.0
-# How long the second request is given to (wrongly) get past the lock before
-# the test asserts it is still waiting on it.
-BLOCK_PROBE = 0.5
 NEWCOMER = "newcomer1602"
 
 
@@ -232,10 +230,7 @@ class _EntryRaceBase:
             )
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "entry never reached its hold")
             deleter = self._thread("deleter", delete, results)
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(
-                deleter.is_alive(), "container delete did not wait for the entry"
-            )
+            assert_blocked_on_lock(self, deleter, "container delete did not wait for the entry")
             release.set()
             entry.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -252,8 +247,7 @@ class _EntryRaceBase:
             entry = self._thread(
                 "entry", lambda: self._entry(kind, how)(self._client()), results
             )
-            entry.join(BLOCK_PROBE)
-            self.assertTrue(entry.is_alive(), "entry did not wait for the delete")
+            assert_blocked_on_lock(self, entry, "entry did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             entry.join(HOLD_TIMEOUT)
@@ -604,8 +598,7 @@ class ContainerDeleteVsBoardStructureTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete(kind), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", self._write(what), results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), f"{what} did not wait for the delete")
+            assert_blocked_on_lock(self, writer, f"{what} did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -621,8 +614,7 @@ class ContainerDeleteVsBoardStructureTests(_EntryRaceBase, TransactionTestCase):
             writer = self._thread("writer", self._write(what), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), f"{what} never reached its hold")
             deleter = self._thread("deleter", self._rest_delete(kind), results)
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(deleter.is_alive(), f"delete did not wait for {what}")
+            assert_blocked_on_lock(self, deleter, f"delete did not wait for {what}")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -699,8 +691,7 @@ class ContainerDeleteVsBoardStructureTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", delete, results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", self._write(what), results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), f"{what} did not wait for the delete")
+            assert_blocked_on_lock(self, writer, f"{what} did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -731,8 +722,7 @@ class ContainerDeleteVsBoardStructureTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete("swimlane"), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", admin_add, results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), "admin column add did not wait")
+            assert_blocked_on_lock(self, writer, "admin column add did not wait")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -785,8 +775,7 @@ class ServiceEntryVsContainerDeleteTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete(kind), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             entry = self._thread("entry", self._service_entry(kind, how), results)
-            entry.join(BLOCK_PROBE)
-            self.assertTrue(entry.is_alive(), "entry did not wait for the delete")
+            assert_blocked_on_lock(self, entry, "entry did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             entry.join(HOLD_TIMEOUT)
@@ -861,8 +850,7 @@ class AdminCardFormVsContainerDeleteTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete(kind), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             entry = self._thread("entry", self._admin_entry(kind, how), results)
-            entry.join(BLOCK_PROBE)
-            self.assertTrue(entry.is_alive(), "admin card form did not wait")
+            assert_blocked_on_lock(self, entry, "admin card form did not wait")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             entry.join(HOLD_TIMEOUT)
@@ -980,8 +968,7 @@ class BoardRowLockSitesVsBoardDeleteTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete("board"), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", self._site(site), results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), f"{site} did not wait for the delete")
+            assert_blocked_on_lock(self, writer, f"{site} did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -1013,8 +1000,7 @@ class BoardRowLockSitesVsBoardDeleteTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete("board"), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", admin_add, results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), "admin column add did not wait")
+            assert_blocked_on_lock(self, writer, "admin column add did not wait")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
@@ -1130,8 +1116,7 @@ class RowWritersVsContainerDeleteTests(_EntryRaceBase, TransactionTestCase):
             deleter = self._thread("deleter", self._rest_delete(kind), results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             w = self._thread("writer", writer, results)
-            w.join(BLOCK_PROBE)
-            self.assertTrue(w.is_alive(), "writer did not wait for the delete")
+            assert_blocked_on_lock(self, w, "writer did not wait for the delete")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             w.join(HOLD_TIMEOUT)

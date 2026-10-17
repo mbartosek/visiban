@@ -41,12 +41,10 @@ from boards.models import (
     Swimlane,
 )
 from boards.services import cards as card_services
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 SERVICES = "boards.services.cards"
 HOLD_TIMEOUT = 10.0
-# How long the second request is given to (wrongly) get past the lock before
-# the test asserts it is still waiting on it.
-BLOCK_PROBE = 0.5
 
 
 @skipUnless(
@@ -193,10 +191,7 @@ class ContainerDeleteVsCardWriteLockTests(TransactionTestCase):
                 lambda c: c.delete(self._container_url(kind)),
                 results,
             )
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(
-                deleter.is_alive(), "container delete did not wait for the card lock"
-            )
+            assert_blocked_on_lock(self, deleter, "container delete did not wait for the card lock")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -224,10 +219,7 @@ class ContainerDeleteVsCardWriteLockTests(TransactionTestCase):
                 paused.wait(HOLD_TIMEOUT), "delete never reached its hold point"
             )
             writer = self._thread("writer", self._writes()[write], results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(
-                writer.is_alive(), "write did not wait for the delete's card lock"
-            )
+            assert_blocked_on_lock(self, writer, "write did not wait for the delete's card lock")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)

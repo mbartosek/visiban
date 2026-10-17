@@ -43,9 +43,9 @@ from boards.models import (
     BoardInviteRedemption,
     BoardMembership,
 )
+from boards.tests.lock_wait import wait_until_blocked_on_lock
 
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 PASSWORD = "Sup3rS3cr3t!xyz"
 # The board destroy holds the board row (and its cards and columns) once this
 # returns, and has not yet reached the collector's DELETEs.
@@ -183,8 +183,7 @@ class _InviteDeleteRaceBase(TransactionTestCase):
                 paused.wait(HOLD_TIMEOUT), "first request never held its locks"
             )
             second_t = self._thread("second", second, results)
-            second_t.join(BLOCK_PROBE)
-            waited = second_t.is_alive()
+            waited = wait_until_blocked_on_lock(second_t)
             release.set()
             holder.join(HOLD_TIMEOUT)
             second_t.join(HOLD_TIMEOUT)

@@ -21,6 +21,7 @@ from django.urls import reverse
 import accounts.admin as admin_module
 from accounts.models import User
 from boards.models import Board
+from boards.tests.lock_wait import assert_blocked_on_lock, wait_until_blocked_on_lock
 
 PW = "pw123456!x"
 
@@ -540,6 +541,7 @@ class DeleteLockSequenceTests(TransactionTestCase):
             self.assertTrue(paused.wait(self.WAIT))
             c = threading.Thread(target=creator)
             c.start()
+            # Not a lock probe: either outcome is accepted below, so no helper.
             c.join(3)  # the delete holds no FOR UPDATE yet: the insert commits
             release.set()
             deleter.join(self.WAIT)
@@ -577,8 +579,7 @@ class DeleteLockSequenceTests(TransactionTestCase):
             self.assertTrue(paused.wait(self.WAIT))
             c = threading.Thread(target=creator)
             c.start()
-            c.join(1.0)
-            blocked = c.is_alive()
+            blocked = wait_until_blocked_on_lock(c)
             release.set()
             deleter.join(self.WAIT)
             c.join(self.WAIT)
@@ -620,7 +621,7 @@ class DeleteLockSequenceTests(TransactionTestCase):
         self.assertTrue(holding.wait(self.WAIT))
         deleter = self._delete_thread(results)
         deleter.start()
-        deleter.join(1.5)  # blocked on the card the writer holds
+        assert_blocked_on_lock(self, deleter, "user delete did not wait for the card the writer holds")
         go.set()
         w.join(self.WAIT)
         deleter.join(self.WAIT)
