@@ -1,8 +1,9 @@
-"""Side effects that follow a password being set through the web interface, the API or the Django admin (#1551).
+"""Side effects that follow a password being set through the web interface, the API, the Django admin or the operator command line (#1551).
 
 A password can be set through several routes: the SPA's two REST change
 endpoints, the REST reset-confirm endpoint, allauth's HTML change, set and
-reset-by-key forms, and the Django admin password form. Each route calls the
+reset-by-key forms, the Django admin password form and the ``changepassword``
+management command. Each route calls the
 helpers here in the same transaction as its password save, so the follow-up
 work is the same on each of them and commits or rolls back with the password.
 Registry Rule 3 in ``docs/development/security-invariants.md`` lists the
@@ -26,8 +27,8 @@ def lock_user_row(user):
     Credential issuance (``PersonalAccessToken`` creation,
     ``reissue_auth_token``, and the DRF ``Token`` issued at REST login in
     ``accounts.views.ThrottledLoginView.login``) and credential
-    revocation (``finalize_password_change`` and the admin-set variant) take
-    this lock first, so they are serialized per user. Must be called inside
+    revocation (``finalize_password_change``, the admin-set variant and the
+    operator-reset variant) take this lock first, so they are serialized per user. Must be called inside
     ``transaction.atomic()``. SQLite has no row locks, so there it is a plain
     read.
     """
@@ -137,7 +138,8 @@ def revoke_auth_token(user):
 
     Called from ``finalize_password_change`` (and so from
     ``finalize_password_reset``), from
-    ``require_password_change_after_admin_set``, and on account deactivation
+    ``require_password_change_after_admin_set``,
+    ``revoke_credentials_after_operator_reset``, and on account deactivation
     from ``AdminUserDeactivateView._revoke_invite_links``. The SPA
     authenticates with its session cookie, not this key, and REST login mints a
     fresh one on the next sign-in.
@@ -176,6 +178,27 @@ def finalize_password_reset(user):
     with transaction.atomic():
         lock_user_row(user)
         finalize_password_change(user)
+
+
+def revoke_credentials_after_operator_reset(user):
+    """Side effects of an operator resetting a password from the command line.
+
+    The ``changepassword`` management command runs with shell access to the
+    deployment, for example to recover an account whose owner cannot sign in.
+    Every credential issued under the previous password is revoked (Personal
+    Access Tokens and the DRF ``Token``); sessions end on their own because the
+    session auth hash is derived from the password hash.
+
+    Unlike ``require_password_change_after_admin_set``, ``must_change_password``
+    is left as it is: the operator typed the new password and is usually the
+    account owner (the first-boot recovery path), so a forced change would
+    only add a second prompt. Idempotent. Run it in the same transaction as the
+    password save.
+    """
+    with transaction.atomic():
+        lock_user_row(user)
+        user.personal_access_tokens.all().delete()
+        revoke_auth_token(user)
 
 
 def require_password_change_after_admin_set(user):

@@ -226,6 +226,9 @@ MCP_SERVER_ENABLED = env.bool("MCP_SERVER_ENABLED", default=False)
 MCP_ALLOWED_HOSTS = env.list("MCP_ALLOWED_HOSTS", default=[])
 
 INSTALLED_APPS = [
+    # Must precede django.contrib.auth: its management commands (changepassword)
+    # replace the built-in ones, and the first app providing a name wins.
+    "operator_commands",
     "daphne",
     "django.contrib.admin",
     "django.contrib.auth",

@@ -55,6 +55,8 @@ Users with a password-based account can reset their own password from the login 
 docker compose exec backend python manage.py changepassword <username>
 ```
 
+Resetting a password this way revokes the account's personal access tokens and its API auth token, so credentials issued under the old password stop working. It does not change whether the account must choose a new password.
+
 For API details, see [Authentication API — Forgot password](../api/authentication.md#forgot-password).
 
 ## OAuth (Google, GitHub, GitLab)

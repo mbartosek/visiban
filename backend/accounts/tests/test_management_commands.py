@@ -356,3 +356,116 @@ class ProvisionFuzzTokenFileTests(TestCase):
         with self.assertRaises(OSError):
             self._run()
         self.assertFalse(os.path.exists(os.path.join(self.dir.name, "victim")))
+
+
+class ChangePasswordCommandTests(TestCase):
+    """The operator ``changepassword`` command revokes credentials issued under the old password."""
+
+    def _run(self, username, password="a-Strong-new-pass-77"):
+        out = StringIO()
+        with patch("getpass.getpass", side_effect=[password, password]):
+            call_command("changepassword", username, stdout=out)
+        return out.getvalue()
+
+    def test_project_command_shadows_django_builtin(self):
+        """The name resolves to the project's command, not django.contrib.auth's."""
+        from django.core.management import get_commands
+
+        self.assertEqual(get_commands()["changepassword"], "operator_commands")
+
+    def test_reset_revokes_tokens_and_keeps_forced_change_flag(self):
+        user = User.objects.create_user(username="opuser", password="old-pass-1234!x")
+        Token.objects.create(user=user)
+        PersonalAccessToken.generate(user, "ci")
+
+        self.assertIn("Password changed successfully", self._run("opuser"))
+
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("a-Strong-new-pass-77"))
+        self.assertFalse(Token.objects.filter(user=user).exists())
+        self.assertEqual(user.personal_access_tokens.count(), 0)
+        self.assertFalse(user.must_change_password)
+
+    def test_reset_does_not_set_forced_change_when_already_set(self):
+        user = User.objects.create_user(username="opuser2", password="old-pass-1234!x")
+        user.must_change_password = True
+        user.save()
+        self._run("opuser2")
+        user.refresh_from_db()
+        self.assertTrue(user.must_change_password)
+
+    def test_other_users_credentials_untouched(self):
+        user = User.objects.create_user(username="opuser3", password="old-pass-1234!x")
+        other = User.objects.create_user(username="bystander", password="old-pass-1234!x")
+        Token.objects.create(user=other)
+        PersonalAccessToken.generate(other, "ci")
+        self._run("opuser3")
+        self.assertTrue(Token.objects.filter(user=other).exists())
+        self.assertEqual(other.personal_access_tokens.count(), 1)
+        self.assertEqual(user.personal_access_tokens.count(), 0)
+
+    def test_mismatched_passwords_leave_credentials_in_place(self):
+        user = User.objects.create_user(username="opuser4", password="old-pass-1234!x")
+        Token.objects.create(user=user)
+        PersonalAccessToken.generate(user, "ci")
+        with patch("getpass.getpass", side_effect=["aaaaaaaa-1X!", "bbbbbbbb-2Y!"] * 3):
+            with self.assertRaises(CommandError):
+                call_command("changepassword", "opuser4", stdout=StringIO())
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("old-pass-1234!x"))
+        self.assertTrue(Token.objects.filter(user=user).exists())
+        self.assertEqual(user.personal_access_tokens.count(), 1)
+
+    def test_unknown_user_is_an_error(self):
+        with self.assertRaises(CommandError):
+            call_command("changepassword", "nobody-here", stdout=StringIO())
+
+    def test_failure_in_revocation_rolls_back_the_password(self):
+        user = User.objects.create_user(username="opuser5", password="old-pass-1234!x")
+        Token.objects.create(user=user)
+        PersonalAccessToken.generate(user, "ci")
+        with patch(
+            "operator_commands.management.commands.changepassword.revoke_credentials_after_operator_reset",
+            side_effect=RuntimeError("boom"),
+        ):
+            with self.assertRaises(RuntimeError):
+                self._run("opuser5")
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("old-pass-1234!x"))
+        self.assertTrue(Token.objects.filter(user=user).exists())
+        self.assertEqual(user.personal_access_tokens.count(), 1)
+
+    @staticmethod
+    def _documented_snippets():
+        """Code of each fenced block in first-boot.md that calls the revocation helper, dedented."""
+        import re
+        import textwrap
+        from pathlib import Path
+
+        doc = Path(__file__).resolve().parents[3] / "docs" / "getting-started" / "first-boot.md"
+        blocks = re.findall(r"^[ \t]*```\w*\n(.*?)^[ \t]*```", doc.read_text(), flags=re.S | re.M)
+        snippets = []
+        for block in blocks:
+            if "revoke_credentials_after_operator_reset" not in block:
+                continue
+            code = textwrap.dedent(block)
+            # The compose variant wraps the code in `manage.py shell -c "..."`.
+            m = re.search(r'shell -c "\n(.*)\n"\s*$', code, flags=re.S)
+            snippets.append(textwrap.dedent(m.group(1)) if m else code)
+        return snippets
+
+    def test_documented_shell_snippets_revoke_credentials(self):
+        """Run each copy-paste recovery snippet from docs/getting-started/first-boot.md."""
+        snippets = self._documented_snippets()
+        self.assertEqual(len(snippets), 2)
+        for snippet in snippets:
+            user = User.objects.create_user(username="admin", password="old-pass-1234!x")
+            Token.objects.create(user=user)
+            PersonalAccessToken.generate(user, "ci")
+            exec(snippet, {})  # noqa: S102 - test-only: runs the documented snippet
+            user.refresh_from_db()
+            self.assertFalse(user.check_password("old-pass-1234!x"))
+            self.assertTrue(user.must_change_password)
+            self.assertFalse(Token.objects.filter(user=user).exists())
+            self.assertEqual(user.personal_access_tokens.count(), 0)
+            user.delete()

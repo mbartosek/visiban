@@ -223,6 +223,32 @@ def check_pending_action_middleware_installed(app_configs, **kwargs):
 
 
 @checks.register(checks.Tags.security)
+def check_operator_changepassword_command(app_configs, **kwargs):
+    """Fail if ``changepassword`` does not resolve to the project's command (registry Rule 3).
+
+    The operator reset path revokes issued tokens only through
+    ``operator_commands``, which must precede ``django.contrib.auth`` in
+    ``INSTALLED_APPS``. A later settings include (the enterprise one) can
+    replace ``INSTALLED_APPS`` wholesale and silently restore Django's command.
+    """
+    from django.core.management import get_commands
+
+    provider = get_commands().get("changepassword")
+    if provider == "operator_commands":
+        return []
+    return [
+        checks.Error(
+            f"The changepassword command is provided by {provider!r}, not by operator_commands.",
+            hint=(
+                'Keep "operator_commands" in INSTALLED_APPS, before "django.contrib.auth". '
+                "See docs/development/security-invariants.md, Rule 3."
+            ),
+            id="accounts.E008",
+        )
+    ]
+
+
+@checks.register(checks.Tags.security)
 def check_pending_action_extra_exempt_views(app_configs, **kwargs):
     """Fail on a malformed PENDING_ACTION_EXTRA_EXEMPT_VIEWS entry (#1561).
 

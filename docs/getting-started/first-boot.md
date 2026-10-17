@@ -57,15 +57,21 @@ docker compose -f docker-compose.prod.yml exec backend rm /tmp/visiban_admin_pas
     docker compose -f docker-compose.prod.yml exec backend python manage.py changepassword admin
     ```
 
+    The reset revokes any personal access tokens and API auth token issued under the old password. It does not change whether the account must choose a new password. The temporary password that `ensure_site_admin` generates is the exception by design: it sets the forced-change flag because that password is written to a file.
+
     `changepassword` prompts interactively and needs a real TTY (`docker compose exec` allocates one by default in an interactive terminal; scripts, CI, and some automation contexts do not and will fail with `EOFError`). In a non-interactive context, set the password directly instead:
 
     ```bash
     docker compose exec -T backend python manage.py shell -c "
+    from django.db import transaction
+    from accounts.credentials import lock_user_row, revoke_credentials_after_operator_reset
     from accounts.models import User
-    u = User.objects.get(username='admin')
-    u.set_password('a-new-temporary-password')
-    u.must_change_password = True
-    u.save()
+    with transaction.atomic():
+        u = lock_user_row(User.objects.get(username='admin'))
+        u.set_password('a-new-temporary-password')
+        u.must_change_password = True
+        u.save()
+        revoke_credentials_after_operator_reset(u)
     "
     ```
 
@@ -124,10 +130,16 @@ DJANGO_SUPERUSER_EMAIL=admin@example.com
 !!! warning
     If you lose the temporary password before changing it, reset it via the Django shell:
     ```python
+    from django.db import transaction
+    from accounts.credentials import lock_user_row, revoke_credentials_after_operator_reset
     from accounts.models import User
-    u = User.objects.get(username="admin")
-    u.set_password("new-temporary-password")
-    u.save()
+
+    with transaction.atomic():
+        u = lock_user_row(User.objects.get(username="admin"))
+        u.set_password("new-temporary-password")
+        u.must_change_password = True
+        u.save()
+        revoke_credentials_after_operator_reset(u)
     ```
 
 ## Inviting your team

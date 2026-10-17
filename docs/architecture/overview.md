@@ -44,6 +44,7 @@ How Visiban's pieces fit together: a Django/DRF backend and a React SPA, talking
 | App | Responsibility |
 |---|---|
 | `accounts` | Custom `User` model, `SiteSetting` (registration mode, uploads toggle), `PersonalAccessToken`, `InviteLink`, notification preferences, password change, auth provider list |
+| `operator_commands` | Management commands that replace Django's built-ins (`changepassword`); no models, templates or URLs; listed first in `INSTALLED_APPS` |
 | `boards` | Boards, columns, swimlanes, labels, cards, movements, comments, attachments, checklists |
 | `groups` | Group hierarchy, group memberships, invite links |
 | `git_lens` | [Issue Board Lens](../features/issue-board-lens.md) — off by default (`GIT_LENS_ENABLED`); only registered, with its routes and one model, when the flag is on |
