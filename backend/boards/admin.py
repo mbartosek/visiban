@@ -30,6 +30,7 @@ from .services.errors import (
     CardNotFound, SwimlaneNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded,
 )
 from .views._helpers import _refetched_card_data
+from .views.boards import _broadcast_board_group_change
 
 
 def _record_board_and_group_event(board_id, group_id, event_type, payload, *, actor_id):
@@ -38,12 +39,14 @@ def _record_board_and_group_event(board_id, group_id, event_type, payload, *, ac
     until commit, same as record_board_event().
 
     Board is the only admin-registered model that needs this: BoardViewSet's
-    perform_create/perform_update/destroy (boards/views/boards.py) already
-    dual-broadcast board.created/updated/deleted to both channels in one
-    on_commit callback, because GroupDetail.tsx's dashboard/boards-list view
-    listens for those events exclusively on the group socket, not the board
-    socket. This is BoardAdmin's counterpart to that — see BoardAdmin's
-    docstring for why it doesn't just use _BoardEventAdminMixin.
+    perform_create/destroy (boards/views/boards.py) dual-broadcast
+    board.created/deleted to both channels in one on_commit callback, because
+    GroupDetail.tsx's dashboard/boards-list view listens for those events
+    exclusively on the group socket, not the board socket. This is
+    BoardAdmin's counterpart for a create and a delete. An admin *change* uses
+    _record_board_update_event() instead, because it can move the board to
+    another group (#1684). See BoardAdmin's docstring for why it doesn't just
+    use _BoardEventAdminMixin.
     """
     event_id = _broadcast.persist_board_event(board_id, event_type, payload, actor_id=actor_id)
 
@@ -51,6 +54,28 @@ def _record_board_and_group_event(board_id, group_id, event_type, payload, *, ac
         _broadcast.broadcast_board_event(bid, evt, pl, event_id=eid)
         if gid is not None:
             _broadcast_group_event(gid, evt, pl)
+
+    transaction.on_commit(_send)
+
+
+def _record_board_update_event(board_id, old_group_id, new_group_id, payload, *, actor_id):
+    """Persist and broadcast an admin change to a board, as
+    BoardViewSet.perform_update does (#1684).
+
+    The admin form edits ``group`` too, so a change can be a group move. The
+    group-channel fan-out goes through the same helper as perform_update and
+    move_group: ``board.deleted`` to the group the board left,
+    ``board.created`` to the one it joined, ``board.updated`` when the group is
+    unchanged. The board channel gets ``board.updated`` either way. One
+    on_commit callback, so the frames go out together after the commit.
+    """
+    event_id = _broadcast.persist_board_event(
+        board_id, _broadcast.EVT_BOARD_UPDATED, payload, actor_id=actor_id,
+    )
+
+    def _send(bid=board_id, pl=payload, og=old_group_id, ng=new_group_id, eid=event_id):
+        _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, pl, event_id=eid)
+        _broadcast_board_group_change(bid, pl, og, ng)
 
     transaction.on_commit(_send)
 
@@ -630,9 +655,13 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
     Board is the one board-scoped model in this file with a second broadcast
     audience: GroupDetail.tsx's dashboard/boards-list view listens for
     board.created/board.updated/board.deleted exclusively on the group socket
-    (useGroupSocket), not the board socket — mirroring
-    BoardViewSet.perform_create/perform_update/destroy's dual on_commit
-    broadcast in boards/views/boards.py. A board created, renamed, or deleted
+    (useGroupSocket), not the board socket. BoardViewSet's REST handlers in
+    boards/views/boards.py broadcast to both channels in one on_commit
+    callback, and this admin does the same: a create or delete goes to the
+    board's group, and a change goes through the group-move helper that
+    perform_update and move_group use, so a change of ``group`` tells the old
+    group the board left (``board.deleted``) and the new group it arrived
+    (``board.created``) (#1684). A board created, renamed, moved or deleted
     via /admin/ must still reach that view without a manual reload, so this
     class does not use _BoardEventAdminMixin's single-channel pattern —
     Swimlane/Label/BoardMembership have no group-channel counterpart (their
@@ -651,9 +680,15 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
     )
 
     def save_model(self, request, obj, form, change):
+        old_group_id = None
         if change:
             # Board row first (#1602; see _lock_board_for_admin_save).
             _lock_board_for_admin_save(obj.pk)
+            # The group the board is leaving, read from the locked row rather
+            # than ``obj`` (the form's target), as perform_update does (#1684).
+            old_group_id = (
+                Board.objects.filter(pk=obj.pk).values_list("group_id", flat=True).first()
+            )
             if form is not None:
                 # BoardAdmin.save_model re-reads fields that are not on the
                 # form from the locked row (and form fields the administrator
@@ -667,7 +702,6 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 self.check_row_version(form, stored)
                 self.keep_unchanged_fields(obj, form, stored)
         super().save_model(request, obj, form, change)
-        event = _broadcast.EVT_BOARD_UPDATED if change else _broadcast.EVT_BOARD_CREATED
         # No request in context: BoardSerializer.get_group_detail() reads
         # request.query_params (a DRF Request attribute) to resolve
         # ?expand=group, which the plain Django admin HttpRequest does not
@@ -675,9 +709,15 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
         # context falls back to is_starred=False / group_detail=None, both
         # of which are documented fallbacks on a bare instance, not a crash.
         board_data = BoardSerializer(obj).data
-        _record_board_and_group_event(
-            obj.id, obj.group_id, event, board_data, actor_id=request.user.pk
-        )
+        if change:
+            _record_board_update_event(
+                obj.id, old_group_id, obj.group_id, board_data, actor_id=request.user.pk
+            )
+        else:
+            _record_board_and_group_event(
+                obj.id, obj.group_id, _broadcast.EVT_BOARD_CREATED, board_data,
+                actor_id=request.user.pk,
+            )
 
     def delete_model(self, request, obj):
         board_id = obj.id

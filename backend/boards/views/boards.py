@@ -61,6 +61,9 @@ def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_
 
     Call it from inside the caller's single ``on_commit`` callback, so the
     old- and new-group frames go out together after the commit (#753).
+    BoardAdmin's change path calls it too, so its group-channel sends go
+    through this module's ``_broadcast_group_event`` (tests patch it as
+    ``boards.views.boards._broadcast_group_event``).
     """
     if old_group_id is not None and old_group_id != new_group_id:
         # board_id is kept on move-out for clients keyed by the integer id
