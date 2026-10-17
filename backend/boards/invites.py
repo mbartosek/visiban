@@ -272,9 +272,12 @@ def board_link_registration_refusal(
     ``can_register`` and the registration validator share one definition.
     Mirrors ``groups.invite_registration.group_link_registration_refusal``.
 
-    An invite reserved for an account awaiting confirmation (#1704) admits no
-    other registration; ``reserved_for`` is that account, passed when the
-    grant at confirmation re-applies these rules.
+    A reservation (#1704) is not a refusal here: the registration validator
+    runs before the account exists, and a sign-up that does not have to wait
+    for verification may still take a reserved invite over (see
+    ``redeem_board_registration_token``). ``reserved_for`` is passed only by
+    the grant at confirmation, which re-applies these rules for that account:
+    an invite no longer reserved for it is refused.
     """
     if link.revoked_at is not None or not role_is_grantable(link):
         return "invite_invalid"
@@ -289,7 +292,7 @@ def board_link_registration_refusal(
         return "invite_not_for_registration"
     if link.used_at is not None:
         return "invite_invalid"
-    if link.reserved_for_id is not None and link.reserved_for_id != getattr(reserved_for, "pk", None):
+    if reserved_for is not None and link.reserved_for_id != reserved_for.pk:
         return "invite_invalid"
     if link.is_expired:
         return "invite_expired"
@@ -398,7 +401,14 @@ def redeem_board_registration_token(link: BoardInviteLink, user) -> None:
     Under ``EMAIL_VERIFICATION=mandatory``, when the invited address is not yet
     verified on ``user`` (#1704), the invite is reserved for ``user`` instead:
     no membership, no ``used_at``. ``redeem_reserved_board_invites`` grants it
-    when ``user`` confirms the invited address.
+    when ``user`` confirms the invited address. Only an unreserved invite can
+    be reserved; a second sign-up that would also have to wait is refused.
+
+    A sign-up that does not have to wait (``optional`` / ``none``, or the
+    provider reported the invited address as verified) claims the invite even
+    when another account holds a reservation on it, clearing the reservation
+    in the same conditional update. The reserving account is then granted
+    nothing at its confirmation, because the invite is used.
     """
     with transaction.atomic():
         # Board row before the claim (#1631). Both current callers validated
@@ -428,12 +438,14 @@ def redeem_board_registration_token(link: BoardInviteLink, user) -> None:
                 link.prefix, link.board_id, user.pk,
             )
             return
-        claimed = BoardInviteLink.objects.filter(
-            pk=link.pk, used_at__isnull=True, revoked_at__isnull=True,
-        ).update(used_at=timezone.now())
+        claimed = (
+            BoardInviteLink.objects.filter(pk=link.pk, used_at__isnull=True, revoked_at__isnull=True)
+            .filter(Q(reserved_for__isnull=True) | ~Q(reserved_for=user))
+            .update(used_at=timezone.now(), reserved_for=None)
+        )
         if claimed != 1:
             raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
-        link.refresh_from_db(fields=["used_at", "use_count"])
+        link.refresh_from_db(fields=["used_at", "use_count", "reserved_for"])
         redeem(link, user, load_board(link.board_id), via=BoardInviteRedemption.Via.REGISTRATION)
     logger.info(
         "Board invite redeemed at registration. token=%s board_id=%s user_id=%s",
@@ -448,15 +460,18 @@ def redeem_reserved_board_invites(user, email_address) -> int:
     (``visiban.invite_recipient.grant_reserved_invites``). Per invite, in its
     own transaction: the board row lock, then the invite row lock (the order
     every redemption takes, #1631), then the registration rules re-applied on
-    the locked row — revoked, used, expired, sender standing, email invites
-    enabled — and finally the conditional claim on ``used_at IS NULL`` and the
-    reservation, checked by row count. A concurrent confirmation queues on the
-    row lock and then finds the reservation gone; a join that consumed the
-    invite first leaves this one nothing to claim. Either way one grant.
+    the locked row — revoked, used, expired, grantable role, sender standing,
+    email invites enabled — and finally the conditional claim on
+    ``used_at IS NULL`` and the reservation, checked by row count. A
+    concurrent confirmation queues on the row lock and then finds the
+    reservation gone; a join or a sign-up that consumed the invite first
+    leaves this one nothing to claim. Either way one grant.
 
     Confirming an address other than the invited one grants nothing and keeps
     the reservation. An invite that can no longer be used is released and
-    grants nothing. Returns the number of invites granted.
+    grants nothing. A failure on one invite is logged and rolled back without
+    affecting the others or the confirmation itself (allauth sends the signal
+    without isolating receivers). Returns the number of invites granted.
     """
     if user is None or not user.is_active:
         return 0
@@ -465,37 +480,47 @@ def redeem_reserved_board_invites(user, email_address) -> int:
         BoardInviteLink.objects.filter(reserved_for=user).values_list("pk", "board_id")
     )
     for link_id, board_id in reserved:
-        with transaction.atomic():
-            if not lock_invite_board(board_id):
-                continue
-            link = BoardInviteLink.objects.select_for_update().filter(
-                pk=link_id, reserved_for=user,
-            ).first()
-            if link is None:
-                continue
-            if not confirmed_address_admits(link, email_address):
-                continue
-            refusal = board_link_registration_refusal(link, reserved_for=user)
-            if refusal is not None:
-                BoardInviteLink.objects.filter(pk=link.pk, reserved_for=user).update(reserved_for=None)
-                logger.info(
-                    "Reserved board invite released at confirmation (code=%s). token=%s board_id=%s user_id=%s",
-                    refusal, link.prefix, board_id, user.pk,
-                )
-                continue
-            claimed = BoardInviteLink.objects.filter(
-                pk=link.pk, reserved_for=user, used_at__isnull=True, revoked_at__isnull=True,
-            ).update(used_at=timezone.now(), reserved_for=None)
-            if claimed != 1:
-                continue
-            link.refresh_from_db(fields=["used_at", "use_count", "reserved_for"])
-            redeem(link, user, load_board(board_id), via=BoardInviteRedemption.Via.REGISTRATION)
-            granted += 1
-        logger.info(
-            "Reserved board invite redeemed at confirmation. token=%s board_id=%s user_id=%s",
-            link.prefix, board_id, user.pk,
-        )
+        try:
+            if _grant_reserved_board_invite(link_id, board_id, user, email_address):
+                granted += 1
+        except Exception:  # noqa: BLE001 - one invite must not break the confirmation
+            logger.exception(
+                "Reserved board invite grant failed. invite_id=%s board_id=%s user_id=%s",
+                link_id, board_id, user.pk,
+            )
     return granted
+
+
+def _grant_reserved_board_invite(link_id, board_id, user, email_address) -> bool:
+    """One invite of ``redeem_reserved_board_invites``; True when it granted."""
+    with transaction.atomic():
+        if not lock_invite_board(board_id):
+            return False
+        link = BoardInviteLink.objects.select_for_update().filter(pk=link_id, reserved_for=user).first()
+        if link is None:
+            return False
+        if not confirmed_address_admits(link, email_address):
+            return False
+        refusal = board_link_registration_refusal(link, reserved_for=user)
+        if refusal is not None:
+            BoardInviteLink.objects.filter(pk=link.pk, reserved_for=user).update(reserved_for=None)
+            logger.info(
+                "Reserved board invite released at confirmation (code=%s). token=%s board_id=%s user_id=%s",
+                refusal, link.prefix, board_id, user.pk,
+            )
+            return False
+        claimed = BoardInviteLink.objects.filter(
+            pk=link.pk, reserved_for=user, used_at__isnull=True, revoked_at__isnull=True,
+        ).update(used_at=timezone.now(), reserved_for=None)
+        if claimed != 1:
+            return False
+        link.refresh_from_db(fields=["used_at", "use_count", "reserved_for"])
+        redeem(link, user, load_board(board_id), via=BoardInviteRedemption.Via.REGISTRATION)
+    logger.info(
+        "Reserved board invite redeemed at confirmation. token=%s board_id=%s user_id=%s",
+        link.prefix, board_id, user.pk,
+    )
+    return True
 
 
 def _email_invites_enabled() -> bool:

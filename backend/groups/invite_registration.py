@@ -30,6 +30,7 @@ authorizing a second account between the two requests.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.invite_utils import InviteTokenError
@@ -37,7 +38,7 @@ from accounts.models import SiteSetting, get_registration_mode
 from visiban.invite_recipient import confirmed_address_admits, grant_awaits_verification, require_recipient
 
 from . import broadcast as _group_broadcast
-from .models import GroupInviteLink, GroupMembership
+from .models import Group, GroupInviteLink, GroupMembership
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +72,22 @@ def group_link_registration_refusal(link: GroupInviteLink, *, reserved_for=None)
     invite is ``invite_not_for_registration``), then consumption, expiry,
     the email-invite feature switch, and whether the sender still admits.
 
-    An invite reserved for an account awaiting confirmation (#1704) admits no
-    other registration; ``reserved_for`` is that account, passed when the
-    grant at confirmation re-applies these rules.
+    A stored role that is not a group membership role is refused
+    (``invite_invalid``), so a row written outside ``generate()`` never grants
+    an unknown role.
+
+    A reservation (#1704) is not a refusal here: the registration validator
+    runs before the account exists, and a sign-up that does not have to wait
+    for verification may still take a reserved invite over (see
+    ``redeem_group_registration_token``). ``reserved_for`` is passed only by
+    the grant at confirmation, which re-applies these rules for that account:
+    an invite no longer reserved for it is refused.
     """
     if not link.is_active:
         # Unreachable from the validator (its lookup filters is_active); kept
         # so a caller holding a revoked instance never gets a false "admits".
+        return "invite_invalid"
+    if link.role not in GroupMembership.Role.values:
         return "invite_invalid"
     if not (link.single_use and link.delivery == GroupInviteLink.Delivery.EMAIL):
         return "invite_not_for_registration"
@@ -90,7 +100,7 @@ def group_link_registration_refusal(link: GroupInviteLink, *, reserved_for=None)
         return "invite_not_for_registration"
     if link.used_at is not None:
         return "invite_invalid"
-    if link.reserved_for_id is not None and link.reserved_for_id != getattr(reserved_for, "pk", None):
+    if reserved_for is not None and link.reserved_for_id != reserved_for.pk:
         return "invite_invalid"
     if link.is_expired:
         return "invite_expired"
@@ -203,7 +213,14 @@ def redeem_group_registration_token(link: GroupInviteLink, user) -> None:
     Under ``EMAIL_VERIFICATION=mandatory``, when the invited address is not yet
     verified on ``user`` (#1704), the invite is reserved for ``user`` instead:
     no membership, no ``used_at``. ``redeem_reserved_group_invites`` grants it
-    when ``user`` confirms the invited address.
+    when ``user`` confirms the invited address. Only an unreserved invite can
+    be reserved; a second sign-up that would also have to wait is refused.
+
+    A sign-up that does not have to wait (``optional`` / ``none``, or the
+    provider reported the invited address as verified) claims the invite even
+    when another account holds a reservation on it, clearing the reservation
+    in the same conditional update. The reserving account is then granted
+    nothing at its confirmation, because the invite is used.
     """
     with transaction.atomic():
         # Bound to the invited address (#1678): the new account's signup
@@ -225,9 +242,11 @@ def redeem_group_registration_token(link: GroupInviteLink, user) -> None:
                 link.prefix, link.group_id, user.pk,
             )
             return
-        stamped = GroupInviteLink.objects.filter(
-            pk=link.pk, used_at__isnull=True, is_active=True,
-        ).update(used_at=timezone.now())
+        stamped = (
+            GroupInviteLink.objects.filter(pk=link.pk, used_at__isnull=True, is_active=True)
+            .filter(Q(reserved_for__isnull=True) | ~Q(reserved_for=user))
+            .update(used_at=timezone.now(), reserved_for=None)
+        )
         if stamped != 1:
             raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
         _grant_membership(link, user)
@@ -250,14 +269,17 @@ def _grant_membership(link: GroupInviteLink, user) -> None:
     if created:
         from .serializers import GroupMembershipSerializer
 
-        data = GroupMembershipSerializer(membership).data
+        data = dict(GroupMembershipSerializer(membership).data)
         gid = link.group_id
 
         def _broadcast_member_added():
             from .broadcast import broadcast_group_event
             broadcast_group_event(gid, _group_broadcast.EVT_MEMBER_ADDED, data)
 
-        transaction.on_commit(_broadcast_member_added)
+        # robust: the membership is committed by the time this runs; a
+        # failure to publish is logged by Django and never undoes the grant
+        # or fails the request that made it.
+        transaction.on_commit(_broadcast_member_added, robust=True)
 
 
 def redeem_reserved_group_invites(user, email_address) -> int:
@@ -265,44 +287,70 @@ def redeem_reserved_group_invites(user, email_address) -> int:
 
     Called from the ``email_confirmed`` receiver
     (``visiban.invite_recipient.grant_reserved_invites``). Per invite, in its
-    own transaction: the invite row lock, the registration rules re-applied on
-    the locked row (revoked, used, expired, sender standing, email invites
-    enabled), then the conditional claim on ``used_at IS NULL`` and the
-    reservation, checked by row count. A concurrent confirmation queues on the
-    row lock and then finds the reservation gone; a join that consumed the
-    invite first leaves this one nothing to claim. Either way one grant.
+    own transaction: the group row lock (so a concurrently deleted group is
+    skipped, not a failed insert), the invite row lock, the registration rules
+    re-applied on the locked row (revoked, used, expired, membership role,
+    sender standing, email invites enabled), then the conditional claim on
+    ``used_at IS NULL`` and the reservation, checked by row count. A
+    concurrent confirmation queues on the row lock and then finds the
+    reservation gone; a join or a sign-up that consumed the invite first
+    leaves this one nothing to claim. Either way one grant.
 
     Confirming an address other than the invited one grants nothing and keeps
     the reservation. An invite that can no longer be used is released and
-    grants nothing. Returns the number of invites granted.
+    grants nothing. A failure on one invite is logged and rolled back without
+    affecting the others or the confirmation itself (allauth sends the signal
+    without isolating receivers). Returns the number of invites granted.
     """
     if user is None or not user.is_active:
         return 0
     granted = 0
-    for link_id in list(GroupInviteLink.objects.filter(reserved_for=user).values_list("pk", flat=True)):
-        with transaction.atomic():
-            link = GroupInviteLink.objects.select_for_update().filter(pk=link_id, reserved_for=user).first()
-            if link is None:
-                continue
-            if not confirmed_address_admits(link, email_address):
-                continue
-            refusal = group_link_registration_refusal(link, reserved_for=user)
-            if refusal is not None:
-                GroupInviteLink.objects.filter(pk=link.pk, reserved_for=user).update(reserved_for=None)
-                logger.info(
-                    "Reserved group invite released at confirmation (code=%s). token=%s group_id=%s user_id=%s",
-                    refusal, link.prefix, link.group_id, user.pk,
-                )
-                continue
-            claimed = GroupInviteLink.objects.filter(
-                pk=link.pk, reserved_for=user, used_at__isnull=True, is_active=True,
-            ).update(used_at=timezone.now(), reserved_for=None)
-            if claimed != 1:
-                continue
-            _grant_membership(link, user)
-            granted += 1
-        logger.info(
-            "Reserved group invite redeemed at confirmation. token=%s group_id=%s user_id=%s",
-            link.prefix, link.group_id, user.pk,
-        )
+    reserved = list(
+        GroupInviteLink.objects.filter(reserved_for=user).values_list("pk", "group_id")
+    )
+    for link_id, group_id in reserved:
+        try:
+            if _grant_reserved_group_invite(link_id, group_id, user, email_address):
+                granted += 1
+        except Exception:  # noqa: BLE001 - one invite must not break the confirmation
+            logger.exception(
+                "Reserved group invite grant failed. invite_id=%s group_id=%s user_id=%s",
+                link_id, group_id, user.pk,
+            )
     return granted
+
+
+def _grant_reserved_group_invite(link_id, group_id, user, email_address) -> bool:
+    """One invite of ``redeem_reserved_group_invites``; True when it granted."""
+    with transaction.atomic():
+        # Group row first, then the invite row: the order a group delete
+        # takes (it locks the group, then cascades to its invites).
+        group_alive = (
+            Group.objects.select_for_update(no_key=True).filter(pk=group_id).values_list("pk", flat=True).first()
+        ) is not None
+        if not group_alive:
+            return False
+        link = GroupInviteLink.objects.select_for_update().filter(pk=link_id, reserved_for=user).first()
+        if link is None:
+            return False
+        if not confirmed_address_admits(link, email_address):
+            return False
+        refusal = group_link_registration_refusal(link, reserved_for=user)
+        if refusal is not None:
+            GroupInviteLink.objects.filter(pk=link.pk, reserved_for=user).update(reserved_for=None)
+            logger.info(
+                "Reserved group invite released at confirmation (code=%s). token=%s group_id=%s user_id=%s",
+                refusal, link.prefix, group_id, user.pk,
+            )
+            return False
+        claimed = GroupInviteLink.objects.filter(
+            pk=link.pk, reserved_for=user, used_at__isnull=True, is_active=True,
+        ).update(used_at=timezone.now(), reserved_for=None)
+        if claimed != 1:
+            return False
+        _grant_membership(link, user)
+    logger.info(
+        "Reserved group invite redeemed at confirmation. token=%s group_id=%s user_id=%s",
+        link.prefix, group_id, user.pk,
+    )
+    return True

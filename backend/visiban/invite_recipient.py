@@ -202,10 +202,22 @@ def grant_reserved_invites(sender, request, email_address, **kwargs):
     verification code, the allauth admin action) sends ``email_confirmed``.
     Each kind grants under its own locks and claims the invite with a
     conditional update, so a repeated or concurrent confirmation grants once.
+    A failed grant is logged and never fails the confirmation; the invite
+    stays reserved and its recipient can still use it through the join page.
     """
     from boards.invites import redeem_reserved_board_invites
     from groups.invite_registration import redeem_reserved_group_invites
 
     user = email_address.user
-    redeem_reserved_group_invites(user, email_address)
-    redeem_reserved_board_invites(user, email_address)
+    # allauth sends email_confirmed with a plain send(): an exception here
+    # would fail the confirmation request after the address is already
+    # verified, and a retry would not send the signal again. Each kind
+    # isolates its invites as well; this guards the two kinds from each other.
+    for grant in (redeem_reserved_group_invites, redeem_reserved_board_invites):
+        try:
+            grant(user, email_address)
+        except Exception:  # noqa: BLE001 - never fail the confirmation
+            logger.exception(
+                "Reserved invite grant failed at confirmation. kind=%s user_id=%s",
+                grant.__name__, getattr(user, "pk", None),
+            )

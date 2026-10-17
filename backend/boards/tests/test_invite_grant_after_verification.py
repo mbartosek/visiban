@@ -15,6 +15,7 @@ from datetime import timedelta
 from unittest import mock
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
+from allauth.core.exceptions import ImmediateHttpResponse
 from django.core.cache import cache
 from django.db import connection
 from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
@@ -45,6 +46,7 @@ def set_mode(mode):
 
 class _BoardKind:
     model = BoardInviteLink
+    grant_target = "boards.invites.redeem"
 
     def make_target(self):
         owner = User.objects.create_user(username="owner", password="p", email="owner@acme.test")
@@ -77,6 +79,7 @@ class _BoardKind:
 
 class _GroupKind:
     model = GroupInviteLink
+    grant_target = "groups.invite_registration._grant_membership"
 
     def make_target(self):
         self.sender = User.objects.create_user(
@@ -167,13 +170,53 @@ class _RestRegistrationTests:
         self.assertEqual(self.member_count(), 1)
 
     @MANDATORY
-    def test_reserved_invite_admits_no_second_registration(self):
-        _link, raw = self.make_invite()
+    def test_reserved_invite_admits_no_second_rest_registration(self):
+        link, raw = self.make_invite()
         self._register(INVITED, raw)
-        r = self._register("second.person@example.org", raw)
-        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
-        self.assertIn("invite_token", r.json())
+        first = self._registered()
+        # Another address does not match the binding; the invited address is
+        # already taken by the first account. Neither creates an account.
+        for email in ("second.person@example.org", INVITED.upper()):
+            with self.subTest(email=email):
+                r = self._register(email, raw)
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        self.assertEqual(User.objects.filter(email__iexact=INVITED).count(), 1)
         self.assertFalse(User.objects.filter(email="second.person@example.org").exists())
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, first.pk)
+        self.assertIsNone(link.used_at)
+
+    @MANDATORY
+    def test_role_outside_the_membership_roles_is_released_not_granted(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        self.model.objects.filter(pk=link.pk).update(role="owner")
+        self.assertEqual(_confirm(self._invited_address(user)).status_code, status.HTTP_200_OK)
+        self.assertFalse(self.is_member(user))
+        link.refresh_from_db()
+        self.assertIsNone(link.used_at)
+        self.assertIsNone(link.reserved_for_id)
+
+    @MANDATORY
+    def test_failing_grant_does_not_break_confirmation(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        with mock.patch(self.grant_target, side_effect=RuntimeError("boom")), \
+                self.assertLogs("", level="ERROR") as logs:
+            r = _confirm(self._invited_address(user))
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertTrue(self._invited_address(user).verified)
+        self.assertFalse(self.is_member(user))
+        # Rolled back: still reserved, still unused, so the join page still works.
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, user.pk)
+        self.assertIsNone(link.used_at)
+        output = "\n".join(logs.output)
+        self.assertIn(f"user_id={user.pk}", output)
+        self.assertNotIn(INVITED.lower(), output.lower())
+        self.assertNotIn(raw, output)
 
     @MANDATORY
     def test_revoked_before_confirmation_grants_nothing(self):
@@ -287,15 +330,84 @@ class BoardRestRegistrationTests(_BoardKind, _RestRegistrationTests, TestCase):
         self.assertEqual(link.use_count, 1)
 
     @MANDATORY
-    def test_reserved_invite_preview_cannot_register(self):
+    def test_reserved_invite_preview_still_offers_registration(self):
+        # A sign-up that does not have to wait for verification may still
+        # take a reserved invite over, so the preview keeps offering sign-up.
         _link, raw = self.make_invite()
         self._register(INVITED, raw)
         r = APIClient().get(self.join_url(raw))
         self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertFalse(r.json()["can_register"])
+        self.assertTrue(r.json()["can_register"])
+
+    @MANDATORY
+    def test_failure_on_one_invite_leaves_the_others_granted(self):
+        # A board invite and a group invite reserved for the same account; the
+        # board grant fails, the group grant still happens.
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        group = Group.objects.create(name="Platform Team", owner=self.sender)
+        GroupMembership.objects.create(group=group, user=self.sender, role=GroupMembership.Role.ADMIN)
+        glink, _graw = GroupInviteLink.generate(
+            group=group, created_by=self.sender, role=GroupInviteLink.Role.MEMBER, single_use=True,
+            delivery=GroupInviteLink.Delivery.EMAIL, recipient_email=INVITED,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        GroupInviteLink.objects.filter(pk=glink.pk).update(reserved_for=user)
+        second_board = Board.objects.create(name="Second", owner=self.sender)
+        link2, _raw2 = BoardInviteLink.generate(
+            board=second_board, created_by=self.sender, role="viewer", single_use=True, delivery="email",
+            recipient_email=INVITED, expires_at=timezone.now() + timedelta(days=7),
+        )
+        BoardInviteLink.objects.filter(pk=link2.pk).update(reserved_for=user)
+        from boards import invites as board_invites
+
+        real_redeem = board_invites.redeem
+        calls = []
+
+        def flaky(link_obj, *args, **kwargs):
+            calls.append(link_obj.pk)
+            if link_obj.pk == link.pk:
+                raise RuntimeError("boom")
+            return real_redeem(link_obj, *args, **kwargs)
+
+        with mock.patch("boards.invites.redeem", side_effect=flaky), self.assertLogs("", level="ERROR"):
+            r = _confirm(self._invited_address(user))
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertFalse(self.is_member(user))
+        self.assertTrue(BoardMembership.objects.filter(board=second_board, user=user).exists())
+        self.assertTrue(GroupMembership.objects.filter(group=group, user=user).exists())
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, user.pk)
 
 
 class GroupRestRegistrationTests(_GroupKind, _RestRegistrationTests, TestCase):
+
+    @MANDATORY
+    def test_deleted_group_grants_nothing_and_confirmation_succeeds(self):
+        _link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        Group.objects.filter(pk=self.group.pk).delete()
+        self.assertEqual(_confirm(self._invited_address(user)).status_code, status.HTTP_200_OK)
+        self.assertFalse(GroupMembership.objects.filter(user=user).exists())
+
+    @MANDATORY
+    def test_group_deleted_between_listing_and_lock_is_skipped(self):
+        from groups import invite_registration
+
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        real = invite_registration._grant_reserved_group_invite
+
+        def delete_first(link_id, group_id, *args):
+            Group.objects.filter(pk=group_id).delete()
+            return real(link_id, group_id, *args)
+
+        with mock.patch.object(invite_registration, "_grant_reserved_group_invite", side_effect=delete_first):
+            self.assertEqual(_confirm(self._invited_address(user)).status_code, status.HTTP_200_OK)
+        self.assertFalse(GroupMembership.objects.filter(user=user).exists())
 
     @MANDATORY
     def test_grant_on_confirmation_broadcasts_member_added_on_commit(self):
@@ -324,14 +436,14 @@ class _OAuthRegistrationTests:
         set_mode(SiteSetting.RegistrationMode.OPEN)
         cache.clear()
 
-    def _save(self, raw, *, provider_verified):
+    def _save(self, raw, *, provider_verified, username="oauth_user"):
         request = RequestFactory().get("/accounts/google/login/callback/")
         request.session = {PENDING_INVITE_SESSION_KEY: raw}
 
         def create(*args, **kwargs):
             # What allauth's setup_user_email leaves behind: the provider's
             # address, verified only when the provider says so.
-            user = User.objects.create_user(username="oauth_user", password="p", email=INVITED.lower())
+            user = User.objects.create_user(username=username, password="p", email=INVITED.lower())
             EmailAddress.objects.create(user=user, email=INVITED.lower(), verified=provider_verified, primary=True)
             return user
 
@@ -350,6 +462,60 @@ class _OAuthRegistrationTests:
         self.assertTrue(self.is_member(user))
         link.refresh_from_db()
         self.assertIsNotNone(link.used_at)
+        self.assertIsNone(link.reserved_for_id)
+
+    def _reserve_for_another_account(self, link):
+        holder = User.objects.create_user(username="holder", password="p", email=INVITED.lower())
+        self.model.objects.filter(pk=link.pk).update(reserved_for=holder)
+        return holder
+
+    @MANDATORY
+    def test_second_awaiting_signup_cannot_take_a_reserved_invite(self):
+        link, raw = self.make_invite()
+        holder = self._reserve_for_another_account(link)
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            self._save(raw, provider_verified=False)
+        self.assertIn("auth_error=invite_invalid", ctx.exception.response.url)
+        self.assertFalse(User.objects.filter(username="oauth_user").exists())
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, holder.pk)
+        self.assertIsNone(link.used_at)
+
+    @MANDATORY
+    def test_provider_verified_signup_takes_over_a_reservation(self):
+        link, raw = self.make_invite()
+        holder = self._reserve_for_another_account(link)
+        user = self._save(raw, provider_verified=True)
+        self.assertTrue(self.is_member(user))
+        link.refresh_from_db()
+        self.assertIsNotNone(link.used_at)
+        self.assertIsNone(link.reserved_for_id)
+        # The earlier reserving account is granted nothing later.
+        holder_address = EmailAddress.objects.create(
+            user=holder, email="holder@example.org", verified=True, primary=True,
+        )
+        grant_reserved_invites(sender=EmailAddress, request=None, email_address=holder_address)
+        self.assertFalse(self.is_member(holder))
+        self.assertEqual(self.member_count(), 1)
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
+    def test_optional_mode_signup_takes_over_a_reservation(self):
+        link, raw = self.make_invite()
+        holder = self._reserve_for_another_account(link)
+        user = self._save(raw, provider_verified=False)
+        self.assertTrue(self.is_member(user))
+        self.assertFalse(self.is_member(holder))
+        link.refresh_from_db()
+        self.assertIsNotNone(link.used_at)
+        self.assertIsNone(link.reserved_for_id)
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="none")
+    def test_none_mode_signup_takes_over_a_reservation(self):
+        link, raw = self.make_invite()
+        self._reserve_for_another_account(link)
+        user = self._save(raw, provider_verified=False)
+        self.assertTrue(self.is_member(user))
+        link.refresh_from_db()
         self.assertIsNone(link.reserved_for_id)
 
     @MANDATORY
@@ -498,3 +664,96 @@ class BoardConcurrentConfirmationTests(_BoardKind, _ConcurrentConfirmationTests,
 
 class GroupConcurrentConfirmationTests(_GroupKind, _ConcurrentConfirmationTests, TransactionTestCase):
     pass
+
+
+class _ConcurrentTakeoverTests:
+    """Two simultaneous sign-ups taking over one reserved invite: exactly one grant."""
+
+    def setUp(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("SQLite does not support SELECT FOR UPDATE; this test requires PostgreSQL.")
+        cache.clear()
+        set_mode(SiteSetting.RegistrationMode.INVITE_ONLY)
+        self.make_target()
+        self.link, self.raw = self.make_invite()
+        holder = User.objects.create_user(username="holder", password="p", email=INVITED.lower())
+        self.model.objects.filter(pk=self.link.pk).update(reserved_for=holder)
+
+    def tearDown(self):
+        set_mode(SiteSetting.RegistrationMode.OPEN)
+        cache.clear()
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
+    def test_two_concurrent_takeovers_grant_once(self):
+        results = []
+        barrier = threading.Barrier(2)
+        local = threading.local()
+
+        def create(*args, **kwargs):
+            # One patch for both threads (patching a class attribute per thread
+            # would race); each thread names its own account.
+            return User.objects.create_user(username=local.username, password="p", email=INVITED.lower())
+
+        def signup(username):
+            from django.db import connections as _conns
+
+            try:
+                local.username = username
+                request = RequestFactory().get("/accounts/google/login/callback/")
+                request.session = {PENDING_INVITE_SESSION_KEY: self.raw}
+                barrier.wait()
+                try:
+                    SocialRegistrationAdapter().save_user(request, mock.MagicMock(), form=None)
+                    results.append("ok")
+                except ImmediateHttpResponse:
+                    results.append("refused")
+                except Exception as exc:  # noqa: BLE001 - surfaced by the assertion below
+                    results.append(repr(exc))
+            finally:
+                _conns.close_all()
+
+        with mock.patch("boards.broadcast.broadcast_board_event"), \
+                mock.patch("groups.broadcast.broadcast_group_event"), \
+                mock.patch.object(SocialRegistrationAdapter.__bases__[0], "save_user", side_effect=create):
+            threads = [threading.Thread(target=signup, args=(name,)) for name in ("taker_a", "taker_b")]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        self.assertEqual(sorted(results), ["ok", "refused"], results)
+        self.assertEqual(self.member_count(), 1)
+        self.assertEqual(User.objects.filter(username__in=["taker_a", "taker_b"]).count(), 1)
+        self.link.refresh_from_db()
+        self.assertIsNotNone(self.link.used_at)
+        self.assertIsNone(self.link.reserved_for_id)
+
+
+class BoardConcurrentTakeoverTests(_BoardKind, _ConcurrentTakeoverTests, TransactionTestCase):
+    pass
+
+
+class GroupConcurrentTakeoverTests(_GroupKind, _ConcurrentTakeoverTests, TransactionTestCase):
+    pass
+
+
+class GroupBroadcastFailureTests(_GroupKind, TransactionTestCase):
+    """A failing group broadcast after commit does not fail the confirmation or undo the grant."""
+
+    def setUp(self):
+        cache.clear()
+        self.make_target()
+        self.link, _raw = self.make_invite()
+        self.user = User.objects.create_user(username="pending", password="p", email=INVITED.lower())
+        self.address = EmailAddress.objects.create(user=self.user, email=INVITED.lower(), verified=False, primary=True)
+        GroupInviteLink.objects.filter(pk=self.link.pk).update(reserved_for=self.user)
+
+    def tearDown(self):
+        cache.clear()
+
+    @MANDATORY
+    def test_broadcast_failure_is_not_fatal(self):
+        with mock.patch("groups.broadcast.broadcast_group_event", side_effect=RuntimeError("down")) as bcast:
+            r = _confirm(self.address)
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assertTrue(bcast.called)
+        self.assertTrue(self.is_member(self.user))
