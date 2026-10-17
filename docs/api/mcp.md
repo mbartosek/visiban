@@ -9,6 +9,21 @@ The feature is flag-gated: `/mcp` returns `404 Not Found` unless the server is s
 
 ---
 
+## Stability and versioning
+
+> **Added in 1.2**
+
+The MCP surface is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is **not** experimental.
+
+- **Tool names** (`list_boards`, `list_columns`, `list_swimlanes`, `list_cards`, `create_card`, `move_card`, `update_card`, `archive_card`) and **resource URIs** (`board://{board_id}`, `card://{card_id}`) are never removed or renamed in a minor or patch release.
+- **Argument schemas** change additively only: new arguments are optional with a sensible default, and an existing argument is never removed, renamed, made required, or given a different type.
+- **Results and error payloads** only gain fields; existing fields keep their name and type. The error `code` values listed under [Tool errors](#tool-errors) are never removed.
+- A tool or resource that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.
+- New tools, resources, optional arguments, and result fields can appear in any minor release, so clients should ignore fields they do not recognize.
+- The configuration names `MCP_SERVER_ENABLED`, `MCP_ALLOWED_HOSTS`, `MCP_THROTTLE_*_RATE`, and the `/mcp` path follow the environment-variable rules: they are not renamed, and a rename keeps the old name as a deprecated alias for at least one minor release.
+
+---
+
 ## Enabling the server
 
 Set the environment variable on the backend and restart it:
