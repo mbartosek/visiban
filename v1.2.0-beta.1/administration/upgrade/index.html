@@ -4452,6 +4452,31 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <hr />
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Edits to seeded system board templates are overwritten</p>
+<p><code>boards/0054</code> (#1115) rewrites <code>columns_json</code> for the built-in system templates, matched by
+slug, to correct drift in <code>project_delivery</code> and <code>legal_compliance</code> and to add <code>is_done</code>
+flags. Any admin edit to a seeded system template's columns is lost on upgrade, and
+rolling the migration back restores the original constants, not your previous values.
+Board templates have no admin page and no write API (<code>GET /api/v1/boards/templates/</code> is
+read-only). Before upgrading, save the <code>columns_json</code> of any customized system template from
+that endpoint, only as a reference for which columns you changed. Do not re-apply it
+verbatim: it lacks the <code>is_done</code> flags and the corrected <code>project_delivery</code> and
+<code>legal_compliance</code> columns that <code>boards/0054</code> adds. After upgrading, read the new
+<code>columns_json</code> (from the endpoint or <code>manage.py shell</code>), re-apply only your own edits on top
+of it, and keep <code>is_done: true</code> on terminal columns. In <code>manage.py shell</code>:
+<code>t = BoardTemplate.objects.get(slug="..."); t.columns_json = [...]; t.save()</code> (import
+<code>BoardTemplate</code> from <code>boards.models</code>). Existing boards are not affected; only
+future board creations and the template preview use these rows.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Very large <code>users</code> tables</p>
+<p><code>accounts/0030</code> runs an <code>UPDATE</code> on <code>users</code> in the same transaction as its column
+additions, so the table lock (<code>ACCESS EXCLUSIVE</code>) is held while the update runs. This is
+fast at typical sizes. <code>accounts/0036</code> is a standalone data migration that only
+row-locks superuser rows, which is negligible. On installs with millions of user rows, run
+<code>migrate</code> during a maintenance window.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Browser WebSocket connections check the Origin header</p>
 <p>A WebSocket handshake that carries an <code>Origin</code> header must match <code>CORS_ALLOWED_ORIGINS</code>,

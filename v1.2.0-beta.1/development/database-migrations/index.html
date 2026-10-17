@@ -2865,6 +2865,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#known-gaps-in-the-11-to-12-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known gaps in the 1.1 to 1.2 migrations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-migrations-are-squashed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4906,6 +4917,32 @@ anything else.</p>
 describe a genuine zero-downtime path across the whole migration history, including the
 fourteen above, without any of them changing.</p>
 <p><strong>Everything after #1081 is concurrent by construction</strong>, so the exemption list does not grow.</p>
+<hr />
+<h2 id="known-gaps-in-the-11-to-12-migrations">Known gaps in the 1.1 to 1.2 migrations<a class="headerlink" href="#known-gaps-in-the-11-to-12-migrations" title="Permanent link">&para;</a></h2>
+<p>Found by the 1.2 pre-release audit (#1662). The shipped migrations were not edited, because
+installs have already run them; these are documented instead.</p>
+<ul>
+<li><strong>Foreign keys are not flagged by the concurrency checker.</strong> <code>accounts/0031</code> adds a nullable
+  FK (<code>pending_email_address</code>). Even with <code>db_index=False</code>, PostgreSQL emits
+  <code>ADD CONSTRAINT ... FOREIGN KEY</code>, which takes <code>SHARE ROW EXCLUSIVE</code> on <code>users</code> and
+  <code>account_emailaddress</code> briefly. With every row <code>NULL</code> this is fast. For future FKs on large
+  tables use the <code>NOT VALID</code> then <code>VALIDATE</code> pattern above.</li>
+<li><strong><code>RunPython</code> UPDATE shares a transaction with <code>ADD COLUMN</code>.</strong> <code>accounts/0030</code> updates
+  <code>users</code> in the same transaction as its column additions, so the UPDATE runs while
+  <code>ACCESS EXCLUSIVE</code> is held. (<code>accounts/0036</code> is a standalone <code>RunPython</code> with no schema
+  change; it only row-locks superuser rows, which is negligible.) Fine for typical sizes; see the
+  <a href="../../administration/upgrade/#upgrading-to-12x">upgrade guide</a> for very large installs.</li>
+<li><strong><code>boards/0054</code> overwrites system template columns</strong> by slug, and its reverse restores
+  constants rather than prior database values. See the upgrade guide.</li>
+<li><strong><code>accounts/0033</code> has an unneeded dependency</strong> on <code>boards/0061</code> and <code>auth/0012</code> (an
+  autodetector artifact). Remove it at the next squash; do not edit it now.</li>
+<li><strong>Frozen history:</strong> the duplicate <code>boards/0033</code> (merged by <code>0035</code>) and the missing
+  <code>boards/0053</code> are not to be renumbered.</li>
+<li><strong>allauth pin:</strong> <code>accounts/0031</code> and <code>0033</code> depend on allauth's
+  <code>account.0009_emailaddress_unique_primary_email</code>. 1.1.0 and 1.2 both pin
+  <code>django-allauth==65.14.3</code>, which ships it;
+  <code>accounts/tests/test_migration_upgrade_path_1662.py</code> fails if a pin change drops it.</li>
+</ul>
 <hr />
 <h2 id="when-migrations-are-squashed">When migrations are squashed<a class="headerlink" href="#when-migrations-are-squashed" title="Permanent link">&para;</a></h2>
 <p><code>squashmigrations</code> reproduces historical operations into a new file, under a name that is not
