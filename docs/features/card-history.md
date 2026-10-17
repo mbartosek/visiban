@@ -22,6 +22,20 @@ Pure position reorders within the same cell don't create a movement record.
 
 Find the movement timeline in the card detail panel's **Activity** tab.
 
+## Imported history
+
+> **Changed in 1.2** (#1675)
+
+A board created by a [JSON import](board.md#import) with **Card history** included brings the file's movements and activity entries with it. Each imported entry:
+
+- keeps the time the file gives it, so the timeline reads in its original order;
+- is recorded under the user who ran the import (`moved_by` / `actor`);
+- keeps the username the file named as plain text in `imported_from_username`. It is shown next to the importer's name — "by Kelly · imported, originally alice" in the card's **Activity** tab, and "imported, originally alice" under the mover in the board's **History** view. When the file named nobody, the entry just says "imported".
+
+The source name is never matched to an account here: imported entries are shown under the importer's name. Entries recorded on the board after the import have `imported_from_username: null` and show no note. History imported by earlier versions also carries `null`, since the original name was not kept.
+
+Exports carry the field too: JSON export writes `imported_from_username` on every movement and activity, and re-importing such a file keeps the original source name (not the name of whoever imported it first). CSV export appends the note to the mover in **Movement History**, for example `…|Kelly (imported, originally alice)`.
+
 ## Activity log
 
 The activity log also tracks field changes:

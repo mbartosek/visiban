@@ -1705,7 +1705,11 @@ class CardMovementSerializer(serializers.ModelSerializer):
             "from_swimlane", "from_swimlane_name", "from_swimlane_uid",
             "to_swimlane", "to_swimlane_name", "to_swimlane_uid",
             "moved_by", "moved_at", "notes", "movement_type",
+            # Additive (#1675): the source file's username on a row created by
+            # a board import with history, null on every other row.
+            "imported_from_username",
         ]
+        read_only_fields = ["imported_from_username"]
 
 
 class CardCommentSerializer(serializers.ModelSerializer):
@@ -1733,7 +1737,12 @@ class CardActivitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CardActivity
-        fields = ["id", "event_type", "from_value", "to_value", "actor", "created_at"]
+        fields = [
+            "id", "event_type", "from_value", "to_value", "actor", "created_at",
+            # Additive (#1675): see CardMovementSerializer.
+            "imported_from_username",
+        ]
+        read_only_fields = ["imported_from_username"]
 
 
 class CardChecklistSerializer(serializers.ModelSerializer):
@@ -3477,6 +3486,10 @@ class CardTimelineEntrySerializer(serializers.Serializer):
     actor = BoardUserSerializer(allow_null=True)
     event_type = serializers.CharField()
     data = serializers.DictField()
+    # Additive (#1675): set when the movement or activity came from a board
+    # import with history — ``actor`` is then the importer and this is the
+    # username the source file named. Null on every other entry.
+    imported_from_username = serializers.CharField(allow_null=True, required=False)
 
 
 class SavedFilterSerializer(serializers.ModelSerializer):

@@ -1027,6 +1027,16 @@ Apply this consistently in `CardMovementTimeline` and `MovementHistoryView`:
 - System event label text (`text-fg-tertiary italic` for "Archived", `text-accent-violet` for "Reactivated") is visually distinct from column-move text (`text-fg-secondary font-medium`)
 - Do not collapse system events by default — Jordan's audit trail use case requires them visible
 
+### Imported history attribution (#1675)
+
+A movement or activity created by a board import with history carries `imported_from_username` (`null` = recorded on this board, or imported by an earlier version that did not keep the name). Render it only through `src/utils/importedHistory.ts` so every surface says the same thing:
+
+- **Card timeline (`ActivityTabPanel`)** — the right-hand by-line becomes `historyAttribution(actor, imported_from_username)`: `by Kelly · imported, originally alice`, `by Kelly · imported` when the file named nobody, or just the note when the importer account is gone. Same `text-xs text-fg-tertiary` span as the plain by-line, plus `max-w-full truncate` and the full text in `title` — a source name can be 150 characters.
+- **`CardMovementTimeline`** (not mounted in the app today) uses `historyAttribution` for its by-lines the same way.
+- **Board History view (`MovementHistoryView`)** — the note goes on its own `block truncate text-fg-muted` line under the mover's name in the table cell (with `title`), and after the name as ` · imported, originally alice` in the slide-in panel.
+- **Never** render the source name as a user (no avatar, no `userDisplayName`, no link): it is text from a file, not an account on this instance. Never use a badge or color for it — the note is metadata, not status.
+- Checklist-group collapsing must not merge an imported entry with a recorded one (or two different source names): the group has one attribution line, so it has to be true for every item.
+
 ## Read-only mode for interactive components
 
 Any component that calls `useDraggable`, `useSortable`, or registers interactive event handlers must accept a `readOnly?: boolean` prop. When `readOnly={true}`:

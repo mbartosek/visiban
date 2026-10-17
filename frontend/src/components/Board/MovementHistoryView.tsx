@@ -5,6 +5,7 @@ import type { BoardFull, CardMovement, User } from "../../types";
 import { userDisplayName } from "../../types";
 import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { formatDateTimeUser } from "../../utils/date";
+import { importedNote } from "../../utils/importedHistory";
 import type { UserDatePrefs } from "../../utils/date";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,19 @@ interface SlideInPanelProps {
   user?: UserDatePrefs | null;
 }
 
+// "imported, originally alice" under or after the mover's name on a row created
+// by a board import with history (#1675); nothing for any other row. The full
+// note is in `title` because the table cell truncates.
+function ImportedNoteText({ importedFrom, className, prefix = "" }: {
+  importedFrom: string | null | undefined;
+  className: string;
+  prefix?: string;
+}) {
+  const note = importedNote(importedFrom);
+  if (!note) return null;
+  return <span className={className} title={note}>{prefix}{note}</span>;
+}
+
 function SlideInPanel({ movement, relatedMovements, onClose, user }: SlideInPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -102,6 +116,7 @@ function SlideInPanel({ movement, relatedMovements, onClose, user }: SlideInPane
         <p className="text-xs text-fg-secondary">
           <span className="text-fg-muted">By </span>
           {movement.moved_by ? userDisplayName(movement.moved_by) : <span className="text-fg-faint italic">Unknown</span>}
+          <ImportedNoteText importedFrom={movement.imported_from_username} className="text-fg-muted" prefix=" · " />
         </p>
         <div className="text-xs text-fg-secondary space-y-0.5">
           <p>
@@ -375,6 +390,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
                           {m.moved_by
                             ? userDisplayName(m.moved_by)
                             : <span className="text-fg-faint italic">Unknown</span>}
+                          <ImportedNoteText importedFrom={m.imported_from_username} className="block truncate text-fg-muted" />
                         </td>
                         <td className="px-4 py-2 text-xs text-fg align-top">
                           {m.card_title}

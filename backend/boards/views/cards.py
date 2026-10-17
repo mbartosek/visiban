@@ -1040,6 +1040,7 @@ class CardViewSet(viewsets.ModelViewSet):
                 "ts": m.moved_at,
                 "actor": actor_obj,
                 "event_type": m.movement_type or "move",
+                "imported_from_username": m.imported_from_username,
                 "data": {
                     "id": m.id,
                     "from_column": m.from_column_id,
@@ -1064,6 +1065,7 @@ class CardViewSet(viewsets.ModelViewSet):
                 "ts": a.created_at,
                 "actor": actor_obj,
                 "event_type": a.event_type,
+                "imported_from_username": a.imported_from_username,
                 "data": {
                     "event_type": a.event_type,
                     "from_value": a.from_value,

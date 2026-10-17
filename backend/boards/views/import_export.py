@@ -605,7 +605,9 @@ _IMPORT_MAX_CHILDREN_PER_CARD = {
 # the import can insert, the importer-generated ones included, as an upper
 # bound for every option combination; no import writes more than this.
 _IMPORT_MAX_ROWS = 50_000
-# Distinct usernames (assignee, moved_by, actor) resolved in one query.
+# Distinct usernames (assignee, moved_by, actor) a file may reference. Only
+# assignees are resolved to accounts (one query); history names are kept as
+# text (#1675) but still count, so the documented cap is unchanged.
 _IMPORT_MAX_USERNAMES = 1000
 # Rows per UPDATE in the timestamp backfills: one unbatched bulk_update builds
 # a single CASE with an arm per row, which PostgreSQL evaluates in O(n^2).
@@ -815,6 +817,10 @@ def _validate_json_import_values(data):
     movement_name = functools.partial(
         _optional_name_error, max_length=_field_max_length(CardMovement, "from_column_name"),
     )
+    # A history row's kept source name (#1675) must fit its column.
+    imported_name = functools.partial(
+        _optional_name_error, max_length=_field_max_length(CardMovement, "imported_from_username"),
+    )
     child_specs = {
         "comments": ("comment", (("body", _text()),)),
         "checklist": ("checklist item", (
@@ -825,8 +831,12 @@ def _validate_json_import_values(data):
             ("from_column", movement_name), ("to_column", movement_name),
             ("from_swimlane", movement_name), ("to_swimlane", movement_name),
             ("notes", _text(_field_max_length(CardMovement, "notes"))),
+            ("imported_from_username", imported_name),
         )),
-        "activities": ("activity", (("from_value", _text()), ("to_value", _text()))),
+        "activities": ("activity", (
+            ("from_value", _text()), ("to_value", _text()),
+            ("imported_from_username", imported_name),
+        )),
     }
     username_len = _field_max_length(get_user_model(), "username")
     usernames = set()
@@ -915,6 +925,29 @@ def _card_usernames(card):
             value = entry.get(key)
             if isinstance(value, str) and value:
                 yield key, value
+
+
+# Characters that would split a CSV Movement History record or segment.
+_CSV_HISTORY_SEPARATORS_RE = re.compile(r"[|;\r\n]+")
+_IMPORTED_FROM_MAX_LENGTH = CardMovement._meta.get_field("imported_from_username").max_length
+
+
+def _imported_from_username(entry, key):
+    """The source username an imported history row keeps as text (#1675).
+
+    Every imported movement and activity is attributed to the importer, so
+    the file's ``moved_by`` / ``actor`` is kept only as this label. A file
+    that Visiban exported from an imported board carries the row's original
+    name in ``imported_from_username``; that wins over ``key`` (which names
+    whoever imported it last), so an export/import round trip keeps the first
+    source's name. Never None: ``""`` still marks the row as imported when
+    the file names nobody. NUL characters are dropped (PostgreSQL text cannot
+    hold them) and the value is cut to the column length.
+    """
+    for candidate in (entry.get("imported_from_username"), entry.get(key)):
+        if isinstance(candidate, str):
+            return candidate.replace("\x00", "")[:_IMPORTED_FROM_MAX_LENGTH]
+    return ""
 
 
 # What the write block's guard converts to a 400. Database- and value-shaped
@@ -1222,8 +1255,11 @@ class BoardImportExportMixin:
                     # Names/usernames feed dict lookups and ``.lower()``: only
                     # str (or null/absent) is safe.
                     _str_keys = {
-                        "movements": ("from_column", "to_column", "from_swimlane", "to_swimlane", "moved_by"),
-                        "activities": ("actor",),
+                        "movements": (
+                            "from_column", "to_column", "from_swimlane", "to_swimlane", "moved_by",
+                            "imported_from_username",
+                        ),
+                        "activities": ("actor", "imported_from_username"),
                     }.get(_child, ())
                     for _k in _str_keys:
                         if _is_truthy_non_string(_entry.get(_k)):
@@ -1435,18 +1471,16 @@ class BoardImportExportMixin:
                     )
                 ])
 
-            # Bulk-load all referenced usernames so the card loop does not
-            # issue a per-card query for assignee, moved_by, or actor (#420).
-            all_usernames = set()
-            for card_data in data.get("cards", []):
-                if card_data.get("assignee"):
-                    all_usernames.add(card_data["assignee"])
-                for mv in card_data.get("movements", []):
-                    if mv.get("moved_by"):
-                        all_usernames.add(mv["moved_by"])
-                for act in card_data.get("activities", []):
-                    if act.get("actor"):
-                        all_usernames.add(act["actor"])
+            # Bulk-load all assignee usernames so the card loop does not issue
+            # a per-card query (#420). History rows (movement ``moved_by``,
+            # activity ``actor``) are not resolved to accounts: they are
+            # attributed to the importer and keep the file's name as text
+            # (#1675), see _imported_from_username.
+            all_usernames = {
+                card_data["assignee"]
+                for card_data in data.get("cards", [])
+                if card_data.get("assignee")
+            }
             user_map = _resolve_import_users(all_usernames, request.user, group)
 
             # ---------- Phase 1: build Card instances (no DB writes yet) ----------
@@ -1638,10 +1672,6 @@ class BoardImportExportMixin:
                     to_col = column_map.get(to_col_name)
                     from_sw = swimlane_map.get(from_sw_name)
                     to_sw = swimlane_map.get(to_sw_name)
-                    moved_by_username = mv_data.get("moved_by")
-                    moved_by = (
-                        user_map.get(moved_by_username.lower()) if moved_by_username else None
-                    ) or request.user
                     raw_movement_type = mv_data.get("movement_type", CardMovement.MovementType.MOVE)
                     # isinstance guard must short-circuit before the membership
                     # test: an unhashable movement_type (list/dict) crashes `in
@@ -1668,7 +1698,10 @@ class BoardImportExportMixin:
                             to_column_uid=to_col.uid if to_col else "",
                             from_swimlane_uid=from_sw.uid if from_sw else "",
                             to_swimlane_uid=to_sw.uid if to_sw else "",
-                            moved_by=moved_by,
+                            # Imported history is the importer's record of
+                            # what the file says happened (#1675).
+                            moved_by=request.user,
+                            imported_from_username=_imported_from_username(mv_data, "moved_by"),
                             notes=mv_data.get("notes", ""),
                             movement_type=movement_type,
                         ),
@@ -1684,17 +1717,14 @@ class BoardImportExportMixin:
                     # being skipped like any other unknown event type (#1185).
                     if not isinstance(event_type, str) or event_type not in valid_event_types:
                         continue
-                    actor_username = act_data.get("actor")
-                    actor = (
-                        user_map.get(actor_username.lower()) if actor_username else None
-                    ) or request.user
                     imported_activities.append((
                         CardActivity(
                             card_id=card_pk,
                             event_type=event_type,
                             from_value=act_data.get("from_value", ""),
                             to_value=act_data.get("to_value", ""),
-                            actor=actor,
+                            actor=request.user,
+                            imported_from_username=_imported_from_username(act_data, "actor"),
                         ),
                         act_data.get("created_at"),
                     ))
@@ -2647,6 +2677,8 @@ class BoardImportExportMixin:
                             "moved_at": mv.moved_at.isoformat(),
                             "notes": mv.notes,
                             "movement_type": mv.movement_type,
+                            # Additive (#1675); null unless the row was imported.
+                            "imported_from_username": mv.imported_from_username,
                         }
                         for mv in movements
                     ],
@@ -2657,6 +2689,7 @@ class BoardImportExportMixin:
                             "to_value": act.to_value,
                             "actor": act.actor.username if act.actor else None,
                             "created_at": act.created_at.isoformat(),
+                            "imported_from_username": act.imported_from_username,
                         }
                         for act in sorted(card.activities.all(), key=lambda a: a.created_at)
                     ],
@@ -2821,6 +2854,16 @@ class BoardImportExportMixin:
                 from_col = s(mv.from_column.name) if mv.from_column else ""
                 to_col = s(mv.to_column.name) if mv.to_column else ""
                 moved_by = s(mv.moved_by.username) if mv.moved_by else ""
+                # An imported row (#1675) names its importer, then the source
+                # file's username, inside the same segment. The source name is
+                # free text from an import file, so the record and segment
+                # separators (and line breaks) are replaced in it: the record
+                # must keep its four pipe-delimited parts.
+                if mv.imported_from_username is not None:
+                    # Sanitize before the emptiness check: a name made only of
+                    # formula prefix characters ("==") sanitizes to "".
+                    source = s(" ".join(_CSV_HISTORY_SEPARATORS_RE.sub(" ", mv.imported_from_username).split()))
+                    moved_by += f" (imported, originally {source})" if source else " (imported)"
                 history_parts.append(
                     f"{mv.moved_at.isoformat()}|{from_col}|{to_col}|{moved_by}"
                 )

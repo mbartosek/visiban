@@ -5,6 +5,7 @@ import { userDisplayName } from "../../types";
 import { formatRelativeTime, formatDateStr, formatDateTimeUser } from "../../utils/date";
 import type { UserDatePrefs } from "../../utils/date";
 import ActivityFilterDropdown from "./ActivityFilterDropdown";
+import { historyAttribution } from "../../utils/importedHistory";
 
 interface ActivityTabPanelProps {
   boardId: number;
@@ -47,6 +48,7 @@ type ChecklistGroup = {
   event_type: ChecklistEventType;
   items: string[];
   actor: BoardUser | null;
+  imported_from_username: string | null;
 };
 
 type DisplayEntry = CardTimelineEntry | ChecklistGroup;
@@ -66,9 +68,14 @@ function collapseChecklistGroups(entries: CardTimelineEntry[]): DisplayEntry[] {
     const value =
       entry.event_type === "checklist_item_deleted" ? data.from_value : data.to_value;
     const last = result[result.length - 1];
+    // An imported entry never merges with one recorded on this board (or
+    // with an import from a different source name), so the group's single
+    // attribution line stays true for every item in it (#1675).
+    const importedFrom = entry.imported_from_username ?? null;
     if (
       last?.kind === "checklist-group" &&
-      last.event_type === (entry.event_type as ChecklistEventType)
+      last.event_type === (entry.event_type as ChecklistEventType) &&
+      last.imported_from_username === importedFrom
     ) {
       last.items.push(value);
     } else {
@@ -78,6 +85,7 @@ function collapseChecklistGroups(entries: CardTimelineEntry[]): DisplayEntry[] {
         event_type: entry.event_type as ChecklistEventType,
         items: [value],
         actor: entry.actor,
+        imported_from_username: importedFrom,
       });
     }
   }
@@ -291,7 +299,7 @@ export default function ActivityTabPanel({ boardId, cardId, userDateFormat = "MM
             // Checklist group
             if (entry.kind === "checklist-group") {
               const cg = entry as ChecklistGroup;
-              const actor = actorName(cg.actor);
+              const attribution = historyAttribution(actorName(cg.actor), cg.imported_from_username);
               const plural = cg.items.length > 1;
               const labels: Record<ChecklistEventType, [string, string]> = {
                 checklist_item_added:     ["Added checklist item",   "Added checklist items"],
@@ -310,8 +318,8 @@ export default function ActivityTabPanel({ boardId, cardId, userDateFormat = "MM
                       <span className="text-sm text-fg-secondary truncate">
                         {label}: {itemList}
                       </span>
-                      {actor && (
-                        <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>
+                      {attribution && (
+                        <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>
                       )}
                     </div>
                     <time
@@ -329,7 +337,10 @@ export default function ActivityTabPanel({ boardId, cardId, userDateFormat = "MM
             // Regular timeline entry (move or activity)
             const timelineEntry = entry as CardTimelineEntry;
             const dot = dotColor(timelineEntry);
-            const actor = actorName(timelineEntry.actor);
+            const attribution = historyAttribution(
+              actorName(timelineEntry.actor),
+              timelineEntry.imported_from_username,
+            );
 
             if (timelineEntry.kind === "move") {
               const m = timelineEntry.data as unknown as CardMovement;
@@ -366,8 +377,8 @@ export default function ActivityTabPanel({ boardId, cardId, userDateFormat = "MM
                           </span>
                         )}
                       </span>
-                      {actor && (
-                        <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>
+                      {attribution && (
+                        <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -397,8 +408,8 @@ export default function ActivityTabPanel({ boardId, cardId, userDateFormat = "MM
                     <span className="text-sm text-fg-secondary truncate" title={description}>
                       {description}
                     </span>
-                    {actor && (
-                      <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>
+                    {attribution && (
+                      <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>
                     )}
                   </div>
                   <time

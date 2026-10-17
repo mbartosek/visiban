@@ -78,6 +78,7 @@ function makeMv(overrides: Partial<CardMovement> = {}): CardMovement {
     moved_at: '2024-03-01T12:00:00Z',
     notes: '',
     movement_type: 'move',
+    imported_from_username: null,
     ...overrides,
   }
 }

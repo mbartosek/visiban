@@ -668,6 +668,17 @@ class CardMovement(models.Model):
         choices=MovementType.choices,
         default=MovementType.MOVE,
     )
+    # Set only on rows created by a board import with history (#1675). An
+    # imported row is attributed to the importer (``moved_by``) and this keeps
+    # the username the source file named as plain text, so the original author
+    # stays readable without being matched to a local account. ``""`` means the
+    # file named nobody; NULL means the row was not imported. History imported
+    # by earlier versions also carries NULL, since the original name was not kept.
+    imported_from_username = models.CharField(
+        max_length=150,  # pragma: no mutate -- schema constant (migration-check)
+        null=True,
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+    )
 
     class Meta:
         db_table = "card_movements"
@@ -732,6 +743,13 @@ class CardActivity(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Same meaning as CardMovement.imported_from_username (#1675): the source
+    # file's username for an imported row, whose ``actor`` is the importer.
+    imported_from_username = models.CharField(
+        max_length=150,  # pragma: no mutate -- schema constant (migration-check)
+        null=True,
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+    )
 
     class Meta:
         db_table = "card_activities"

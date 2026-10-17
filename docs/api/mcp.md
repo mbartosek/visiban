@@ -354,7 +354,7 @@ Moves a card to a new column and/or swimlane and/or position. Requires `admin` o
 
 **Arguments:** `card_id` (required); `to_column_id`, `to_swimlane_id` — at least one required, the other defaults to the card's current value; `position` (default `0`).
 
-**Returns:** `{"card": <card>, "movement": <movement-or-null>}`. `movement` is `null` for a pure position reorder within the same cell (no column/swimlane change); otherwise it carries `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by}`. Enforces the board's WIP/weight limits exactly as the REST move endpoint does, with no override — a blocked move returns `wip_limit_exceeded`/`wip_hard_blocked`/`weight_limit_exceeded` rather than moving the card.
+**Returns:** `{"card": <card>, "movement": <movement-or-null>}`. `movement` is `null` for a pure position reorder within the same cell (no column/swimlane change); otherwise it carries `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by, imported_from_username}`. `imported_from_username` is `null` except on a row created by a board import with history (since 1.2), where it holds the username the import file named and `moved_by` is the user who imported it. Enforces the board's WIP/weight limits exactly as the REST move endpoint does, with no override — a blocked move returns `wip_limit_exceeded`/`wip_hard_blocked`/`weight_limit_exceeded` rather than moving the card.
 
 ### `update_card`
 
@@ -414,9 +414,9 @@ Card detail plus full audit history. Requires board membership — any role, inc
 | Field | Type | Description |
 |---|---|---|
 | `archived_at` | string or `null` | ISO 8601 timestamp, or `null` if the card is not archived. |
-| `movements` | array | `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by}` objects — same shape as `move_card`'s `movement` above. |
+| `movements` | array | `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by, imported_from_username}` objects — same shape as `move_card`'s `movement` above. |
 | `checklist_items` | array | `{id, text, is_checked, position}` objects. |
-| `activities` | array | `{id, event_type, from_value, to_value, actor, created_at}` objects, newest first. |
+| `activities` | array | `{id, event_type, from_value, to_value, actor, created_at, imported_from_username}` objects, newest first. `imported_from_username` works as on `movements`. |
 | `comments` | array | `{id, body, author, created_at, updated_at}` objects, oldest first. |
 
 ### Resource errors
