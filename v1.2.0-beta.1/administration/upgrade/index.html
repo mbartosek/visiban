@@ -4514,6 +4514,11 @@ row-locks superuser rows, which is negligible. On installs with millions of user
 <code>ALLOWED_HOSTS</code>, add it there (or list the origin in <code>CORS_ALLOWED_ORIGINS</code>); otherwise browser
 WebSocket connections are refused. Clients that send no <code>Origin</code> header are unaffected. See the
 <a href="../../api/websockets/#connecting">WebSocket API</a>.</p>
+<p>With <code>DEBUG</code> off, <code>manage.py check</code> / <code>check --deploy</code> now emits system-check warning
+<code>accounts.W002</code> when <code>ALLOWED_HOSTS</code> contains <code>*</code> or a leading-dot entry (such as
+<code>.example.com</code>). List exact hostnames instead, which also keeps WebSocket origin matching exact,
+or add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to accept the wildcard. Origin matching
+behavior is unchanged in 1.2.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Superuser accounts normalized</p>
