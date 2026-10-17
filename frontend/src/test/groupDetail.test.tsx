@@ -254,7 +254,7 @@ describe('GroupDetail', () => {
   })
 
   it('shows + New board button for admin', async () => {
-    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, can_place_boards: true })
     mockGetGroupMembers.mockResolvedValue([
       { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
     ])
@@ -263,6 +263,43 @@ describe('GroupDetail', () => {
     renderGroupDetail()
 
     expect(await screen.findByText('+ New board')).toBeInTheDocument()
+  })
+
+  // #1692 — + New board and Import follow the server's board-placement rule
+  // (can_place_boards), not the page's own direct-role isAdmin.
+  it('shows + New board and Import when can_place_boards is true for a non-admin member', async () => {
+    // Admin of an ancestor group only: a member here, not the owner.
+    const otherOwner: User = { ...fakeUser, id: 99, username: 'boss', display_name: 'Boss' }
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, owner: otherOwner, can_place_boards: true })
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    renderGroupDetail()
+
+    expect(await screen.findByText('+ New board')).toBeInTheDocument()
+    expect(screen.getByText('Import')).toBeInTheDocument()
+    expect(screen.queryByText('No boards yet.')).not.toBeInTheDocument()
+    // Settings stays gated on the page's own admin check.
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
+  })
+
+  it('hides + New board and Import when can_place_boards is false, even for the owner and a site admin', async () => {
+    const siteAdmin: User = { ...fakeUser, is_site_admin: true }
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, can_place_boards: false })
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    renderGroupDetail(undefined, siteAdmin)
+
+    expect(await screen.findByText('No boards yet.')).toBeInTheDocument()
+    expect(screen.queryByText('+ New board')).not.toBeInTheDocument()
+    expect(screen.queryByText('Import')).not.toBeInTheDocument()
+    // Other admin affordances are unchanged.
+    expect(screen.getAllByRole('button', { name: 'Settings' }).length).toBeGreaterThan(0)
   })
 
   it('shows + Create subgroup button for admin', async () => {
@@ -278,7 +315,7 @@ describe('GroupDetail', () => {
   })
 
   it('shows Import button for admin', async () => {
-    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, can_place_boards: true })
     mockGetGroupMembers.mockResolvedValue([
       { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
     ])
@@ -1576,7 +1613,7 @@ describe('GroupDetail — navigation (#1374)', () => {
   })
 
   function setupAdmin(overrides: Partial<Group> = {}) {
-    mockGetGroup.mockResolvedValue({ ...fakeGroup, ...overrides })
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, can_place_boards: true, ...overrides })
     mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
     mockGetSubgroups.mockResolvedValue([])
     mockGetGroupBoards.mockResolvedValue([])

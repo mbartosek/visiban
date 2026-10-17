@@ -109,7 +109,14 @@ The **Invite by email** section shows which case applies. A site admin on an inv
 
 ## Moving boards between groups
 
-Any board can move to a different group or back to personal boards, via **Move to group** in board settings (gear icon in the toolbar). Only board admins and site admins can move a board, and moving a board into a group also requires being an admin of that group. Importing a board into a group needs the same group role.
+Any board can move to a different group or back to personal boards from the **Move board** dialog. Open it with the move icon that appears when you hover over or tab to a board row:
+
+- on the dashboard, **Move to group** on a board in the **Favorite Boards** list or in **My Boards** (your personal boards);
+- on a group page, **Move to another group** on a board in the group's **Boards** list.
+
+Only board admins and site admins can move a board, and moving a board into a group also requires being an admin of that group (or of one of its parent groups). Importing or creating a board in a group needs the same group role.
+
+*(New in 1.2)* The dialog lists every group you can see, but groups you can't place boards in are shown disabled, with **Group admins only** next to the name. Their subgroups stay listed, and a parent group opens automatically when a subgroup you can use sits under it. The board's current group is never disabled: it shows **Current group**, so you can switch back to it after picking another option. If you can't place boards in any group, the dialog says so. On a group page, **+ New board** and **Import** appear only when you can place boards in that group.
 
 **API:** `POST /api/v1/boards/{id}/move-group/` with `{ "group_id": 5 }` or `{ "group_id": null }` for personal.
 
