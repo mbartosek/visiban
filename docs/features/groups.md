@@ -116,7 +116,7 @@ Any board can move to a different group or back to personal boards from the **Mo
 
 Only board admins and site admins can move a board, and moving a board into a group also requires being an admin of that group (or of one of its parent groups). Importing or creating a board in a group needs the same group role.
 
-*(New in 1.2)* The dialog lists every group you can see, but groups you can't place boards in are shown disabled, with **Group admins only** next to the name. Their subgroups stay listed, and a parent group opens automatically when a subgroup you can use sits under it. The board's current group is never disabled: it shows **Current group**, so you can switch back to it after picking another option. If you can't place boards in any group, the dialog says so. On a group page, **+ New board** and **Import** appear only when you can place boards in that group.
+*(New in 1.2)* The dialog lists every group you can see, but groups you can't place boards in are shown disabled, with **Group admins only** next to the name. Their subgroups stay listed, and a parent group opens automatically when a subgroup you can use sits under it. If the board's current group is one you can't place boards in, it is not disabled; it shows **Current group** so you can switch back to it. If you can't place boards in any group, the dialog says so. On a group page, **+ New board** and **Import** appear only when you can place boards in that group.
 
 **API:** `POST /api/v1/boards/{id}/move-group/` with `{ "group_id": 5 }` or `{ "group_id": null }` for personal.
 
