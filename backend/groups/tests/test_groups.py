@@ -66,6 +66,30 @@ class GroupCRUDTests(TestCase):
         self.assertEqual(r_missing.status_code, r_existing.status_code)
         self.assertEqual(r_missing.json(), r_existing.json())
 
+    def test_create_subgroup_as_plain_parent_member_rejected(self):
+        GroupMembership.objects.create(
+            group=self.group, user=self.other, role=GroupMembership.Role.MEMBER
+        )
+        self.client.force_authenticate(self.other)
+        r = self.client.post("/api/v1/groups/", {"name": "MemberSub", "parent": self.group.id})
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"parent": ["Select a parent group you administer."]})
+        self.assertFalse(Group.objects.filter(name="MemberSub").exists())
+
+    def test_create_subgroup_under_parent_administered_via_ancestor(self):
+        child = _make_group(self.owner, name="Child", parent=self.group)
+        self.client.force_authenticate(self.owner)
+        GroupMembership.objects.filter(group=child, user=self.owner).delete()
+        r = self.client.post("/api/v1/groups/", {"name": "Grand", "parent": child.id})
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(r.json()["parent"], child.id)
+
+    def test_non_admin_user_can_create_top_level_group(self):
+        self.client.force_authenticate(self.other)
+        for payload in ({"name": "Top A"}, {"name": "Top B", "parent": None}):
+            r = self.client.post("/api/v1/groups/", payload, format="json")
+            self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
+
     def test_create_subgroup_as_parent_admin_succeeds(self):
         r = self.client.post("/api/v1/groups/", {"name": "Sub", "parent": self.group.id})
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)

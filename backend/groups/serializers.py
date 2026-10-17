@@ -520,8 +520,9 @@ class GroupSerializer(serializers.ModelSerializer):
         ancestor); an unknown id and a parent the caller may not use get the
         same 400 body, matching update and the board ``group`` field (#1691).
         ``GroupViewSet.perform_create`` still enforces the admin check as a
-        backstop. On update this applies the rules in ``_check_parent_change`` to the instance the
-        serializer was bound to. ``GroupViewSet.perform_update`` applies them
+        backstop. On update this applies the rules in
+        ``_check_parent_change`` to the instance the serializer was bound to.
+        ``GroupViewSet.perform_update`` applies them
         again to the row re-read under its lock (``recheck_parent_under_lock``)
         before saving.
         """

@@ -258,6 +258,23 @@ describe('CreateGroupModal', () => {
     )
   })
 
+  it('shows the server message when createGroup rejects with a parent field error', async () => {
+    mockCreateGroup.mockRejectedValue({
+      response: { data: { parent: ['Select a parent group you administer.'] } },
+    })
+
+    render(<CreateGroupModal onCreated={onCreated} onClose={onClose} />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByPlaceholderText('e.g. Engineering'), 'Sub')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(screen.getByText('Select a parent group you administer.')).toBeInTheDocument()
+    )
+    expect(onCreated).not.toHaveBeenCalled()
+  })
+
   it('shows a fallback error message when the API rejects with no structured body', async () => {
     mockCreateGroup.mockRejectedValue(new Error('Network Error'))
 
