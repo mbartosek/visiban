@@ -13,7 +13,7 @@ from allauth.account.forms import default_token_generator
 from allauth.account.utils import user_pk_to_url_str
 
 from accounts.models import User
-from accounts.views import PasswordResetRedirectView
+from accounts.views import PasswordResetKeyRedirectView, PasswordResetRedirectView
 
 
 def _spa(path: str) -> str:
@@ -64,15 +64,23 @@ class PasswordResetRedirectTests(TestCase):
         r = self.client.get("/accounts/password/reset/?next=https://evil.example/&redirect=//evil.example")
         self.assertEqual(r["Location"], _spa("/forgot-password"))
 
-    def test_malformed_or_oversized_key_is_not_forwarded(self):
+    def test_malformed_or_oversized_key_goes_to_forgot_password_without_the_key(self):
         for path in (
             "/accounts/password/reset/key/Mg-" + "a" * 201 + "/",
             "/accounts/password/reset/key/Mg-a b/",
+            "/accounts/password/reset/key/Mg-a.b/",
             "/accounts/password/reset/key/Mg-a/../../x/",
         ):
-            with self.subTest(path=path):
-                r = self.client.get(path)
-                self.assertNotIn("/reset-password/", r.get("Location", ""))
+            for method in ("get", "post"):
+                with self.subTest(path=path, method=method):
+                    r = getattr(self.client, method)(path)
+                    self.assertEqual(r.status_code, 302)
+                    self.assertEqual(r["Location"], _spa("/forgot-password"))
+
+    def test_key_redirect_is_not_cached_and_sends_no_referrer(self):
+        r = self.client.get("/accounts/password/reset/key/Mg-abc-def/")
+        self.assertEqual(r["Referrer-Policy"], "no-referrer")
+        self.assertIn("no-store", r["Cache-Control"])
 
     def test_names_and_reverse_are_unchanged(self):
         self.assertEqual(reverse("account_reset_password"), "/accounts/password/reset/")
@@ -82,7 +90,7 @@ class PasswordResetRedirectTests(TestCase):
         )
         match = resolve("/accounts/password/reset/key/Mg-abc-def/")
         self.assertEqual(match.url_name, "account_reset_password_from_key")
-        self.assertIs(match.func.view_class, PasswordResetRedirectView)
+        self.assertIs(match.func.view_class, PasswordResetKeyRedirectView)
 
     def test_sso_routes_are_untouched(self):
         for path in ("/accounts/login/", "/accounts/logout/", "/accounts/email/", "/accounts/3rdparty/"):

@@ -14,6 +14,8 @@ from accounts.views import (
     AdminPasswordChangeRedirectView,
     EmailConfirmRedirectView,
     InviteRegisterView,
+    PasswordResetKeyRedirectView,
+    PasswordResetMalformedKeyRedirectView,
     PasswordResetRedirectView,
     ResendEmailThrottle,
     SocialSignupRedirectView,
@@ -174,15 +176,22 @@ urlpatterns = [
     # "<base36 timestamp>-<hash>"; same length cap as the confirm-email route.
     path("accounts/password/reset/", PasswordResetRedirectView.as_view(), name="account_reset_password"),
     path("accounts/password/reset/done/", PasswordResetRedirectView.as_view(), name="account_reset_password_done"),
-    re_path(
-        r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$",
-        PasswordResetRedirectView.as_view(),
-        name="account_reset_password_from_key",
-    ),
     path(
         "accounts/password/reset/key/done/",
         PasswordResetRedirectView.as_view(),
         name="account_reset_password_from_key_done",
+    ),
+    re_path(
+        r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$",
+        PasswordResetKeyRedirectView.as_view(),
+        name="account_reset_password_from_key",
+    ),
+    # Anything else under reset/key/ (oversized key, odd characters) also goes
+    # to the SPA, forwarding nothing. Same name so the middleware exemption holds.
+    re_path(
+        r"^accounts/password/reset/key/.+/$",
+        PasswordResetMalformedKeyRedirectView.as_view(),
+        name="account_reset_password_from_key",
     ),
     path("accounts/", include("allauth.urls")),
     # All versioned API endpoints live under /api/v1/.

@@ -1383,41 +1383,54 @@ class AdminPasswordChangeRedirectView(View):
         return HttpResponseRedirect(f"{settings.FRONTEND_URL.rstrip('/')}/settings")
 
 
+@method_decorator(never_cache, name="dispatch")
 class PasswordResetRedirectView(View):
     """Send allauth's server-rendered password-reset pages to the SPA (#1554).
 
-    Mounted over ``/accounts/password/reset/``, ``.../reset/done/``,
-    ``.../reset/key/<uidb36>-<key>/`` and ``.../reset/key/done/`` ahead of the
-    allauth include (``visiban/urls.py``), so password reset has one
-    implementation: the SPA's ``/forgot-password`` and
-    ``/reset-password/<uid>/<token>`` pages over the REST routes.
+    Mounted over ``/accounts/password/reset/``, ``.../reset/done/`` and
+    ``.../reset/key/done/`` ahead of the allauth include (``visiban/urls.py``),
+    so password reset has one implementation: the SPA's ``/forgot-password``
+    and ``/reset-password/<uid>/<token>`` pages over the REST routes. Every
+    method redirects, nothing is read from the request body or query string,
+    and the destination is built only from ``FRONTEND_URL``. The routes keep
+    allauth's URL names so ``reverse()`` and the pending-action middleware's
+    exempt-view list (decided on the resolved view name) are unchanged.
 
-    Reset emails sent before this change (or by allauth's own request page)
-    link to ``/accounts/password/reset/key/<uidb36>-<key>/``; the key route
-    forwards ``uidb36`` and ``key`` to the SPA reset route unchanged, which is
-    the same uid/token pair the REST confirm route redeems, so those links keep
-    working. Every method redirects and nothing is read from the request body
-    or query string, so a POST changes nothing; the destination is built only
-    from ``FRONTEND_URL`` and the two regex-bounded URL captures (a fixed path,
-    no open redirect).
-
-    The routes keep allauth's URL names so ``reverse()`` and the pending-action
-    middleware's exempt-view list (decided on the resolved view name) are
-    unchanged. ``accounts.forms.VisibanResetPasswordKeyForm`` and the
-    ``password_reset`` signal receiver stay as defense in depth for a URLconf
-    that mounts allauth's own views.
+    ``accounts.forms.VisibanResetPasswordKeyForm`` and the ``password_reset``
+    signal receiver stay as defense in depth for a URLconf that mounts
+    allauth's own views.
     """
 
-    #: Fixed SPA path for a route that carries no key.
-    spa_path = "/forgot-password"
+    def dispatch(self, request, *args, **kwargs):
+        return HttpResponseRedirect(f"{settings.FRONTEND_URL.rstrip('/')}/forgot-password")
+
+
+@method_decorator(never_cache, name="dispatch")
+class PasswordResetKeyRedirectView(PasswordResetRedirectView):
+    """``/accounts/password/reset/key/<uidb36>-<key>/``: forward a well-formed link to the SPA.
+
+    Reset emails sent earlier link here. The URL regex bounds ``uidb36`` and
+    ``key``; they go to the SPA reset route unchanged, the same uid/token pair
+    the REST confirm route redeems, so those links keep working. The response
+    is never cached and sends ``Referrer-Policy: no-referrer`` so the key does
+    not leak through a cache or the Referer header.
+    """
 
     def dispatch(self, request, *args, **kwargs):
-        base = settings.FRONTEND_URL.rstrip("/")
-        uidb36 = kwargs.get("uidb36")
-        key = kwargs.get("key")
-        if uidb36 and key:
-            return HttpResponseRedirect(f"{base}/reset-password/{uidb36}/{key}")
-        return HttpResponseRedirect(f"{base}{self.spa_path}")
+        response = HttpResponseRedirect(
+            f"{settings.FRONTEND_URL.rstrip('/')}/reset-password/{kwargs['uidb36']}/{kwargs['key']}"
+        )
+        response["Referrer-Policy"] = "no-referrer"
+        return response
+
+
+@method_decorator(never_cache, name="dispatch")
+class PasswordResetMalformedKeyRedirectView(PasswordResetRedirectView):
+    """Any other ``/accounts/password/reset/key/...`` path (oversized or odd characters).
+
+    Goes to ``/forgot-password`` and forwards no part of the path, so a
+    malformed link never reaches allauth's stock page.
+    """
 
 
 class VisibanSignupView(AllauthSignupView):

@@ -220,8 +220,15 @@ NON_DRF_ALLOWLIST: dict[str, Allow] = {
         "Redirect to the SPA for every method, reads nothing but the bounded uid and key in the path (#1554).",
         "accounts/password/reset/",
         "accounts/password/reset/done/",
-        r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$",
         "accounts/password/reset/key/done/",
+    ),
+    "accounts.views.PasswordResetKeyRedirectView": _allow(
+        "Redirect to the SPA reset page; reads only the bounded uid and key in the path (#1554).",
+        r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$",
+    ),
+    "accounts.views.PasswordResetMalformedKeyRedirectView": _allow(
+        "Redirect to the SPA forgot-password page; forwards nothing from the path (#1554).",
+        r"^accounts/password/reset/key/.+/$",
     ),
     "accounts.views.AdminPasswordChangeRedirectView": _allow(
         "Redirect to the SPA for every method, reads nothing (#1551, #1561).",
@@ -1021,6 +1028,9 @@ FORCED_CHANGE_ROUTE_DECISIONS: dict[str, str] = {
     ),
     r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$": _exempt(
         "the project's redirect to the SPA reset page (#1554); " + _ANON
+    ),
+    r"^accounts/password/reset/key/.+/$": _exempt(
+        "the project's redirect to the SPA forgot-password page (#1554); " + _ANON
     ),
     "accounts/password/reset/key/done/": _exempt("static page; " + _ANON),
     # allauth social views.
