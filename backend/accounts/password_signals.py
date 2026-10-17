@@ -9,6 +9,12 @@ these receivers run the same idempotent helpers again as a backstop, so a
 password-setting form that does not finalize still ends in the same state.
 Connected in ``AccountsConfig.ready``.
 
+Defense in depth (#1554): the project's URLconf now redirects all of these
+pages to the SPA, so the receivers are not reached in a default install. They
+stay on purpose: an extension or test URLconf can mount allauth's own views,
+and the receivers keep any password-setting path that does emit the signals
+ending in the same finalized state. Do not remove them as dead code.
+
 The REST routes do not send these signals: dj-rest-auth's serializers save
 through Django's ``SetPasswordForm``, and ``ChangePasswordView`` calls
 ``set_password`` directly (``accounts/tests/test_forced_change_html_surfaces.py``

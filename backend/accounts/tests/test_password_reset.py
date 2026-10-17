@@ -175,6 +175,7 @@ def _redeem_via_allauth_html_page(uid, token, password="NewPassword9876"):
     return client.post(r["Location"], {"password1": password, "password2": password})
 
 
+@override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
 class PasswordlessRecoveryEndToEndTests(TestCase):
     """#1314 "genuinely stuck" path end to end: a verified, password-less
     account requests a reset, gets a working link, and sets a password."""
@@ -341,6 +342,7 @@ class PasswordlessRecoveryEndToEndTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
 
 
+@override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
 class ResetLinkBoundToAddressTests(TestCase):
     """#1337: a password-less account's reset link is valid only while *the
     address it was sent to* is still verified on the account — another
@@ -582,6 +584,7 @@ class ResetLinkBoundToAddressTests(TestCase):
         self.assertIsInstance(allauth_forms.UserTokenForm.token_generator, VisibanPasswordResetTokenGenerator)
 
 
+@override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
 class ResetLinkMintingRaceTests(TestCase):
     """#1337: the request gate and token minting are separate queries. An
     address unverified between them must not yield a working link — the
