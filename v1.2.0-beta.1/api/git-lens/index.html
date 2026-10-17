@@ -2015,6 +2015,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#stable-contract-surfaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stable contract surfaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#object-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4094,8 +4105,33 @@
 <p>Issue Board Lens surfaces GitHub or GitLab issues directly inside a Visiban board, pivoted by column and swimlane dimensions.</p>
 <div class="admonition warning">
 <p class="admonition-title">Experimental feature</p>
-<p>Read-only, <strong>public repositories only</strong>, and subject to change without a deprecation notice until it leaves experimental status.</p>
+<p>Read-only and <strong>public repositories only</strong>. The REST endpoints below are subject to change without a deprecation notice until the feature leaves experimental status. The contract surfaces listed under <a href="#stable-contract-surfaces">Stable contract surfaces</a> are the exception.</p>
 </div>
+<h3 id="stable-contract-surfaces">Stable contract surfaces<a class="headerlink" href="#stable-contract-surfaces" title="Permanent link">&para;</a></h3>
+<p>Three Git Lens surfaces are part of the frozen 1.x API contract and are <strong>not</strong> covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Where it is documented</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lens_connection.configured</code> and <code>lens_connection.removed</code> WebSocket events (board channel)</td>
+<td><a href="../websockets/#git-lens-events-since-12">WebSocket events</a></td>
+</tr>
+<tr>
+<td>The <code>LensConnection</code> object as carried in the <code>lens_connection.configured</code> payload</td>
+<td><a href="#lensconnection">LensConnection</a></td>
+</tr>
+<tr>
+<td>The <code>git_lens_enabled</code> field on the current user (<code>/auth/user/</code>)</td>
+<td><a href="../authentication/#user-profile">User profile</a></td>
+</tr>
+</tbody>
+</table>
+<p>Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.</p>
 <p>The feature is flag-gated: all endpoints below return <code>404 Not Found</code> unless the server is started with <code>GIT_LENS_ENABLED=true</code>.</p>
 <p>All endpoints require authentication (<code>Authorization: Token &lt;value&gt;</code>). Unauthenticated requests receive <code>403 Forbidden</code>.</p>
 <hr />
