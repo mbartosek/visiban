@@ -13,7 +13,7 @@ Three Git Lens surfaces are part of the frozen 1.x API contract and are **not** 
 |---|---|
 | `lens_connection.configured` and `lens_connection.removed` WebSocket events (board channel) | [WebSocket events](websockets.md#git-lens-events-since-12) |
 | The `LensConnection` object as carried in the `lens_connection.configured` payload | [LensConnection](#lensconnection) |
-| The `git_lens_enabled` field on the current user (`/auth/user/`) | [User profile](authentication.md) |
+| The `git_lens_enabled` field on the current user (`/auth/user/`) | [User profile](authentication.md#user-profile) |
 
 Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.
 
