@@ -9,7 +9,7 @@ row lock.
 """
 
 from allauth.account.models import EmailAddress
-from allauth.socialaccount.models import SocialAccount, SocialApp
+from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from django.contrib import admin
 from django.contrib.sites.models import Site
 from django.test import TestCase
@@ -52,6 +52,9 @@ class ThirdPartyAdminConcurrentEditTests(TestCase):
             provider="github", name="gh", client_id="cid", secret="sec"
         )
         self.site = Site.objects.get_current()
+        self.social_token = SocialToken.objects.create(
+            app=self.app, account=self.account, token="tok", token_secret="sec"
+        )
         self.token = Token.objects.create(user=self.victim)
         self.client.force_login(self.root)
 
@@ -70,16 +73,18 @@ class ThirdPartyAdminConcurrentEditTests(TestCase):
     def test_each_form_has_its_own_digest_key(self):
         keys = {
             default_row_version_salt(m)
-            for m in (EmailAddress, SocialAccount, SocialApp, TokenProxy)
+            for m in (EmailAddress, SocialAccount, SocialApp, SocialToken, TokenProxy, Site)
         }
-        self.assertEqual(len(keys), 4)
+        self.assertEqual(len(keys), 6)
 
     def test_change_pages_render_row_version_and_add_pages_do_not(self):
         for model, pk in (
             (EmailAddress, self.email.pk),
             (SocialAccount, self.account.pk),
             (SocialApp, self.app.pk),
+            (SocialToken, self.social_token.pk),
             (TokenProxy, self.victim.pk),
+            (Site, self.site.pk),
         ):
             with self.subTest(model=model.__name__):
                 self.assertContains(
@@ -273,3 +278,82 @@ class ThirdPartyAdminConcurrentEditTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.app.refresh_from_db()
         self.assertEqual(self.app.name, "renamed")
+
+    # -- SocialToken -------------------------------------------------------
+
+    def test_social_token_stale_form_is_refused(self):
+        data = page_data(self.render(SocialToken, self.social_token.pk), token="new")
+        SocialToken.objects.filter(pk=self.social_token.pk).update(token_secret="rotated")
+        response = self.client.post(self.url(SocialToken, self.social_token.pk), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, STALE_FORM_MESSAGE)
+        self.social_token.refresh_from_db()
+        self.assertEqual(self.social_token.token, "tok")
+
+    def test_social_token_unchanged_secret_keeps_a_change_made_after_load(self):
+        data = page_data(
+            self.render(SocialToken, self.social_token.pk), row_version=False, token="new"
+        )
+        rotate = lambda: SocialToken.objects.filter(pk=self.social_token.pk).update(  # noqa: E731
+            token_secret="rotated"
+        )
+        with patched_clean(form_class(SocialToken), rotate):
+            response = self.client.post(self.url(SocialToken, self.social_token.pk), data)
+        self.assertEqual(response.status_code, 302)
+        self.social_token.refresh_from_db()
+        self.assertEqual(self.social_token.token, "new")
+        self.assertEqual(self.social_token.token_secret, "rotated")
+
+    # -- Site --------------------------------------------------------------
+
+    def test_site_stale_form_is_refused(self):
+        data = page_data(self.render(Site, self.site.pk), name="renamed")
+        Site.objects.filter(pk=self.site.pk).update(domain="other.example.com")
+        response = self.client.post(self.url(Site, self.site.pk), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, STALE_FORM_MESSAGE)
+        self.assertNotEqual(Site.objects.get(pk=self.site.pk).name, "renamed")
+
+    def test_site_unchanged_domain_keeps_a_change_made_after_load(self):
+        data = page_data(self.render(Site, self.site.pk), row_version=False, name="renamed")
+        move = lambda: Site.objects.filter(pk=self.site.pk).update(  # noqa: E731
+            domain="other.example.com"
+        )
+        with patched_clean(form_class(Site), move):
+            response = self.client.post(self.url(Site, self.site.pk), data)
+        self.assertEqual(response.status_code, 302)
+        site = Site.objects.get(pk=self.site.pk)
+        self.assertEqual(site.name, "renamed")
+        self.assertEqual(site.domain, "other.example.com")
+
+    # -- Row removed after the form rendered -------------------------------
+
+    def _assert_removed_row_is_not_recreated(self, model, pk, obj, **overrides):
+        data = page_data(self.render(model, pk), row_version=False, **overrides)
+        with patched_clean(form_class(model), lambda: type(obj).objects.filter(pk=obj.pk).delete()):
+            response = self.client.post(self.url(model, pk), data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], self.url(model, pk))
+        return response
+
+    def test_token_removed_after_load_is_not_recreated(self):
+        before = Token.objects.count()
+        self._assert_removed_row_is_not_recreated(
+            TokenProxy, self.victim.pk, self.token, user=str(self.other.pk)
+        )
+        self.assertEqual(Token.objects.count(), before)
+
+    def test_email_removed_after_load_is_not_recreated(self):
+        self._assert_removed_row_is_not_recreated(
+            EmailAddress, self.email.pk, self.email, primary=True
+        )
+        # The refusal rolls the request back: nothing was written.
+        self.email.refresh_from_db()
+        self.assertFalse(self.email.primary)
+
+    def test_social_app_removed_after_load_is_not_recreated(self):
+        self._assert_removed_row_is_not_recreated(
+            SocialApp, self.app.pk, self.app, name="renamed"
+        )
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.name, "gh")

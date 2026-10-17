@@ -17,7 +17,7 @@ from visiban.admin_row_version import (
     RowVersionAdminMixin,
     RowVersionField,
     RowVersionFormMixin,
-    STALE_FORM_MESSAGE as DEFAULT_STALE_FORM_MESSAGE,
+    StaleSubmission,
 )
 
 from .models import (
@@ -888,11 +888,6 @@ class LockedRowVersionAdminMixin(RowVersionAdminMixin):
     left alone from that locked row.
     """
 
-    stale_save_message = (
-        "This record was changed after this page was opened, so nothing was saved. "
-        "The page now shows the current state; make your changes again."
-    )
-
     def save_model(self, request, obj, form, change):
         with transaction.atomic():
             if change:
@@ -903,34 +898,31 @@ class LockedRowVersionAdminMixin(RowVersionAdminMixin):
                     type(obj)._default_manager.select_for_update()
                     .filter(**{key: getattr(obj, key)}).first()
                 )
+                if stored is None:
+                    # The record was removed after the form rendered; saving
+                    # would create it again, so the submission is refused.
+                    raise StaleSubmission
                 self.check_row_version(form, stored)
                 self.keep_unchanged_fields(obj, form, stored)
             super().save_model(request, obj, form, change)
 
 
-def _restrict_to_superusers(model, *, row_version=False):
+def _restrict_to_superusers(model):
     """Re-register ``model``'s existing admin with the superuser-only mixin.
 
-    With ``row_version`` the change form also carries the rendered-state check
+    The change form also carries the rendered-state check
     (``LockedRowVersionAdminMixin``): a save writes only the fields the
     administrator changed, and a form rendered against an older state of the
     record is refused (#1642).
     """
     original = type(admin.site._registry[model])
     admin.site.unregister(model)
-    if not row_version:
-        restricted = type(
-            original.__name__, (SuperuserOnlyAdminMixin, original), {"__module__": __name__}
-        )
-        admin.site.register(model, restricted)
-        return
     form = type(
         f"{model.__name__}RowVersionForm",
         (RowVersionFormMixin, original.form),
         {
             "__module__": __name__,
             "row_version": RowVersionField(required=False),
-            "stale_form_message": DEFAULT_STALE_FORM_MESSAGE,
         },
     )
     restricted = type(
@@ -947,9 +939,7 @@ def _restrict_third_party_admins():
     from django.contrib.sites.models import Site
     from rest_framework.authtoken.models import TokenProxy
 
-    for model in (EmailAddress, SocialAccount, SocialApp, TokenProxy):
-        _restrict_to_superusers(model, row_version=True)
-    for model in (SocialToken, Site):
+    for model in (EmailAddress, SocialAccount, SocialApp, SocialToken, TokenProxy, Site):
         _restrict_to_superusers(model)
 
 
