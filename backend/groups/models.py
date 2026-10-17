@@ -130,14 +130,38 @@ def _admin_memberships(user):
 
 
 def _capped_chain_ids(group):
-    """PKs of ``group`` and its ancestors, capped at ``_GROUP_TRAVERSAL_MAX_DEPTH``."""
+    """PKs of ``group`` and its ancestors, capped at ``_GROUP_TRAVERSAL_MAX_DEPTH``.
+
+    Walks the already-loaded ``parent`` chain (``select_related``). Where the
+    chain stops being loaded, the remaining ancestor ids are read in one query
+    instead of one lazy query per level, so a caller that serializes a single
+    group without loading its chain still costs the same at any depth (#1692).
+    """
     ids = []
     node = group
-    depth = 0
-    while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
+    parent_field = Group._meta.get_field("parent")
+    while node is not None:
         ids.append(node.pk)
+        if len(ids) >= _GROUP_TRAVERSAL_MAX_DEPTH or node.parent_id is None:
+            break
+        if not parent_field.is_cached(node):
+            ids.extend(_ancestor_ids_from(node.parent_id, _GROUP_TRAVERSAL_MAX_DEPTH - len(ids)))
+            break
         node = node.parent
-        depth += 1
+    return ids
+
+
+def _ancestor_ids_from(group_id, limit):
+    """``group_id`` and up to ``limit - 1`` of its ancestors' ids, in one query."""
+    if limit <= 1:
+        return [group_id]
+    paths = ["__".join(["parent"] * d) for d in range(1, limit)]
+    row = Group.objects.filter(pk=group_id).values_list("pk", *paths).first()
+    ids = []
+    for value in row or (group_id,):
+        if value is None:
+            break
+        ids.append(value)
     return ids
 
 

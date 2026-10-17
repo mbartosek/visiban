@@ -387,6 +387,10 @@ class GroupViewSet(viewsets.ModelViewSet):
             _require_group_admin(self.request.user, parent)
         with transaction.atomic():
             group = serializer.save(owner=self.request.user)
+            if parent is not None:
+                # The chain-loaded parent, so the response's can_place_boards
+                # check walks loaded rows at any depth (#1692).
+                group.parent = parent
             GroupMembership.objects.create(
                 group=group, user=self.request.user, role=GroupMembership.Role.ADMIN
             )
@@ -432,7 +436,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         # Runs inside _update_with_broadcast's transaction: lock and reload the
         # row, and re-check a parent change against the locked state.
         serializer.recheck_parent_under_lock(serializer.instance)
-        serializer.save()
+        group = serializer.save()
+        if group.parent_id is not None:
+            # The reload above drops the select_related ancestor chain; load
+            # it again (one query) so the response's can_place_boards check
+            # costs the same at any depth (#1692).
+            group.parent = Group.objects.select_related(
+                *["__".join(["parent"] * d) for d in range(1, 6)],
+            ).get(pk=group.parent_id)
 
     def _update_with_broadcast(self, request, group, *, partial, args, kwargs):
         """Run the default DRF update path then broadcast group.updated (#998).
@@ -1759,7 +1770,11 @@ class JoinGroupView(APIView):
         # applies so GroupSerializer.get_member_count / board_count / subgroup_count
         # and get_is_starred() read from annotated attributes instead of issuing up to
         # 4 extra subqueries against the bare instance (#722).
-        annotated_group = Group.objects.select_related("owner", "parent").prefetch_related("labels").annotate(
+        # The full parent chain (six levels, as in _annotated_groups) so the
+        # can_place_boards admin check walks loaded rows at any depth (#1692).
+        annotated_group = Group.objects.select_related(
+            "owner", *["__".join(["parent"] * d) for d in range(1, 7)],
+        ).prefetch_related("labels").annotate(
             _member_count=Count("memberships", distinct=True),
             _board_count=Count("boards", distinct=True),
             _subgroup_count=Count("subgroups", distinct=True),
@@ -1769,8 +1784,7 @@ class JoinGroupView(APIView):
         ).get(pk=link.group_id)
         # The caller holds a direct membership on this group (get_or_create
         # above), so nothing is withheld; saying so skips the ancestor walk
-        # GroupSerializer would otherwise run, which "parent"-only
-        # select_related would turn into one query per level.
+        # GroupSerializer would otherwise run.
         group_data = GroupSerializer(
             annotated_group, context={"request": request, "group_access": full_group_access},
         ).data

@@ -14,8 +14,19 @@ interface TreeNode {
 // Placing a board in a group needs group admin there or on an ancestor; the
 // server reports that per group as `can_place_boards` (#1692). Groups the
 // caller cannot place into stay in the tree (their subgroups may be
-// placeable, and the tree is the navigation) but are disabled with a reason.
+// placeable, and the tree is the navigation) but are blocked with a reason
+// (frontend/CLAUDE.md, "Blocked rows in pickers"). The board's current group
+// stays selectable even then: choosing it again is "leave the board where it
+// is", which sends no request.
 const NOT_PLACEABLE_REASON = "Group admins only";
+const CURRENT_GROUP_NOTE = "Current group";
+
+/** True when a descendant of `node` (not `node` itself) is placeable or is `selected`. */
+function hasTargetBelow(node: TreeNode, selected: number | null): boolean {
+  return node.children.some(
+    (child) => child.group.can_place_boards || child.group.id === selected || hasTargetBelow(child, selected),
+  );
+}
 
 interface Props {
   board: Board;
@@ -96,12 +107,18 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
               key={node.group.id}
               node={node}
               selected={selected}
+              currentGroupId={board.group}
               onSelect={(id) => { setSelected(id); setMoveError(null); }}
             />
           ))}
 
           {groups.length === 0 && (
             <p className="text-sm text-fg-muted px-3 py-2">No groups available.</p>
+          )}
+          {groups.length > 0 && !groups.some((g) => g.can_place_boards) && (
+            <p className="text-xs text-fg-tertiary px-3 py-2">
+              You can only place boards in groups where you are an admin.
+            </p>
           )}
         </div>
       )}
@@ -131,35 +148,49 @@ export default function MoveBoardModal({ board, onMoved, onClose }: Props) {
 }
 
 function GroupPickerNode({
-  node, selected, onSelect, depth = 0,
+  node, selected, currentGroupId, onSelect, depth = 0,
 }: {
   node: TreeNode;
   selected: number | null;
+  currentGroupId: number | null;
   onSelect: (id: number | null) => void;
   depth?: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const hasChildren = node.children.length > 0;
+  // Start open when something choosable (or the current choice) is below, so a
+  // placeable subgroup is never hidden behind a collapsed blocked parent.
+  const [expanded, setExpanded] = useState(() => hasTargetBelow(node, selected));
+  const { group } = node;
+  const isCurrent = group.id === currentGroupId;
+  const note = group.can_place_boards ? undefined : isCurrent ? CURRENT_GROUP_NOTE : NOT_PLACEABLE_REASON;
 
   return (
     <div>
       <div className="flex items-center gap-1">
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className={`shrink-0 w-5 h-5 flex items-center justify-center text-fg-muted hover:text-fg-secondary transition-transform duration-150 ${expanded ? "rotate-90" : ""} ${!hasChildren ? "opacity-0 pointer-events-none" : ""}`}
-        >
-          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${group.name}`}
+            aria-expanded={expanded}
+            className={`shrink-0 w-5 h-5 flex items-center justify-center rounded text-fg-muted hover:text-fg-secondary transition-transform duration-150 focus:outline-none focus:ring-2 focus:ring-primary-emphasis ${expanded ? "rotate-90" : ""}`}
+          >
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        ) : (
+          <span className="w-5 shrink-0" />
+        )}
 
         <PickerRow
-          label={node.group.name}
+          label={group.name}
           icon={"\u{1F465}"}
-          selected={selected === node.group.id}
-          onSelect={() => onSelect(node.group.id)}
-          disabledReason={node.group.can_place_boards ? undefined : NOT_PLACEABLE_REASON}
-          reasonId={`move-board-group-reason-${node.group.id}`}
+          selected={selected === group.id}
+          onSelect={() => onSelect(group.id)}
+          blocked={!group.can_place_boards && !isCurrent}
+          note={note}
+          noteId={`move-board-group-note-${group.id}`}
         />
       </div>
 
@@ -177,6 +208,7 @@ function GroupPickerNode({
                 <GroupPickerNode
                   node={child}
                   selected={selected}
+                  currentGroupId={currentGroupId}
                   onSelect={onSelect}
                   depth={depth + 1}
                 />
@@ -190,25 +222,26 @@ function GroupPickerNode({
 }
 
 function PickerRow({
-  label, icon, selected, onSelect, disabledReason, reasonId,
+  label, icon, selected, onSelect, blocked = false, note, noteId,
 }: {
   label: string;
   icon: string;
   selected: boolean;
   onSelect: () => void;
-  /** When set, the row is blocked: aria-disabled (stays focusable), with this reason shown and described. */
-  disabledReason?: string;
-  reasonId?: string;
+  /** The caller may not choose this row: aria-disabled (stays focusable), no click. */
+  blocked?: boolean;
+  /** Inline note (the block reason, or "Current group"), tied to the row by aria-describedby. */
+  note?: string;
+  noteId?: string;
 }) {
-  const blocked = disabledReason !== undefined;
   return (
     <button
       type="button"
       onClick={blocked ? undefined : onSelect}
+      aria-pressed={selected}
       aria-disabled={blocked || undefined}
-      aria-describedby={blocked ? reasonId : undefined}
-      title={disabledReason}
-      className={`flex items-center gap-2 flex-1 px-3 py-2 rounded text-left transition text-sm focus:outline-none focus:ring-2 focus:ring-primary-emphasis ${
+      aria-describedby={note ? noteId : undefined}
+      className={`flex items-center gap-2 flex-1 min-w-0 px-3 py-2 rounded text-left transition text-sm focus:outline-none focus:ring-2 focus:ring-primary-emphasis ${
         blocked
           ? "cursor-not-allowed text-fg-muted"
           : selected ? "bg-info/20 text-info-on-tint" : "hover:bg-surface-hover text-fg-secondary"
@@ -220,10 +253,10 @@ function PickerRow({
         {selected && <span className="w-1.5 h-1.5 rounded-full bg-primary-soft" />}
       </span>
       <span>{icon}</span>
-      <span className="flex-1 truncate font-medium">{label}</span>
-      {blocked && (
-        <span id={reasonId} className="shrink-0 text-xs text-fg-muted">
-          {disabledReason}
+      <span className="flex-1 truncate font-medium" title={label}>{label}</span>
+      {note && (
+        <span id={noteId} className="shrink-0 text-xs text-fg-tertiary">
+          {note}
         </span>
       )}
     </button>

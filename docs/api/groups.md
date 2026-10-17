@@ -72,7 +72,7 @@ Get group details.
 
 #### Board placement (`can_place_boards`)
 
-*(1.2+)* Placing a board in a group requires the group admin role on that group or on one of its ancestors (within the 6-level walk), or access to all content. `can_place_boards` reports that rule for the requesting user, computed with the same check the server applies to those writes, so a client can disable groups it would refuse instead of waiting for a `403`. It is returned on the list, retrieve, and `/subgroups/` responses; the list computes it for every row with one query. A navigation-only group is always `false`. For example, a member of `Engineering` who administers only its subgroup `Platform` receives:
+*(1.2+)* Placing a board in a group requires the group admin role on that group or on one of its ancestors (within the 6-level walk), or access to all content. `can_place_boards` reports that rule for the requesting user, computed with the same check the server applies to those writes, so a client can disable groups it would refuse instead of waiting for a `403`. It is returned on every REST response that carries a group object (list, retrieve, `/subgroups/`, create, update, `board-defaults`, `transfer-ownership`, and the invite join response); the list computes it for every row with one query. A navigation-only group is always `false`. For example, a member of `Engineering` who administers only its subgroup `Platform` receives:
 
 ```json
 [
@@ -81,7 +81,7 @@ Get group details.
 ]
 ```
 
-(Other fields omitted.) The value describes the requesting user. The `group.created` and `group.updated` WebSocket payloads carry it computed for the user who made the change, so a client should read its own value from the REST endpoints.
+(Other fields omitted.) The value describes the requesting user, so it is REST-only: `group.*` WebSocket event payloads do not carry `can_place_boards`, because one frame goes to every subscriber of the group. Re-read it over REST when a group event arrives.
 
 #### Ancestor groups (navigation-only)
 

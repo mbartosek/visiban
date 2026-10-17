@@ -340,42 +340,95 @@ describe('MoveBoardModal', () => {
   })
 })
 
-// #1692 — groups the caller cannot place boards into are disabled with a reason.
+// #1692 — groups the caller cannot place boards into are blocked with a reason.
 describe('MoveBoardModal group placement rights', () => {
   const lockedParent = { id: 10, name: 'Locked Parent', parent: null, can_place_boards: false } as never
   const openChild = { id: 11, name: 'Open Child', parent: 10, can_place_boards: true } as never
+  const lockedLeaf = { id: 12, name: 'Locked Leaf', parent: null, can_place_boards: false } as never
+  const lockedChild = { id: 13, name: 'Locked Child', parent: 10, can_place_boards: false } as never
+  const rowFor = async (name: string) => (await screen.findByText(name)).closest('button')!
 
   beforeEach(() => { mockMoveBoardToGroup.mockClear() })
 
-  it('disables a group the caller cannot place into, with a described reason', async () => {
-    mockListGroups.mockResolvedValueOnce([lockedParent])
+  it('blocks a group the caller cannot place into, with the reason as its description', async () => {
+    mockListGroups.mockResolvedValueOnce([lockedLeaf, openChild])
     render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
-    const row = (await screen.findByText('Locked Parent')).closest('button')!
+    const row = await rowFor('Locked Leaf')
     expect(row).toHaveAttribute('aria-disabled', 'true')
-    const reason = screen.getByText('Group admins only')
-    expect(row).toHaveAttribute('aria-describedby', reason.id)
-    expect(row).toHaveAttribute('title', 'Group admins only')
+    expect(row).toHaveAccessibleDescription('Group admins only')
+    expect(row).not.toHaveAttribute('title')
+    expect(screen.getByText('Locked Leaf')).toHaveAttribute('title', 'Locked Leaf')
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    // Clicking it does not change the selection.
+    const personal = screen.getByText('Personal (no group)').closest('button')!
+    expect(personal).toHaveAttribute('aria-pressed', 'true')
     await userEvent.setup().click(row)
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    expect(personal).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Move')).toBeDisabled()
     expect(mockMoveBoardToGroup).not.toHaveBeenCalled()
+    expect(screen.queryByText(/only place boards in groups where you are an admin/)).not.toBeInTheDocument()
   })
 
-  it('keeps a placeable subgroup of a locked parent selectable', async () => {
+  it('keeps the current group selectable and labelled when the caller cannot place into it', async () => {
+    mockListGroups.mockResolvedValueOnce([lockedLeaf])
+    const boardInLocked: Board = { ...fakeBoard, group: 12 }
+    const onClose = vi.fn()
+    render(<MoveBoardModal board={boardInLocked} onMoved={vi.fn()} onClose={onClose} />)
+    const row = await rowFor('Locked Leaf')
+    expect(row).not.toHaveAttribute('aria-disabled')
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+    expect(row).toHaveAccessibleDescription('Current group')
+    expect(screen.queryByText('Group admins only')).not.toBeInTheDocument()
+    const user = userEvent.setup()
+    // Leaving the group is possible, and so is choosing it again.
+    await user.click(screen.getByText('Personal (no group)'))
+    expect(screen.getByText('Move')).not.toBeDisabled()
+    await user.click(row)
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Move')).toBeDisabled()
+    expect(mockMoveBoardToGroup).not.toHaveBeenCalled()
+    expect(screen.getByText('You can only place boards in groups where you are an admin.')).toBeInTheDocument()
+  })
+
+  it('opens a blocked parent with a placeable child and moves into the child', async () => {
     mockMoveBoardToGroup.mockResolvedValueOnce({ ...fakeBoard, group: 11 })
     mockListGroups.mockResolvedValueOnce([lockedParent, openChild])
     const onMoved = vi.fn()
     render(<MoveBoardModal board={fakeBoard} onMoved={onMoved} onClose={vi.fn()} />)
     const user = userEvent.setup()
-    const parentRow = (await screen.findByText('Locked Parent')).closest('button')!
-    // The expand chevron sits beside the row and stays usable.
-    await user.click(parentRow.previousElementSibling as HTMLElement)
-    const childRow = screen.getByText('Open Child').closest('button')!
+    const toggle = await screen.findByRole('button', { name: 'Collapse Locked Parent' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const childRow = await rowFor('Open Child')
     expect(childRow).not.toHaveAttribute('aria-disabled')
     expect(childRow).not.toHaveAttribute('aria-describedby')
     await user.click(childRow)
     await user.click(screen.getByText('Move'))
     await waitFor(() => expect(onMoved).toHaveBeenCalled())
     expect(mockMoveBoardToGroup).toHaveBeenCalledWith(fakeBoard.id, 11)
+    // The toggle collapses and re-expands.
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Expand Locked Parent' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('starts collapsed when nothing below is choosable, and leaf rows have no toggle', async () => {
+    mockListGroups.mockResolvedValueOnce([lockedParent, lockedChild])
+    render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
+    const toggle = await screen.findByRole('button', { name: 'Expand Locked Parent' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Locked Child')).not.toBeInTheDocument()
+    await userEvent.setup().click(toggle)
+    expect(await screen.findByText('Locked Child')).toBeInTheDocument()
+    // Only the parent has a toggle; the leaf gets a non-focusable spacer.
+    expect(screen.getAllByRole('button', { name: /^(Expand|Collapse) / })).toHaveLength(1)
+  })
+
+  it('starts open when the selected group is below a blocked parent', async () => {
+    mockListGroups.mockResolvedValueOnce([lockedParent, lockedChild])
+    const boardInChild: Board = { ...fakeBoard, group: 13 }
+    render(<MoveBoardModal board={boardInChild} onMoved={vi.fn()} onClose={vi.fn()} />)
+    expect(await screen.findByRole('button', { name: 'Collapse Locked Parent' })).toHaveAttribute('aria-expanded', 'true')
+    expect(await rowFor('Locked Child')).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

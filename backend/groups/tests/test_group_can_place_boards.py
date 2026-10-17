@@ -134,3 +134,126 @@ class CanPlaceBoardsTests(TestCase):
         self.assertEqual(len(rows), 9)
         self.assertEqual(sum(rows.values()), 4)
         self.assertEqual(count(), baseline)
+
+
+class CanPlaceBoardsDepthTests(TestCase):
+    """Every single-group response computes the flag at a cost independent of depth.
+
+    The join path is covered by ``JoinPostQueryCountTests`` in
+    ``test_group_invite_creator_1510.py``.
+    """
+
+    _n = 0
+
+    def _chain(self, depth):
+        CanPlaceBoardsDepthTests._n += 1
+        n = self._n
+        actor = User.objects.create_user(username=f"actor{n}", password="x")
+        heir = User.objects.create_user(username=f"heir{n}", password="x")
+        root = Group.objects.create(name=f"root{n}", owner=actor)
+        GroupMembership.objects.create(group=root, user=actor, role=Role.ADMIN)
+        node = root
+        for i in range(depth):
+            node = Group.objects.create(name=f"n{n}-{i}", owner=actor, parent=node)
+        GroupMembership.objects.create(group=node, user=heir, role=Role.ADMIN)
+        client = APIClient()
+        client.force_authenticate(actor)
+        return client, node, heir
+
+    def _measure(self, request):
+        counts = []
+        request(*self._chain(1))  # warm one-time caches
+        for depth in (1, 5):
+            client, leaf, heir = self._chain(depth)
+            with CaptureQueriesContext(connection) as ctx:
+                response = request(client, leaf, heir)
+            self.assertLess(response.status_code, 300, response.content)
+            self.assertTrue(response.json()["can_place_boards"])
+            counts.append(len(ctx.captured_queries))
+        self.assertEqual(counts[0], counts[1])
+
+    def test_retrieve(self):
+        self._measure(lambda c, g, h: c.get(f"/api/v1/groups/{g.id}/"))
+
+    def test_create_subgroup(self):
+        self._measure(lambda c, g, h: c.post(
+            "/api/v1/groups/", {"name": "New", "parent": g.id}, format="json",
+        ))
+
+    def test_update(self):
+        self._measure(lambda c, g, h: c.patch(
+            f"/api/v1/groups/{g.id}/", {"name": "Renamed"}, format="json",
+        ))
+
+    def test_board_defaults(self):
+        self._measure(lambda c, g, h: c.patch(
+            f"/api/v1/groups/{g.id}/board-defaults/", {"allowed_priorities": ["high"]},
+            format="json",
+        ))
+
+    def test_transfer_ownership(self):
+        self._measure(lambda c, g, h: c.post(
+            f"/api/v1/groups/{g.id}/transfer-ownership/",
+            {"new_owner_id": h.id, "confirmation": g.name}, format="json",
+        ))
+
+
+class CanPlaceBoardsBroadcastTests(TestCase):
+    """Group events never carry the per-viewer flag; REST responses do (#1692)."""
+
+    def setUp(self):
+        self.actor = User.objects.create_user(username="actor", password="x")
+        self.heir = User.objects.create_user(username="heir", password="x")
+        self.group = Group.objects.create(name="Team", owner=self.actor)
+        GroupMembership.objects.create(group=self.group, user=self.actor, role=Role.ADMIN)
+        GroupMembership.objects.create(group=self.group, user=self.heir, role=Role.ADMIN)
+        self.client = APIClient()
+        self.client.force_authenticate(self.actor)
+
+    def test_no_group_event_payload_carries_flag(self):
+        from unittest import mock
+
+        layer = mock.Mock()
+        layer.group_send = mock.AsyncMock()
+        gid = self.group.id
+        calls = [
+            lambda: self.client.post("/api/v1/groups/", {"name": "Child", "parent": gid}, format="json"),
+            lambda: self.client.patch(f"/api/v1/groups/{gid}/", {"name": "Team 2"}, format="json"),
+            lambda: self.client.patch(
+                f"/api/v1/groups/{gid}/board-defaults/", {"allowed_priorities": ["high"]}, format="json",
+            ),
+            lambda: self.client.post(
+                f"/api/v1/groups/{gid}/transfer-ownership/",
+                {"new_owner_id": self.heir.id, "confirmation": "Team 2"}, format="json",
+            ),
+        ]
+        with mock.patch("groups.broadcast.get_channel_layer", return_value=layer):
+            for call in calls:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = call()
+                self.assertLess(response.status_code, 300, response.content)
+                self.assertIn("can_place_boards", response.json())
+            # The Django admin transfer path builds its payload with no viewer.
+            from groups.admin import GroupAdmin
+            from django.contrib.admin.sites import site
+
+            with self.captureOnCommitCallbacks(execute=True):
+                GroupAdmin(Group, site)._broadcast_after_commit(gid)
+
+        frames = [c.args[1]["payload"] for c in layer.group_send.call_args_list]
+        group_frames = [f for f in frames if f["event"].startswith("group.")]
+        self.assertGreaterEqual(len(group_frames), 5)
+        for frame in group_frames:
+            self.assertNotIn("can_place_boards", frame["data"], frame["event"])
+        # Other group-shaped fields still arrive.
+        self.assertTrue(all("navigation_only" in f["data"] for f in group_frames))
+
+    def test_strip_leaves_other_payloads_alone(self):
+        from groups.broadcast import without_viewer_specific_group_fields
+
+        self.assertEqual(without_viewer_specific_group_fields([1]), [1])
+        payload = {"id": 1}
+        self.assertIs(without_viewer_specific_group_fields(payload), payload)
+        self.assertEqual(
+            without_viewer_specific_group_fields({"id": 1, "can_place_boards": True}), {"id": 1},
+        )
