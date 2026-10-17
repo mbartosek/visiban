@@ -74,7 +74,9 @@ class AdminTransferOwnershipTests(TestCase):
         self.assertEqual(list(form.fields["new_owner"].queryset), [self.heir])
 
     def test_superuser_transfers_to_active_member(self):
-        r = self._action(step="confirm", new_owner=self.heir.pk)
+        r = self._action(
+            step="confirm", expected_owner=self.departed.pk, new_owner=self.heir.pk
+        )
         self.group.refresh_from_db()
         self.assertEqual(self.group.owner_id, self.heir.pk)
         self.assertTrue(any("transferred to" in m for m in _msgs(r)), _msgs(r))
@@ -87,18 +89,51 @@ class AdminTransferOwnershipTests(TestCase):
         self.assertEqual(roles[self.heir.pk], GroupMembership.Role.ADMIN)
         self.assertEqual(roles[self.departed.pk], GroupMembership.Role.ADMIN)
 
+    def test_stale_form_refused_when_owner_changed_since_render(self):
+        # The page showed "departed" as owner; the API moved it to the heir
+        # before the superuser confirmed.
+        Group.objects.filter(pk=self.group.pk).update(owner=self.heir)
+        other = _user("other_stale")
+        GroupMembership.objects.create(group=self.group, user=other)
+        r = self._action(
+            step="confirm", expected_owner=self.departed.pk, new_owner=other.pk
+        )
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.owner_id, self.heir.pk)
+        self.assertTrue(
+            any("Ownership changed while this page was open" in m for m in _msgs(r)),
+            _msgs(r),
+        )
+
+    def test_confirm_without_expected_owner_refused(self):
+        self._action(step="confirm", new_owner=self.heir.pk)
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.owner_id, self.departed.pk)
+
+    def test_form_renders_expected_owner(self):
+        r = self._action()
+        self.assertContains(r, f'name="expected_owner" value="{self.departed.pk}"')
+
     def test_inactive_member_rejected(self):
-        self._action(step="confirm", new_owner=self.inactive_member.pk)
+        self._action(
+            step="confirm",
+            expected_owner=self.departed.pk,
+            new_owner=self.inactive_member.pk,
+        )
         self.group.refresh_from_db()
         self.assertEqual(self.group.owner_id, self.departed.pk)
 
     def test_non_member_rejected(self):
-        self._action(step="confirm", new_owner=self.outsider.pk)
+        self._action(
+            step="confirm", expected_owner=self.departed.pk, new_owner=self.outsider.pk
+        )
         self.group.refresh_from_db()
         self.assertEqual(self.group.owner_id, self.departed.pk)
 
     def test_current_owner_rejected(self):
-        self._action(step="confirm", new_owner=self.departed.pk)
+        self._action(
+            step="confirm", expected_owner=self.departed.pk, new_owner=self.departed.pk
+        )
         self.group.refresh_from_db()
         self.assertEqual(self.group.owner_id, self.departed.pk)
 
@@ -132,7 +167,11 @@ class AdminTransferOwnershipTests(TestCase):
     def test_broadcast_fired_after_transfer(self):
         with mock.patch("groups.broadcast.broadcast_group_event") as bc:
             with self.captureOnCommitCallbacks(execute=True):
-                self._action(step="confirm", new_owner=self.heir.pk)
+                self._action(
+                    step="confirm",
+                    expected_owner=self.departed.pk,
+                    new_owner=self.heir.pk,
+                )
         bc.assert_called_once()
         self.assertEqual(bc.call_args.args[0], self.group.pk)
         self.assertEqual(bc.call_args.args[2]["owner"]["id"], self.heir.pk)
@@ -145,7 +184,9 @@ class AdminTransferOwnershipTests(TestCase):
         self.assertTrue(refusal, _msgs(r))
         self.assertIn("Transfer ownership", refusal[0])
 
-        self._action(step="confirm", new_owner=self.heir.pk)
+        self._action(
+            step="confirm", expected_owner=self.departed.pk, new_owner=self.heir.pk
+        )
         self.client.post(delete_url, {"post": "yes"}, follow=True)
         self.assertFalse(User.objects.filter(pk=self.departed.pk).exists())
         self.assertTrue(Group.objects.filter(pk=self.group.pk).exists())
@@ -201,6 +242,7 @@ class AdminTransferOwnershipPermissionTests(TestCase):
                 "action": "transfer_ownership",
                 ACTION_CHECKBOX_NAME: [self.group.pk],
                 "step": "confirm",
+                "expected_owner": self.owner.pk,
                 "new_owner": self.heir.pk,
             },
         )
@@ -245,6 +287,7 @@ class AdminTransferLogTests(TestCase):
                 "action": "transfer_ownership",
                 ACTION_CHECKBOX_NAME: [group.pk],
                 "step": "confirm",
+                "expected_owner": owner.pk,
                 "new_owner": heir.pk,
             },
         )
@@ -301,6 +344,7 @@ class AdminTransferParityTests(TestCase):
                         "action": "transfer_ownership",
                         ACTION_CHECKBOX_NAME: [admin_group.pk],
                         "step": "confirm",
+                        "expected_owner": owner.pk,
                         "new_owner": heir.pk,
                     },
                 )
@@ -361,6 +405,7 @@ class AdminTransferRaceTests(TransactionTestCase):
                         "action": "transfer_ownership",
                         ACTION_CHECKBOX_NAME: [group.pk],
                         "step": "confirm",
+                        "expected_owner": owner.pk,
                         "new_owner": heir_b.pk,
                     },
                 )
@@ -377,13 +422,18 @@ class AdminTransferRaceTests(TransactionTestCase):
         for t in threads:
             t.join(timeout=60)
 
+        from django.contrib.admin.models import LogEntry
+
         group.refresh_from_db()
-        # Whichever commits second finds the owner changed and is refused, so
-        # the final owner is the first winner's choice and never the original.
-        self.assertIn(group.owner_id, (heir_a.pk, heir_b.pk))
-        if group.owner_id == heir_a.pk:
-            self.assertEqual(results["api"], 200)
+        admin_won = LogEntry.objects.filter(object_id=str(group.pk)).exists()
+        api_won = results["api"] == 200
+        # Exactly one wins; the final owner is the winner's choice and the
+        # loser is refused without changing anything.
+        self.assertNotEqual(api_won, admin_won, results)
+        if api_won:
+            self.assertEqual(group.owner_id, heir_a.pk)
         else:
+            self.assertEqual(group.owner_id, heir_b.pk)
             # 403 if the admin commit landed before the view loaded the group,
             # 400 if it landed between the view check and the row lock.
             self.assertIn(results["api"], (400, 403))

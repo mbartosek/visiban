@@ -108,6 +108,15 @@ class GroupAdmin(admin.ModelAdmin):
 
         confirmed = request.POST.get("step") == "confirm"
         form = TransferOwnershipForm(request.POST if confirmed else None, group=group)
+        if confirmed and request.POST.get("expected_owner") != str(group.owner_id):
+            # The form shows who owns the group; a confirm made against a
+            # different owner is a stale page and moves nothing.
+            self.message_user(
+                request,
+                "Ownership changed while this page was open; reload and retry.",
+                messages.ERROR,
+            )
+            return None
         if confirmed and form.is_valid():
             new_owner = form.cleaned_data["new_owner"]
             try:
@@ -115,7 +124,7 @@ class GroupAdmin(admin.ModelAdmin):
                     updated = transfer_group_ownership(
                         group.pk,
                         new_owner.pk,
-                        expected_owner_id=group.owner_id,
+                        expected_owner_id=int(request.POST["expected_owner"]),
                         require_admin_role=False,
                         require_active=True,
                     )

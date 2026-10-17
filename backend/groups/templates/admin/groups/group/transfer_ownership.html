@@ -21,6 +21,7 @@
   <input type="hidden" name="action" value="transfer_ownership">
   <input type="hidden" name="{{ action_checkbox_name }}" value="{{ group.pk }}">
   <input type="hidden" name="step" value="confirm">
+  <input type="hidden" name="expected_owner" value="{{ group.owner_id }}">
   <input type="submit" class="default" value="Transfer ownership">
   <a href="{% url 'admin:groups_group_changelist' %}" class="button cancel-link">Cancel</a>
 </form>

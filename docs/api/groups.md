@@ -315,6 +315,7 @@ The previous owner becomes a regular admin after transfer. Returns the updated g
 - `400 Bad Request` — confirmation does not match group name
 - `400 Bad Request` — `new_owner_id` is not a member of this group
 - `400 Bad Request` — `new_owner_id` is a member but not an admin
+- `400 Bad Request` — the group's owner changed while the request was being processed (`Only the group owner can transfer ownership.`)
 
 ---
 
