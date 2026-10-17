@@ -24,9 +24,9 @@ from boards.admin import CardAdmin, CardChecklistAdmin, CardCommentAdmin
 from boards.models import (
     Board, BoardMembership, Card, CardChecklist, CardComment, Column, Swimlane,
 )
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 
 
 @skipUnless(connection.vendor == "postgresql", "row locks are only observable on PostgreSQL")
@@ -102,8 +102,7 @@ class AdminChildSaveCardLockTests(TransactionTestCase):
                 writer = self._thread("writer", lambda: self._admin_save(kind) or True, results)
                 self.assertTrue(paused.wait(HOLD_TIMEOUT), "writer never reached its hold")
                 deleter = self._thread("deleter", self._admin_delete_card, results)
-                deleter.join(BLOCK_PROBE)
-                self.assertTrue(deleter.is_alive(), "card delete did not wait for the save's lock")
+                assert_blocked_on_lock(self, deleter, "card delete did not wait for the save's lock")
                 release.set()
                 writer.join(HOLD_TIMEOUT)
                 deleter.join(HOLD_TIMEOUT)

@@ -44,9 +44,9 @@ from boards.models import (
 )
 from boards.views._helpers import lock_board_and_row_or_404
 from groups.models import Group, GroupMembership
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 
 
 class TestLockBoardAndRowScoping(TestCase):
@@ -142,8 +142,7 @@ class _RaceBase(TransactionTestCase):
             holder = self._thread("holder", first, results)
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "first request never held its lock")
             writer = self._thread("writer", second, results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), "second request did not wait")
+            assert_blocked_on_lock(self, writer, "second request did not wait")
             release.set()
             holder.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)

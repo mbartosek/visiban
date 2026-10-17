@@ -39,9 +39,9 @@ from boards.models import (
     Column,
     Swimlane,
 )
+from boards.tests.lock_wait import assert_blocked_on_lock
 
 HOLD_TIMEOUT = 10.0
-BLOCK_PROBE = 0.5
 
 KINDS = ("card", "column", "swimlane", "board", "user")
 MODES = ("model", "queryset")
@@ -181,10 +181,7 @@ class AdminDeleteCascadeLockTests(TransactionTestCase):
             deleter = self._thread(
                 "deleter", lambda: self._admin_delete(kind, mode) or True, results
             )
-            deleter.join(BLOCK_PROBE)
-            self.assertTrue(
-                deleter.is_alive(), "admin delete did not wait for the card lock"
-            )
+            assert_blocked_on_lock(self, deleter, "admin delete did not wait for the card lock")
             release.set()
             writer.join(HOLD_TIMEOUT)
             deleter.join(HOLD_TIMEOUT)
@@ -204,8 +201,7 @@ class AdminDeleteCascadeLockTests(TransactionTestCase):
             )
             self.assertTrue(paused.wait(HOLD_TIMEOUT), "delete never reached its hold")
             writer = self._thread("writer", lambda: self._write(self._client()), results)
-            writer.join(BLOCK_PROBE)
-            self.assertTrue(writer.is_alive(), "write did not wait for the card lock")
+            assert_blocked_on_lock(self, writer, "write did not wait for the card lock")
             release.set()
             deleter.join(HOLD_TIMEOUT)
             writer.join(HOLD_TIMEOUT)
