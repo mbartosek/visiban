@@ -95,7 +95,7 @@ Group admins can have Visiban email an invite straight to someone's address. In 
 - Whether sending is possible is published as `invite_email_available` on the public `GET /api/v1/auth/site-config/` endpoint: it is `true` only when outbound email is configured (see [Configuration](../administration/configuration.md)), `INVITE_EMAIL_ENABLED` is not `false`, and the instance is not a demo. When the feature is switched off the endpoint returns `403` with `code: "invite_email_disabled"`.
 
 !!! note
-    Following the emailed link does **not** verify the recipient's email address. If they create a new account from it, registration still follows the instance's normal email-verification setting.
+    Following the emailed link does **not** verify the recipient's email address. If they create a new account from it, registration still follows the instance's normal email-verification setting. *(1.2+)* With `EMAIL_VERIFICATION=mandatory`, the new account joins the group when the invited address is verified, not at sign-up; see [Site Admins](../administration/site-admins.md).
 
 ### New users on invite-only instances
 

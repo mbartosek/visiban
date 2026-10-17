@@ -33,6 +33,16 @@ class AccountsConfig(AppConfig):
             dispatch_uid="accounts.apply_confirmed_email_change",
         )
 
+        # Under EMAIL_VERIFICATION=mandatory, a group or board invite used to
+        # register with a not-yet-verified invited address grants its
+        # membership when that address is confirmed (#1704).
+        from visiban.invite_recipient import grant_reserved_invites
+
+        email_confirmed.connect(
+            grant_reserved_invites,
+            dispatch_uid="visiban.invite_recipient.grant_reserved_invites",
+        )
+
         # allauth's HTML password views finalize through the same helpers as
         # the REST routes (#1551).
         from .password_signals import connect_password_signals

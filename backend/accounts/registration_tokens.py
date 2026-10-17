@@ -13,7 +13,10 @@ Each kind supplies:
   ``transaction.atomic()``.
 - ``redeem(invite, user)`` — consume it for the account just created (and, for
   group/board invites, grant the membership). Raises ``InviteTokenError`` when
-  the invite was lost to a concurrent redemption.
+  the invite was lost to a concurrent redemption. Under
+  ``EMAIL_VERIFICATION=mandatory`` a group/board invite whose address is not
+  yet verified is reserved for the account instead, and granted when the
+  address is confirmed (#1704, ``visiban.invite_recipient``).
 
 Site invites (``vbnl_``) are the fallback for any other string, as before: the
 site validator answers an unknown token with ``invite_invalid``.
