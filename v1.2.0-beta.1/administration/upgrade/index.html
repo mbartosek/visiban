@@ -4267,8 +4267,8 @@ build. A hard reload fixes it for that visitor; the headers above prevent it for
 <p>Four patterns break this compatibility — or block the upgrade outright — and are therefore prohibited:</p>
 <h3 id="rule-1-every-new-column-must-be-nullable-or-have-a-default">Rule 1 — Every new column must be nullable or have a default<a class="headerlink" href="#rule-1-every-new-column-must-be-nullable-or-have-a-default" title="Permanent link">&para;</a></h3>
 <p>A <code>NOT NULL</code> column without a default added to an existing table blocks any <code>INSERT</code> from the old code that does not know about the new column. The old container cannot supply a value for a column it does not know about.</p>
-<p><strong>Safe:</strong> <code>nullable=True</code> or a <code>default=</code> value on the field. The old code omits the column from its <code>INSERT</code>; PostgreSQL fills in <code>NULL</code> or the default.</p>
-<p><strong>Unsafe:</strong> <code>NOT NULL</code> with no default. Every <code>INSERT</code> from the old code fails with a constraint violation.</p>
+<p><strong>Safe:</strong> <code>null=True</code> or a <code>db_default=</code> value on the field (use <code>db_default=</code> alongside <code>default=</code>: on PostgreSQL a plain Python <code>default=</code> is dropped from the database after <code>AddField</code>, so old pods can still fail; see <a href="../../development/database-migrations/">Database migrations</a>). The old code omits the column from its <code>INSERT</code>; PostgreSQL fills in <code>NULL</code> or the default.</p>
+<p><strong>Unsafe:</strong> <code>NOT NULL</code> with no <code>db_default=</code>, even if the field has a Python-level <code>default=</code> (PostgreSQL drops that after <code>AddField</code>). Every <code>INSERT</code> from the old code fails with a constraint violation.</p>
 <p>If a column genuinely must be <code>NOT NULL</code> with no default, the migration must be split across releases:</p>
 <ol>
 <li>Release N: add the column as nullable.</li>

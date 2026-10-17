@@ -4231,8 +4231,9 @@ board or card creation, membership changes) is exposed.</p>
 </code></pre></div>
 <p>Put the same <code>db_default</code> on the model field so <code>makemigrations --check</code> stays clean. A migration
 that has already shipped gets an additive <code>AlterField</code> rather than an edit in place. The
-<code>check_migration_constraint_safety</code> scan below accepts any <code>default=</code> and so does not catch this;
-<code>migration-check</code> does.</p>
+<code>check_migration_constraint_safety</code> scan below accepts any <code>default=</code> and so does not fail on this;
+<code>migration-check</code> enforces it. The scan stays advisory by decision (#1680): its fix hint
+recommends <code>db_default=</code> (alongside <code>default=</code>), but it never fails a <code>default=</code>-only column.</p>
 <h2 id="adding-an-index">Adding an index<a class="headerlink" href="#adding-an-index" title="Permanent link">&para;</a></h2>
 <p>Use <code>AddIndexConcurrently</code> from <code>visiban.db_operations</code> and set <code>atomic = False</code> on the
 <code>Migration</code> class.</p>
@@ -4647,7 +4648,7 @@ the way a plain <code>AddConstraint</code> would. This check watches <code>Valid
 <td>rebuilds the table's unique index, fails on any duplicate</td>
 </tr>
 <tr>
-<td><code>AddField</code> with no <code>null=True</code> and no <code>default</code></td>
+<td><code>AddField</code> with no <code>null=True</code>, no <code>default=</code> and no <code>db_default=</code></td>
 <td>yes</td>
 <td>Django cannot add the column to a populated table with nothing to put in existing rows</td>
 </tr>
