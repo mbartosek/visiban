@@ -14,6 +14,7 @@ from accounts.views import (
     AdminPasswordChangeRedirectView,
     EmailConfirmRedirectView,
     InviteRegisterView,
+    PasswordResetRedirectView,
     ResendEmailThrottle,
     SocialSignupRedirectView,
     ThrottledLoginView,
@@ -164,6 +165,25 @@ urlpatterns = [
     # produce these same paths, so allauth's own redirects land here too.
     path("accounts/password/change/", AdminPasswordChangeRedirectView.as_view()),
     path("accounts/password/set/", AdminPasswordChangeRedirectView.as_view()),
+    # Same technique (#1554): allauth's password-reset pages go to the SPA, so
+    # reset has one implementation. The key route forwards the uid and key to
+    # the SPA reset route, so links in reset emails sent earlier keep working.
+    # The names match allauth's, so reverse() and the pending-action
+    # middleware's exempt-view list (accounts/ middleware PENDING_ACTION_EXEMPT_VIEWS)
+    # resolve exactly as before. Key bound: allauth's token is
+    # "<base36 timestamp>-<hash>"; same length cap as the confirm-email route.
+    path("accounts/password/reset/", PasswordResetRedirectView.as_view(), name="account_reset_password"),
+    path("accounts/password/reset/done/", PasswordResetRedirectView.as_view(), name="account_reset_password_done"),
+    re_path(
+        r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]{1,20})-(?P<key>[\w\-]{1,200})/$",
+        PasswordResetRedirectView.as_view(),
+        name="account_reset_password_from_key",
+    ),
+    path(
+        "accounts/password/reset/key/done/",
+        PasswordResetRedirectView.as_view(),
+        name="account_reset_password_from_key_done",
+    ),
     path("accounts/", include("allauth.urls")),
     # All versioned API endpoints live under /api/v1/.
     # The v1 prefix is a literal path segment — not a captured kwarg — so view

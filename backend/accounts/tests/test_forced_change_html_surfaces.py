@@ -21,7 +21,7 @@ from allauth.account.utils import user_pk_to_url_str
 from django.contrib import admin
 from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
-from django.urls import path as url_path
+from django.urls import path as url_path, re_path
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
@@ -196,11 +196,13 @@ class PendingUserIsGatedTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(r["Location"], FRONTEND)
 
+    @override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
     def test_password_reset_pages_are_reachable(self):
         for path in ("/accounts/password/reset/", "/accounts/password/reset/done/"):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
 
+    @override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
     def test_reset_by_key_clears_the_pending_password_change(self):
         """The emailed key works while signed in, as it does signed out."""
         r = self.client.get(
@@ -216,6 +218,7 @@ class PendingUserIsGatedTests(TestCase):
         self.assertFalse(self.user.must_change_password)
         self.assertEqual(self.user.personal_access_tokens.count(), 0)
 
+    @override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
     def test_exempt_views_match_by_resolved_view(self):
         """Exemption follows the resolved view."""
         # allauth's reset-by-key key accepts slashes, so this path is still the
@@ -449,6 +452,14 @@ def _allauth_password_views_urlconf():
     from visiban import urls as project_urls
 
     return [
+        # Reset pages too (#1554): redirected by the project, still finalizing
+        # through the forms if allauth's views are mounted some other way.
+        url_path("accounts/password/reset/", allauth_views.password_reset, name="account_reset_password"),
+        re_path(
+            r"^accounts/password/reset/key/(?P<uidb36>[0-9A-Za-z]+)-(?P<key>.+)/$",
+            allauth_views.password_reset_from_key,
+            name="account_reset_password_from_key",
+        ),
         url_path("accounts/password/change/", allauth_views.password_change),
         url_path("accounts/password/set/", allauth_views.password_set),
         *project_urls.urlpatterns,

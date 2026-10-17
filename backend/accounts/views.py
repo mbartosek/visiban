@@ -1383,6 +1383,43 @@ class AdminPasswordChangeRedirectView(View):
         return HttpResponseRedirect(f"{settings.FRONTEND_URL.rstrip('/')}/settings")
 
 
+class PasswordResetRedirectView(View):
+    """Send allauth's server-rendered password-reset pages to the SPA (#1554).
+
+    Mounted over ``/accounts/password/reset/``, ``.../reset/done/``,
+    ``.../reset/key/<uidb36>-<key>/`` and ``.../reset/key/done/`` ahead of the
+    allauth include (``visiban/urls.py``), so password reset has one
+    implementation: the SPA's ``/forgot-password`` and
+    ``/reset-password/<uid>/<token>`` pages over the REST routes.
+
+    Reset emails sent before this change (or by allauth's own request page)
+    link to ``/accounts/password/reset/key/<uidb36>-<key>/``; the key route
+    forwards ``uidb36`` and ``key`` to the SPA reset route unchanged, which is
+    the same uid/token pair the REST confirm route redeems, so those links keep
+    working. Every method redirects and nothing is read from the request body
+    or query string, so a POST changes nothing; the destination is built only
+    from ``FRONTEND_URL`` and the two regex-bounded URL captures (a fixed path,
+    no open redirect).
+
+    The routes keep allauth's URL names so ``reverse()`` and the pending-action
+    middleware's exempt-view list (decided on the resolved view name) are
+    unchanged. ``accounts.forms.VisibanResetPasswordKeyForm`` and the
+    ``password_reset`` signal receiver stay as defense in depth for a URLconf
+    that mounts allauth's own views.
+    """
+
+    #: Fixed SPA path for a route that carries no key.
+    spa_path = "/forgot-password"
+
+    def dispatch(self, request, *args, **kwargs):
+        base = settings.FRONTEND_URL.rstrip("/")
+        uidb36 = kwargs.get("uidb36")
+        key = kwargs.get("key")
+        if uidb36 and key:
+            return HttpResponseRedirect(f"{base}/reset-password/{uidb36}/{key}")
+        return HttpResponseRedirect(f"{base}{self.spa_path}")
+
+
 class VisibanSignupView(AllauthSignupView):
     """allauth's HTML signup view, with the closed page replaced by a redirect (#1324).
 
