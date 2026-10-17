@@ -298,6 +298,8 @@ Emitted by the [Git Lens](git-lens.md) connection endpoints. They ride the
 **board** channel, not a channel of their own, so a board member with the Lens tab open
 sees it appear or disappear without a reload.
 
+These two events and their payloads are part of the frozen 1.x WebSocket contract, even though the Git Lens REST endpoints remain experimental. Fields may be added but never removed or renamed.
+
 | Event | Trigger | `data` shape |
 |---|---|---|
 | `lens_connection.configured` | Lens connection created or reconfigured on this board (admin only) | Full `LensConnectionSerializer` object (its `created_by` is `null` if the configuring user has since been deleted) |
