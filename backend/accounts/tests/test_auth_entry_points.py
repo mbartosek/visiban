@@ -2127,9 +2127,6 @@ GROUP_PLACEMENT_ALLOWLIST: dict[str, str] = {
     ),
     "groups.consumers.GroupConsumer.connect": "Stores the group id the WebSocket connected to; writes no Board.",
     "groups.admin.TransferOwnershipForm.__init__": "Stores the form's Group instance; writes no Board.",
-    "groups.views.GroupViewSet.group_labels": (
-        "serializer.save(group=group) on a GroupLabelSerializer; writes a GroupLabel, not a Board."
-    ),
 }
 
 _GROUP_ATTRS = ("group", "group_id")
@@ -2146,6 +2143,15 @@ def _group_write_reason(node) -> str | None:
         for target in targets:
             if isinstance(target, ast.Attribute) and target.attr in _GROUP_ATTRS:
                 return f"assigns .{target.attr}"
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in ("add", "set", "create")
+        and isinstance(node.func.value, ast.Attribute)
+        and node.func.value.attr == "boards"
+    ):
+        # Board.group has related_name="boards", so group.boards.add(...) writes it.
+        return f"calls reverse manager .boards.{node.func.attr}(...)"
     if isinstance(node, ast.Call) and any(k.arg in _GROUP_ATTRS for k in node.keywords):
         func = node.func
         name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
@@ -2242,8 +2248,9 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
     inside an allowlisted function is masked; re-check those entries when
     editing them. The check is presence-only: it does not verify ordering, that
     the checked group is the one written, or that every branch is covered. The
-    scan misses setattr, **kwargs create/update, bulk_update and
-    save(update_fields=["group"]) shapes.
+    scan flags reverse-manager writes (group.boards.add/set/create) but misses
+    setattr, **kwargs create/update (Board.objects.create(**data)), bulk_update
+    and save(update_fields=["group"]) shapes.
     """
 
     def test_discovery_finds_the_known_write_sites(self):
@@ -2295,6 +2302,9 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
                 serializer.save(group=None)
 
         Board.objects.filter(pk=1).update(group=None)
+
+        def via_manager(group, board):
+            group.boards.add(board)
         """
     )
 
@@ -2307,11 +2317,12 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
                 "synthetic.NewView.create_it",
                 "synthetic.NewView.checked",
                 "synthetic.NewView.relabel",
+                "synthetic.via_manager",
                 "synthetic.<module>",
             },
         )
         failures = group_placement_violations(sites, {})
-        self.assertEqual(len(failures), 4, failures)
+        self.assertEqual(len(failures), 5, failures)
         self.assertFalse(any("NewView.checked" in f for f in failures))
 
     def test_negative_an_allowlisted_site_is_not_reported(self):
@@ -2332,8 +2343,8 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
         try:
             failures = writable_group_serializer_violations([Unchecked])
         finally:
-            # Subclass registry is weak, but drop the reference explicitly so
-            # the discovery test never sees this class.
+            # The "<locals>" qualname filter in _board_serializers keeps this
+            # class out of discovery even while it lingers in __subclasses__().
             del Unchecked
         self.assertEqual(len(failures), 1, failures)
         self.assertIn("validate_group", failures[0])

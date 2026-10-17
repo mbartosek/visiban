@@ -280,3 +280,16 @@ backend CI job runs with the flag off, so the `backend-test-git-lens` job also
 runs this test with the flag on, and the lens views are enumerated there. The
 allowlists contain no flag-dependent entries, so the stale-entry check passes
 either way.
+
+## How the group-placement scan finds them
+
+`GroupPlacementEntryPointTests` parses every non-test module of the installed
+apps with `ast` and reports each function that assigns `.group` or `.group_id`,
+passes `group=` to a `Board` create or to `.save()` / `.update()`, or calls the
+reverse manager `.boards.add`, `.boards.set` or `.boards.create`. Each reported
+function must call `_require_group_admin`, `resolve_group_for_board_placement`,
+`_check_group_change` or `_resolve_import_group`, or be listed in
+`GROUP_PLACEMENT_ALLOWLIST` with a reason. A runtime pass also requires every
+writable `group` field on a `Board` serializer to validate through the check.
+The scan is syntactic and presence-only; it misses `setattr`, `**kwargs`
+create or update, `bulk_update` and `save(update_fields=["group"])`.

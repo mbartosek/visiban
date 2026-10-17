@@ -36,10 +36,13 @@ and 2: it discovers every routed REST and non-DRF view, every routed WebSocket
 consumer, the MCP transport, every invite-link model, and every function that
 looks an invite up by its token, and fails when one skips the shared function.
 It also checks that each top-level path segment with a route is either gated by
-`PendingAccountActionMiddleware` or recorded as serving no session HTML, and
+ or recorded as serving no session HTML, and
 that every route under the gated prefixes, Django admin views included, has a
 recorded forced-change decision (`gated` or `exempt: <reason>`) that the
 middleware keeps for each pending flag.
+It enumerates Rule 6 too, through `GroupPlacementEntryPointTests`: every
+function that writes `Board.group` must call the shared group-admin check or be
+allowlisted.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
 enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
