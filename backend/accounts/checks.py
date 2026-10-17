@@ -295,3 +295,44 @@ def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs)
         for name in candidates
         if name in oss_gated
     ]
+
+
+@checks.register(checks.Tags.security)
+def check_ws_origin_wildcard_hosts_without_origins(app_configs, **kwargs):
+    """Recommend listing the public origin when ALLOWED_HOSTS uses wildcards (#1687).
+
+    The WebSocket Origin check (``accounts.ws_origin``) accepts an origin whose
+    host matches ``ALLOWED_HOSTS``, ignoring scheme and port. A ``*`` or
+    leading-dot entry there matches a whole family of hosts, so on an install
+    that lists no origin explicitly the check is only as narrow as that
+    pattern. The rule is deliberately conservative to avoid noise on correctly
+    configured installs: warn only when ``CORS_ALLOWED_ORIGINS`` and
+    ``CSRF_TRUSTED_ORIGINS`` are both empty. Any listed origin means the
+    operator has already stated their public origin. A Warning, not an Error:
+    the matching rule itself is unchanged in 1.2.
+    """
+    from django.conf import settings
+
+    hosts = getattr(settings, "ALLOWED_HOSTS", None) or []
+    if not any(h == "*" or h.startswith(".") for h in hosts):
+        return []
+    if getattr(settings, "CORS_ALLOWED_ORIGINS", None) or getattr(
+        settings, "CSRF_TRUSTED_ORIGINS", None
+    ):
+        return []
+    return [
+        checks.Warning(
+            'ALLOWED_HOSTS contains a wildcard entry ("*" or a leading-dot '
+            "domain) and no origin is listed in CORS_ALLOWED_ORIGINS or "
+            "CSRF_TRUSTED_ORIGINS.",
+            hint=(
+                "List the public origin explicitly, for example "
+                "CORS_ALLOWED_ORIGINS=https://visiban.example.com, so browser "
+                "WebSocket origin matching does not depend on the wildcard "
+                "host pattern. To accept this deliberately, add "
+                '"accounts.W002" to SILENCED_SYSTEM_CHECKS. See '
+                "docs/api/websockets.md."
+            ),
+            id="accounts.W002",
+        )
+    ]

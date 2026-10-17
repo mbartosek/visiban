@@ -361,3 +361,40 @@ class SessionEngineSystemCheckTests(TestCase):
             checks.registry.registry.get_checks(include_deployment_checks=False),
         )
         self.assertIn(checks.Tags.security, check_session_engine_supports_ws_revocation.tags)
+
+
+class WsOriginWildcardHostsCheckTests(TestCase):
+    """accounts.W002: recommend an explicit origin when ALLOWED_HOSTS has wildcards (#1687)."""
+
+    def _check(self):
+        from accounts.checks import check_ws_origin_wildcard_hosts_without_origins
+
+        return check_ws_origin_wildcard_hosts_without_origins(None)
+
+    @override_settings(ALLOWED_HOSTS=["*"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[])
+    def test_star_without_origins_warns(self):
+        from django.core import checks
+
+        results = self._check()
+        self.assertEqual([r.id for r in results], ["accounts.W002"])
+        self.assertIsInstance(results[0], checks.Warning)
+
+    @override_settings(ALLOWED_HOSTS=[".example.com"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[])
+    def test_leading_dot_without_origins_warns(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(ALLOWED_HOSTS=["app.example.com"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[])
+    def test_explicit_hosts_are_clean(self):
+        self.assertEqual(self._check(), [])
+
+    @override_settings(
+        ALLOWED_HOSTS=["*"], CORS_ALLOWED_ORIGINS=["https://app.example.com"], CSRF_TRUSTED_ORIGINS=[]
+    )
+    def test_star_with_cors_origin_is_clean(self):
+        self.assertEqual(self._check(), [])
+
+    @override_settings(
+        ALLOWED_HOSTS=[".example.com"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=["https://app.example.com"]
+    )
+    def test_leading_dot_with_csrf_origin_is_clean(self):
+        self.assertEqual(self._check(), [])
