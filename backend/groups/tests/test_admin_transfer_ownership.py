@@ -1,10 +1,11 @@
 """Django admin: read-only Group admin and the superuser-only ownership transfer (#1643)."""
 
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.messages import get_messages
-from django.test import TestCase, override_settings
+from django.db import connection
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import User
@@ -225,3 +226,164 @@ class AdminTransferOwnershipPermissionTests(TestCase):
         request = RequestFactory().get("/")
         request.user = root
         self.assertFalse(admin.site._registry[Group].has_view_permission(request))
+
+
+@_PLAIN_STATIC
+class AdminTransferLogTests(TestCase):
+    def test_successful_transfer_is_logged(self):
+        from django.contrib.admin.models import CHANGE, LogEntry
+
+        root = _user("root_l", staff=True, superuser=True)
+        owner = _user("owner_l", active=False)
+        heir = _user("heir_l")
+        group = Group.objects.create(name="Logged", owner=owner)
+        GroupMembership.objects.create(group=group, user=heir)
+        self.client.force_login(root)
+        self.client.post(
+            reverse("admin:groups_group_changelist"),
+            {
+                "action": "transfer_ownership",
+                ACTION_CHECKBOX_NAME: [group.pk],
+                "step": "confirm",
+                "new_owner": heir.pk,
+            },
+        )
+        entry = LogEntry.objects.get(object_id=str(group.pk))
+        self.assertEqual(entry.action_flag, CHANGE)
+        self.assertEqual(entry.user_id, root.pk)
+        self.assertIn("Transferred ownership to heir_l", entry.change_message)
+
+
+@_PLAIN_STATIC
+class AdminTransferParityTests(TestCase):
+    def test_group_updated_payload_keys_match_the_api_path(self):
+        from rest_framework.test import APIClient
+
+        root = _user("root_pa", staff=True, superuser=True)
+        owner = _user("owner_pa")
+        heir = _user("heir_pa")
+
+        def make(name):
+            g = Group.objects.create(name=name, owner=owner)
+            GroupMembership.objects.create(
+                group=g, user=owner, role=GroupMembership.Role.ADMIN
+            )
+            GroupMembership.objects.create(
+                group=g, user=heir, role=GroupMembership.Role.ADMIN
+            )
+            return g
+
+        api_group, admin_group = make("Api"), make("Adm")
+        payloads = {}
+
+        def capture(key):
+            return lambda gid, event, data: payloads.__setitem__(key, data)
+
+        api = APIClient()
+        api.force_authenticate(owner)
+        with mock.patch(
+            "groups.broadcast.broadcast_group_event", side_effect=capture("api")
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                r = api.post(
+                    f"/api/v1/groups/{api_group.pk}/transfer-ownership/",
+                    {"new_owner_id": heir.pk, "confirmation": api_group.name},
+                )
+        self.assertEqual(r.status_code, 200)
+        self.client.force_login(root)
+        with mock.patch(
+            "groups.broadcast.broadcast_group_event", side_effect=capture("admin")
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(
+                    reverse("admin:groups_group_changelist"),
+                    {
+                        "action": "transfer_ownership",
+                        ACTION_CHECKBOX_NAME: [admin_group.pk],
+                        "step": "confirm",
+                        "new_owner": heir.pk,
+                    },
+                )
+        self.assertEqual(set(payloads["api"]), set(payloads["admin"]))
+        self.assertEqual(set(payloads["api"]["owner"]), set(payloads["admin"]["owner"]))
+
+
+@skipUnless(
+    connection.vendor == "postgresql",
+    "interleaving needs separate PostgreSQL connections",
+)
+@_PLAIN_STATIC
+class AdminTransferRaceTests(TransactionTestCase):
+    """The admin action and the owner's API transfer race; exactly one wins."""
+
+    def test_exactly_one_transfer_wins(self):
+        import threading
+
+        from django.db import connections
+        from rest_framework.test import APIClient
+
+        root = _user("root_rc", staff=True, superuser=True)
+        owner = _user("owner_rc")
+        heir_a = _user("heir_a_rc")
+        heir_b = _user("heir_b_rc")
+        group = Group.objects.create(name="Race", owner=owner)
+        for u in (owner, heir_a, heir_b):
+            GroupMembership.objects.create(
+                group=group, user=u, role=GroupMembership.Role.ADMIN
+            )
+
+        barrier = threading.Barrier(2)
+        results = {}
+
+        def api_side():
+            try:
+                c = APIClient()
+                c.force_authenticate(owner)
+                barrier.wait(timeout=10)
+                r = c.post(
+                    f"/api/v1/groups/{group.pk}/transfer-ownership/",
+                    {"new_owner_id": heir_a.pk, "confirmation": group.name},
+                )
+                results["api"] = r.status_code
+            finally:
+                connections.close_all()
+
+        def admin_side():
+            try:
+                from django.test import Client
+
+                c = Client()
+                c.force_login(root)
+                barrier.wait(timeout=10)
+                c.post(
+                    reverse("admin:groups_group_changelist"),
+                    {
+                        "action": "transfer_ownership",
+                        ACTION_CHECKBOX_NAME: [group.pk],
+                        "step": "confirm",
+                        "new_owner": heir_b.pk,
+                    },
+                )
+                results["admin"] = True
+            finally:
+                connections.close_all()
+
+        threads = [
+            threading.Thread(target=api_side),
+            threading.Thread(target=admin_side),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=60)
+
+        group.refresh_from_db()
+        # Whichever commits second finds the owner changed and is refused, so
+        # the final owner is the first winner's choice and never the original.
+        self.assertIn(group.owner_id, (heir_a.pk, heir_b.pk))
+        if group.owner_id == heir_a.pk:
+            self.assertEqual(results["api"], 200)
+        else:
+            # 403 if the admin commit landed before the view loaded the group,
+            # 400 if it landed between the view check and the row lock.
+            self.assertIn(results["api"], (400, 403))

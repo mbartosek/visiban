@@ -144,6 +144,8 @@ Only the **current owner** of a group can transfer ownership, and only to an exi
 
 After transfer, the previous owner becomes a regular admin — not removed from the group.
 
+If the owner has left or been deactivated, a superuser can transfer the group from the Django admin; see [Transferring a group's ownership](../administration/django-admin.md#transferring-a-groups-ownership).
+
 **API:** `POST /api/v1/groups/{id}/transfer-ownership/` with `{ "new_owner_id": 42, "confirmation": "Group Name" }`
 
 ## Starring groups

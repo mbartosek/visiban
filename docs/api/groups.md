@@ -295,7 +295,7 @@ List only starred groups for the current user.
 ## Transfer ownership
 
 ### `POST /api/v1/groups/{id}/transfer-ownership/`
-Transfer group ownership to another user. Requires the **current owner** (not just admin).
+Transfer group ownership to another user. Requires the **current owner** (not just admin). There is no API route for administrators; a superuser can transfer a departed owner's group from the Django admin (see [Transferring a group's ownership](../administration/django-admin.md#transferring-a-groups-ownership)).
 
 **Request**
 ```json

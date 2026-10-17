@@ -182,3 +182,35 @@ class TransferOwnershipNonObjectBodyTests(TestCase):
     def test_null_body_400s(self):
         resp = self._post_raw_json(None)
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class TransferOwnershipInLockTests(TestCase):
+    """The owner is re-checked under the group row lock."""
+
+    def test_owner_changed_after_view_check_returns_400(self):
+        from groups import services as group_services
+
+        owner = User.objects.create_user(username="lk_owner", password="pass")
+        heir = User.objects.create_user(username="lk_heir", password="pass")
+        other = User.objects.create_user(username="lk_other", password="pass")
+        group = _make_group(owner, "Lock Group")
+        for u in (heir, other):
+            GroupMembership.objects.create(group=group, user=u, role=GroupMembership.Role.ADMIN)
+        real = group_services.transfer_group_ownership
+
+        def owner_moves_first(group_id, *args, **kwargs):
+            # Another transfer commits between the view's owner check and the lock.
+            Group.objects.filter(pk=group_id).update(owner=other)
+            return real(group_id, *args, **kwargs)
+
+        client = APIClient()
+        client.force_authenticate(owner)
+        with patch("groups.services.transfer_group_ownership", side_effect=owner_moves_first):
+            r = client.post(
+                f"/api/v1/groups/{group.id}/transfer-ownership/",
+                {"new_owner_id": heir.id, "confirmation": group.name},
+            )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json()["detail"], "Only the group owner can transfer ownership.")
+        group.refresh_from_db()
+        self.assertEqual(group.owner_id, other.id)

@@ -120,6 +120,12 @@ class GroupAdmin(admin.ModelAdmin):
                         require_active=True,
                     )
                     self._broadcast_after_commit(updated.pk)
+                    # Privilege-relevant: leave a trail in the admin log.
+                    self.log_change(
+                        request,
+                        updated,
+                        f"Transferred ownership to {new_owner.get_username()}",
+                    )
             except GroupTransferError as exc:
                 self.message_user(request, str(exc), messages.ERROR)
                 return None
