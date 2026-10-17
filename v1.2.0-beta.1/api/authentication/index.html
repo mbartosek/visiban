@@ -5501,7 +5501,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <td><code>current_password</code></td>
 <td>string</td>
 <td>Only when changing <code>email</code> on an account that has a password</td>
-<td><strong>Added in 1.2.</strong> The account's current password. A request that changes <code>email</code> (including clearing it, or a case-only change) on an account with a usable password (<code>has_usable_password: true</code>) must include it, in every <code>EMAIL_VERIFICATION</code> mode; it is checked before any other <code>email</code> rule, and a missing or wrong value answers <code>400</code> with a <code>current_password</code> error and nothing in the request is applied. A wrong value counts toward the same per-account failed-attempt lockout as login and the password-change endpoints. Accounts that sign in only through an identity provider (<code>has_usable_password: false</code>) don't send it. Requests that don't change <code>email</code> don't need it, and a value sent with them is ignored. Write-only: never returned. Also applies to <code>PATCH</code> and <code>PUT /api/v1/auth/user/</code>.</td>
+<td><strong>Added in 1.2.</strong> The account's current password. A request that changes <code>email</code> (including clearing it, or a case-only change) on an account with a usable password (<code>has_usable_password: true</code>) must include it, in every <code>EMAIL_VERIFICATION</code> mode; it is checked before any other <code>email</code> rule, and a missing or wrong value answers <code>400</code> with a <code>current_password</code> error and nothing in the request is applied. A wrong value counts toward the same per-account failed-attempt lockout as login and the password-change endpoints. The change is refused with the same <code>400</code> if the account's password changed while the request was in flight (including a hash re-encode at login with the same password); the client should retry. Accounts that sign in only through an identity provider (<code>has_usable_password: false</code>) don't send it. Requests that don't change <code>email</code> don't need it, and a value sent with them is ignored. Write-only: never returned. Also applies to <code>PATCH</code> and <code>PUT /api/v1/auth/user/</code>.</td>
 </tr>
 <tr>
 <td><code>avatar_url</code></td>
@@ -5583,7 +5583,7 @@ actually bootstraps from) returns the identical shape — both are served by
 </tr>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td>The request changes <code>email</code> and <code>current_password</code> is wrong — <code>{"current_password": ["Your current password was entered incorrectly. Please enter it again."]}</code></td>
+<td>The request changes <code>email</code> and <code>current_password</code> is wrong, or the account's password changed while the request was in flight (including a hash re-encode at login with the same password; retry) — <code>{"current_password": ["Your current password was entered incorrectly. Please enter it again."]}</code></td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code></td>
