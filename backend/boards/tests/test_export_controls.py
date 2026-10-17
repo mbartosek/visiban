@@ -6,6 +6,7 @@ the role-at-export capture, and the admin-only export-history endpoint.
 """
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -319,3 +320,95 @@ class ExportHistoryEndpointTests(TestCase):
         entries = data["results"] if isinstance(data, dict) and "results" in data else data
         null_actor_entries = [e for e in entries if e["actor"] is None]
         self.assertEqual(len(null_actor_entries), 1)
+
+
+class ExportMinRoleScopeTests(TestCase):
+    """``export_min_role`` scopes the export action and file formats only.
+
+    The setting is documented as limiting the export
+    action (``/export/``, movement exports, and the web UI's export controls),
+    not ordinary reads. These tests pin that scope so a change to it is a
+    deliberate, documented decision rather than a side effect.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="scope_owner", password="pass")
+        self.viewer = User.objects.create_user(username="scope_viewer", password="pass")
+        self.board = _make_board(self.owner, export_min_role="admin")
+        _add_member(self.board, self.viewer, BoardMembership.Role.VIEWER)
+        self.client = APIClient()
+        self.client.force_authenticate(self.viewer)
+
+    def test_export_min_role_scopes_export_action_only(self):
+        # The export action itself honors the threshold.
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/export/")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Ordinary reads are governed by board membership, not the threshold.
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(r.data), 2)
+
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.data["id"], self.board.id)
+        self.assertEqual(r.data["name"], self.board.name)
+
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(sorted(c["title"] for c in r.data["cards"]), ["C1", "C2"])
+
+        r = self.client.get("/api/v1/cards/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        titles = sorted(c["title"] for c in r.data["results"])
+        self.assertEqual(titles, ["C1", "C2"])
+
+    def test_export_min_role_scopes_export_action_only_card_actions(self):
+        card = Card.objects.filter(board=self.board).first()
+        # Seed a timeline entry through the real comment endpoint.
+        owner_client = APIClient()
+        owner_client.force_authenticate(self.owner)
+        r = owner_client.post(
+            f"/api/v1/boards/{self.board.id}/cards/{card.id}/comments/",
+            {"body": "scope note"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/{card.id}/timeline/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(r.data["results"]), 1)
+        self.assertEqual(r.data["results"][0]["event_type"], "comment_added")
+
+        archived = Card.objects.create(
+            board=self.board, column=card.column, swimlane=card.swimlane,
+            title="Archived", created_by=self.owner, position=5,
+            archived_at=timezone.now(),
+        )
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/archived/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        rows = r.data["results"] if isinstance(r.data, dict) else r.data
+        self.assertEqual([c["id"] for c in rows], [archived.id])
+
+    def test_export_min_role_scopes_export_action_only_mcp(self):
+        from mcp_server import tools
+        from mcp_server.context import reset_current_user, set_current_user
+
+        # Setup: the viewer holds a viewer membership and the board threshold
+        # is admin, so the viewer is below export_min_role.
+        self.assertEqual(self.board.export_min_role, "admin")
+        self.assertTrue(
+            BoardMembership.objects.filter(
+                board=self.board, user=self.viewer, role=BoardMembership.Role.VIEWER
+            ).exists()
+        )
+        token = set_current_user(self.viewer)
+        try:
+            listed = tools.list_cards(board_id=self.board.id)
+            snapshot = tools.board_snapshot(board_id=self.board.id)
+        finally:
+            reset_current_user(token)
+        self.assertNotIn("error", listed)
+        self.assertNotIn("error", snapshot)
+        cards = listed["cards"] if isinstance(listed, dict) else listed
+        self.assertEqual(sorted(c["title"] for c in cards), ["C1", "C2"])
+        self.assertEqual(sorted(c["title"] for c in snapshot["cards"]), ["C1", "C2"])

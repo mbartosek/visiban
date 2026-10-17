@@ -117,6 +117,9 @@ class Board(models.Model):
         default="viewer",
         help_text=(
             "Minimum BoardMembership.Role required to export this board (#843). "
+            "Limits only the export action and its file formats (board and "
+            "movement exports); it does not change what a member can read "
+            "through the board, card list, or MCP endpoints. "
             "Default ``viewer`` preserves pre-1.1 behavior where every role with "
             "read access can export. Owners and site admins always bypass this "
             "threshold. The valid values are viewer / collaborator / member / "
