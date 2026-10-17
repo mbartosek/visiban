@@ -156,7 +156,8 @@ class ResendPendingEmailTests(PendingEmailActionTestBase):
 
     def test_change_request_and_resend_share_the_cooldown(self):
         # A resend can't mail an address more often than a change request could.
-        self.client.patch("/api/v1/auth/me/", {"email": "erin@new.example"}, format="json")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.patch("/api/v1/auth/me/", {"email": "erin@new.example"}, format="json")
         mail.outbox.clear()
         self.assertEqual(
             self.client.post(RESEND_URL).status_code, status.HTTP_429_TOO_MANY_REQUESTS

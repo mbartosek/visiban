@@ -108,6 +108,60 @@ class StalePasswordTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, NEW)
 
+    def test_mandatory_success_sends_the_confirmation_only_after_commit(self):
+        with override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory"):
+            with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                r = self.client.patch(
+                    "/api/v1/auth/me/",
+                    {"email": NEW, "current_password": PASSWORD},
+                    format="json",
+                )
+            self.assertEqual(r.status_code, status.HTTP_200_OK)
+            # Nothing is mailed while the transaction holding the lock is open.
+            self.assertEqual(mail.outbox, [])
+            pending = EmailAddress.objects.get(user=self.user, email=NEW)
+            self.assertFalse(pending.verified)
+            for callback in callbacks:
+                callback()
+        self.assertEqual([m.to for m in mail.outbox], [[NEW]])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.pending_email_address_id, pending.pk)
+        self.assertEqual(self.user.email, OLD)
+
+    def test_refused_request_sends_no_mail(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            r = self._patch_after_rotation("/api/v1/auth/me/", "mandatory")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(mail.outbox, [])
+        self.assertFalse(
+            EmailAddress.objects.filter(user=self.user, email=NEW).exists()
+        )
+
+    def test_deactivated_account_is_refused(self):
+        original = UserSerializer._check_current_password_for_email_change
+
+        def check_then_deactivate(serializer, data):
+            original(serializer, data)
+            User.objects.filter(pk=self.user.pk).update(is_active=False)
+
+        with (
+            override_settings(ACCOUNT_EMAIL_VERIFICATION="none"),
+            patch.object(
+                UserSerializer,
+                "_check_current_password_for_email_change",
+                check_then_deactivate,
+            ),
+        ):
+            r = self.client.patch(
+                "/api/v1/auth/me/",
+                {"email": NEW, "current_password": PASSWORD},
+                format="json",
+            )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("current_password", r.json())
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, OLD)
+
     def test_request_that_does_not_change_the_email_takes_no_lock_check(self):
         # No password was verified, so a concurrent rotation is not this
         # request's concern and the profile edit applies.

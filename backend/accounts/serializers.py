@@ -691,6 +691,8 @@ class UserSerializer(serializers.ModelSerializer):
         - Under ``mandatory``, sending the current address back while a change is
           pending withdraws that change.
         """
+        from contextlib import nullcontext
+
         from django.db import IntegrityError, transaction
 
         from .email_change import (
@@ -724,7 +726,7 @@ class UserSerializer(serializers.ModelSerializer):
         verified_hash = getattr(self, "_verified_password_hash", None)
         # One transaction from the lock to the last write, so the password
         # that was accepted is still the stored one when the address changes.
-        with transaction.atomic():
+        with transaction.atomic() if verified_hash is not None else nullcontext():
             if verified_hash is not None:
                 # #1711: the current password was checked against the copy of
                 # the row loaded when the request started. Re-read the row
@@ -735,7 +737,7 @@ class UserSerializer(serializers.ModelSerializer):
                 from . import credentials as credentials_module
 
                 locked = credentials_module.lock_user_row(instance)
-                if locked.password != verified_hash:
+                if locked.password != verified_hash or not locked.is_active:
                     raise serializers.ValidationError(
                         {"current_password": [credentials_module.EMAIL_CHANGE_PASSWORD_INCORRECT_MESSAGE]}
                     )

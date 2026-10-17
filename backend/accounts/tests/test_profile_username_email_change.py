@@ -173,7 +173,9 @@ class MandatoryEmailChangeTests(TestCase):
             with self.subTest(url=url):
                 mail.outbox.clear()
                 new = f"erin{n}@new.example"
-                r = self.client.patch(url, {"email": new}, format="json")
+                # The confirmation mail goes out on commit.
+                with self.captureOnCommitCallbacks(execute=True):
+                    r = self.client.patch(url, {"email": new}, format="json")
                 self.assertEqual(r.status_code, status.HTTP_200_OK)
                 body = r.json()
                 self.assertEqual(body["email"], "erin@old.example")

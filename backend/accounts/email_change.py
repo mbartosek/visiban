@@ -198,11 +198,22 @@ def request_email_change(request, user, new_email: str) -> bool:
                 user=user, email=new_email, verified=False, primary=False
             )
         _set_pending_pointer(user, existing)
-    # Outside the transaction: the row must be committed before the link in
-    # the email can be followed. allauth's own confirm_email rate limit
-    # applies here and silently skips a resend that exceeds it — the link in
-    # the earlier email still works.
-    send_verification_email_to_address(request, existing)
+    # Sent on commit, never while a transaction (the caller's may hold the
+    # user-row lock) is open: the pending row must be committed before the
+    # link in the email can be followed, a slow mail server must not hold a
+    # lock or connection, and a rolled-back change sends nothing. Outside any
+    # transaction ``on_commit`` runs the send immediately. The callback
+    # captures plain values and re-reads the row. allauth's own confirm_email
+    # rate limit applies here and silently skips a resend that exceeds it —
+    # the link in the earlier email still works.
+    pending_pk = existing.pk
+
+    def _send():
+        row = EmailAddress.objects.filter(pk=pending_pk, verified=False).first()
+        if row is not None:
+            send_verification_email_to_address(request, row)
+
+    transaction.on_commit(_send)
     return False
 
 
