@@ -2918,6 +2918,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 8: Per-recipient event fields are gated on every broadcast and replay surface
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-add-a-rule" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4595,6 +4606,79 @@ surface: create in group by <code>groups/tests/test_groups.py</code>
 <code>boards/tests/test_board_group_field_validation.py</code>, and move group and the
 imports by <code>boards/tests/test_group_placement_roles.py</code>. The enumeration test
 that checks every surface in this table is tracked in #1693.</p>
+<h2 id="rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface">Rule 8: Per-recipient event fields are gated on every broadcast and replay surface<a class="headerlink" href="#rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> A board event is fanned out to every subscriber and stored once in the
+change feed. The events and fields listed here are filtered per recipient on
+each surface that delivers them:</p>
+<ul>
+<li>per-user events (<code>boards/permissions.py</code> <code>PER_USER_EVENTS</code>: <code>board.star_changed</code>,
+  <code>saved_filter.created</code>, <code>saved_filter.deleted</code>; plus <code>group.star_changed</code> on the
+  group channel) reach only the user named in <code>data.user_id</code>
+  (<code>per_user_event_visible</code>). Writers persist them with <code>actor_id</code> set to that
+  user, which is what the feed filters on;</li>
+<li><code>is_moderator</code> on <code>member.added</code> / <code>member.updated</code> is shown to admin and
+  site_admin recipients, and to any recipient on their own row
+  (<code>moderator_field_visible</code>);</li>
+<li><code>is_site_admin</code> on the same events, and <code>invite</code> on <code>member.added</code>, are shown
+  to admin and site_admin recipients only (<code>site_admin_field_visible</code>,
+  <code>invite_field_visible</code>);</li>
+<li>admin-only board fields (<code>ADMIN_ONLY_BOARD_FIELDS</code>) are dropped for every
+  recipient (<code>without_admin_only_board_fields</code>);</li>
+<li>admin-only swimlane custom field values are never in a broadcast payload, and
+  change-feed swimlane rows are re-filtered at read time against the board's
+  current shareable definitions.</li>
+</ul>
+<p>An unknown recipient role or identity hides the field or the event.</p>
+<p><strong>Why.</strong> The writer has no recipient to filter for, and the change feed replays
+stored payloads, so the gate has to run where the recipient is known. A gate on
+one surface only leaves the same field readable through another.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board WebSocket</td>
+<td><code>boards/consumers.py</code> <code>BoardConsumer.board_event</code></td>
+<td>Per-user drop (<code>per_user_event_visible</code>), then <code>moderator_field_visible</code>, <code>site_admin_field_visible</code>, <code>invite_field_visible</code> on <code>MODERATOR_BEARING_EVENTS</code>, using the subscriber's re-resolved role</td>
+</tr>
+<tr>
+<td>Group WebSocket</td>
+<td><code>groups/consumers.py</code> <code>GroupConsumer.group_event</code></td>
+<td>Per-user drop only, over <code>GROUP_PER_USER_EVENTS</code> (derived from <code>PER_USER_EVENTS</code>). There is no <code>is_moderator</code>, <code>is_site_admin</code> or <code>invite</code> strip on this surface: the group channel's <code>member.added</code> carries a <code>GroupMembershipSerializer</code> row, which has none of those fields</td>
+</tr>
+<tr>
+<td>Change feed</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.events</code>; <code>boards/serializers.py</code> <code>BoardEventSerializer.to_representation</code></td>
+<td>The view excludes other users' <code>PER_USER_EVENTS</code> rows in the page query; the serializer applies the three member-field helpers with the reader's role, <code>without_admin_only_board_fields</code>, and the swimlane re-filter (<code>shareable_swimlane_field_ids</code>)</td>
+</tr>
+<tr>
+<td>Broadcast and persist (write time)</td>
+<td><code>boards/broadcast.py</code> <code>broadcast_board_event</code>, <code>persist_board_event</code>; <code>groups/broadcast.py</code> <code>broadcast_group_event</code></td>
+<td><code>without_admin_only_board_fields</code>; swimlane payloads built from the public <code>SwimlaneSerializer</code></td>
+</tr>
+<tr>
+<td>REST board and members</td>
+<td><code>boards/serializers.py</code> <code>BoardFullSerializer.get_members</code>, <code>get_swimlanes</code>; <code>BoardMembershipSerializer.to_representation</code></td>
+<td><code>moderator_field_visible</code>, <code>site_admin_field_visible</code>; <code>SwimlaneAdminSerializer</code> for admin and site_admin only</td>
+</tr>
+<tr>
+<td>Board export</td>
+<td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin.export</code></td>
+<td>Admin-only swimlane definitions and their values are included for admin exporters only</td>
+</tr>
+</tbody>
+</table>
+<p>Coverage: <code>boards/tests/test_event_payload_scoping.py</code> (per-user events on both
+channels and the feed, <code>invite</code>, swimlane re-filtering, and a check that every
+<code>*star_changed</code> and <code>saved_filter.*</code> event is in the per-user sets),
+<code>boards/tests/test_board_events.py</code> <code>ReadSideStrippingTests</code> (including the
+shared-helper identity check), <code>boards/tests/test_consumer_role_refresh.py</code>, and
+<code>boards/tests/test_member_site_admin_flag.py</code>.</p>
 <h2 id="how-to-add-a-rule">How to add a rule<a class="headerlink" href="#how-to-add-a-rule" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Write the rule as a statement of behavior, not an implementation: what must

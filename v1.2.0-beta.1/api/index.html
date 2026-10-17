@@ -4010,7 +4010,7 @@ deliberate, and none will be removed or renamed in 1.x:</p>
 </tr>
 <tr>
 <td>Integer id — <code>actor_id</code> / <code>created_by_id</code></td>
-<td>The <a href="events/">change feed</a> (<code>BoardEvent.actor_id</code>), the admin action log (alongside <code>actor_username</code>), and the <code>invite.created_by_id</code> of a <a href="websockets/#member-events"><code>member.added</code></a> WebSocket payload (which the change feed replays verbatim inside <code>data</code>)</td>
+<td>The <a href="events/">change feed</a> (<code>BoardEvent.actor_id</code>), the admin action log (alongside <code>actor_username</code>), and the <code>invite.created_by_id</code> of a <a href="websockets/#member-events"><code>member.added</code></a> WebSocket payload, sent to <code>admin</code> and <code>site_admin</code> recipients only (the change feed returns it inside <code>data</code> to the same roles)</td>
 <td>The row is append-only and stores a plain column, not a foreign key, so it can outlive the user. On the change feed it sits next to the nested <code>actor</code>; the id is kept for consumers that already join against the member list. A broadcast payload carries ids only because it is built once for every subscriber; resolve <code>invite.created_by_id</code> against the member list.</td>
 </tr>
 <tr>

@@ -5241,9 +5241,9 @@
 <p>See <a href="../events/">Change Feed</a> for the full contract, retention, and the reconnect flow.</p>
 <h3 id="post-apiv1boardsidstar"><code>POST /api/v1/boards/{id}/star/</code><a class="headerlink" href="#post-apiv1boardsidstar" title="Permanent link">&para;</a></h3>
 <p>Star (favorite) a board. Returns <code>200 OK</code> with the updated board object (whether or not the board was already starred).</p>
-<p><strong>Permissions:</strong> requires authentication and board access (any role). Broadcasts <code>board.star_changed</code> to all board WebSocket subscribers.</p>
+<p><strong>Permissions:</strong> requires authentication and board access (any role). Sends <code>board.star_changed</code> to the requesting user's own WebSocket sessions only (#1677).</p>
 <h3 id="delete-apiv1boardsidstar"><code>DELETE /api/v1/boards/{id}/star/</code><a class="headerlink" href="#delete-apiv1boardsidstar" title="Permanent link">&para;</a></h3>
-<p>Unstar a board. Broadcasts <code>board.star_changed</code> to all board WebSocket subscribers.</p>
+<p>Unstar a board. Sends <code>board.star_changed</code> to the requesting user's own WebSocket sessions only.</p>
 <p><strong>Permissions:</strong> requires authentication and board access (any role).</p>
 <h3 id="get-apiv1boardsstarredtrue"><code>GET /api/v1/boards/?starred=true</code><a class="headerlink" href="#get-apiv1boardsstarredtrue" title="Permanent link">&para;</a></h3>
 <p>List only boards the requesting user has starred.</p>
@@ -7367,7 +7367,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <li><strong>Only a group-inherited role ranked below the invite's</strong> (for example a group viewer redeeming a member invite) → an explicit membership with the invite's role is created (<code>created: true</code>).</li>
 <li><strong>An equal or higher inherited role, an explicit board membership of any role, board ownership or all-content access</strong> → nothing changes (<code>created: false</code>). A group admin who redeems a viewer invite is <strong>not</strong> downgraded to viewer.</li>
 </ul>
-<p>A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns <code>200</code> with nothing changed (<code>created</code> reports whether this invite created your membership — <code>true</code> after signing up from it); anyone else gets <code>410 {"code": "used"}</code>. When a membership is created, the board's <code>member.added</code> event carries an extra <code>invite: { "id", "created_by_id" }</code> key.</p>
+<p>A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns <code>200</code> with nothing changed (<code>created</code> reports whether this invite created your membership — <code>true</code> after signing up from it); anyone else gets <code>410 {"code": "used"}</code>. When a membership is created, the board's <code>member.added</code> event carries an extra <code>invite: { "id", "created_by_id" }</code> key for <code>admin</code> and <code>site_admin</code> recipients, on the WebSocket and in the <a href="../events/">change feed</a>; other recipients get the event without it.</p>
 <p><em>(1.2+)</em> A join that arrives while the board is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1631).</p>
 <p>Both join endpoints share the per-IP <code>join_group</code> throttle (10/hour) with the <a href="../groups/">group join endpoints</a> — board and group join attempts from one address draw from one budget.</p>
 <p>Signing up with a board invite on an invite-only site is covered in <a href="../authentication/#invite-only-mode">Authentication</a>.</p>

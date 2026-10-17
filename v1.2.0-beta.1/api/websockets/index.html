@@ -4399,17 +4399,17 @@ build. If you are adding an event, see
 </tr>
 <tr>
 <td><code>board.star_changed</code></td>
-<td>Board starred or unstarred. Per-user state; clients should filter on <code>user_id === me</code> and ignore events for other users</td>
+<td>Board starred or unstarred. Per-user state: delivered only to the sockets of the user in <code>user_id</code> (the starring user's other tabs), never to other subscribers (#1677). Clients should still filter on <code>user_id === me</code></td>
 <td><code>{ "uid": &lt;string&gt;, "user_id": &lt;int&gt;, "is_starred": &lt;bool&gt; }</code></td>
 </tr>
 <tr>
 <td><code>saved_filter.created</code></td>
-<td>Saved filter created (the private <code>state_json</code> is intentionally not broadcast — only the creating user receives the full filter via the REST response)</td>
+<td>Saved filter created (the private <code>state_json</code> is intentionally not broadcast — only the creating user receives the full filter via the REST response). Per-user state: delivered only to the sockets of the user in <code>user_id</code> (#1677)</td>
 <td><code>{ "filter_id": &lt;int&gt;, "user_id": &lt;int&gt; }</code></td>
 </tr>
 <tr>
 <td><code>saved_filter.deleted</code></td>
-<td>Saved filter deleted</td>
+<td>Saved filter deleted. Per-user state: delivered only to the sockets of the user in <code>user_id</code> (#1677)</td>
 <td><code>{ "filter_id": &lt;int&gt;, "user_id": &lt;int&gt; }</code></td>
 </tr>
 </tbody>
@@ -4590,6 +4590,11 @@ for the same reason.</p>
 <p>A client that keeps swimlane state locally must therefore <strong>merge</strong> this payload
 rather than replace with it, or an admin's own copy of the row loses its
 admin-only values on any unrelated edit.</p>
+<p>The <a href="../events/#fields-that-depend-on-who-is-reading">change feed</a> applies the
+same rule to stored rows at read time: <code>swimlane.created</code>, <code>swimlane.updated</code>
+and <code>swimlane.reordered</code> rows replay only the values of fields that are
+shareable <strong>now</strong>. A field marked <code>is_admin_only</code> (or deleted) after a row was
+written is absent from that row on every later read (#1677).</p>
 </div>
 <h3 id="card-events">Card events<a class="headerlink" href="#card-events" title="Permanent link">&para;</a></h3>
 <table>
@@ -4685,7 +4690,7 @@ owns boards cannot be deleted until its boards are transferred, and a card's
 <tr>
 <td><code>member.added</code></td>
 <td>User added to board — by an admin, or by redeeming a <a href="../boards/#board-invites">board invite</a> (since 1.2)</td>
-<td>Full <code>BoardMembershipSerializer</code> object. When the member joined through an invite it also carries <code>"invite": { "id": &lt;int&gt;, "created_by_id": &lt;int or null&gt; }</code> (additive, since 1.2)</td>
+<td>Full <code>BoardMembershipSerializer</code> object. When the member joined through an invite it also carries <code>"invite": { "id": &lt;int&gt;, "created_by_id": &lt;int or null&gt; }</code> (additive, since 1.2) — for <code>admin</code> / <code>site_admin</code> subscribers only (see the note below)</td>
 </tr>
 <tr>
 <td><code>member.updated</code></td>
@@ -4703,6 +4708,7 @@ owns boards cannot be deleted until its boards are transferred, and a card's
 <p class="admonition-title"><code>is_moderator</code> is filtered per-recipient</p>
 <p>On <code>member.added</code> and <code>member.updated</code>, the <code>is_moderator</code> field is stripped from the broadcast payload for non-<code>admin</code> / non-<code>site_admin</code> subscribers (consistent with the REST response filtering, #978) — <strong>except on the row that is the subscriber's own membership</strong>, which always carries the field so a member promoted to moderator sees their own entitlement over the socket (#1191, mirroring the <code>/full/</code> self-row exception from #1173). Every other row stays stripped for a non-admin subscriber.</p>
 <p><code>is_site_admin</code> (since 1.2) is sent only to <code>admin</code> / <code>site_admin</code> subscribers, with no self-row exception — see <a href="../boards/#members">Members</a>.</p>
+<p><code>invite</code> on an invite-redemption <code>member.added</code> (since 1.2) is sent only to <code>admin</code> / <code>site_admin</code> subscribers, with no self-row exception (#1677). It exists so an admin's open invite list can refetch; other subscribers receive the membership row without it.</p>
 <p>The subscriber's role used for this filtering is resolved when the socket connects and re-resolved from the database whenever a <code>member.added</code> or <code>member.updated</code> frame is about the subscriber themselves (since 1.2, #1332). A board admin demoted to viewer therefore stops receiving <code>is_moderator</code> and <code>is_site_admin</code> on other members' rows starting with the demotion frame itself, and a promoted subscriber gains them, without reconnecting. If the re-resolved role grants no access to the board, the server closes the socket. Role changes that publish no <code>member.*</code> frame on the board channel — a group-membership role change, a board moved to another group, or a change to the user's all-content access — take effect at the server's periodic access re-check (see <a href="#access-re-check-and-eviction">Access re-check and eviction</a>). They apply to the first frame forwarded after the socket's re-check window lapses, at most about 7 seconds after its last successful check. Before #1477 they took effect only on the next reconnect. Until the re-check runs, a demoted admin can still receive the admin-only fields for up to that window.</p>
 <p>The <a href="../events/">change feed</a> applies the identical gate when the same event is read back over REST, so replaying from a cursor cannot surface a field the socket withheld.</p>
 </div>
@@ -4822,7 +4828,7 @@ sees it appear or disappear without a reload.</p>
 </tr>
 <tr>
 <td><code>board.star_changed</code></td>
-<td>A board in this group was starred or unstarred — fires alongside the board-channel <code>board.star_changed</code>. Star is per-user state; clients filter on <code>user_id === me</code> and ignore events for other users</td>
+<td>A board in this group was starred or unstarred — fires alongside the board-channel <code>board.star_changed</code>. Star is per-user state: delivered only to the sockets of the user in <code>user_id</code>, never to other subscribers (#1677). Clients should still filter on <code>user_id === me</code></td>
 <td><code>{ "uid": &lt;string&gt;, "user_id": &lt;int&gt;, "is_starred": &lt;bool&gt; }</code></td>
 </tr>
 <tr>
@@ -4842,7 +4848,7 @@ sees it appear or disappear without a reload.</p>
 </tr>
 <tr>
 <td><code>group.star_changed</code></td>
-<td>This group was starred or unstarred. Per-user state; clients should filter on <code>user_id === me</code></td>
+<td>This group was starred or unstarred. Per-user state: delivered only to the sockets of the user in <code>user_id</code> (#1677). Clients should still filter on <code>user_id === me</code></td>
 <td><code>{ "id": &lt;int&gt;, "user_id": &lt;int&gt;, "is_starred": &lt;bool&gt; }</code></td>
 </tr>
 <tr>

@@ -4038,8 +4038,11 @@ cursor makes repeat reads exact rather than approximate.</p>
 <p>Returns committed events for one board, in ascending <code>id</code> order.</p>
 <p><strong>Access</strong> — the requesting user's board role, exactly as for
 <code>GET /api/v1/boards/{id}/full/</code> and for the WebSocket handshake. Every board
-role, including <code>viewer</code>, may read the feed: it replays frames the same user
-could already have streamed. A non-member gets <code>403</code>.</p>
+role, including <code>viewer</code>, may read the feed. A non-member gets <code>403</code>. The feed
+returns the board's retained rows whenever the reader joined the board, bounded
+by <a href="#retention">retention</a>, and each row is filtered for the reader by the rules
+in <a href="#fields-that-depend-on-who-is-reading">Fields that depend on who is reading</a>,
+which match what the WebSocket sends that reader.</p>
 <p><strong>Query parameters</strong></p>
 <table>
 <thead>
@@ -4226,12 +4229,32 @@ for both surfaces.</p>
 <li><code>share_token</code> and <code>share_token_expires_at</code> are dropped from every payload for
   every reader, whatever their role. Board admins read them over REST only
   (<code>GET /api/v1/boards/{id}/full/</code> and the share action response).</li>
+<li><code>board.star_changed</code>, <code>saved_filter.created</code> and <code>saved_filter.deleted</code> rows
+  are returned only to the user named in their <code>user_id</code>, matching the
+  WebSocket, which delivers those frames only to that user's own sessions (#1677). Other readers' pages simply do not contain them; a page
+  is still filled to <code>limit</code> from the remaining rows, and cursors are unaffected.</li>
+<li><code>invite</code> on an invite-redemption <code>member.added</code> row is returned to <code>admin</code> /
+  <code>site_admin</code> readers only, with no self-row exception, matching the WebSocket
+  consumer (#1677). An unknown reader role strips it.</li>
+<li><code>custom_field_values</code> on <code>swimlane.created</code>, <code>swimlane.updated</code> and
+  <code>swimlane.reordered</code> rows is re-filtered on every read against the board's
+  <strong>current</strong> swimlane field definitions (#1677). A stored row keeps the values
+  that were shareable when it was written; a field marked <code>is_admin_only</code> or
+  deleted since then is omitted from that row for every reader, admins included,
+  because the WebSocket never carries admin-only values to anyone. Stored rows are
+  not rewritten, so a field made shareable again replays again. The
+  <code>custom_field_values</code> key itself is always present.</li>
 </ul>
 <hr />
 <h2 id="retention">Retention<a class="headerlink" href="#retention" title="Permanent link">&para;</a></h2>
 <p>Events are kept for <code>BOARD_EVENT_RETENTION_DAYS</code> days (default <code>30</code>) and removed
 by a management command. Nothing expires on its own — <strong>an install that never
-runs the pruner grows the <code>board_events</code> table forever</strong>:</p>
+runs the pruner grows the <code>board_events</code> table forever</strong>. Retention bounds how
+much history the feed returns: any reader with access to the board receives
+every retained row for it, whenever they joined, each filtered for that reader
+by the rules in
+<a href="#fields-that-depend-on-who-is-reading">Fields that depend on who is reading</a>.
+Run the pruner on a schedule:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># See what would go, without deleting anything</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>prune_board_events<span class="w"> </span>--dry-run
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
