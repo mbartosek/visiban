@@ -645,9 +645,9 @@ class EventsEndpointTests(BoardEventTestBase):
         self.assertIn(APIClient().get(self.url).status_code, (401, 403))
 
     def test_non_member_cannot_read_the_feed(self):
-        """403, the same answer /full/ gives — the feed invents no new access rule."""
+        """404, the same answer /full/ gives — the feed invents no new access rule."""
         outsider = _make_user("evt_stranger")
-        self.assertEqual(self.client_for(outsider).get(self.url).status_code, 403)
+        self.assertEqual(self.client_for(outsider).get(self.url).status_code, 404)
 
     def test_viewer_can_read_the_feed(self):
         """Parity with the WebSocket channel, which any board role may open."""
@@ -672,7 +672,7 @@ class EventsEndpointTests(BoardEventTestBase):
             self.client_for(self.member).get(
                 f"/api/v1/boards/{other.pk}/events/"
             ).status_code,
-            403,
+            404,
         )
 
     def test_serializing_a_page_costs_two_queries_regardless_of_size(self):

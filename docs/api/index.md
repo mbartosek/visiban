@@ -69,6 +69,7 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 - Write endpoints (`POST`, `PUT`, `PATCH`, `DELETE`) require a valid CSRF token or use token-based auth
 - Dates are ISO 8601 strings: `"2026-04-01"`
 - Permission errors return `403 Forbidden`; missing resources return `404 Not Found`
+- *(1.2+)* Board-scoped routes answer `404 Not Found` to a caller with no access to the board, the same as for a board that does not exist. `403 Forbidden` means the caller can see the board but their role is too low for the action
 
 ### Maintenance mode (503)
 

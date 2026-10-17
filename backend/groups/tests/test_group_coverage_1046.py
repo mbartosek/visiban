@@ -510,7 +510,7 @@ class UpdateMemberEvictionRetentionTests(TestCase):
         self.assertEqual(payload["user_id"], self.target.id)
 
     def test_idempotent_delete_non_member_no_eviction(self):
-        """DELETE on a user who is already not a group member must return 204
+        """DELETE on a user who is already not a group member must return 404
         with NO eviction broadcast — there are no stale WS connections to close
         because the user never had group-inherited access from this group."""
         # Remove first time (legitimate)
@@ -520,7 +520,7 @@ class UpdateMemberEvictionRetentionTests(TestCase):
         with patch("boards.broadcast.broadcast_board_event") as mock_board_bcast:
             with self.captureOnCommitCallbacks(execute=True):
                 r = self._remove_target()
-        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         # No eviction events should fire for a non-member
         eviction_calls = [
             c for c in mock_board_bcast.call_args_list

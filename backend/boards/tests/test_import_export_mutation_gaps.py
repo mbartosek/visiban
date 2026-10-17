@@ -2251,7 +2251,7 @@ class ExportAuditLogTests(ExportBase):
         )
         outsider = User.objects.create_user(username="outsider", password="x")
         before = BoardExportLog.objects.count()
-        self.assertEqual(self.export("json", user=outsider).status_code, 403)
+        self.assertEqual(self.export("json", user=outsider).status_code, 404)
         self.assertEqual(BoardExportLog.objects.count(), before)
 
     def test_site_admin_is_logged_as_site_admin(self):

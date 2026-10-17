@@ -4,11 +4,10 @@ import logging
 
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, Q
-from rest_framework.generics import get_object_or_404
 from django.urls import reverse
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import (
@@ -912,7 +911,20 @@ class BoardViewSet(
                 {"detail": f"Role must be one of: {', '.join(BoardMembership.Role.values)}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        target_user = get_object_or_404(User, pk=user_id)
+        # An existing membership is updated whatever the user's status (member
+        # lists include inactive users). A new membership needs an active user,
+        # and an unknown id and an inactive id get the same 404.
+        existing = (
+            BoardMembership.objects.filter(board=board, user_id=user_id)
+            .select_related("user")
+            .first()
+        )
+        if existing is not None:
+            target_user = existing.user
+        else:
+            target_user = User.objects.filter(pk=user_id, is_active=True).first()
+            if target_user is None:
+                raise NotFound
         # Site-admin protection keys on the caller's own site-admin status,
         # matching groups/views.py's update_member.
         if target_user.is_site_admin and not request.user.is_site_admin:
@@ -994,11 +1006,27 @@ class BoardViewSet(
         board, role = get_board_for_user(pk, request.user)
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
-        target_user = get_object_or_404(User, pk=user_id)
+        # Beyond the 64-bit range no row can exist: same 404, not a DB overflow.
+        if int(user_id) > 2**63 - 1:
+            raise NotFound
         # See the same check in `members()` above for why this uses
         # request.user.is_site_admin rather than the resolved `role`.
-        if target_user.is_site_admin and not request.user.is_site_admin:
+        if (
+            User.objects.filter(pk=user_id, is_site_admin=True).exists()
+            and not request.user.is_site_admin
+        ):
             raise PermissionDenied("Cannot remove a site admin from a board.")
+        # Resolve through the membership row: an unknown id, an inactive user
+        # and an active user with no membership all get the same 404. An
+        # inactive user who has a membership can still be removed.
+        membership = (
+            BoardMembership.objects.filter(board=board, user_id=user_id)
+            .select_related("user")
+            .first()
+        )
+        if membership is None:
+            raise NotFound
+        target_user = membership.user
         board_id = board.id
         removed_user_id = target_user.id
         with transaction.atomic():

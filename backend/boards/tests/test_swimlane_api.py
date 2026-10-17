@@ -2,7 +2,7 @@
 
 Verifies:
 - A board member (non-admin) can PATCH set_collapsed successfully.
-- A non-member gets 403.
+- A non-member gets 404.
 - An invalid body (non-boolean) gets 400.
 - The is_collapsed field is saved correctly.
 """
@@ -91,12 +91,12 @@ class SwimlaneSetCollapsedTests(TestCase):
         r = self.client.patch(self._url(), {"is_collapsed": True}, format="json")
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_non_member_gets_403(self):
+    def test_non_member_gets_404(self):
         """A user who is not a board member must not access the action."""
         stranger = User.objects.create_user(username="collapse_stranger", password="pass")
         self.client.force_authenticate(stranger)
         r = self.client.patch(self._url(), {"is_collapsed": True}, format="json")
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_gets_403(self):
         r = self.client.patch(self._url(), {"is_collapsed": True}, format="json")

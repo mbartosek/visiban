@@ -575,10 +575,11 @@ def visible_users(user, group=None):
     """Users the importer can already see elsewhere in Visiban.
 
     Matching is restricted to this pool because the uploader controls the
-    file: without the restriction, a one-member export with a guessed username
-    turns the "matched" count into an existence oracle for any account on the
-    instance. Inside the pool the oracle reveals nothing the importer could
-    not already see (board co-members, group co-members, the target group).
+    file, and an import should only assign work to people the importer
+    already works with (board co-members, group co-members, the target group).
+    The instance user directory itself is open to signed-in users by design
+    (see the security invariants registry, Rule 5); a site admin or an
+    all-content user matches every active user.
     """
     if user.is_site_admin or user.can_access_all_content:
         return User.objects.filter(is_active=True)

@@ -306,6 +306,9 @@ class SiteAdminMembershipProtectionTests(TestCase):
         )
         client = APIClient()
         client.force_authenticate(caller)
+        BoardMembership.objects.create(
+            board=self.board, user=self.site_admin, role=BoardMembership.Role.MEMBER
+        )
         resp = client.delete(f"/api/v1/boards/{self.board.pk}/members/{self.site_admin.pk}/")
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -336,6 +339,9 @@ class SiteAdminMembershipProtectionTests(TestCase):
         caller.save()
         client = APIClient()
         client.force_authenticate(caller)
+        BoardMembership.objects.create(
+            board=self.board, user=self.site_admin, role=BoardMembership.Role.MEMBER
+        )
         resp = client.delete(f"/api/v1/boards/{self.board.pk}/members/{self.site_admin.pk}/")
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -368,10 +374,10 @@ class SiteAdminMembershipProtectionTests(TestCase):
                 f"/api/v1/boards/{self.board.pk}/members/",
                 {"user_id": self.site_admin.pk, "role": "viewer"},
             )
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         with assert_denied_write_noop(self, extra_models=(BoardMembership,)):
             resp = client.delete(f"/api/v1/boards/{self.board.pk}/members/{self.site_admin.pk}/")
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     @patch(PATCH_BROADCAST)
     def test_board_admin_can_remove_non_site_admin_member(self, _mock):

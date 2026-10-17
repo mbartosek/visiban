@@ -90,7 +90,7 @@ List group members. Requires group membership.
 | `inherited_from` | string / null | Display name of the ancestor group that grants access, when `is_inherited` is `true`; `null` otherwise |
 
 ### `PATCH /api/v1/groups/{id}/members/{user_id}/`
-Change a member's role. Requires group admin. Cannot modify a site admin.
+Change a member's role. Requires group admin. Cannot modify a site admin. The target must already have a membership in the group (the role of an inactive member can be changed); otherwise the response is the same `404 Not Found` whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member.
 
 **Request** `{ "role": "admin" }`
 
@@ -101,7 +101,7 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 *(1.2+)* Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
-Remove a member. Requires group admin. Cannot remove a site admin. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
+Remove a member. Requires group admin. Cannot remove a site admin. Returns `204` when the membership is removed; with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
 
 ---
 

@@ -74,9 +74,10 @@ class LensConnectionRBACTests(TestCase):
 
     def test_outsider_is_denied(self):
         # Mirrors the repo-wide board-access convention (get_board_for_user):
-        # an existing board the user has no role on returns 403.
+        # a board the user has no role on answers 404, the same as a board that
+        # does not exist (#1670), so the two cannot be told apart.
         resp = self._client(self.outsider).get(self.url)
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_member_can_read_connection(self):
         LensConnection.objects.create(
@@ -312,7 +313,7 @@ class LensBoardRenderTests(TestCase):
         client.force_authenticate(outsider)
         self._connect("gitlab")
         resp = client.get(self.url)
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     @patch("git_lens.views.providers.get_provider")
     def test_invalid_pivot_override_coerced_to_stored(self, mock_get_provider):

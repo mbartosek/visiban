@@ -47,7 +47,7 @@ class <Feature>Test(TestCase):
 - ✅ Happy path (200/201 with correct response shape)
 - ✅ Permission boundaries — test admin, member, viewer, and unauthenticated separately
 - ✅ Invalid input (400 with meaningful error)
-- ✅ Cross-board access (403 when accessing another board's resources)
+- ✅ Cross-board access (404 when accessing another board's resources)
 - ✅ Atomic behaviour — if `@transaction.atomic`, verify partial failure rolls back
 
 **Required test categories for model methods:**

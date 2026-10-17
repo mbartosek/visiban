@@ -531,27 +531,33 @@ class GroupViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
     def update_member(self, request, pk=None, user_id=None):
         from accounts.models import User
+        from rest_framework.exceptions import NotFound
         group = self.get_object()
         _require_group_admin(request.user, group)
-        target_user = get_object_or_404(User, pk=user_id)
-        if target_user.is_site_admin and not request.user.is_site_admin:
+        # Beyond the 64-bit range no row can exist: same 404, not a DB overflow.
+        if int(user_id) > 2**63 - 1:
+            raise NotFound
+        # Resolve through the membership row, so an unknown id, an inactive
+        # user and an active user with no membership here all get the same
+        # 404 (status and body). An inactive user who has a membership can
+        # still be edited or removed.
+        if (
+            User.objects.filter(pk=user_id, is_site_admin=True).exists()
+            and not request.user.is_site_admin
+        ):
             return Response(
                 {"detail": "Cannot modify a site admin's group membership."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        membership = (
+            GroupMembership.objects.filter(group=group, user_id=user_id)
+            .select_related("user")
+            .first()
+        )
+        if membership is None:
+            raise NotFound
+        target_user = membership.user
         if request.method == "DELETE":
-            # Only set up WS eviction when a membership row actually exists.
-            # An idempotent DELETE of a non-existent membership must not
-            # broadcast member.removed — the user never had group-inherited
-            # access, so there are no stale connections to close.
-            membership_exists = GroupMembership.objects.filter(
-                group=group, user=target_user
-            ).exists()
-
-            if not membership_exists:
-                GroupMembership.objects.filter(group=group, user=target_user).delete()
-                return Response(status=status.HTTP_204_NO_CONTENT)
-
             # Before deleting, snapshot board IDs in this group's subtree where
             # the user has no *direct* BoardMembership. Boards with a direct
             # membership are unaffected by group membership changes; boards
@@ -669,7 +675,6 @@ class GroupViewSet(viewsets.ModelViewSet):
 
             return Response(status=status.HTTP_204_NO_CONTENT)
         # PATCH — update role
-        membership = get_object_or_404(GroupMembership, group=group, user=target_user)
         role = require_json_object(request).get("role")
         if role not in GroupMembership.Role.values:
             return Response({"detail": f"Must be one of: {', '.join(GroupMembership.Role.values)}"}, status=status.HTTP_400_BAD_REQUEST)

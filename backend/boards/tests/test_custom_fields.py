@@ -358,7 +358,7 @@ class CustomFieldDefinitionRbacTests(CustomFieldTestBase):
         _definition(self.board, name="Array Type")
         outsider = _make_user("cf_outsider")
         r = self._as(outsider).get(self._fields_url())
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_admin_of_another_board_cannot_reach_this_boards_definition(self):
         """IDOR: the definition id is real, the URL's board is not theirs."""
@@ -374,12 +374,12 @@ class CustomFieldDefinitionRbacTests(CustomFieldTestBase):
             status.HTTP_404_NOT_FOUND,
         )
         self.assertEqual(client.delete(url).status_code, status.HTTP_404_NOT_FOUND)
-        # Addressed through the owning board: no access to that board -> 403.
+        # Addressed through the owning board: no access to that board -> 404.
         self.assertEqual(
             client.patch(
                 self._field_url(mine), {"name": "Hijacked"}, format="json"
             ).status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_404_NOT_FOUND,
         )
         mine.refresh_from_db()
         self.assertEqual(mine.name, "Array Type")
@@ -1228,9 +1228,7 @@ class CustomFieldUrlTypeTests(CustomFieldTestBase):
             [{"field_definition": self.url_field.id, "value": "https://example.com"}],
             user=outsider,
         )
-        self.assertIn(
-            r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
-        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(CustomFieldValue.objects.exists())
 
     def test_url_type_is_frozen_once_a_value_exists(self):
@@ -1556,9 +1554,7 @@ class CustomFieldMultiSelectTypeTests(CustomFieldTestBase):
     def test_a_non_member_cannot_write(self):
         outsider = _make_user("cf_ms_outsider")
         r = self._write(["web"], user=outsider)
-        self.assertIn(
-            r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
-        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIsNone(self._stored())
 
     def test_a_definition_from_another_board_is_rejected(self):
@@ -1864,7 +1860,7 @@ class CustomFieldNumberFormatTests(CustomFieldTestBase):
         outsider = self._as(_make_user("cf_nf_outsider"))
         anonymous = APIClient()
         for label, client, expected in (
-            ("outsider", outsider, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)),
+            ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
             ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
         ):
             with self.subTest(client=label):
@@ -2248,7 +2244,7 @@ class CustomFieldChoiceColorTests(CustomFieldTestBase):
         outsider = self._as(_make_user("cf_cc_outsider"))
         anonymous = APIClient()
         for label, client, expected in (
-            ("outsider", outsider, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)),
+            ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
             ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
         ):
             with self.subTest(client=label):

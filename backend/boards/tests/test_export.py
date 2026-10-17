@@ -204,7 +204,7 @@ class ExportPermissionTests(TestCase):
         stranger = User.objects.create_user(username="stranger", password="pass")
         self.client.force_authenticate(stranger)
         r = self.client.get(f"/api/v1/boards/{self.board.id}/export/")
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ExportJsonSwimlanePiiTests(TestCase):

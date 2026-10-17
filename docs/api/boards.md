@@ -419,7 +419,7 @@ Each result object fields:
 | `notes` | string | Optional notes recorded at move time |
 | `imported_from_username` | string / null | *Since 1.2.* `null` unless the record was created by a board import with history; then `moved_by` is the importing user and this is the username the import file named (`""` when it named nobody). History imported by earlier versions carries `null`, since the original name was not kept. See [Imported history](../features/card-history.md#imported-history) |
 
-**Errors:** `403 Forbidden` if the caller is not a board member; `404 Not Found` if the board does not exist.
+**Errors:** `404 Not Found` if the board does not exist or the caller has no access to it.
 
 ---
 
@@ -496,7 +496,7 @@ Export the board. Append `?format=json` for a JSON dump; omit for CSV (the defau
 
 **Rate limit:** 20 exports/hour per authenticated user (scope: `board_export`). Exceeding the limit returns `429 Too Many Requests`.
 
-Requires board membership — non-members receive `403 Forbidden` with the standard permission-denied body (`{"detail": "You do not have permission to perform this action."}`), or `404 Not Found` if the board does not exist. If the caller is a member but their role is below the board's `export_min_role` threshold, returns `403 Forbidden` with body `{"detail": "...", "code": "export_restricted", "min_role": "<threshold>"}`. Owners and site admins always bypass the threshold.
+Requires board membership — callers with no access to the board receive `404 Not Found`, the same as for a board that does not exist. If the caller is a member but their role is below the board's `export_min_role` threshold, returns `403 Forbidden` with body `{"detail": "...", "code": "export_restricted", "min_role": "<threshold>"}`. Owners and site admins always bypass the threshold.
 
 **CSV columns:** `Card ID`, `Title`, `Description`, `Column`, `Swimlane`, `Priority`, `Assignee`, `Labels`, `Due Date`, `Weight`, `Created At`, `Created By`, `Last Moved At`, `Movement Count`, `Movement History`
 
@@ -1119,7 +1119,7 @@ Creating the board broadcasts `board.created` on the same channels as the native
 ## Members
 
 ### `POST /api/v1/boards/{id}/members/`
-Add or update a board member. Requires board admin. Cannot modify a site admin's board membership (same restriction as `DELETE` below).
+Add or update a board member. Requires board admin. A caller with no access to the board gets `404`; a member below admin gets `403`. Cannot modify a site admin's board membership (same restriction as `DELETE` below).
 
 Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Since 1.2 a `user_id` that is present but not an integer, or is beyond the 64-bit integer range, is a `400` too: a non-integer value used to answer `404` and an out-of-range one `500`. An omitted `user_id` still answers `404`.
 
@@ -1127,7 +1127,7 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 | Field | Required | Description |
 |---|---|---|
-| `user_id` | ✓ | ID of the user to add or update |
+| `user_id` | ✓ | ID of the user to add or update. A new membership needs an active user: an id that matches no user and an id that matches an inactive user both return the same `404 Not Found`. A user who already has a membership can have the role updated whatever their status |
 | `role` | | Role to assign (default: `"member"`). Valid: `admin`, `member`, `collaborator`, `viewer`. Any other value, or a non-string, returns `400 Bad Request` with `{"detail": "Role must be one of: ..."}` |
 | `is_moderator` | | Boolean. Grants content-moderation rights (delete/archive others' content). Only valid for `member` and `admin` roles — setting `true` on a collaborator or viewer returns `400 Bad Request`. Automatically cleared when demoting to collaborator or viewer. |
 
@@ -1136,7 +1136,7 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 **`is_site_admin` on member rows (since 1.2):** each row in the `members` array of `GET /api/v1/boards/{id}/full/`, this endpoint's response, and the `member.added` / `member.updated` WebSocket broadcast and [change feed](events.md) carries a boolean `is_site_admin` — the member's instance-level site-admin flag, the same flag this endpoint and `DELETE` below check. Use it, not `role`, to decide whether a row can be edited: `role: "site_admin"` means the member has `can_access_all_content`, which is a separate flag. The field is present only for `admin` and `site_admin` requesters, subscribers and readers, and there is no self-row exception (read your own flag from `/api/v1/auth/me/`). It is never added to the nested `user` object.
 
 ### `DELETE /api/v1/boards/{id}/members/{user_id}/`
-Remove a member. Requires board admin. Cannot remove a site admin.
+Remove a member. Requires board admin. Cannot remove a site admin. Returns `204` when the membership is removed. If the user has no membership on the board, the response is the same `404 Not Found` (status and body) whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member; an inactive user who has a membership can be removed.
 
 ---
 
@@ -1145,7 +1145,7 @@ Remove a member. Requires board admin. Cannot remove a site admin.
 *(New in 1.2)* A board admin can email a **single-use invite** to someone who may not have an account yet, or create a **shareable invite link** to paste anywhere. The invite token (`vbnb_` prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (`prefix`) are shown. The address it was sent to is not stored. *(1.2+, #1678)* An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see `POST /api/v1/boards/join/{token}/` below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant `member`, `collaborator` or `viewer` — never `admin`, and never the moderator flag. A board invite never adds anyone to the board's group.
 
 ### `GET /api/v1/boards/{id}/invite-links/`
-List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns **every pending invite plus at most the 50 most recent past ones** (used, expired or revoked); older history is not returned. A caller with no access to the board gets `403`, a board that does not exist `404`, an unauthenticated request `401` — the same as the members endpoints.
+List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns **every pending invite plus at most the 50 most recent past ones** (used, expired or revoked); older history is not returned. A caller with no access to the board, or for a board that does not exist, gets `404`, an unauthenticated request `401` — the same as the members endpoints.
 
 | Field | Description |
 |---|---|
@@ -1200,7 +1200,7 @@ List the board's invites, newest first, as a bare array (not paginated). Require
 The second invite was sent by an account that has since been deleted, so it lists as `revoked` even though `DELETE` was never called.
 
 ### `POST /api/v1/boards/{id}/invite-links/`
-*(New in 1.2)* Create a **shareable invite link** (`delivery: "link"`). Requires board admin — the same permission matrix as the list (`403` for a caller who is not a board admin or has no access, `404` for a missing board, `401` unauthenticated).
+*(New in 1.2)* Create a **shareable invite link** (`delivery: "link"`). Requires board admin — the same permission matrix as the list (`403` for a caller who can see the board but is not a board admin, `404` for a missing board or a caller with no access to it, `401` unauthenticated).
 
 **Request** `{ "role": "viewer", "expiry_days": 7, "single_use": false, "name": "Contractors" }`
 
@@ -1238,7 +1238,7 @@ The second invite was sent by an account that has since been deleted, so it list
 | `400 Bad Request` | field errors (example below) | Missing or invalid `expiry_days`, invalid `role`, a non-boolean `single_use`, or a `name` over 100 characters. |
 | `400 Bad Request` | `{"detail": "Maximum of 5 active invite links reached. Revoke a link to create a new one."}` | The board already has **5 active shareable links**. Active means pending: not revoked, not consumed, not expired, and its creator is still a board admin. Emailed invites have their own cap and never count. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | No credentials. |
-| `403 Forbidden` | `{"detail": "You must be a board admin to manage invites."}` | Not a board admin, or no access to the board. |
+| `403 Forbidden` | `{"detail": "You must be a board admin to manage invites."}` | The caller can see the board but is not a board admin. A caller with no access to the board gets `404`. |
 | `404 Not Found` | `{"detail": "..."}` | No such board. |
 | `429 Too Many Requests` | `{"detail": "Request was throttled. ..."}`, `Retry-After` header | The caller's standard per-user API budget (DRF `user` scope, 5000 requests/hour, shared with every other authenticated endpoint) is spent. |
 
@@ -1281,7 +1281,7 @@ Email one invite. Requires board admin. Same contract as the [group send endpoin
 |---|---|---|
 | `202 Accepted` | `{"detail": "Invite sent", "sent_to": "...", "delivery": "console"?}` | Sent. `delivery: "console"` only in development, when mail is printed to the server console. |
 | `400 Bad Request` | field errors, or `{"code": "invite_email_cap_reached", "detail": "..."}` | Invalid input, or the board already has 50 pending emailed invites (invites from a deleted sender or one who is no longer a board admin do not count). |
-| `403 Forbidden` | `{"code": "invite_email_disabled", ...}` or `{"detail": "..."}` | Email invites are switched off (`INVITE_EMAIL_ENABLED=false`, or a demo instance), or the caller is not a board admin. |
+| `403 Forbidden` | `{"code": "invite_email_disabled", ...}` or `{"detail": "..."}` | Email invites are switched off (`INVITE_EMAIL_ENABLED=false`, or a demo instance), or the caller can see the board but is not a board admin. A caller with no access to the board gets `404`. |
 | `429 Too Many Requests` | `Retry-After` header | A send budget is spent: per sender (`invite_email_user`, 10/hour), per board (`invite_email_board`, 30/day, shared by every admin of the board) and instance-wide (`invite_email_global`, 200/day, shared with group invites). Refused requests spend no budget. |
 | `502 Bad Gateway` | `{"code": "<smtp code>", "detail": "..."}` | The mail server refused the message. The invite is revoked automatically and the budget refunded, so you can retry once mail works. |
 
@@ -1293,7 +1293,7 @@ Revoke a pending invite, emailed or shareable. Requires board admin; any board a
 | `204 No Content` | — | Revoked. Revoking an expired invite is allowed. |
 | `400 Bad Request` | `{"detail": "This invite has already been used and cannot be revoked."}` | The invite was consumed; its "used" record is kept. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | No credentials. |
-| `403 Forbidden` | `{"detail": "You must be a board admin to manage invites."}` | Not a board admin, or no access to the board. |
+| `403 Forbidden` | `{"detail": "You must be a board admin to manage invites."}` | The caller can see the board but is not a board admin. A caller with no access to the board gets `404`. |
 | `404 Not Found` | `{"detail": "No BoardInviteLink matches the given query."}` | No such invite, an invite that belongs to another board, or one already revoked. |
 
 The [site-admin revoke](admin.md#delete-apiv1adminboard-invite-linksid) answers an already-revoked invite with `400` instead of `404`, like the site invite-link revoke.
@@ -1367,7 +1367,7 @@ If a token already exists, calling this endpoint immediately invalidates the pre
 
 `share_token_expires_at` is `null` when no TTL was requested.
 
-**Errors:** `403 Forbidden` if the caller is not a board admin. `400 Bad Request` if `expires_in_days` is not one of the allowed values.
+**Errors:** `403 Forbidden` if the caller can see the board but is not a board admin; `404 Not Found` if the caller has no access to it. `400 Bad Request` if `expires_in_days` is not one of the allowed values.
 
 ### `DELETE /api/v1/boards/{id}/share/`
 Revoke the public share token for the board. Requires board admin. All existing share links immediately return `404 Not Found` after revocation. Both the token and any TTL are cleared.
@@ -1383,7 +1383,7 @@ Revoke the public share token for the board. Requires board admin. All existing 
 }
 ```
 
-**Errors:** `403 Forbidden` if the caller is not a board admin.
+**Errors:** `403 Forbidden` if the caller can see the board but is not a board admin; `404 Not Found` if the caller has no access to it.
 
 ---
 

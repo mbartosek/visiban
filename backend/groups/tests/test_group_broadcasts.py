@@ -186,7 +186,7 @@ class GroupMembershipBroadcastNamingTests(TestCase):
         )
 
     def test_idempotent_member_removal_does_not_broadcast(self):
-        """A DELETE for a user with no membership row must not broadcast — there
+        """A DELETE for a user with no membership row answers 404 and must not broadcast — there
         is no state change for other admins to converge on (#1051)."""
         GroupMembership.objects.filter(group=self.group, user=self.member).delete()
         with patch("groups.views.transaction.on_commit") as mock_on_commit, \
@@ -195,7 +195,7 @@ class GroupMembershipBroadcastNamingTests(TestCase):
             resp = self.client.delete(
                 f"/api/v1/groups/{self.group.id}/members/{self.member.id}/",
             )
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         called = [c.args for c in mock_group.call_args_list]
         self.assertFalse(
             any(args[1] == "member.removed" for args in called),

@@ -184,11 +184,11 @@ class CardCreationRBACTests(TestCase):
             resp = self._create_card(collab)
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_non_member_gets_403(self):
+    def test_non_member_gets_404(self):
         stranger = User.objects.create_user(username="stranger", password="pass")
         with assert_denied_write_noop(self):
             resp = self._create_card(stranger)
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class CardMutationRBACTests(TestCase):

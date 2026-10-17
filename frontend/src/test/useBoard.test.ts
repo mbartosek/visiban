@@ -948,6 +948,23 @@ describe('useBoard', () => {
     })
   })
 
+  it('moveCard reloads the board on 404 and leaves the page when access was lost', async () => {
+    const board = makeBoard()
+    mockGetBoardFull.mockResolvedValueOnce(board)
+    mockMoveCard.mockRejectedValue({ response: { status: 404, data: {} } })
+
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+
+    mockGetBoardFull.mockRejectedValue({ response: { status: 404 } })
+    mockGetBoardFull.mockClear()
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+
+    await waitFor(() => expect(mockGetBoardFull).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }))
+    expect(result.current.board!.cards[0].column).toBe(10)
+  })
+
   it('moveCard reloads the board on 409 version_conflict', async () => {
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValueOnce(board)

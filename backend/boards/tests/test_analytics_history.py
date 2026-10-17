@@ -535,7 +535,7 @@ class TestAnalyticsWindowFilter(AnalyticsHistorySetup):
 
 
 class TestAnalyticsSummaryRbac(AnalyticsHistorySetup):
-    """Non-members must receive 403 on /analytics/ and /summary/ (#702)."""
+    """Callers with no access to the board must receive 404 on /analytics/ and /summary/ (#702)."""
 
     def setUp(self):
         super().setUp()
@@ -544,17 +544,17 @@ class TestAnalyticsSummaryRbac(AnalyticsHistorySetup):
     def test_non_member_cannot_access_analytics(self):
         c = self._client_for(self.non_member)
         resp = c.get(self._analytics_url())
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
 
     def test_non_member_cannot_access_summary(self):
         c = self._client_for(self.non_member)
         resp = c.get(self._summary_url())
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
 
     def test_non_member_cannot_access_movements(self):
         c = self._client_for(self.non_member)
         resp = c.get(self._movements_url())
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)
 
 
 class TestMovementsDeletedFk(AnalyticsHistorySetup):

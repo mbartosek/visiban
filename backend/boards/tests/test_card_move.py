@@ -140,7 +140,7 @@ class CardMoveTests(TestCase):
             "swimlane_id": self.swim_x.pk,
             "position": 0,
         })
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_response_includes_movement_when_changed(self):
         resp = self.client.post(self._move_url(), {

@@ -178,13 +178,23 @@ canonical wording.
 | Password reset link (REST) | `accounts/serializers.py` `VisibanPasswordResetConfirmSerializer.save` | Single use, decided under the user row lock (`reset_link_still_valid` on the locked row) |
 | Password reset link (HTML) | `accounts/forms.py` `VisibanResetPasswordKeyForm.save` | Single use, decided under the user row lock; the page shows its invalid-link page for a link that no longer validates, and a submit that overlaps another is refused |
 
-## Rule 5: User references in imports resolve only within the caller's scope
+## Rule 5: User references resolve against active users, and imports within the caller's scope
 
-**Rule.** When an import file names users as assignees, the names
-resolve only against users the importer can already see: the importer,
-co-members of their boards and groups, and the target group. A name outside that
-pool is dropped, so the import neither assigns to nor confirms the existence of
-any other account.
+**Rule.** The instance user directory is intentionally open to signed-in users:
+user search and member add by id resolve against active accounts on the
+instance; the user object they return carries only `id`, `username`,
+`display_name` and `avatar_url`. Search matches only the fields it returns. On the member-add and member-removal
+routes listed below, an id that matches no user, an inactive user, or (for
+removal) an active user with no membership on the target gets the same
+response, status and body. Existing memberships of inactive users stay
+listed and editable; the active-user filter applies when a membership is
+created.
+
+Imports are narrower by design. When an import file names users as assignees,
+the names resolve only against active users the importer can already see: the
+importer, co-members of their boards and groups, and the target group (a site
+admin or an all-content user matches every active user). A name outside that
+pool is dropped, so a file cannot assign work to an arbitrary account.
 
 Imported history rows (JSON movement `moved_by`, activity `actor`) are not
 resolved at all, inside the pool or out of it: each row is recorded under the
@@ -192,15 +202,24 @@ importer and keeps the file's name as text in `imported_from_username` (#1675),
 which the timeline, History view and exports display. A new import path that
 writes history rows applies the same rule rather than linking them to accounts.
 
-**Why.** The uploader controls the file. Resolving against all users turns the
-matched count into an existence oracle for every account on the instance.
+Scope of this rule: the surfaces in the table below. Card `assignee_id` and
+comment mentions are validated against board membership by their own checks
+(`boards/utils.py`, `boards/serializers.py`) and are not covered here.
+
+**Why.** The uploader controls an import file, so it resolves against the
+narrower pool and drops what it cannot match. The directory lookups are open on
+purpose (a board admin must be able to find anyone to add), so their invariant is
+the status filter and the uniform response, not scope.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
 | JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` (assignee); history rows use the importer plus `_imported_from_username` |
 | CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` (assignee; CSV import writes no history rows) |
 | Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` (card members and comment authors; Trello import writes no movement or activity rows) |
-| Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. `BoardViewSet.members` also checks the submitted `role` is a string within `BoardMembership.Role.values` |
+| User search | `accounts/views.py` `UserSearchView` | Filters `is_active=True`; matches `username` and `display_name` only |
+| Board member add or role change | `boards/views/boards.py` `BoardViewSet.members` | An existing membership is updated as is; a new one requires an active user. Unknown and inactive ids answer the same `404`. Also checks the submitted `role` is a string within `BoardMembership.Role.values` |
+| Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404` |
+| Board and group member removal | `boards/views/boards.py` `BoardViewSet.remove_member`; `groups/views.py` `GroupViewSet.update_member` (DELETE) | Resolved through the membership row: no membership answers the same `404` whatever the id is; an inactive user with a membership can be removed |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 
 ## Rule 6: Placing a board in a group needs group admin
@@ -229,6 +248,24 @@ surface: create in group by `groups/tests/test_groups.py`
 imports by `boards/tests/test_group_placement_roles.py`. The entry-point test
 (`GroupPlacementEntryPointTests`) checks every API surface in this table; the
 Django admin row is the exception named above.
+
+## Rule 7: Board-scoped routes answer 404 to callers with no access
+
+**Rule.** A board-scoped route answers `404 Not Found` to a caller with no access
+to the board, the same as for a board that does not exist. `403 Forbidden` is
+reserved for a caller who can see the board but whose role is below the minimum
+for the action.
+
+**Why.** `BoardViewSet.retrieve`, MCP and media already answer `404` to
+non-members. A nested route that answered differently would make the status code
+depend on whether a board id exists.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Nested REST routes (members, cards, columns, swimlanes, labels, custom fields, analytics, export, invites, git lens) | `boards/views/_helpers.py` `get_board_for_user` | Raises `404` when the board is missing or the caller has no role on it; callers raise `403` for an insufficient role afterward |
+| Board detail | `boards/views/boards.py` `BoardViewSet.get_queryset` | Queryset scoped to accessible boards, so `retrieve` answers `404` |
+| Media | `boards/views/media.py` `ServeMediaView` | `404` for a non-member |
+| MCP | `mcp_server/tools.py` | `404`-equivalent not-found result for inaccessible boards |
 
 ## Rule 8: Per-recipient event fields are gated on every broadcast and replay surface
 

@@ -481,3 +481,23 @@ class CurrentUserSerializerWritableFieldsTests(TestCase):
             f"Unexpected writable: {writable - ALLOWED_WRITABLE!r}. "
             f"Missing from serializer: {ALLOWED_WRITABLE - writable!r}.",
         )
+
+
+class UserSearchMatchingTests(TestCase):
+    """Search matches active users, on returned fields only (#1670)."""
+
+    def setUp(self):
+        self.requester = User.objects.create_user(username="searcher", password="pass")
+        self.client = APIClient()
+        self.client.force_authenticate(self.requester)
+
+    def test_inactive_users_are_excluded(self):
+        User.objects.create_user(username="zelda_active", password="pass")
+        User.objects.create_user(username="zelda_gone", password="pass", is_active=False)
+        r = self.client.get("/api/v1/users/", {"search": "zelda"})
+        self.assertEqual([u["username"] for u in r.data], ["zelda_active"])
+
+    def test_first_name_is_not_matched(self):
+        User.objects.create_user(username="plain", password="pass", first_name="Quentin")
+        r = self.client.get("/api/v1/users/", {"search": "Quentin"})
+        self.assertEqual(r.data, [])

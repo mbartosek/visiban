@@ -154,14 +154,13 @@ class SavedFilterListCreateTests(TestCase):
         self.assertIn("already exists", r.data["detail"])
 
     def test_create_non_member_is_denied(self):
-        # Non-members get 403 (PermissionDenied from get_board_for_user) — the
-        # board is found but the user has no role. This is consistent with the
-        # rest of the BoardViewSet which also raises 403 for non-members.
+        # Callers with no access to the board get 404, the same answer as a
+        # board that does not exist (get_board_for_user).
         outsider = User.objects.create_user(username="charlie", password="pass")
         c = APIClient()
         c.force_authenticate(outsider)
         r = c.post(self.url, {"name": "Outsider", "state_json": SIMPLE_STATE}, format="json")
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_unauthenticated_returns_401_or_403(self):
         anon = APIClient()
