@@ -329,7 +329,7 @@ class GroupSerializer(serializers.ModelSerializer):
         help_text=field_enforcement.GROUP_ALLOWED_PRIORITIES,
     )
     # Same kwargs ModelSerializer derives for the nullable FK; see
-    # ParentGroupField for the update-time behavior.
+    # ParentGroupField for how an unresolvable id is answered.
     parent = ParentGroupField(
         queryset=Group.objects.all(), allow_null=True, required=False,
     )
