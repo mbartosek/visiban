@@ -6994,7 +6994,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <p>Remove a member. Requires board admin. Cannot remove a site admin.</p>
 <hr />
 <h2 id="board-invites">Board invites<a class="headerlink" href="#board-invites" title="Permanent link">&para;</a></h2>
-<p><em>(New in 1.2)</em> A board admin can email a <strong>single-use invite</strong> to someone who may not have an account yet, or create a <strong>shareable invite link</strong> to paste anywhere. The invite token (<code>vbnb_</code> prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (<code>prefix</code>) are shown. The address it was sent to is not stored. Invites grant <code>member</code>, <code>collaborator</code> or <code>viewer</code> — never <code>admin</code>, and never the moderator flag. A board invite never adds anyone to the board's group.</p>
+<p><em>(New in 1.2)</em> A board admin can email a <strong>single-use invite</strong> to someone who may not have an account yet, or create a <strong>shareable invite link</strong> to paste anywhere. The invite token (<code>vbnb_</code> prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (<code>prefix</code>) are shown. The address it was sent to is not stored. <em>(1.2+, #1678)</em> An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see <code>POST /api/v1/boards/join/{token}/</code> below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant <code>member</code>, <code>collaborator</code> or <code>viewer</code> — never <code>admin</code>, and never the moderator flag. A board invite never adds anyone to the board's group.</p>
 <h3 id="get-apiv1boardsidinvite-links"><code>GET /api/v1/boards/{id}/invite-links/</code><a class="headerlink" href="#get-apiv1boardsidinvite-links" title="Permanent link">&para;</a></h3>
 <p>List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns <strong>every pending invite plus at most the 50 most recent past ones</strong> (used, expired or revoked); older history is not returned. A caller with no access to the board gets <code>403</code>, a board that does not exist <code>404</code>, an unauthenticated request <code>401</code> — the same as the members endpoints.</p>
 <table>
@@ -7358,6 +7358,10 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td>The account must change its password or username first (<code>must_change_password</code> / <code>must_change_username</code>), or a personal access token lacks the <code>write</code> scope.</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td><em>(1.2+, #1678)</em> <code>{"code": "invite_recipient_mismatch", "detail": "This invite was sent to a different email address. ..."}</code>: an emailed invite, and none of the caller's addresses is the one it was sent to. Under <code>EMAIL_VERIFICATION=mandatory</code> only verified addresses count; under <code>optional</code> or <code>none</code> the account's <code>email</code> counts too. Matching ignores case and surrounding spaces. Nothing is written and the invite is not consumed. The response never names the invited address. Shareable links and emailed invites sent before upgrading to this version are not checked. A consumed invite followed again by the person who redeemed it is not checked either.</td>
 </tr>
 </tbody>
 </table>

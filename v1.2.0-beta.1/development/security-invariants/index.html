@@ -4442,22 +4442,22 @@ canonical wording.</p>
 <tr>
 <td>Group invite (registration)</td>
 <td><code>groups/invite_registration.py</code> <code>validate_group_registration_token</code>, <code>redeem_group_registration_token</code></td>
-<td><code>select_for_update()</code> on validation; conditional <code>used_at</code> update checked by row count</td>
+<td><code>select_for_update()</code> on validation; conditional <code>used_at</code> update checked by row count. An emailed invite's recipient binding (<code>visiban/invite_recipient.py</code> <code>require_recipient</code>, #1678) is checked on the locked row before the stamp, so a mismatch consumes nothing</td>
 </tr>
 <tr>
 <td>Board invite (join)</td>
 <td><code>boards/views/invites.py</code> <code>JoinBoardView.post</code></td>
-<td><code>select_for_update()</code> on the link row inside the request transaction, taken after the board row lock (<code>FOR NO KEY UPDATE</code>, #1631) so a join cannot race a board delete</td>
+<td><code>select_for_update()</code> on the link row inside the request transaction, taken after the board row lock (<code>FOR NO KEY UPDATE</code>, #1631) so a join cannot race a board delete. The emailed invite's recipient binding (<code>visiban/invite_recipient.py</code> <code>recipient_admits</code>, #1678) is checked on the locked row before <code>redeem</code>, so a mismatch (<code>403 invite_recipient_mismatch</code>) writes nothing</td>
 </tr>
 <tr>
 <td>Group invite (join)</td>
 <td><code>groups/views.py</code> <code>JoinGroupView.post</code></td>
-<td><code>select_for_update()</code> on the link row inside the request transaction</td>
+<td><code>select_for_update()</code> on the link row inside the request transaction; recipient binding (<code>recipient_admits</code>, #1678) checked on the locked row before the membership write and <code>used_at</code> stamp</td>
 </tr>
 <tr>
 <td>Board invite (registration)</td>
 <td><code>boards/invites.py</code> <code>validate_board_registration_token</code>, <code>redeem_board_registration_token</code></td>
-<td><code>select_for_update()</code> on validation, after the board row lock (<code>lock_invite_board</code>, #1631); conditional update on <code>used_at IS NULL, revoked_at IS NULL</code> checked by row count</td>
+<td><code>select_for_update()</code> on validation, after the board row lock (<code>lock_invite_board</code>, #1631); conditional update on <code>used_at IS NULL, revoked_at IS NULL</code> checked by row count. Recipient binding (<code>require_recipient</code>, #1678) is checked before the claim</td>
 </tr>
 <tr>
 <td>Registration dispatch</td>
@@ -4467,12 +4467,12 @@ canonical wording.</p>
 <tr>
 <td>Email and password signup</td>
 <td><code>accounts/views.py</code> <code>InviteRegisterView.post</code></td>
-<td>Runs in <code>transaction.atomic</code>; validates and redeems through <code>registration_token_kind</code></td>
+<td>Runs in <code>transaction.atomic</code>; validates and redeems through <code>registration_token_kind</code>. A submitted address that does not match an emailed group or board invite's binding (<code>InviteRegisterView.perform_create</code> through <code>signup_address_admits</code>, #1678) is refused with <code>400</code> after the form validates and before the account is created; redemption re-checks it on the created account</td>
 </tr>
 <tr>
 <td>OAuth signup</td>
 <td><code>accounts/adapter.py</code> <code>SocialRegistrationAdapter.save_user</code>, <code>_redeem_invite</code></td>
-<td>Validate and redeem in one transaction</td>
+<td>Validate and redeem in one transaction; a recipient-binding mismatch at redemption (#1678) rolls the account back and redirects with <code>auth_error=invite_recipient_mismatch</code></td>
 </tr>
 <tr>
 <td>WebSocket ticket</td>

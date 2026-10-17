@@ -4798,7 +4798,7 @@
 <td><code>email</code></td>
 <td>string</td>
 <td>Yes</td>
-<td>Recipient address. Surrounding spaces are stripped; an address containing a line break is rejected. The address is used for this one send and is <strong>never stored</strong> or logged.</td>
+<td>Recipient address. Surrounding spaces are stripped; an address containing a line break is rejected. The address itself is <strong>never stored</strong> or logged. <em>(1.2+)</em> The link keeps only a keyed hash of it, which binds the invite to that address (see <code>POST /api/v1/groups/join/{token}/</code>) and is never returned.</td>
 </tr>
 <tr>
 <td><code>role</code></td>
@@ -4996,6 +4996,7 @@
 <p><em>(1.2+)</em> An authenticated caller who is already a member of the link's group gets <code>200</code> with the preview for a consumed single-use link instead of <code>410</code>. This is the path a newcomer takes after an emailed invite created their account (see <a href="../authentication/"><code>POST /api/v1/auth/registration/</code></a>); everyone else still gets <code>410</code>.</p>
 <h3 id="post-apiv1groupsjointoken"><code>POST /api/v1/groups/join/{token}/</code><a class="headerlink" href="#post-apiv1groupsjointoken" title="Permanent link">&para;</a></h3>
 <p>Join the group with the role configured on the invite link. Requires authentication. Rate-limited to 10 requests/hour per IP, shared with the board join endpoints.</p>
+<p><em>(1.2+, #1678)</em> An emailed link (<code>delivery: "email"</code>) works only for an account with the address it was sent to. Otherwise the response is <code>403 {"code": "invite_recipient_mismatch", "detail": "This invite was sent to a different email address. ..."}</code>, nothing is written, and the link is not consumed. The same address rules apply as for <a href="../boards/#post-apiv1boardsjointoken">board invites</a>: verified addresses, plus the account's <code>email</code> unless <code>EMAIL_VERIFICATION=mandatory</code>, ignoring case. Shareable links and emailed links sent before upgrading to this version are not checked. Only a keyed fingerprint of the address is stored, and it is never returned.</p>
 <p><strong>Response body</strong> — returns the full group object (same shape as <code>GET /api/v1/groups/{id}/</code> but using the list serializer, without <code>ancestors</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
