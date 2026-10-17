@@ -5178,7 +5178,7 @@
 <tr>
 <td><code>export_min_role</code></td>
 <td>string</td>
-<td>Minimum role required to export this board. One of <code>"viewer"</code>, <code>"collaborator"</code>, <code>"member"</code>, <code>"admin"</code> (default: <code>"viewer"</code>). Owners and site admins always bypass. Admin-only when writing; sending any other value (including <code>"site_admin"</code> or <code>"owner"</code>) returns <code>400 Bad Request</code>. Added in 1.1 (#843).</td>
+<td>Minimum role required to export this board. One of <code>"viewer"</code>, <code>"collaborator"</code>, <code>"member"</code>, <code>"admin"</code> (default: <code>"viewer"</code>). Owners and site admins always bypass. Limits only the export action and its file formats; it does not restrict ordinary reads (<code>/cards/</code>, <code>/full/</code>, <code>/api/v1/cards/</code>, timeline, MCP), which follow board membership. Admin-only when writing; sending any other value (including <code>"site_admin"</code> or <code>"owner"</code>) returns <code>400 Bad Request</code>. Added in 1.1 (#843).</td>
 </tr>
 <tr>
 <td><code>card_density</code></td>

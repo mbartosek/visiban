@@ -5256,7 +5256,7 @@ parked out of sight cannot wash out every tint on the board.</p>
 <blockquote>
 <p><strong>Added in 1.1</strong> — export permission threshold and audit history (#842, #843)</p>
 </blockquote>
-<p>By default, any board member can export. Admins can raise the threshold per board under <strong>Board Settings → Data → Export permission</strong> to restrict exports to collaborators, members, or admins only — owners and site admins always bypass it.</p>
+<p>By default, any board member can export. Admins can raise the threshold per board under <strong>Board Settings → Data → Export permission</strong> to restrict exports to collaborators, members, or admins only — owners and site admins always bypass it. The threshold limits only the export action and file formats; it does not change what members can read on the board.</p>
 <p>Below the threshold, the <strong>Export</strong> button is hidden and direct API calls return <code>403 export_restricted</code>. The export endpoints are:</p>
 <ul>
 <li><code>GET /api/v1/boards/{id}/export/</code> — CSV</li>
