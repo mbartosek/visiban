@@ -94,6 +94,23 @@ MCP write tools (`create_card`, `move_card`, `update_card`, `archive_card`) retu
 `{"error": {"code": "maintenance_mode", "detail": "..."}}` result instead of a 503 — see
 [MCP Server](mcp.md#tool-errors).
 
+### Actor fields ("who did it")
+
+> **Settled in 1.2** (#1663)
+
+Resources that record which user did something use one of three shapes. Each is
+deliberate, and none will be removed or renamed in 1.x:
+
+| Shape | Where | Why |
+|---|---|---|
+| Nested `BoardUser` — `{ id, username, display_name, avatar_url }`, or `null` | `CardTimelineEntry.actor`, `CardActivity.actor`, `CardMovement.moved_by`, `BoardExportLog.actor`, `LensConnection.created_by`, and `BoardEvent.actor` on the [change feed](events.md) | The default for every board-scoped resource. `null` means there was no authenticated actor, or the account has since been deleted. |
+| Integer id — `actor_id` | The [change feed](events.md) (`BoardEvent.actor_id`) and the admin action log (alongside `actor_username`) | The row is append-only and stores a plain column, not a foreign key, so it can outlive the user. On the change feed it sits next to the nested `actor`; the id is kept for consumers that already join against the member list. |
+| Username string — `created_by_username` | Every invite-link row: site (`/admin/invite-links/`), group, board, and the site-admin board-invite list | One consistent convention across the whole invite family since 1.1 (#1008). The rows are only ever rendered as a "created by …" label, and `null` means the creator's account was deleted or anonymized. |
+
+New endpoints follow the same rules: a new board-scoped actor field is a nested
+`BoardUser`; a new invite-link serializer uses `created_by_username` so the invite
+family stays uniform; no other resource gains a new `*_username` field.
+
 ### URL path style
 
 Path segments use `kebab-case` (e.g. `/auth/change-password/`, `/boards/<id>/saved-filters/`, `/boards/<id>/move-group/`). This is the canonical style and the convention you should rely on when writing new integrations.

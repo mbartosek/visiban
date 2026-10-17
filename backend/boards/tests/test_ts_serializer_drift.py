@@ -132,7 +132,7 @@ _DRIFT_PAIRS: list[tuple[type, str, set[str]]] = [
     # frontend/src/types/index.ts to pair it with. `useBoardSocket.ts`
     # declares an unrelated `BoardEvent` type for the live `{event, data}`
     # socket frame; that is a same-named but different shape (no `id`,
-    # `actor_id`, or `created_at`) and pairing against it would be a false
+    # `actor_id`, `actor` (#1663), or `created_at`) and pairing against it would be a false
     # match, not real coverage. Coverage today is `test_board_events.py`
     # (model/write-path/endpoint/retention) plus `backend-schema-fuzz`.
     # Tracked as a follow-up in #1315: add both the TS interface and this
