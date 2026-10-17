@@ -21,6 +21,7 @@ from rest_framework.test import APIClient
 from accounts import credentials
 from accounts.authentication import SCOPE_READ, SCOPE_WRITE
 from accounts.models import PersonalAccessToken, User
+from accounts.tests.email_change_helpers import PasswordConfirmingAPIClient
 
 PROFILE_ENDPOINTS = ("/api/v1/auth/me/", "/api/v1/auth/user/")
 VERIFICATION_MODES = ("mandatory", "optional", "none")
@@ -96,7 +97,7 @@ class EmailChangeSessionRequirementTests(TestCase):
                 self._assert_refused(r)
 
     def test_token_alongside_a_session_is_refused(self):
-        client = APIClient()
+        client = PasswordConfirmingAPIClient(password="pass12345678")
         client.force_login(self.user)
         client.credentials(HTTP_AUTHORIZATION=f"Token {self.pat}")
         r = client.patch("/api/v1/auth/me/", {"email": NEW}, format="json")
@@ -169,7 +170,7 @@ class EmailChangeSessionRequirementTests(TestCase):
         self.assertEqual(self.user.email, "")
         self.assertEqual(self.user.first_name, "NoMail")
 
-    # ── sessions behave as before ─────────────────────────────────────────
+    # ── sessions (with the current password) behave as before ──────────
 
     def test_session_change_is_written_directly_when_not_mandatory(self):
         for mode in ("optional", "none"):
@@ -177,7 +178,7 @@ class EmailChangeSessionRequirementTests(TestCase):
                 with self.subTest(mode=mode, url=url), override_settings(
                     ACCOUNT_EMAIL_VERIFICATION=mode
                 ):
-                    client = APIClient()
+                    client = PasswordConfirmingAPIClient(password="pass12345678")
                     client.force_login(self.user)
                     new = f"dana-{mode}-{n}@new.example"
                     r = client.patch(url, {"email": new}, format="json")
@@ -190,7 +191,7 @@ class EmailChangeSessionRequirementTests(TestCase):
         for n, url in enumerate(PROFILE_ENDPOINTS):
             with self.subTest(url=url):
                 mail.outbox.clear()
-                client = APIClient()
+                client = PasswordConfirmingAPIClient(password="pass12345678")
                 client.force_login(self.user)
                 new = f"dana-pending-{n}@new.example"
                 r = client.patch(url, {"email": new}, format="json")
@@ -203,7 +204,7 @@ class EmailChangeSessionRequirementTests(TestCase):
 
     @override_settings(ACCOUNT_EMAIL_VERIFICATION="mandatory")
     def test_pat_can_withdraw_a_pending_change_by_sending_the_current_address(self):
-        client = APIClient()
+        client = PasswordConfirmingAPIClient(password="pass12345678")
         client.force_login(self.user)
         client.patch("/api/v1/auth/me/", {"email": NEW}, format="json")
         self.user.refresh_from_db()

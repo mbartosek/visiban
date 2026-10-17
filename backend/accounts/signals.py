@@ -124,3 +124,43 @@ def _connect_user_signals():
                 # Refresh the in-memory instance so callers see the updated values.
                 instance.is_site_admin = True
                 instance.can_access_all_content = True
+
+    @receiver(pre_save, sender=User, dispatch_uid="accounts.capture_prior_email")
+    def capture_prior_email(sender, instance, update_fields=None, **kwargs):
+        """Remember the stored email so post_save can tell the old address it changed.
+
+        A receiver rather than a call in each view so that every route that
+        writes ``User.email`` is covered, including allauth's own flows
+        (``EmailAddress.set_as_primary`` saves ``User.email`` with
+        ``update_fields``) and the Django admin. Skipped for inserts and for
+        saves that cannot write the column, so the extra read only happens on
+        full saves and saves that name ``email``.
+        """
+        instance._prior_email = None
+        if instance.pk is None or instance._state.adding:
+            return
+        if update_fields is not None and "email" not in update_fields:
+            return
+        instance._prior_email = (
+            sender.objects.filter(pk=instance.pk).values_list("email", flat=True).first()
+        )
+
+    @receiver(post_save, sender=User, dispatch_uid="accounts.notify_previous_email")
+    def notify_previous_email(sender, instance, created=False, **kwargs):
+        """Send the previous address a notice once an email change commits.
+
+        Only an actual move to a different mailbox counts: a case-only
+        re-spelling is the same address and sends nothing. Deferred with
+        ``on_commit`` so a change that rolls back never mails anyone, and the
+        SMTP session is not held inside the transaction.
+        """
+        prior = getattr(instance, "_prior_email", None)
+        instance._prior_email = None
+        if created or not prior:
+            return
+        if prior.strip().lower() == (instance.email or "").strip().lower():
+            return
+        from .email_change import send_previous_address_notice
+
+        user_id = instance.pk
+        transaction.on_commit(lambda: send_previous_address_notice(user_id, prior))

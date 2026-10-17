@@ -78,6 +78,13 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
     if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
   }, []);
 
+  // An email change on an account with a password needs that password in the
+  // same request (the server answers 400 on `current_password` otherwise).
+  // Kept out of `form` so it is never sent with an unrelated save.
+  const [emailPassword, setEmailPassword] = useState("");
+  const emailChanged = form.email !== (user.email ?? "");
+  const emailNeedsPassword = emailChanged && user.has_usable_password !== false;
+
   const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -94,7 +101,8 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
       const { email, ...rest } = form;
       const updated = await updateCurrentUser({
         ...rest,
-        ...(email !== (user.email ?? "") ? { email } : {}),
+        ...(emailChanged ? { email } : {}),
+        ...(emailNeedsPassword ? { current_password: emailPassword } : {}),
         timezone: form.timezone || browserTimezone(),
         date_format: form.date_format,
         time_format: form.time_format,
@@ -102,6 +110,7 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
       });
       onUserUpdated(updated);
       setSaved(true);
+      setEmailPassword("");
       const pending = updated.pending_email ?? null;
       setPendingEmail(pending);
       if (pending) {
@@ -115,10 +124,13 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
     } catch (err) {
       const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
       const usernameError = Array.isArray(data?.username) ? data.username[0] : null;
+      const passwordError = Array.isArray(data?.current_password) ? data.current_password[0] : null;
       setError(
-        typeof usernameError === "string"
-          ? usernameError
-          : "Failed to save changes. Please try again.",
+        typeof passwordError === "string"
+          ? passwordError
+          : typeof usernameError === "string"
+            ? usernameError
+            : "Failed to save changes. Please try again.",
       );
     } finally {
       setSaving(false);
@@ -266,6 +278,26 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
           </div>
         )}
       </div>
+
+      {emailNeedsPassword && (
+        <div className="flex flex-col gap-1 text-sm text-fg-tertiary">
+          <label className="flex flex-col gap-1">
+            Current password
+            <input
+              type="password"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              aria-describedby="email-password-hint"
+              className="bg-surface border border-line rounded px-3 py-1.5 text-sm text-fg-secondary focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent transition placeholder-fg-muted"
+            />
+          </label>
+          <span id="email-password-hint" className="text-xs text-fg-muted">
+            Required to change your email address.
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1 text-sm text-fg-tertiary">
         Timezone

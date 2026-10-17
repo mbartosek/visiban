@@ -317,11 +317,83 @@ describe('ProfileTab', () => {
     const emailInput = screen.getByDisplayValue('j@example.com')
     await user.clear(emailInput)
     await user.type(emailInput, 'other@example.com')
+    await user.type(screen.getByLabelText('Current password'), 'my-password')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
     expect(mockUpdateCurrentUser).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'other@example.com' }),
     )
+  })
+
+  it('asks for the current password only once the email is edited, and sends it', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings()
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    const password = screen.getByLabelText('Current password')
+    expect(password).toHaveAttribute('type', 'password')
+    expect(password).toBeRequired()
+    expect(password).toHaveAccessibleDescription('Required to change your email address.')
+    await user.type(password, 'my-password')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'other@example.com', current_password: 'my-password' }),
+    )
+  })
+
+  it('hides the password field again when the email is put back', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.type(emailInput, 'x')
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument()
+    await user.type(emailInput, '{Backspace}')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+  })
+
+  it('never sends current_password with an unrelated save', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser.mock.calls[0][0]).not.toHaveProperty('current_password')
+  })
+
+  it('does not ask an account without a password', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings({ ...fakeUser, has_usable_password: false })
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser.mock.calls[0][0]).not.toHaveProperty('current_password')
+  })
+
+  it("shows the server's current_password error", async () => {
+    mockUpdateCurrentUser.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { current_password: ['Your current password was entered incorrectly. Please enter it again.'] },
+      },
+    })
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    await user.type(screen.getByLabelText('Current password'), 'wrong')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(
+      await screen.findByText('Your current password was entered incorrectly. Please enter it again.'),
+    ).toBeInTheDocument()
   })
 
   it('shows the pending-confirmation notice on load', () => {

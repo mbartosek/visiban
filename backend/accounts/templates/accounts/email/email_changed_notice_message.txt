@@ -1,0 +1,10 @@
+{% autoescape off %}Hi {{ name }},
+
+The email address on your {{ site_name }} account was just changed, so this
+address will no longer receive mail for the account, including password
+reset links.
+
+If you made this change, you don't need to do anything.
+
+If you didn't, contact your {{ site_name }} administrator right away.
+{% endautoescape %}

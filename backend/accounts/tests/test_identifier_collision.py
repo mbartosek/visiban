@@ -23,6 +23,8 @@ from django.test import Client, TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.tests.email_change_helpers import PasswordConfirmingAPIClient, reauthenticate
+
 from accounts.adapter import RegistrationAdapter
 from accounts.backends import resolve_login_user
 from accounts.forms import VisibanSignupForm
@@ -260,6 +262,7 @@ class AddSecondaryEmailDoesNotRunSignupCollisionCheckTests(TestCase):
         )
         self.client = Client()
         self.client.force_login(self.user)
+        reauthenticate(self.client, PASSWORD)
 
     def test_adding_email_equal_to_another_accounts_username_is_allowed(self):
         r = self.client.post("/accounts/email/", {"email": "owner@example.com", "action_add": ""})
@@ -294,6 +297,7 @@ class MakePrimaryCollisionTests(TestCase):
         )
         self.client = Client()
         self.client.force_login(self.attacker)
+        reauthenticate(self.client, PASSWORD)
 
     def _add_secondary(self, email):
         r = self.client.post("/accounts/email/", {"email": email, "action_add": ""})
@@ -368,7 +372,7 @@ class ProfileCollisionTests(TestCase):
         self.user = User.objects.create_user(
             username="mallory", email="mallory@example.com", password=PASSWORD
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password=PASSWORD)
         self.client.force_authenticate(self.user)
 
     def test_username_change_to_active_email_is_rejected(self):
@@ -459,7 +463,7 @@ class PreExistingCollisionTests(TestCase):
         self.user = User.objects.create_user(
             username="victim@example.com", email="victim@example.com", password=PASSWORD
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password=PASSWORD)
         self.client.force_authenticate(self.user)
 
     def test_unrelated_field_patch_succeeds(self):
@@ -499,7 +503,7 @@ class EmailChangeThrottleTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user(username="dave", email="dave@example.com", password=PASSWORD)
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password=PASSWORD)
         self.client.force_authenticate(self.user)
         for cls in (UsernameChangeThrottle, ChooseUsernameThrottle):
             patcher = patch.object(cls, "THROTTLE_RATES", self.RATES)
@@ -577,7 +581,7 @@ class MandatoryConfirmationCollisionTests(TestCase):
         )
         self.user = User.objects.create_user(username="erin", email="erin@old.example", password=PASSWORD)
         EmailAddress.objects.create(user=self.user, email="erin@old.example", verified=True, primary=True)
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password=PASSWORD)
         self.client.force_authenticate(self.user)
 
     def _request_change(self, new):
@@ -666,7 +670,7 @@ class MandatoryChangeToOwnVerifiedCollidingSecondaryTests(TestCase):
         EmailAddress.objects.create(
             user=self.user, email="owner@example.com", verified=True, primary=False
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password=PASSWORD)
         self.client.force_authenticate(self.user)
 
     def test_switching_to_own_verified_colliding_address_is_rejected(self):

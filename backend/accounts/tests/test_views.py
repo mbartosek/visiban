@@ -464,6 +464,10 @@ class CurrentUserSerializerWritableFieldsTests(TestCase):
             "email_notif_card_moved",
             "email_notif_comment_added",
             "default_board_id",
+            # Write-only, never stored: confirms an email change on an account
+            # with a password (accounts.credentials.
+            # email_change_requires_current_password).
+            "current_password",
         }
 
         serializer = CurrentUserSerializer()

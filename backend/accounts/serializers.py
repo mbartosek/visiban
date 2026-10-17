@@ -481,6 +481,18 @@ class UserSerializer(serializers.ModelSerializer):
     has_usable_password = serializers.SerializerMethodField()
     avatar_url = AvatarUrlField(max_length=200, allow_blank=True, required=False)
     email = EmailOrBlankField(max_length=254, allow_blank=True, required=False)
+    # Write-only and optional: needed only in a request that changes ``email``
+    # on an account with a usable password (see ``to_internal_value``). Never
+    # stored, never echoed back, and ignored by requests that leave the email
+    # alone, so existing clients are unaffected.
+    current_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        max_length=4096,
+        style={"input_type": "password"},
+    )
     # default_board_id is injected as a writable PrimaryKeyRelatedField in
     # __init__ rather than at class level to avoid a premature import of
     # boards.models during test collection (app registry may not be ready when
@@ -518,6 +530,62 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_usable_password(self, obj) -> bool:
         return obj.has_usable_password()
+
+    def to_internal_value(self, data):
+        """Check ``current_password`` for an email change before any field is validated.
+
+        Run ahead of field validation on purpose: ``validate_email`` can answer
+        "address taken", and that answer must not reach a caller who has not
+        proved they know the password. See
+        ``accounts.credentials.email_change_requires_current_password`` for the
+        rule and why accounts without a password are exempt.
+        """
+        self._check_current_password_for_email_change(data)
+        return super().to_internal_value(data)
+
+    def _check_current_password_for_email_change(self, data):
+        from . import credentials as credentials_module
+        from . import password_attempts
+
+        request = self.context.get("request")
+        if self.instance is None or request is None or not hasattr(data, "get"):
+            return
+        requested = data.get("email")
+        if not isinstance(requested, str):
+            # Absent, or a malformed value the email field rejects on its own.
+            return
+        # The email field trims surrounding whitespace before validate_email
+        # compares, so compare the same trimmed value here.
+        requested = requested.strip()
+        if credentials_module.email_change_requires_session(
+            request, self.instance.email, requested
+        ):
+            # A token caller gets the session rule's 403 from validate_email;
+            # whether it knows the password is irrelevant.
+            return
+        if not credentials_module.email_change_requires_current_password(
+            self.instance, requested
+        ):
+            return
+        password = data.get("current_password")
+        if not isinstance(password, str) or not password:
+            raise serializers.ValidationError(
+                {"current_password": [credentials_module.EMAIL_CHANGE_PASSWORD_REQUIRED_MESSAGE]}
+            )
+        # A wrong password draws on the same per-account failed-attempt budget
+        # as login and the password-change routes, so this cannot be used to
+        # guess the password.
+        attempt = password_attempts.begin_current_password_check(request, self.instance)
+        if not self.instance.check_password(password):
+            raise serializers.ValidationError(
+                {"current_password": [credentials_module.EMAIL_CHANGE_PASSWORD_INCORRECT_MESSAGE]}
+            )
+        password_attempts.current_password_accepted(attempt)
+
+    def validate(self, attrs):
+        # Checked in to_internal_value; never a column to write.
+        attrs.pop("current_password", None)
+        return super().validate(attrs)
 
     def validate_email(self, value):
         """Format check, plus: no blanking the address when verification is mandatory (#1273).
@@ -718,6 +786,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email_notif_due_soon", "email_notif_card_moved",
             "email_notif_comment_added",
             "default_board_id",
+            "current_password",
         ]
         read_only_fields = ["id", "is_site_admin", "can_access_all_content", "must_change_password", "must_change_username", "has_usable_password"]
 
