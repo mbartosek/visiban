@@ -88,6 +88,9 @@ EVT_INVITE_LINK_REVOKED = "invite_link.revoked"
 
 # Emitted from the git_lens app, but onto the *board* channel — so they are
 # board-channel contract and belong in this registry rather than a third one.
+# Both names are FROZEN under the 1.x WebSocket contract (additive-only payloads,
+# removal needs a deprecation release), even though the Git Lens REST surface is
+# still documented experimental (#1666).
 EVT_LENS_CONNECTION_CONFIGURED = "lens_connection.configured"
 EVT_LENS_CONNECTION_REMOVED = "lens_connection.removed"
 

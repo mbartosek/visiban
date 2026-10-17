@@ -3,7 +3,19 @@
 Issue Board Lens surfaces GitHub or GitLab issues directly inside a Visiban board, pivoted by column and swimlane dimensions.
 
 !!! warning "Experimental feature"
-    Read-only, **public repositories only**, and subject to change without a deprecation notice until it leaves experimental status.
+    Read-only and **public repositories only**. The REST endpoints below are subject to change without a deprecation notice until the feature leaves experimental status. The contract surfaces listed under [Stable contract surfaces](#stable-contract-surfaces) are the exception.
+
+### Stable contract surfaces
+
+Three Git Lens surfaces are part of the frozen 1.x API contract and are **not** covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.
+
+| Surface | Where it is documented |
+|---|---|
+| `lens_connection.configured` and `lens_connection.removed` WebSocket events (board channel) | [WebSocket events](websockets.md#git-lens-events-since-12) |
+| The `LensConnection` object as carried in the `lens_connection.configured` payload | [LensConnection](#lensconnection) |
+| The `git_lens_enabled` field on the current user (`/auth/user/`) | [User profile](authentication.md#user-profile) |
+
+Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.
 
 The feature is flag-gated: all endpoints below return `404 Not Found` unless the server is started with `GIT_LENS_ENABLED=true`.
 
