@@ -27,7 +27,8 @@ not route through that definition:
   refusal function pinned to it), and the pinned call sites in
   ``REQUIRED_SHARED_CALLS`` make their shared calls (checked with ``ast``).
 - **Group placement** — every function in the installed apps that writes
-  `Board.group` calls the shared group-admin check (`_require_group_admin`,
+  `Board.group` through the API (the staff-only Django admin form is excluded)
+  calls the shared group-admin check (`_require_group_admin`,
   `resolve_group_for_board_placement`) or is in `GROUP_PLACEMENT_ALLOWLIST` with
   a reason; every writable `group` field on a `Board` serializer validates
   through it (Rule 6).
@@ -2249,8 +2250,8 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
     editing them. The check is presence-only: it does not verify ordering, that
     the checked group is the one written, or that every branch is covered. The
     scan flags reverse-manager writes (group.boards.add/set/create) but misses
-    setattr, **kwargs create/update (Board.objects.create(**data)), bulk_update
-    and save(update_fields=["group"]) shapes.
+    setattr, **kwargs create/update (Board.objects.create(**data)), bulk_update,
+    save(update_fields=["group"]) and aliased Board imports (tracked in #1707).
     """
 
     def test_discovery_finds_the_known_write_sites(self):

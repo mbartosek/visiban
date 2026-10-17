@@ -36,7 +36,7 @@ and 2: it discovers every routed REST and non-DRF view, every routed WebSocket
 consumer, the MCP transport, every invite-link model, and every function that
 looks an invite up by its token, and fails when one skips the shared function.
 It also checks that each top-level path segment with a route is either gated by
- or recorded as serving no session HTML, and
+`PendingAccountActionMiddleware` or recorded as serving no session HTML, and
 that every route under the gated prefixes, Django admin views included, has a
 recorded forced-change decision (`gated` or `exempt: <reason>`) that the
 middleware keeps for each pending flag.
@@ -227,7 +227,8 @@ surface: create in group by `groups/tests/test_groups.py`
 `test_non_admin_cannot_create_board_in_group`, the board `group` field by
 `boards/tests/test_board_group_field_validation.py`, and move group and the
 imports by `boards/tests/test_group_placement_roles.py`. The entry-point test
-(`GroupPlacementEntryPointTests`) checks every surface in this table.
+(`GroupPlacementEntryPointTests`) checks every API surface in this table; the
+Django admin row is the exception named above.
 
 ## Rule 8: Per-recipient event fields are gated on every broadcast and replay surface
 
