@@ -26,7 +26,8 @@ from unittest import skipUnless
 from unittest.mock import patch
 
 from django.db import connection, connections, transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase
+from django.urls import reverse
 from rest_framework.exceptions import NotFound
 from rest_framework.test import APIClient
 
@@ -45,6 +46,7 @@ from boards.models import (
 from boards.views._helpers import lock_board_and_row_or_404
 from groups.models import Group, GroupMembership
 from boards.tests.lock_wait import assert_blocked_on_lock
+from boards.tests.test_admin_board_concurrent_edits import _PLAIN_STATIC, page_data
 
 HOLD_TIMEOUT = 10.0
 
@@ -243,6 +245,57 @@ class MoveGroupOldGroupTests(_RaceBase):
                 ),
             )
         self.assertEqual((moved.status_code, patched.status_code), (200, 200), patched.content[:300])
+        self.assertEqual(Board.objects.get(pk=self.board.pk).group_id, g3.pk)
+        deleted = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(deleted, [g1.pk, g2.pk], calls)
+        created = [g for g, e in calls if e == _broadcast.EVT_BOARD_CREATED]
+        self.assertEqual(created, [g2.pk, g3.pk], calls)
+
+
+@_PLAIN_STATIC
+class AdminSaveOldGroupTests(_RaceBase):
+    """BoardAdmin.save_model reads the group the board is leaving under the
+    board row lock (#1684, #1708), as perform_update does."""
+
+    def test_admin_save_behind_a_move_sends_board_deleted_to_the_group_it_left(self):
+        """A form that changes ``group`` with ``row_version`` omitted passes the
+        rendered-state check, so only the locked read stands between the save
+        and a ``board.deleted`` sent to the group the board left before the
+        move. Reading the old group above the lock would tell g1 instead of g2."""
+        g1, g2, g3 = (self._admin_group(n) for n in ("A1", "A2", "A3"))
+        # The admin form requires a non-empty allowed_priorities.
+        Board.objects.filter(pk=self.board.pk).update(group=g1, allowed_priorities=["low"])
+        root = User.objects.create_superuser(
+            username="root1708", email="root1708@example.com", password="pw123456!x"
+        )
+        url = reverse("admin:boards_board_change", args=[self.board.pk])
+        render_client = Client()
+        render_client.force_login(root)
+        response = render_client.get(url)
+        self.assertEqual(response.status_code, 200)
+        data = page_data(response, row_version=False, group=str(g3.pk))
+        calls = []
+        lock = threading.Lock()
+
+        def record(group_id, event, payload):
+            with lock:
+                calls.append((group_id, event))
+
+        def admin_save():
+            client = Client()
+            client.force_login(User.objects.get(pk=root.pk))
+            return client.post(url, data)
+
+        with patch("boards.views.boards._broadcast_group_event", side_effect=record):
+            moved, saved = self._race(
+                "boards.views.boards.lock_board_row_or_404",
+                lambda: self._client().post(
+                    f"{self.base}/move-group/", {"group_id": g2.pk}, format="json"
+                ),
+                admin_save,
+            )
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(saved.status_code, 302, getattr(saved, "content", b"")[:300])
         self.assertEqual(Board.objects.get(pk=self.board.pk).group_id, g3.pk)
         deleted = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
         self.assertEqual(deleted, [g1.pk, g2.pk], calls)
