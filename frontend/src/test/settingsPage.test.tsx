@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { useState } from 'react'
 import SettingsPage from '../pages/SettingsPage'
 import type { User } from '../types'
 
@@ -317,10 +318,151 @@ describe('ProfileTab', () => {
     const emailInput = screen.getByDisplayValue('j@example.com')
     await user.clear(emailInput)
     await user.type(emailInput, 'other@example.com')
+    await user.type(screen.getByLabelText('Current password'), 'my-password')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
     expect(mockUpdateCurrentUser).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'other@example.com' }),
+    )
+  })
+
+  it('asks for the current password only once the email is edited, and sends it', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings()
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    const password = screen.getByLabelText('Current password')
+    expect(password).toHaveAttribute('type', 'password')
+    expect(password).toBeRequired()
+    expect(password).toHaveAccessibleDescription("Required to change your email address, to confirm it's you.")
+    await user.type(password, 'my-password')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'other@example.com', current_password: 'my-password' }),
+    )
+  })
+
+  it('hides the password field again when the email is put back', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.type(emailInput, 'x')
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument()
+    await user.type(emailInput, '{Backspace}')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+  })
+
+  it('never sends current_password with an unrelated save', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser.mock.calls[0][0]).not.toHaveProperty('current_password')
+  })
+
+  it('does not ask an account without a password', async () => {
+    mockUpdateCurrentUser.mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings({ ...fakeUser, has_usable_password: false })
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(1))
+    expect(mockUpdateCurrentUser.mock.calls[0][0]).not.toHaveProperty('current_password')
+  })
+
+  it("shows the server's current_password error", async () => {
+    mockUpdateCurrentUser.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { current_password: ['Your current password was entered incorrectly. Please enter it again.'] },
+      },
+    })
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    await user.type(screen.getByLabelText('Current password'), 'wrong')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    const password = screen.getByLabelText('Current password')
+    // Tied to the field: helper slot, aria-invalid, focus; not the status line.
+    await waitFor(() =>
+      expect(password).toHaveAccessibleDescription(
+        'Your current password was entered incorrectly. Please enter it again.',
+      ),
+    )
+    expect(password).toHaveAttribute('aria-invalid', 'true')
+    expect(password).toHaveFocus()
+    expect(password).toHaveValue('')
+    expect(
+      screen.getAllByText('Your current password was entered incorrectly. Please enter it again.'),
+    ).toHaveLength(1)
+    expect(screen.getByText('Your current password was entered incorrectly. Please enter it again.'))
+      .toHaveAttribute('id', 'email-password-hint')
+  })
+
+  it('clears the password on any failed save and refocuses the field', async () => {
+    mockUpdateCurrentUser.mockRejectedValueOnce({ response: { status: 500, data: {} } })
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    await user.type(screen.getByLabelText('Current password'), 'my-password')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByText('Failed to save changes. Please try again.')).toBeInTheDocument()
+    const password = screen.getByLabelText('Current password')
+    expect(password).toHaveValue('')
+    expect(password).toHaveFocus()
+    expect(password).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('does not bring the password back pre-filled after the email is reverted', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.type(emailInput, 'x')
+    await user.type(screen.getByLabelText('Current password'), 'my-password')
+    await user.type(emailInput, '{Backspace}')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    await user.type(emailInput, 'y')
+    expect(screen.getByLabelText('Current password')).toHaveValue('')
+  })
+
+  it('shows the password field when the server asks for it, even if has_usable_password is stale', async () => {
+    mockUpdateCurrentUser
+      .mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: { current_password: ['Enter your current password to change your email address.'] },
+        },
+      })
+      .mockResolvedValueOnce(fakeUser)
+    const user = userEvent.setup()
+    renderSettings({ ...fakeUser, has_usable_password: false })
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    const password = await screen.findByLabelText('Current password')
+    await waitFor(() => expect(password).toHaveFocus())
+    expect(password).toHaveAccessibleDescription(
+      'Enter your current password to change your email address.',
+    )
+    await user.type(password, 'my-password')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mockUpdateCurrentUser).toHaveBeenCalledTimes(2))
+    expect(mockUpdateCurrentUser.mock.calls[1][0]).toEqual(
+      expect.objectContaining({ email: 'other@example.com', current_password: 'my-password' }),
     )
   })
 
@@ -686,6 +828,55 @@ describe('SecurityTab — social account (no usable password)', () => {
       expect(screen.getByText('Password set successfully.')).toBeInTheDocument(),
       { timeout: 10000 },
     )
+  }, 15000)
+
+  it('updates the shared user after a first password is set, so other tabs see it', async () => {
+    mockChangePassword.mockResolvedValueOnce({ detail: 'ok' })
+    const onUserUpdated = vi.fn()
+    const user = userEvent.setup()
+    function Harness() {
+      const [current, setCurrent] = useState<User>(socialUser)
+      return (
+        <SettingsPage
+          user={current}
+          onLogout={vi.fn()}
+          onUserUpdated={(u) => { onUserUpdated(u); setCurrent(u) }}
+        />
+      )
+    }
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    await user.click(screen.getAllByText('Security')[0])
+    await user.type(screen.getByLabelText('New password'), 'NewPassword123!')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Set password' }))
+    await waitFor(() =>
+      expect(onUserUpdated).toHaveBeenCalledWith(expect.objectContaining({ has_usable_password: true })),
+    )
+    // The success message keeps the wording of what just happened.
+    expect(screen.getByText('Password set successfully.')).toBeInTheDocument()
+    // Profile now asks for the password when the email is edited.
+    await user.click(screen.getAllByText('Profile')[0])
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.type(emailInput, 'x')
+    expect(screen.getByLabelText('Current password')).toBeInTheDocument()
+  }, 15000)
+
+  it('a password change on a password account does not touch the shared user', async () => {
+    mockChangePassword.mockResolvedValueOnce({ detail: 'ok' })
+    const onUserUpdated = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <SettingsPage user={fakeUser} onLogout={vi.fn()} onUserUpdated={onUserUpdated} />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getAllByText('Security')[0])
+    await user.type(screen.getByLabelText('Current password'), 'OldPassword1!')
+    await user.type(screen.getByLabelText('New password'), 'NewPassword123!')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    await waitFor(() => expect(screen.getByText('Password changed successfully.')).toBeInTheDocument())
+    expect(onUserUpdated).not.toHaveBeenCalled()
   }, 15000)
 })
 

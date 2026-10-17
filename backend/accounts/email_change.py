@@ -236,6 +236,74 @@ def confirmation_would_collide(email_address) -> bool:
     )
 
 
+def send_previous_address_notice(user_id: int, previous_email: str) -> None:
+    """Tell the address an account used to have that the account's email changed.
+
+    Called once ``User.email`` has moved off *previous_email* and the change
+    has committed (``accounts.signals``, so every route that writes the
+    column is covered: the profile API, a confirmed change under
+    ``mandatory``, allauth's manage-email page, the Django admin). The account
+    email is where password reset links go, so the owner of the old mailbox
+    is the one person who can notice a change they did not make; this message
+    gives them that chance.
+
+    The new address is deliberately not included: the old mailbox may no
+    longer belong to the account holder.
+
+    The previous address is mailed whether or not it was ever verified.
+    Deliberate: on ``optional``/``none`` installs an unverified address is
+    often the only one an account has, so it is the only place a notice can
+    go. The cost is that an account can direct notices at addresses it picks
+    (set an address, then change away from it). That is bounded: email
+    changes share the per-user ``choose_username`` budget (10/min), so one
+    account can cause roughly 600 notices an hour under ``optional``/``none``
+    (under ``mandatory`` a new address must be confirmed from its mailbox
+    first). The content is fixed text: the site name and a neutral greeting,
+    with no user-controlled strings, no link and no new address. Never raises, so a mail failure
+    cannot turn a committed change into an error; failures are logged by
+    user id and exception type only, never by address.
+    """
+    import logging
+
+    from django.contrib.auth import get_user_model
+    from django.core.mail import EmailMessage, get_connection
+    from django.template.loader import render_to_string
+
+    from boards.notifications_email import _flatten_subject
+    from visiban.invite_email import SITE_NAME
+
+    logger = logging.getLogger(__name__)
+    if not previous_email or not get_user_model().objects.filter(pk=user_id).exists():
+        return
+    # Fixed text only: no name or other user-chosen string goes to an address
+    # the account may have picked (see the docstring).
+    context = {"site_name": SITE_NAME}
+    connection = None
+    try:
+        connection = get_connection(
+            fail_silently=False,
+            timeout=getattr(settings, "NOTIFICATION_EMAIL_TIMEOUT", 10),
+        )
+        EmailMessage(
+            subject=_flatten_subject(
+                render_to_string("accounts/email/email_changed_notice_subject.txt", context)
+            ),
+            body=render_to_string("accounts/email/email_changed_notice_message.txt", context),
+            to=[previous_email],
+            connection=connection,
+        ).send(fail_silently=False)
+    except Exception as exc:  # noqa: BLE001 - a notice must never fail the change
+        logger.warning(
+            "email_change.notice_failed user_id=%s exc=%s", user_id, type(exc).__name__
+        )
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:  # noqa: BLE001 - closing is best-effort
+                pass
+
+
 def apply_confirmed_email_change(sender, request, email_address, **kwargs):
     """``email_confirmed`` receiver: make the confirmed pending address the account's email.
 

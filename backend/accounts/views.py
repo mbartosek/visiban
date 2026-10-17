@@ -1595,6 +1595,35 @@ class VisibanEmailView(AllauthEmailView):
     action is the only entry point.
     """
 
+    def post(self, request, *args, **kwargs):
+        """Adding an address or making one primary needs a recent password check.
+
+        Both actions decide where account mail goes: "Make Primary" writes
+        ``User.email``, and an added address, even unverified, is one that
+        password reset looks accounts up by. So they get the same rule as
+        ``PATCH /api/v1/auth/me/`` (``accounts.credentials.
+        email_change_requires_current_password``): an account with a usable
+        password re-enters it first. allauth's reauthentication flow does the
+        asking: ``ReauthenticationRequired`` is turned into a redirect to
+        ``/accounts/reauthenticate/`` by ``AccountMiddleware`` and the action
+        resumes once the password is confirmed. An account with no usable
+        password has no reauthentication method, and allauth treats it as
+        recently authenticated, matching the API's exemption.
+
+        Not enabled through ``ACCOUNT_REAUTHENTICATION_REQUIRED``, which would
+        also change other allauth flows (social-account connect); this gates
+        only the two actions on this page.
+        """
+        if ("action_add" in request.POST or "action_primary" in request.POST) and (
+            request.user.has_usable_password()
+        ):
+            from allauth.account.internal.flows.reauthentication import (
+                raise_if_reauthentication_required,
+            )
+
+            raise_if_reauthentication_required(request)
+        return super().post(request, *args, **kwargs)
+
     def _action_primary(self, request, *args, **kwargs):
         """Inlines allauth's ``_action_primary`` body (rather than pre-checking
         then calling ``super()``) so the ``EmailAddress`` this method already

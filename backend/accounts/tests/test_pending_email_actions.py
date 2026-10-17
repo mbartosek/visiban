@@ -22,6 +22,8 @@ from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.tests.email_change_helpers import PasswordConfirmingAPIClient
+
 from accounts.models import User
 
 CANCEL_URL = "/api/v1/auth/me/pending-email/"
@@ -39,7 +41,7 @@ class PendingEmailActionTestBase(TestCase):
         EmailAddress.objects.create(
             user=self.user, email="erin@old.example", verified=True, primary=True
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password="pass12345678")
         self.client.force_authenticate(self.user)
 
     def _request_change(self, new="erin@new.example"):

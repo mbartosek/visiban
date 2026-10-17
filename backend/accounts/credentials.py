@@ -114,6 +114,40 @@ EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE = (
     "Changing the email address is available from an interactive session only."
 )
 
+EMAIL_CHANGE_PASSWORD_REQUIRED_MESSAGE = (
+    "Enter your current password to change your email address."
+)
+EMAIL_CHANGE_PASSWORD_INCORRECT_MESSAGE = (
+    "Your current password was entered incorrectly. Please enter it again."
+)
+
+
+def email_change_requires_current_password(user, requested_email) -> bool:
+    """True when changing *user*'s email to *requested_email* needs the current password.
+
+    The account email is where password reset links go, and a reset ends in a
+    new password (which also revokes every token). So an email change is
+    treated as a credential change: an account that has a usable password must
+    prove it knows that password in the same request, the way the password
+    change routes do. A signed-in session alone is not enough.
+
+    Accounts without a usable password (sign-in through an identity provider
+    only) are not asked: they have no password to confirm. That exemption is
+    a scoping choice for this change, not a claim that their email change
+    needs no further protection; tracked in #1709. The reset gate itself
+    (``accounts.forms._ResetLinkGateMixin``) is deliberately left alone:
+    tightening it would cut off password reset on ``EMAIL_VERIFICATION=none``
+    installs, where no address is ever verified.
+
+    The same "not a change" rule as ``email_change_requires_session``: the
+    stored value sent back unchanged needs nothing (and a request that omits
+    ``email`` never reaches this check), so clients that round-trip the whole
+    profile keep working.
+    """
+    if (requested_email or "") == (user.email or ""):
+        return False
+    return user.has_usable_password()
+
 
 def email_change_requires_session(request, current_email, requested_email) -> bool:
     """True when *request* may not change the account email to *requested_email*.

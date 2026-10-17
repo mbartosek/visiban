@@ -50,14 +50,19 @@ PINNED_FIELDS = {
     "email_notif_card_moved", "email_notif_comment_added", "default_board_id",
 } | FROZEN_INSTANCE_FLAGS | PER_USER_EXTRAS
 
+# Request-only fields: declared in Meta.fields but never part of the response.
+# ``current_password`` confirms an email change (see UserSerializer.to_internal_value).
+WRITE_ONLY_FIELDS = {"current_password"}
+
 
 class CurrentUserFieldsFrozenTests(TestCase):
     def test_serializer_field_set_is_pinned(self):
         actual = set(CurrentUserSerializer.Meta.fields)
+        expected = PINNED_FIELDS | WRITE_ONLY_FIELDS
         self.assertEqual(
             actual,
-            PINNED_FIELDS,
-            f"{GUIDANCE} Added: {sorted(actual - PINNED_FIELDS)}; removed: {sorted(PINNED_FIELDS - actual)}.",
+            expected,
+            f"{GUIDANCE} Added: {sorted(actual - expected)}; removed: {sorted(expected - actual)}.",
         )
 
     def test_instance_flag_subset_is_pinned(self):

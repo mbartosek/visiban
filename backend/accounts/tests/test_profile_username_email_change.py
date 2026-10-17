@@ -19,6 +19,8 @@ from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.tests.email_change_helpers import PasswordConfirmingAPIClient
+
 from accounts.models import User
 from accounts.views import ChooseUsernameThrottle, UsernameChangeThrottle
 
@@ -31,7 +33,7 @@ class ProfileUsernameUniquenessTests(TestCase):
         cache.clear()
         User.objects.create_user(username="bob", password="pass12345678")
         self.user = User.objects.create_user(username="alice", password="pass12345678")
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password="pass12345678")
         self.client.force_authenticate(self.user)
 
     def test_case_variant_of_existing_username_is_rejected(self):
@@ -92,7 +94,7 @@ class ProfileUsernameThrottleTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user(username="dave", password="pass12345678")
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password="pass12345678")
         self.client.force_authenticate(self.user)
         for cls in (UsernameChangeThrottle, ChooseUsernameThrottle):
             patcher = patch.object(cls, "THROTTLE_RATES", self.RATES)
@@ -159,7 +161,7 @@ class MandatoryEmailChangeTests(TestCase):
         self.old_address = EmailAddress.objects.create(
             user=self.user, email="erin@old.example", verified=True, primary=True
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password="pass12345678")
         self.client.force_authenticate(self.user)
 
     def _confirm(self, address):
@@ -422,7 +424,7 @@ class OptionalEmailChangeTests(TestCase):
         self.user = User.objects.create_user(
             username="gina", email="gina@old.example", password="pass12345678"
         )
-        self.client = APIClient()
+        self.client = PasswordConfirmingAPIClient(password="pass12345678")
         self.client.force_authenticate(self.user)
 
     def test_changed_email_is_written_directly(self):
