@@ -4625,6 +4625,15 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   the request is authenticated with a personal access token or the login API token; an
   interactive (signed-in) session is required. Other profile fields are unaffected, and a
   request that omits <code>email</code> or sends the current value unchanged still succeeds.</li>
+<li><strong>A session also needs the current password to change the email</strong> of an account that
+  has a password: the same requests must include the new optional <code>current_password</code>
+  field, or they get <code>400</code> with a <code>current_password</code> error. Accounts that sign in only
+  through an identity provider are not asked, and requests that don't change <code>email</code> are
+  unaffected. Custom clients that let users change their email should send the field
+  (see <a href="../../api/authentication/#patch-apiv1authme">Authentication API</a>).</li>
+<li><strong>The previous address is notified of an email change.</strong> Whenever an account's email
+  changes to a different address, by any route, the previous address receives a short
+  notice. Make sure outbound email is configured if you rely on it.</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
   scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
   upgrade — create a new token with <code>mcp:read</code> to reconnect it.</li>

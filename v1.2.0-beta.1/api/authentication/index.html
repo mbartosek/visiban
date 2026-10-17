@@ -5473,7 +5473,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <h3 id="patch-apiv1authme"><code>PATCH /api/v1/auth/me/</code><a class="headerlink" href="#patch-apiv1authme" title="Permanent link">&para;</a></h3>
 <p>Update the authenticated user's profile. All fields are optional.</p>
 <p><strong>Permission:</strong> Requires authentication.</p>
-<p><strong>Writable fields:</strong> <code>username</code>, <code>email</code>, <code>first_name</code>, <code>last_name</code>, <code>display_name</code>, <code>avatar_url</code>, <code>has_completed_tour</code>, <code>timezone</code>, <code>date_format</code>, <code>time_format</code>, <code>number_locale</code>, <code>close_editor_on_enter</code>, <code>notif_card_assigned</code>, <code>notif_mentioned</code>, <code>notif_due_soon</code>, <code>notif_card_moved</code>, <code>notif_comment_added</code>, <code>notif_board_invite</code>, <code>notif_stale</code>, <code>email_notif_card_assigned</code>, <code>email_notif_mentioned</code>, <code>email_notif_due_soon</code>, <code>email_notif_card_moved</code>, <code>email_notif_comment_added</code>, <code>default_board_id</code>, <code>theme</code>.</p>
+<p><strong>Writable fields:</strong> <code>username</code>, <code>email</code>, <code>first_name</code>, <code>last_name</code>, <code>display_name</code>, <code>avatar_url</code>, <code>has_completed_tour</code>, <code>timezone</code>, <code>date_format</code>, <code>time_format</code>, <code>number_locale</code>, <code>close_editor_on_enter</code>, <code>notif_card_assigned</code>, <code>notif_mentioned</code>, <code>notif_due_soon</code>, <code>notif_card_moved</code>, <code>notif_comment_added</code>, <code>notif_board_invite</code>, <code>notif_stale</code>, <code>email_notif_card_assigned</code>, <code>email_notif_mentioned</code>, <code>email_notif_due_soon</code>, <code>email_notif_card_moved</code>, <code>email_notif_comment_added</code>, <code>default_board_id</code>, <code>theme</code>. The write-only <code>current_password</code> field (below) is accepted alongside them and is never returned.</p>
 <p><strong>Request body fields</strong></p>
 <table>
 <thead>
@@ -5495,7 +5495,13 @@ actually bootstraps from) returns the identical shape — both are served by
 <td><code>email</code></td>
 <td>string</td>
 <td>No</td>
-<td>A valid email address, or <code>""</code> to clear it. A <strong>new</strong> address must not match another active account's email or any account's username, ignoring case (1.2+, #1221). A request that changes <code>email</code> counts against the same per-user budget as a username change. On instances with <code>EMAIL_VERIFICATION=mandatory</code>, a new address doesn't take effect on this request (see below) and is checked against other accounts only when the link is confirmed (a collision then answers <code>409</code>, see below), and clearing an existing address is refused. <strong>Changed in 1.2:</strong> changing <code>email</code> (including clearing it, or a case-only change) is available from an interactive session only: a request authenticated with a token (a personal access token or the login API token) that changes it is refused with <code>403 Forbidden</code> and nothing in the request is applied, whatever the <code>EMAIL_VERIFICATION</code> setting. Omitting <code>email</code>, or sending the current value unchanged, is not a change, so token clients can still update the other fields.</td>
+<td>A valid email address, or <code>""</code> to clear it. A <strong>new</strong> address must not match another active account's email or any account's username, ignoring case (1.2+, #1221). A request that changes <code>email</code> counts against the same per-user budget as a username change. On instances with <code>EMAIL_VERIFICATION=mandatory</code>, a new address doesn't take effect on this request (see below) and is checked against other accounts only when the link is confirmed (a collision then answers <code>409</code>, see below), and clearing an existing address is refused. <strong>Changed in 1.2:</strong> changing <code>email</code> (including clearing it, or a case-only change) is available from an interactive session only: a request authenticated with a token (a personal access token or the login API token) that changes it is refused with <code>403 Forbidden</code> and nothing in the request is applied, whatever the <code>EMAIL_VERIFICATION</code> setting. Omitting <code>email</code>, or sending the current value unchanged, is not a change, so token clients can still update the other fields. On an account with a password, a change also needs <code>current_password</code> (below).</td>
+</tr>
+<tr>
+<td><code>current_password</code></td>
+<td>string</td>
+<td>Only when changing <code>email</code> on an account that has a password</td>
+<td><strong>Added in 1.2.</strong> The account's current password. A request that changes <code>email</code> (including clearing it, or a case-only change) on an account with a usable password (<code>has_usable_password: true</code>) must include it, in every <code>EMAIL_VERIFICATION</code> mode; it is checked before any other <code>email</code> rule, and a missing or wrong value answers <code>400</code> with a <code>current_password</code> error and nothing in the request is applied. A wrong value counts toward the same per-account failed-attempt lockout as login and the password-change endpoints. Accounts that sign in only through an identity provider (<code>has_usable_password: false</code>) don't send it. Requests that don't change <code>email</code> don't need it, and a value sent with them is ignored. Write-only: never returned. Also applies to <code>PATCH</code> and <code>PUT /api/v1/auth/user/</code>.</td>
 </tr>
 <tr>
 <td><code>avatar_url</code></td>
@@ -5521,6 +5527,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <blockquote>
 <p><strong>Changed in 1.2</strong> (#1273) — <code>username</code> is now checked case-insensitively and rate-limited, and under <code>EMAIL_VERIFICATION=mandatory</code> a changed <code>email</code> needs confirmation before it takes effect. Both fields remain writable. Earlier releases stored either value directly.</p>
 </blockquote>
+<p><strong>Notice to the previous address</strong> (<strong>added in 1.2</strong>) — once an account's email actually changes to a different address (a direct change, a confirmed change under <code>EMAIL_VERIFICATION=mandatory</code>, or a change made on the <code>/accounts/email/</code> page or in the Django admin), the previous address is sent a short notice that the account's email was changed. The notice does not include the new address. A case-only change, or an account that had no address, sends nothing. A failure to send the notice does not undo or fail the change.</p>
 <p><strong>Changing <code>email</code> when verification is mandatory</strong> — when the instance sets <code>EMAIL_VERIFICATION=mandatory</code> and <code>email</code> differs from the current address (ignoring case), the request still returns <code>200 OK</code>, but:</p>
 <ul>
 <li><code>email</code> in the response (and on the account) is <strong>unchanged</strong>, so it's still the address used for login, password resets, and notification email.</li>
@@ -5569,6 +5576,18 @@ actually bootstraps from) returns the identical shape — both are served by
 <tr>
 <td><code>400 Bad Request</code></td>
 <td><code>email</code> is <code>""</code> on an account that has an address, when the instance sets <code>EMAIL_VERIFICATION=mandatory</code> — <code>{"email": ["An email address is required."]}</code></td>
+</tr>
+<tr>
+<td><code>400 Bad Request</code></td>
+<td>The request changes <code>email</code> on an account with a password and omits <code>current_password</code> — <code>{"current_password": ["Enter your current password to change your email address."]}</code></td>
+</tr>
+<tr>
+<td><code>400 Bad Request</code></td>
+<td>The request changes <code>email</code> and <code>current_password</code> is wrong — <code>{"current_password": ["Your current password was entered incorrectly. Please enter it again."]}</code></td>
+</tr>
+<tr>
+<td><code>429 Too Many Requests</code></td>
+<td>The account's failed-attempt lockout is active (too many wrong passwords here, at login, or at a password-change endpoint) — <code>{"detail": "Too many failed attempts. Try again later."}</code></td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>
