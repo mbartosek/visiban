@@ -2348,6 +2348,11 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
     reached through a variable the scan cannot trace to the Board name
     (``qs = Board.objects.all(); qs.update(**x)`` is flagged only through
     the ``save``/``update(group=...)`` rule), are not resolvable statically.
+    Also not scanned: ``get_or_create`` / ``update_or_create(defaults={"group": g})``
+    (the group rides in a dict), a fully qualified
+    ``boards.models.Board.objects.create(group=...)`` (chain root ``boards`` is not a
+    Board name), and ``from ... import execute_plan as ep`` (the execute_plan pin
+    looks for the name ``execute_plan``). None has a real instance today.
     """
 
     def test_discovery_finds_the_known_write_sites(self):
