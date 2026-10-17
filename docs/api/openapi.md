@@ -90,7 +90,12 @@ a production setting.
 #1383) runs the same job with a bigger budget: `--max-examples 100` and `--max-time 2400`
 seconds, against the MR job's 10 and 600. Boot, seed, token, checks, and
 `backend/schemathesis-baseline.json` are shared, because the deep job `extends:` the MR job.
-It gets a fresh seed each night, printed the same way. It is `allow_failure: true` so a
+**Unobserved baseline entries (#1582).** `st run` reports only a count ("Unobserved entries: N").
+Every fuzz job also writes the JSON run report (`schemathesis-report.json`, a job artifact), and
+`after_script` runs `scripts/fuzz_baseline_unobserved.py`, which logs the id, operation and
+check of each unobserved baseline entry. It is log-only and never changes the job result. Prune an
+entry from `backend/schemathesis-baseline.json` only when both an MR-style run and the deep
+nightly list it as unobserved. It gets a fresh seed each night, printed the same way. It is `allow_failure: true` so a
 finding does not turn the shared Nightly pipeline red. A finding is still a real defect: when
 the fuzz itself ran and failed, the job files one tracking issue titled
 `backend-schema-fuzz-deep: nightly schema-fuzz finding`, or comments on it if it is already

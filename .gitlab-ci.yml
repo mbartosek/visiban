@@ -1087,8 +1087,9 @@ backend-schema-validate:
         --workers 4 \
         ${FUZZ_INCLUDE_PATH_REGEX:+--include-path-regex "$FUZZ_INCLUDE_PATH_REGEX"} \
         --baseline "${FUZZ_BASELINE:-backend/schemathesis-baseline.json}" \
-        --report junit \
+        --report junit,json \
         --report-junit-path schemathesis-junit.xml \
+        --report-json-path schemathesis-report.json \
         --no-color
 
 backend-schema-fuzz:
@@ -1177,8 +1178,9 @@ backend-schema-fuzz:
   # integer in POST /boards/{board_pk}/cards/, which Postgres may report as a
   # DataError instead -- if CI shows a 500 there it is a real finding).
   # A new finding is a real defect, never a flake.
-  # The unobserved schemathesis-baseline.json entry is pruned separately, once the
-  # nightly deep run also reports it unobserved: #1582 (not pruned here).
+  # Unobserved schemathesis-baseline.json entries are now logged by id
+  # (scripts/fuzz_baseline_unobserved.py, after_script); the prune follows from
+  # the nightly deep run's output once it also lists them: #1582 (not pruned here).
   services:
     - name: ${DOCKERHUB_MIRROR}/postgres:17-alpine
       alias: postgres
@@ -1264,6 +1266,10 @@ backend-schema-fuzz:
     - *schema-fuzz-seed-steps
     - *schema-fuzz-run-steps
   after_script: &schema-fuzz-after-script
+    # Log-only (#1582): `st run` prints just the COUNT of unobserved baseline
+    # entries; list their ids from the JSON report. `|| true` so this can never
+    # change the job result (after_script failures do not, but keep it explicit).
+    - python3 scripts/fuzz_baseline_unobserved.py schemathesis-report.json "${FUZZ_BASELINE:-backend/schemathesis-baseline.json}" || true
     - |
       if [ "$CI_JOB_STATUS" = "failed" ]; then
         cat <<EOF
@@ -1300,6 +1306,7 @@ backend-schema-fuzz:
       junit: schemathesis-junit.xml
     paths:
       - schema-fuzz-server.log
+      - schemathesis-report.json
     # Server log can carry request bodies in tracebacks; keep it to developers.
     access: developer
     when: always
