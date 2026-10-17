@@ -15,4 +15,6 @@ class GitLensConfig(AppConfig):
         # a permanent 1.0+ enterprise contract for a feature that may be removed.
         # The internal registry keeps the provider seam clean and promotable to a
         # public hook at keep-time without forcing a fork in the meantime.
+        # Note the ``lens_connection.*`` WS events and ``git_lens_enabled`` are already
+        # frozen under the 1.x contract, so removing the feature needs the deprecation process.
         from . import providers  # noqa: F401  (import triggers provider registration)

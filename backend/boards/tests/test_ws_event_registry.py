@@ -108,11 +108,6 @@ class BoardEventRegistryTests(SimpleTestCase):
             frozenset(FROZEN_BOARD_EVENTS.values()),
         )
 
-    def test_git_lens_events_are_frozen_board_events(self):
-        # Experimental REST surface, but the WS events are contract (#1666).
-        for name in ("lens_connection.configured", "lens_connection.removed"):
-            self.assertIn(name, board_broadcast.BOARD_CHANNEL_EVENTS)
-
     def test_constants_are_plain_str(self):
         """Not an Enum member, not a lazy string.
 

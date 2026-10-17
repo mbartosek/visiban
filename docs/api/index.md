@@ -12,7 +12,7 @@ Visiban exposes a REST JSON API. All endpoints require an authenticated session 
 | [Groups API](groups.md) | Groups, subgroups, group members, and invite links |
 | [Notifications API](notifications.md) | List unread notifications, mark as read, and get unread count |
 | [Admin API](admin.md) | Site settings, the instance-admin action log, users, and invite links — site admin only |
-| [Issue Board Lens API](git-lens.md) | Read-only mirror of GitLab/GitHub issues and MRs onto a board, plus derived-pipeline columns — experimental |
+| [Issue Board Lens API](git-lens.md) | Read-only mirror of GitLab/GitHub issues and MRs onto a board, plus derived-pipeline columns — REST surface experimental; the WebSocket events and `git_lens_enabled` are [stable](git-lens.md#stable-contract-surfaces) |
 | [MCP Server](mcp.md) | Model Context Protocol tools for AI agents to read and write boards |
 | [WebSockets](websockets.md) | Full event reference and the ticket-authentication flow for the [WebSocket API](#websocket-api) below |
 | [Change Feed](events.md) | Durable, resumable feed of board mutations — replay what you missed with a cursor instead of re-fetching (since 1.2) |
