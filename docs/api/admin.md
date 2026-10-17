@@ -637,7 +637,7 @@ Email a single-use registration invite to one address. *(Added in 1.2.)*
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `email` | string | Yes | Recipient address. Surrounding spaces are stripped; an address with a line break is rejected. Used for this one send and **never stored** or logged. |
+| `email` | string | Yes | Recipient address. Surrounding spaces are stripped; an address with a line break is rejected. The address itself is **never stored** or logged; the invite keeps only a keyed hash of it, and registration with it requires this address (`invite_recipient_mismatch` otherwise, #1703). |
 | `expires_in_days` | `1` \| `7` \| `30` | No | Days until the link expires. Default `7`. `null` (never expires) is **not** accepted for emailed links. |
 
 ```json

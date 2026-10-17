@@ -7,6 +7,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from visiban.authorization import invite_creator_is_valid, sender_may_admit_accounts
+from visiban.invite_recipient import MISMATCH_CODE, MISMATCH_DETAIL, require_recipient
 
 from .models import InviteLink, InviteLinkRedemption
 
@@ -149,7 +150,7 @@ def validate_invite_token(raw_token: str) -> InviteLink:
     return link
 
 
-def consume_invite_token(link: InviteLink, email: str | None = None) -> None:
+def consume_invite_token(link: InviteLink, email: str | None = None, user=None) -> None:
     """Record consumption of an invite token.
 
     Always increments ``use_count`` for audit visibility — including multi-use
@@ -171,7 +172,17 @@ def consume_invite_token(link: InviteLink, email: str | None = None) -> None:
     ``InviteTokenError("invite_already_redeemed", ...)`` — the caller's atomic
     block must roll back any in-flight user creation.  Single-use links are
     already gated by ``used_at`` and do not write a redemption row.
+
+    An emailed invite is bound to the address it was sent to (#1703). The
+    check runs first, on the row the caller holds locked, so a mismatch
+    consumes nothing: no redemption row, no stamp, no ``use_count`` bump.
+    ``user`` is the account being registered; a bound invite redeemed without
+    one is refused rather than waved through (fail closed).
     """
+    if link.recipient_hash:
+        if user is None:
+            raise InviteTokenError(MISMATCH_CODE, MISMATCH_DETAIL)
+        require_recipient(link, user, at_registration=True)
     if email and not link.single_use:
         try:
             InviteLinkRedemption.objects.create(

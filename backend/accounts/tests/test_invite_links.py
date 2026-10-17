@@ -927,8 +927,14 @@ class SiteInviteEffectiveStatusAndCapTests(TestCase):
         from accounts.invite_utils import live_site_invite_count
 
         expires = timezone.now() + timedelta(days=7)
-        InviteLink.generate(created_by=self.creator, expires_at=expires, single_use=True, delivery="email")
-        InviteLink.generate(created_by=self.admin, expires_at=expires, single_use=True, delivery="email")
+        InviteLink.generate(
+            created_by=self.creator, expires_at=expires, single_use=True, delivery="email",
+            recipient_email="a@example.org",
+        )
+        InviteLink.generate(
+            created_by=self.admin, expires_at=expires, single_use=True, delivery="email",
+            recipient_email="b@example.org",
+        )
         self.assertEqual(live_site_invite_count(delivery="email"), 2)
         User.objects.filter(pk=self.creator.pk).update(is_site_admin=False)
         self.assertEqual(live_site_invite_count(delivery="email"), 1)
