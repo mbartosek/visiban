@@ -861,7 +861,7 @@ def snapshot_site_setting(setting) -> dict:
 
 
 class AdminActionLog(models.Model):
-    """Append-only record of instance-wide admin control-plane actions (#1126).
+    """Append-only record of admin control-plane actions (#1126, #1555).
 
     Why this exists
     ---------------
@@ -911,8 +911,8 @@ class AdminActionLog(models.Model):
     Retention
     ---------
     There is deliberately no pruner. ``BoardEvent`` has one because it records
-    every board mutation; this table records deliberate admin actions and grows
-    by a handful of rows a month, so a retention job would be machinery with
+    every board mutation; this table records deliberate admin actions (instance
+    settings and administrator-set account passwords) and grows slowly, so a retention job would be machinery with
     nothing to do. Retention *policy* tooling is an enterprise concern per the
     open-core boundary — if volume ever justifies pruning (e.g. once #785 adds
     impersonation events), that is the point to revisit, not before.
@@ -958,6 +958,14 @@ class AdminActionLog(models.Model):
         EMAIL_USERNAME_CHANGED = "email_settings.username_changed", "Email username changed"
         EMAIL_PASSWORD_CHANGED = "email_settings.password_changed", "Email password changed"
         EMAIL_TEST_SENT = "email_settings.test_sent", "Test email sent"
+        # Django admin sets or disables another account's password (#1555).
+        # The metadata names the target account only; the password and its
+        # hash are never recorded.
+        USER_PASSWORD_SET = "user.password_set", "User password set by an administrator"
+        USER_PASSWORD_DISABLED = (
+            "user.password_disabled",
+            "User password sign-in disabled by an administrator",
+        )
 
     class Source(models.TextChoices):
         """Which operator path performed the action."""

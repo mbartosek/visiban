@@ -122,6 +122,8 @@ and an audit log an admin can edit is not evidence of anything.
 | `email_settings.username_changed` | `{}` |
 | `email_settings.password_changed` | `{}` |
 | `email_settings.test_sent` | `{"result": "success"}` or `{"result": "failure"}` |
+| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin) |
+| `user.password_disabled` | `{"target_id": 42, "target_username": "jordan"}` |
 
 New action types may be added in any minor release; treat an unrecognized `action` as an
 opaque string rather than failing on it.
@@ -133,10 +135,19 @@ opaque string rather than failing on it.
     change happened, by whom, and when is the auditable part. `email_settings.test_sent`
     likewise records the outcome but never the recipient.
 
+!!! note "Administrator-set passwords"
+    `user.password_set` and `user.password_disabled` are recorded with `source` `django_admin`
+    when an administrator saves another account's **Password** form in the
+    [Django admin](../administration/django-admin.md). `user.password_set` is also recorded when an
+    administrator adds a user with a password there; no entry is written for a user added with
+    password sign-in disabled. `metadata` names the account concerned; the password and its hash
+    are never stored. Changing your own password is not recorded.
+
 !!! warning "What this log does *not* record yet"
-    Only the instance-wide settings above are covered. Granting or revoking site admin,
-    changing `can_access_all_content`, deactivating a user, and creating or revoking invite
-    links are **not** recorded — so this is not yet a complete record of privileged activity.
+    The instance-wide settings and per-account password events above are covered. Granting or
+    revoking site admin, changing `can_access_all_content`, deactivating a user, and creating or
+    revoking invite links are **not** recorded — so this is not yet a complete record of
+    privileged activity.
     Do not read an absence of entries as evidence that no admin action took place.
 
 !!! warning "The acting admin's username is retained indefinitely"

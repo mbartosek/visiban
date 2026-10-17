@@ -195,7 +195,7 @@ Two accounts-app singletons (always `pk=1`, fetched via `.get()`), split so a va
 
 ### AdminActionLog
 
-Append-only record of a fixed, enumerable set of instance-wide admin actions (#1126): maintenance mode toggled, the maintenance notice changed, registration mode changed, uploads toggled, and outbound-email configuration changes. `actor_id` and `actor_username` are plain columns, not a foreign key — a FK's `on_delete=SET_NULL` would let deleting a user erase who performed a privileged action, which is the one thing this table exists to answer. There is deliberately no retention pruner; volume is a handful of rows a month. See [Open-core boundary § Audit log](open-core-boundary.md#audit-log-split) for why this stays in OSS rather than the enterprise compliance audit log.
+Append-only record of a fixed, enumerable set of instance-wide admin actions (#1126): maintenance mode toggled, the maintenance notice changed, registration mode changed, uploads toggled, outbound-email configuration changes, and passwords set or disabled for another account in the Django admin. `actor_id` and `actor_username` are plain columns, not a foreign key — a FK's `on_delete=SET_NULL` would let deleting a user erase who performed a privileged action, which is the one thing this table exists to answer. There is deliberately no retention pruner; volume is a handful of rows a month. See [Open-core boundary § Audit log](open-core-boundary.md#audit-log-split) for why this stays in OSS rather than the enterprise compliance audit log.
 
 ### Board
 

@@ -336,6 +336,22 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
                     finalize_password_change(target)
                 else:
                     require_password_change_after_admin_set(target)
+                    # Recorded in the same transaction as the password write,
+                    # so a rolled-back change leaves no entry. Only the target's
+                    # id and username are stored, never the password or hash.
+                    AdminActionLog.record(
+                        action=(
+                            AdminActionLog.Action.USER_PASSWORD_SET
+                            if target.has_usable_password()
+                            else AdminActionLog.Action.USER_PASSWORD_DISABLED
+                        ),
+                        source=AdminActionLog.Source.DJANGO_ADMIN,
+                        actor=request.user,
+                        metadata={
+                            "target_id": target.pk,
+                            "target_username": target.username,
+                        },
+                    )
         return response
 
     def get_readonly_fields(self, request, obj=None):
@@ -362,7 +378,22 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         if not change and obj.has_usable_password():
             obj.must_change_password = True
         if not change:
-            super().save_model(request, obj, form, change)
+            # The audit entry shares the save's transaction, so a failed write
+            # leaves no account behind. Reuses ``user.password_set``: the
+            # administrator chose this account's first password. No entry when
+            # sign-in by password is disabled, because no password was set.
+            with transaction.atomic():
+                super().save_model(request, obj, form, change)
+                if obj.has_usable_password():
+                    AdminActionLog.record(
+                        action=AdminActionLog.Action.USER_PASSWORD_SET,
+                        source=AdminActionLog.Source.DJANGO_ADMIN,
+                        actor=request.user,
+                        metadata={
+                            "target_id": obj.pk,
+                            "target_username": obj.username,
+                        },
+                    )
             return
         # Deactivating here applies the same revocation
         # housekeeping as the admin API (#1563). The stored values are read
