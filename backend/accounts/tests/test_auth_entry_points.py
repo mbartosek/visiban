@@ -2134,11 +2134,43 @@ _GROUP_ATTRS = ("group", "group_id")
 _WRITE_CALLS = frozenset({"create", "get_or_create", "update_or_create", "bulk_create", "save", "update"})
 
 
-def _group_write_reason(node) -> str | None:
+def _board_names(tree) -> frozenset:
+    """Names bound to the ``Board`` model anywhere in *tree*: ``Board`` itself,
+    ``from boards.models import Board as _Board`` (even function-local) and
+    ``X = Board`` re-bindings. Module-wide on purpose: over-matching only makes
+    the scan stricter."""
+    names = {"Board"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(a.asname for a in node.names if a.name == "Board" and a.asname)
+        elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Name) and node.value.id in names:
+            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    return frozenset(names)
+
+
+def _chain_has_model_attr(node) -> bool:
+    """True when the call chain passes through ``.model`` (``self.model.objects``,
+    ``queryset.model``): a manager or viewset whose model is Board is not
+    nameable statically, so any such write is treated as a possible Board write."""
+    while isinstance(node, (ast.Attribute, ast.Call, ast.Subscript)):
+        if isinstance(node, ast.Attribute) and node.attr == "model":
+            return True
+        node = node.func if isinstance(node, ast.Call) else node.value
+    return False
+
+
+def _mentions_group_attr(node) -> bool:
+    return any(isinstance(n, ast.Constant) and n.value in _GROUP_ATTRS for n in ast.walk(node))
+
+
+def _group_write_reason(node, board_names=frozenset({"Board"})) -> str | None:
     """Why *node* writes ``Board.group``, or None. Syntactic and deliberately
     broad: any ``.group``/``.group_id`` assignment, ``Board(group=...)``,
-    ``Board.objects....create/update(group=...)`` and any ``.save(group=...)``
-    or ``.update(group=...)`` (a serializer or queryset of unknown model)."""
+    ``Board.objects....create/update(group=...)`` (under any import alias, or
+    via ``self.model``), any ``.save(group=...)``/``.update(group=...)`` (a
+    serializer or queryset of unknown model), ``setattr(x, "group", ...)``,
+    ``bulk_update(objs, [..."group"...])``, ``save(update_fields=[..."group"...])``
+    and an unresolvable ``Board...create/update(**kwargs)``."""
     if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
         for target in targets:
@@ -2153,14 +2185,30 @@ def _group_write_reason(node) -> str | None:
     ):
         # Board.group has related_name="boards", so group.boards.add(...) writes it.
         return f"calls reverse manager .boards.{node.func.attr}(...)"
-    if isinstance(node, ast.Call) and any(k.arg in _GROUP_ATTRS for k in node.keywords):
-        func = node.func
-        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
-        root = _chain_root(node)
-        if name == "Board" or (root == "Board" and name in _WRITE_CALLS):
+    if not isinstance(node, ast.Call):
+        return None
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+    root = _chain_root(node)
+    board_chain = root in board_names or _chain_has_model_attr(node)
+    if name == "setattr" and len(node.args) >= 2:
+        attr = node.args[1]
+        if isinstance(attr, ast.Constant) and attr.value in _GROUP_ATTRS:
+            return f"calls setattr(..., {attr.value!r}, ...)"
+    if name == "bulk_update" and any(
+        isinstance(a, (ast.List, ast.Tuple, ast.Set)) and _mentions_group_attr(a) for a in node.args
+    ):
+        return "calls bulk_update(...) with a group field"
+    if any(k.arg == "update_fields" and _mentions_group_attr(k.value) for k in node.keywords):
+        return "saves with update_fields naming a group field"
+    if any(k.arg in _GROUP_ATTRS for k in node.keywords):
+        if name in board_names or (board_chain and name in _WRITE_CALLS):
             return f"calls Board {name}(group=...)"
         if name in ("save", "update"):
             return f"calls .{name}(group=...)"
+    if board_chain and (name in board_names or name in _WRITE_CALLS) and any(k.arg is None for k in node.keywords):
+        # **data may carry "group"; it cannot be resolved statically, so flag it.
+        return f"calls Board {name}(**kwargs), which may carry a group"
     return None
 
 
@@ -2168,17 +2216,28 @@ def group_write_sites(tree, module_name):
     """``(qualname, reason, function_node)`` for each function (innermost) in
     *tree* with a Board.group write. Module-level writes are ``<module>``."""
     found = []
+    board_names = _board_names(tree)
 
     def visit(node, stack, owner):
         for child in ast.iter_child_nodes(node):
             if isinstance(child, ast.ClassDef):
                 visit(child, stack + [child.name], owner)
             elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                visit(child, stack + [child.name], (".".join([module_name, *stack, child.name]), child))
+                visit(
+                    child,
+                    stack + [child.name],
+                    (".".join([module_name, *stack, child.name]), child),
+                )
             else:
-                reason = _group_write_reason(child)
+                reason = _group_write_reason(child, board_names)
                 if reason is not None:
-                    found.append((owner[0] if owner else f"{module_name}.<module>", reason, owner[1] if owner else child))
+                    found.append(
+                        (
+                            owner[0] if owner else f"{module_name}.<module>",
+                            reason,
+                            owner[1] if owner else child,
+                        )
+                    )
                 visit(child, stack, owner)
 
     visit(tree, [], None)
@@ -2187,6 +2246,38 @@ def group_write_sites(tree, module_name):
     for qual, reason, fn in found:
         unique.setdefault(qual, (qual, reason, fn))
     return list(unique.values())
+
+
+def _references_in(tree, module_name, target):
+    """Qualified names of the functions in *tree* that reference *target*
+    (a call, or the bare name passed as a callback). Definitions and imports
+    are not references. A module-level reference is ``<module>``."""
+    found = set()
+
+    def visit(node, stack):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, stack + [child.name])
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                visit(child, stack + [child.name])
+            else:
+                ref = (isinstance(child, ast.Name) and child.id == target) or (
+                    isinstance(child, ast.Attribute) and child.attr == target
+                )
+                if ref:
+                    found.add(".".join([module_name, *stack]) if stack else f"{module_name}.<module>")
+                visit(child, stack)
+
+    visit(tree, [])
+    return found
+
+
+def execute_plan_referrers():
+    """Every function in project code that references ``execute_plan``."""
+    referrers = set()
+    for module_name, path in _project_modules():
+        referrers |= _references_in(ast.parse(path.read_text(encoding="utf-8")), module_name, "execute_plan")
+    return referrers
 
 
 def group_placement_violations(sites, allowlist) -> list[str]:
@@ -2248,10 +2339,15 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
     Limits: the allowlist is keyed per function, so a new Board.group write
     inside an allowlisted function is masked; re-check those entries when
     editing them. The check is presence-only: it does not verify ordering, that
-    the checked group is the one written, or that every branch is covered. The
-    scan flags reverse-manager writes (group.boards.add/set/create) but misses
-    setattr, **kwargs create/update (Board.objects.create(**data)), bulk_update,
-    save(update_fields=["group"]) and aliased Board imports (tracked in #1707).
+    the checked group is the one written, or that every branch is covered.
+    The scan flags reverse-manager writes (group.boards.add/set/create),
+    aliased Board imports, ``Board...create/update(**kwargs)`` (conservatively),
+    constant-name setattr, bulk_update / update_fields naming a group field and
+    ``self.model.objects.create(group=...)``. Accepted limits: a non-constant
+    setattr name or update_fields list built in a variable, and a Board
+    reached through a variable the scan cannot trace to the Board name
+    (``qs = Board.objects.all(); qs.update(**x)`` is flagged only through
+    the ``save``/``update(group=...)`` rule), are not resolvable statically.
     """
 
     def test_discovery_finds_the_known_write_sites(self):
@@ -2349,3 +2445,61 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
             del Unchecked
         self.assertEqual(len(failures), 1, failures)
         self.assertIn("validate_group", failures[0])
+
+    def test_execute_plan_has_only_the_import_trello_caller(self):
+        """execute_plan is allowlisted because import_trello resolved the
+        group; a second caller would inherit that exemption unchecked."""
+        self.assertEqual(
+            execute_plan_referrers() - {"boards.services.trello_import.execute_plan"},
+            {"boards.views.import_export.BoardImportExportMixin.import_trello"},
+        )
+
+    def test_negative_a_second_execute_plan_caller_is_reported(self):
+        src = textwrap.dedent(
+            """
+            from boards.services.trello_import import execute_plan
+
+            class V:
+                def other(self, request):
+                    return execute_plan(plan, request.user, group=1)
+
+            def cb():
+                return map(execute_plan, [])
+            """
+        )
+        self.assertEqual(
+            _references_in(ast.parse(src), "synthetic", "execute_plan"),
+            {"synthetic.V.other", "synthetic.cb"},
+        )
+
+    def test_negative_each_widened_shape_is_reported(self):
+        shapes = {
+            "aliased_create": "from boards.models import Board as _B\ndef f(g):\n    _B.objects.create(group=g)\n",
+            "aliased_ctor": "from boards.models import Board as _B\ndef f(g):\n    return _B(group_id=g)\n",
+            "rebound_alias": "B2 = Board\ndef f(g):\n    B2.objects.filter(pk=1).update(group=g)\n",
+            "kwargs_create": "def f(data):\n    Board.objects.create(**data)\n",
+            "kwargs_update": "def f(data):\n    Board.objects.filter(pk=1).update(**data)\n",
+            "aliased_kwargs": "from boards.models import Board as _B\ndef f(d):\n    _B.objects.create(**d)\n",
+            "setattr_group": 'def f(b, g):\n    setattr(b, "group", g)\n',
+            "setattr_group_id": 'def f(b, g):\n    setattr(b, "group_id", g)\n',
+            "bulk_update": 'def f(objs):\n    Board.objects.bulk_update(objs, ["name", "group"])\n',
+            "update_fields": 'def f(b):\n    b.save(update_fields=["group"])\n',
+            "self_model_create": "class V:\n    def f(self, g):\n        self.model.objects.create(group=g)\n",
+        }
+        for label, src in shapes.items():
+            with self.subTest(label):
+                sites = group_write_sites(ast.parse(src), "synthetic")
+                self.assertEqual(len(sites), 1, sites)
+                self.assertEqual(len(group_placement_violations(sites, {})), 1)
+
+    def test_negative_unrelated_writes_are_not_flagged(self):
+        src = textwrap.dedent(
+            """
+            def f(user, data):
+                Other.objects.create(**data)
+                setattr(user, "name", "x")
+                user.save(update_fields=["name"])
+                Other.objects.bulk_update([user], ["name"])
+            """
+        )
+        self.assertEqual(group_write_sites(ast.parse(src), "synthetic"), [])
