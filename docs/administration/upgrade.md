@@ -334,11 +334,11 @@ After rolling back, restart the backend container with the previous image versio
     WebSocket connections are refused. Clients that send no `Origin` header are unaffected. See the
     [WebSocket API](../api/websockets.md#connecting).
 
-    If `ALLOWED_HOSTS` contains `*` or a leading-dot entry (such as `.example.com`) and no origin is
-    listed in `CORS_ALLOWED_ORIGINS` or `CSRF_TRUSTED_ORIGINS`, startup now emits system-check warning
-    `accounts.W002`. Set `CORS_ALLOWED_ORIGINS` to your public origin (for example
-    `https://visiban.example.com`) to clear it, or add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS`
-    to accept the configuration. Origin matching behavior is unchanged in 1.2.
+    With `DEBUG` off, `manage.py check` / `check --deploy` now emits system-check warning
+    `accounts.W002` when `ALLOWED_HOSTS` contains `*` or a leading-dot entry (such as
+    `.example.com`). List exact hostnames instead, which also keeps WebSocket origin matching exact,
+    or add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the wildcard. Origin matching
+    behavior is unchanged in 1.2.
 
 !!! note "Superuser accounts normalized"
     `manage.py migrate` runs a one-time data migration (`accounts/0036`). On upgrade, existing
