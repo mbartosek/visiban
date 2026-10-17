@@ -349,8 +349,14 @@ class ExportMinRoleScopeTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertEqual(len(r.data), 2)
 
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.data["id"], self.board.id)
+        self.assertEqual(r.data["name"], self.board.name)
+
         r = self.client.get(f"/api/v1/boards/{self.board.id}/full/")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(sorted(c["title"] for c in r.data["cards"]), ["C1", "C2"])
 
         r = self.client.get("/api/v1/cards/")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
@@ -359,8 +365,19 @@ class ExportMinRoleScopeTests(TestCase):
 
     def test_export_min_role_scopes_export_action_only_card_actions(self):
         card = Card.objects.filter(board=self.board).first()
+        # Seed a timeline entry through the real comment endpoint.
+        owner_client = APIClient()
+        owner_client.force_authenticate(self.owner)
+        r = owner_client.post(
+            f"/api/v1/boards/{self.board.id}/cards/{card.id}/comments/",
+            {"body": "scope note"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+
         r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/{card.id}/timeline/")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(r.data["results"]), 1)
+        self.assertEqual(r.data["results"][0]["event_type"], "comment_added")
 
         archived = Card.objects.create(
             board=self.board, column=card.column, swimlane=card.swimlane,
