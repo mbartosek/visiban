@@ -82,16 +82,38 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
   // same request (the server answers 400 on `current_password` otherwise).
   // Kept out of `form` so it is never sent with an unrelated save.
   const [emailPassword, setEmailPassword] = useState("");
+  // The server's `current_password` error, shown in the field's helper slot.
+  const [emailPasswordError, setEmailPasswordError] = useState<string | null>(null);
+  // Set once the server has asked for the password, so the field shows even if
+  // this page's copy of `has_usable_password` is out of date.
+  const [serverWantsPassword, setServerWantsPassword] = useState(false);
+  const emailPasswordRef = useRef<HTMLInputElement>(null);
   const emailChanged = form.email !== (user.email ?? "");
-  const emailNeedsPassword = emailChanged && user.has_usable_password !== false;
+  const emailNeedsPassword =
+    emailChanged && (user.has_usable_password !== false || serverWantsPassword);
+  // Focus the field once its error has rendered (it may only just have appeared).
+  useEffect(() => {
+    if (emailPasswordError) emailPasswordRef.current?.focus();
+  }, [emailPasswordError]);
 
   const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const setEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setForm((f) => ({ ...f, email: value }));
+    if (value === (user.email ?? "")) {
+      // Edit reverted: the field goes away, so it must not come back pre-filled.
+      setEmailPassword("");
+      setEmailPasswordError(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setEmailPasswordError(null);
     setSaved(false);
     setEmailNotice(null);
     try {
@@ -125,13 +147,20 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
       const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
       const usernameError = Array.isArray(data?.username) ? data.username[0] : null;
       const passwordError = Array.isArray(data?.current_password) ? data.current_password[0] : null;
-      setError(
-        typeof passwordError === "string"
-          ? passwordError
-          : typeof usernameError === "string"
+      // Never keep a password around after a failed save.
+      setEmailPassword("");
+      if (typeof passwordError === "string") {
+        // Shown on the field itself, not in the status line below.
+        setServerWantsPassword(true);
+        setEmailPasswordError(passwordError);
+      } else {
+        setError(
+          typeof usernameError === "string"
             ? usernameError
             : "Failed to save changes. Please try again.",
-      );
+        );
+        if (emailNeedsPassword) emailPasswordRef.current?.focus();
+      }
     } finally {
       setSaving(false);
     }
@@ -239,7 +268,7 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
             ref={emailInputRef}
             type="email"
             value={form.email}
-            onChange={set("email")}
+            onChange={setEmail}
             required
             aria-describedby="pending-email-note"
             className="bg-surface border border-line rounded px-3 py-1.5 text-sm text-fg-secondary focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent transition placeholder-fg-muted"
@@ -284,17 +313,22 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
           <label className="flex flex-col gap-1">
             Current password
             <input
+              ref={emailPasswordRef}
               type="password"
               value={emailPassword}
               onChange={(e) => setEmailPassword(e.target.value)}
               required
               autoComplete="current-password"
+              aria-invalid={emailPasswordError ? true : undefined}
               aria-describedby="email-password-hint"
               className="bg-surface border border-line rounded px-3 py-1.5 text-sm text-fg-secondary focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent transition placeholder-fg-muted"
             />
           </label>
-          <span id="email-password-hint" className="text-xs text-fg-muted">
-            Required to change your email address.
+          <span
+            id="email-password-hint"
+            className={`text-xs ${emailPasswordError ? "text-danger" : "text-fg-muted"}`}
+          >
+            {emailPasswordError ?? "Required to change your email address, to confirm it's you."}
           </span>
         </div>
       )}
@@ -661,7 +695,15 @@ function connectErrorOrDetail(error: string, label: string, fromUrl: boolean): s
   return fromUrl ? connectErrorMessage(error, label) : error;
 }
 
-function SecurityTab({ user, connectResult = null }: { user: User; connectResult?: ConnectResult | null }) {
+function SecurityTab({
+  user,
+  connectResult = null,
+  onUserUpdated,
+}: {
+  user: User;
+  connectResult?: ConnectResult | null;
+  onUserUpdated?: (u: User) => void;
+}) {
   // Default true: older API responses that predate this field should be
   // treated as password accounts so the current-password field is shown.
   const hasPw = user.has_usable_password ?? true;
@@ -672,6 +714,9 @@ function SecurityTab({ user, connectResult = null }: { user: User; connectResult
   // A password set on this page counts as a sign-in method right away, so
   // the "only sign-in method" guard lifts without a reload.
   const [passwordJustSet, setPasswordJustSet] = useState(false);
+  // Worded at success time: after a first password is set, `user` is updated
+  // and `hasPw` turns true, which must not re-word the message.
+  const [savedText, setSavedText] = useState("");
 
   const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -691,9 +736,14 @@ function SecurityTab({ user, connectResult = null }: { user: User; connectResult
     setSaved(false);
     try {
       await changePassword(form.current_password, form.new_password);
+      setSavedText(hasPw ? "Password changed successfully." : "Password set successfully.");
       setSaved(true);
       setPasswordJustSet(true);
       setForm({ current_password: "", new_password: "", confirm: "" });
+      // A first password changes what other tabs ask for (e.g. Profile now
+      // needs the current password to change the email), so update the shared
+      // user rather than waiting for a reload.
+      if (!hasPw) onUserUpdated?.({ ...user, has_usable_password: true });
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       setError(
@@ -761,7 +811,7 @@ function SecurityTab({ user, connectResult = null }: { user: User; connectResult
 
         <p className="text-xs h-4">
           {error && <span className="text-danger">{error}</span>}
-          {saved && !error && <span className="text-success">{hasPw ? "Password changed successfully." : "Password set successfully."}</span>}
+          {saved && !error && <span className="text-success">{savedText}</span>}
         </p>
 
         <div>
@@ -1455,7 +1505,7 @@ export default function SettingsPage({ user, onLogout, onUserUpdated }: Props) {
           {/* Content */}
           <div className="flex-1 min-w-0">
             {activeTab === "profile" && <ProfileTab user={user} onUserUpdated={onUserUpdated} from={from} />}
-            {activeTab === "security" && <SecurityTab user={user} connectResult={connectResult} />}
+            {activeTab === "security" && <SecurityTab user={user} connectResult={connectResult} onUserUpdated={onUserUpdated} />}
             {activeTab === "access-tokens" && <AccessTokensTab user={user} />}
             {activeTab === "notifications" && <NotificationsTab user={user} onUserUpdated={onUserUpdated} />}
             {activeTab === "appearance" && <AppearanceTab />}

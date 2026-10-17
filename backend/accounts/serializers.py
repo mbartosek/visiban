@@ -548,6 +548,9 @@ class UserSerializer(serializers.ModelSerializer):
         from . import password_attempts
 
         request = self.context.get("request")
+        # Without a request there is no remote caller to verify (the same
+        # exemption as ``email_change_requires_session``); every route that
+        # writes the profile passes one, and no request-less caller exists.
         if self.instance is None or request is None or not hasattr(data, "get"):
             return
         requested = data.get("email")

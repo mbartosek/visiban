@@ -248,7 +248,17 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
     gives them that chance.
 
     The new address is deliberately not included: the old mailbox may no
-    longer belong to the account holder. Never raises, so a mail failure
+    longer belong to the account holder.
+
+    The previous address is mailed whether or not it was ever verified.
+    Deliberate: on ``optional``/``none`` installs an unverified address is
+    often the only one an account has, so it is the only place a notice can
+    go. The abuse this allows is bounded: the content is only the account's
+    display name (or username) and the site name, with no link and no new
+    address, and a notice is only sent when the account itself changes its
+    email (rate-limited per user with username changes) or an administrator
+    does, so it cannot be aimed at an arbitrary mailbox more often than an
+    account's own address changes. Never raises, so a mail failure
     cannot turn a committed change into an error; failures are logged by
     user id and exception type only, never by address.
     """

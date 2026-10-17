@@ -233,6 +233,16 @@ class EmailChangeCurrentPasswordTests(TestCase):
         self.assertEqual(r.json()["detail"], credentials.EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE)
         self._assert_unchanged()
 
+    def test_check_is_skipped_without_a_request(self):
+        # Same exemption as the session rule: no remote caller to verify.
+        # Every route passes a request; this pins the behavior for any
+        # internal caller.
+        from accounts.serializers import CurrentUserSerializer
+
+        serializer = CurrentUserSerializer(self.user, data={"email": NEW}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertNotIn("current_password", serializer.validated_data)
+
     def test_password_never_appears_in_the_response(self):
         r = self.client.get("/api/v1/auth/me/")
         self.assertNotIn("current_password", r.json())
@@ -353,6 +363,23 @@ class PreviousAddressNoticeTests(TestCase):
             self.user.save(update_fields=["first_name"])
         self.assertEqual(_notices(), [])
 
+    def test_fixture_load_sends_nothing(self):
+        # ``loaddata`` saves with raw=True; a fixture is not an account change.
+        from django.core import serializers as django_serializers
+
+        user = User.objects.get(pk=self.user.pk)
+        user.email = NEW
+        data = django_serializers.serialize("json", [user])
+        with self.captureOnCommitCallbacks(execute=True):
+            for obj in django_serializers.deserialize("json", data):
+                # As for a row that already exists; otherwise the insert guard
+                # alone would skip it and the raw guard would go untested.
+                obj.object._state.adding = False
+                obj.save()
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, NEW)
+        self.assertEqual(_notices(), [])
+
     def test_any_route_that_writes_the_email_is_covered(self):
         # e.g. the Django admin, or a management command: a plain model save.
         user = User.objects.get(pk=self.user.pk)
@@ -398,6 +425,14 @@ class ManageEmailPageReauthTests(TestCase):
         self.assertIn("/accounts/reauthenticate/", r["Location"])
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, OLD)
+
+    def test_rest_api_login_does_not_count_as_recent(self):
+        client = APIClient(enforce_csrf_checks=False)
+        r = client.post("/api/v1/auth/login/", {"username": "kim", "password": PASSWORD})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        r = client.post("/accounts/email/", {"email": NEW, "action_add": ""})
+        self.assertIn("/accounts/reauthenticate/", r["Location"])
+        self.assertFalse(EmailAddress.objects.filter(user=self.user, email=NEW).exists())
 
     def test_wrong_password_on_the_reauthenticate_page_does_not_unlock_the_page(self):
         self.client.post("/accounts/reauthenticate/", {"password": "wrong-one"})

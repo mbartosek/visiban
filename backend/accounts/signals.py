@@ -137,7 +137,9 @@ def _connect_user_signals():
         full saves and saves that name ``email``.
         """
         instance._prior_email = None
-        if instance.pk is None or instance._state.adding:
+        # A fixture load (``loaddata``) is not an account change and must not
+        # mail anyone.
+        if kwargs.get("raw") or instance.pk is None or instance._state.adding:
             return
         if update_fields is not None and "email" not in update_fields:
             return
@@ -146,7 +148,7 @@ def _connect_user_signals():
         )
 
     @receiver(post_save, sender=User, dispatch_uid="accounts.notify_previous_email")
-    def notify_previous_email(sender, instance, created=False, **kwargs):
+    def notify_previous_email(sender, instance, created=False, raw=False, **kwargs):
         """Send the previous address a notice once an email change commits.
 
         Only an actual move to a different mailbox counts: a case-only
@@ -156,7 +158,7 @@ def _connect_user_signals():
         """
         prior = getattr(instance, "_prior_email", None)
         instance._prior_email = None
-        if created or not prior:
+        if raw or created or not prior:
             return
         if prior.strip().lower() == (instance.email or "").strip().lower():
             return
