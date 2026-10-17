@@ -30,6 +30,7 @@ from . import broadcast as _group_broadcast
 from .invite_registration import link_can_register
 from .models import (
     GROUP_PARENT_CHAIN, Group, GroupFavorite, GroupLabel, GroupMembership, GroupInviteLink,
+    group_access_resolver,
 )
 from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupLabelSerializer, GroupMembershipSerializer,
@@ -357,6 +358,12 @@ class GroupViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["request"] = self.request
+        if self.action in ("list", "retrieve"):
+            # get_queryset() also returns ancestors of the caller's groups (for
+            # sidebar navigation); GroupSerializer renders those navigation-only.
+            # The resolver reads the caller's memberships once for the whole
+            # list instead of once per group (#1681).
+            context["group_access"] = group_access_resolver(self.request.user)
         return context
 
     def perform_create(self, serializer):
@@ -725,7 +732,12 @@ class GroupViewSet(viewsets.ModelViewSet):
         subgroups = group.subgroups.filter(id__in=accessible_ids)
         # Annotate and prefetch so GroupSerializer avoids per-subgroup queries —
         # mirrors the approach in get_queryset().
-        subgroups = subgroups.select_related("owner", "parent").prefetch_related("labels").annotate(
+        # The full parent chain (not just "parent") is loaded because
+        # GroupSerializer walks it to decide whether each row is
+        # navigation-only (group_access_resolver); with only "parent" loaded
+        # that walk would issue lazy queries per subgroup.
+        related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
+        subgroups = subgroups.select_related(*related).prefetch_related("labels").annotate(
             _member_count=Count("memberships", distinct=True),
             _board_count=Count("boards", distinct=True),
             _subgroup_count=Count("subgroups", distinct=True),
@@ -733,7 +745,8 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
         )
-        return Response(GroupSerializer(subgroups, many=True, context={"request": request}).data)
+        context = {"request": request, "group_access": group_access_resolver(request.user)}
+        return Response(GroupSerializer(subgroups, many=True, context=context).data)
 
     # ------------------------------------------------------------------
     # Boards
@@ -1710,5 +1723,11 @@ class JoinGroupView(APIView):
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
         ).get(pk=link.group_id)
-        group_data = GroupSerializer(annotated_group, context={"request": request}).data
+        # The caller holds a direct membership on this group (get_or_create
+        # above), so nothing is withheld; saying so skips the ancestor walk
+        # GroupSerializer would otherwise run, which "parent"-only
+        # select_related would turn into one query per level.
+        group_data = GroupSerializer(
+            annotated_group, context={"request": request, "group_access": lambda g: True},
+        ).data
         return Response(group_data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

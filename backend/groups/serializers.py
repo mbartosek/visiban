@@ -7,7 +7,8 @@ from visiban.utils import MAX_ALLOWED_PRIORITIES_LENGTH, check_allowed_prioritie
 from visiban.invite_email import InviteEmailField
 from .models import (
     Group, GroupLabel, GroupMembership, GroupInviteLink, GroupFavorite,
-    _GROUP_TRAVERSAL_MAX_DEPTH, user_is_group_admin,
+    _GROUP_TRAVERSAL_MAX_DEPTH, user_has_group_access,
+    user_is_group_admin,
 )
 
 # Schema for the root-first ancestor breadcrumb returned by
@@ -300,6 +301,14 @@ class GroupSerializer(serializers.ModelSerializer):
     subgroup_count = serializers.SerializerMethodField()
     shared_labels = GroupLabelSerializer(source="labels", many=True, read_only=True)
     is_starred = serializers.SerializerMethodField()
+    navigation_only = serializers.SerializerMethodField(
+        help_text=(
+            "True when the requesting user sees this group only because it is an "
+            "ancestor of a group they belong to. Such a group carries navigation "
+            "fields only: description is empty, shared_labels and "
+            "allowed_priorities are empty arrays, and the counts are 0."
+        ),
+    )
     # Schema-only declaration — see AllowedPrioritiesField. Mirrors the kwargs
     # DRF derives for the model field (it has a default, so it is not required),
     # so the runtime field behaves exactly as the auto-generated one did.
@@ -319,9 +328,11 @@ class GroupSerializer(serializers.ModelSerializer):
             "id", "name", "description", "owner", "parent", "parent_name",
             "member_count", "board_count", "subgroup_count", "created_at",
             "default_board_member_role", "allowed_priorities", "shared_labels",
-            "is_starred",
+            "is_starred", "navigation_only",
         ]
-        read_only_fields = ["owner", "created_at", "shared_labels", "is_starred"]
+        read_only_fields = [
+            "owner", "created_at", "shared_labels", "is_starred", "navigation_only",
+        ]
         # Schema-only (#1077): see visiban/field_enforcement.py.
         extra_kwargs = {
             "default_board_member_role": {
@@ -331,6 +342,71 @@ class GroupSerializer(serializers.ModelSerializer):
 
     def get_parent_name(self, obj) -> str | None:
         return _parent_name_for_group(obj)
+
+    # Fields withheld from a navigation-only group, with the empty value each
+    # one takes. The keys stay in the response, with empty values of their
+    # declared types, rather than being dropped: the TypeScript ``Group``
+    # interface and schema-generated clients treat every one as required, and
+    # removing or retyping a response field is a breaking change (CLAUDE.md,
+    # backward compatibility). ``navigation_only`` tells a client that these
+    # values are withheld, not real zeros. ``owner``, ``created_at``,
+    # ``parent``/``parent_name``, ``ancestors`` and ``is_starred`` (the
+    # caller's own flag) stay: the sidebar tree and breadcrumbs use them, and
+    # the owner of an ancestor already appears as an inherited member of the
+    # caller's own group.
+    _NAVIGATION_ONLY_EMPTY = {
+        "description": "",
+        "member_count": 0,
+        "board_count": 0,
+        "subgroup_count": 0,
+        "allowed_priorities": [],
+        "shared_labels": [],
+    }
+
+    def _is_navigation_only(self, obj) -> bool:
+        """True when the viewer reaches ``obj`` only by walking up from a subgroup.
+
+        ``get_accessible_group_ids`` lists ancestors so the sidebar can show the
+        path to a user's subgroup, but access inherits downward only
+        (``user_has_group_access``): a subgroup-only member gets 403 on the
+        ancestor's members, boards and labels routes and is not subscribed to
+        its WebSocket channel (#1656). The group payload follows the same rule.
+
+        The view passes ``group_access`` (``group_access_resolver``) in the
+        context so a list costs one membership query in total. Without it the
+        single-group predicate runs (one query). With no authenticated request
+        user (Django admin, internal callers) nothing is withheld.
+        """
+        # Memoized per serializer (a ``many=True`` list reuses one child), not
+        # on ``obj``: the answer depends on the viewer, and one instance may be
+        # serialized for another viewer's context.
+        cache = self.__dict__.setdefault("_navigation_only_cache", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+        context = self.context or {}
+        has_access = context.get("group_access")
+        if has_access is not None:
+            result = not has_access(obj)
+        else:
+            request = context.get("request")
+            user = getattr(request, "user", None)
+            if user is None or not user.is_authenticated:
+                result = False
+            else:
+                result = not user_has_group_access(user, obj)
+        cache[obj.pk] = result
+        return result
+
+    def get_navigation_only(self, obj) -> bool:
+        return self._is_navigation_only(obj)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self._is_navigation_only(instance):
+            for key, empty in self._NAVIGATION_ONLY_EMPTY.items():
+                if key in data:
+                    data[key] = type(empty)(empty)
+        return data
 
     def get_member_count(self, obj) -> int:
         # Use annotation from GroupViewSet.get_queryset() when available to avoid

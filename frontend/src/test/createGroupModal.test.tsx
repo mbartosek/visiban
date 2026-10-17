@@ -28,6 +28,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     allowed_priorities: [],
     shared_labels: [],
     is_starred: false,
+    navigation_only: false,
     ...overrides,
   }
 }

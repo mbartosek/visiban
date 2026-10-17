@@ -852,6 +852,12 @@ export interface Group {
   allowed_priorities: Priority[];
   shared_labels: GroupLabel[];
   is_starred: boolean;
+  /**
+   * True when the caller sees this group only as an ancestor of a group they
+   * belong to (sidebar navigation). description is then empty, shared_labels
+   * and allowed_priorities are empty arrays, and the counts are 0.
+   */
+  navigation_only: boolean;
   // Only present on the retrieve endpoint (GroupDetailSerializer); absent on list.
   ancestors?: { id: number; name: string }[];
 }

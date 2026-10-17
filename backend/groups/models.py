@@ -36,6 +36,8 @@ def user_has_group_access(user, group):
     Ancestor PKs are collected in one traversal (capped at
     ``_GROUP_TRAVERSAL_MAX_DEPTH``) and checked with one batched membership
     query to avoid N+1 on deep trees. ``can_access_all_content`` bypasses.
+    ``group_access_resolver`` applies the same rule to many groups at once;
+    change both together.
     """
     if getattr(user, "can_access_all_content", False):
         return True
@@ -50,6 +52,35 @@ def user_has_group_access(user, group):
         group_id__in=ancestor_ids,
         user=user,
     ).exists()
+
+
+def group_access_resolver(user):
+    """Return ``has_access(group) -> bool``, the bulk form of ``user_has_group_access``.
+
+    Same rule (membership in the group or one of its ancestors, capped at
+    ``_GROUP_TRAVERSAL_MAX_DEPTH``; ``can_access_all_content`` bypasses), but
+    the user's direct membership group ids are read once, so rendering a list
+    of groups costs one query in total instead of one per group. Each call
+    walks the group's already-loaded ``parent`` chain; callers serializing
+    many groups should ``select_related`` that chain (``GroupViewSet`` does).
+    """
+    if getattr(user, "can_access_all_content", False):
+        return lambda group: True
+    member_ids = set(
+        GroupMembership.objects.filter(user=user).values_list("group_id", flat=True)
+    )
+
+    def has_access(group):
+        node = group
+        depth = 0
+        while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
+            if node.pk in member_ids:
+                return True
+            node = node.parent
+            depth += 1
+        return False
+
+    return has_access
 
 
 def user_is_group_admin(user, group):
