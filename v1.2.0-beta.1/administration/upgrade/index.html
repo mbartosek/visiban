@@ -4483,6 +4483,18 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
 <div class="admonition warning">
+<p class="admonition-title">Status codes changed on board-scoped and member routes</p>
+<p>Requests from a caller with no access to a board now return <code>404 Not Found</code> on every
+board-scoped route, the same answer as for a board that does not exist; <code>403 Forbidden</code>
+stays for a caller whose role is too low on a board they can see. A <code>DELETE</code> of a member
+who has no membership on the board or group returns <code>404</code> instead of <code>204</code>. User search
+and adding a board member match active users only.</p>
+<p><strong>Check any integration, script, or automation</strong> that treats <code>403</code> as "no access" on a
+board route, or that relies on <code>DELETE .../members/{user_id}/</code> succeeding for a user who
+is not a member. See <a href="../../development/security-invariants/">Security Invariants</a>
+(Rules 5 and 7) (#1670).</p>
+</div>
+<div class="admonition warning">
 <p class="admonition-title">Edits to seeded system board templates are overwritten</p>
 <p><code>boards/0054</code> (#1115) rewrites <code>columns_json</code> for the built-in system templates, matched by
 slug, to correct drift in <code>project_delivery</code> and <code>legal_compliance</code> and to add <code>is_done</code>

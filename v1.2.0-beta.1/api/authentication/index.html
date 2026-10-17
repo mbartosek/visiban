@@ -5036,9 +5036,9 @@
 <hr />
 <h2 id="user-search">User search<a class="headerlink" href="#user-search" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1userssearchquery"><code>GET /api/v1/users/?search=&lt;query&gt;</code><a class="headerlink" href="#get-apiv1userssearchquery" title="Permanent link">&para;</a></h3>
-<p>Search users by display name, username, or first name. Requires authentication. Excludes the requesting user from results. Used internally for @mention autocomplete and the member invite typeahead.</p>
+<p>Search active users by display name or username. Requires authentication. Excludes the requesting user from results. Used internally for @mention autocomplete and the member invite typeahead.</p>
 <blockquote>
-<p><strong>Note:</strong> Email is intentionally excluded from the search criteria. Filtering on email without returning it would allow any authenticated caller to silently confirm whether a given email address exists on the instance. Search is limited to username, display name, and first name only.</p>
+<p><strong>Note:</strong> Email is intentionally excluded from the search criteria. Filtering on email without returning it would allow any authenticated caller to silently confirm whether a given email address exists on the instance. Only active users are returned, and only the fields the response returns (username and display name) are matched.</p>
 </blockquote>
 <p>Rate-limited to 30 requests/minute per user.</p>
 <p><strong>Query params</strong></p>
@@ -5052,7 +5052,7 @@
 <tbody>
 <tr>
 <td><code>search</code></td>
-<td>Search term — minimum 2 characters; partial match on username, display name, and first name. Returns <code>[]</code> for shorter queries.</td>
+<td>Search term — minimum 2 characters; partial match on username and display name. Returns <code>[]</code> for shorter queries.</td>
 </tr>
 </tbody>
 </table>

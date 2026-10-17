@@ -4404,7 +4404,7 @@
 <h2 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1git-lensconnectionsboard_id"><code>GET /api/v1/git-lens/connections/{board_id}/</code><a class="headerlink" href="#get-apiv1git-lensconnectionsboard_id" title="Permanent link">&para;</a></h3>
 <p>Retrieve the saved LensConnection for a board.</p>
-<p><strong>Permissions:</strong> Any board member. Non-members receive <code>403 Forbidden</code>.</p>
+<p><strong>Permissions:</strong> Any board member. Callers with no access to the board receive <code>404 Not Found</code>.</p>
 <p><strong>Response — 200 OK</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
@@ -4432,12 +4432,8 @@
 </thead>
 <tbody>
 <tr>
-<td><code>403 Forbidden</code></td>
-<td>Caller is not a member of the board</td>
-</tr>
-<tr>
 <td><code>404 Not Found</code></td>
-<td>No lens connection is configured for this board, or <code>GIT_LENS_ENABLED</code> is not set</td>
+<td>Caller has no access to the board, no lens connection is configured for this board, or <code>GIT_LENS_ENABLED</code> is not set</td>
 </tr>
 </tbody>
 </table>
@@ -4557,7 +4553,7 @@
 <hr />
 <h3 id="get-apiv1git-lensboardboard_id"><code>GET /api/v1/git-lens/board/{board_id}/</code><a class="headerlink" href="#get-apiv1git-lensboardboard_id" title="Permanent link">&para;</a></h3>
 <p>Fetch live issue data from the remote provider for a board, pivoted into columns and swimlanes. The board must have a saved LensConnection (see above).</p>
-<p><strong>Permissions:</strong> Any board member. Non-members receive <code>403 Forbidden</code>.</p>
+<p><strong>Permissions:</strong> Any board member. Callers with no access to the board receive <code>404 Not Found</code>.</p>
 <p><strong>Query parameters</strong></p>
 <table>
 <thead>
@@ -4795,14 +4791,9 @@ renders a board instead of returning <code>400</code>.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>403 Forbidden</code></td>
-<td><code>{ "detail": "..." }</code></td>
-<td>Caller is not a board member</td>
-</tr>
-<tr>
 <td><code>404 Not Found</code></td>
 <td><code>{ "detail": "..." }</code></td>
-<td>Board does not exist, no connection is configured, or <code>GIT_LENS_ENABLED</code> is not set</td>
+<td>Board does not exist or the caller has no access to it, no connection is configured, or <code>GIT_LENS_ENABLED</code> is not set</td>
 </tr>
 <tr>
 <td><code>409 Conflict</code></td>

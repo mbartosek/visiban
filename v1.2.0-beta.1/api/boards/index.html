@@ -5822,7 +5822,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller is not a board member; <code>404 Not Found</code> if the board does not exist.</p>
+<p><strong>Errors:</strong> <code>404 Not Found</code> if the board does not exist or the caller has no access to it.</p>
 <hr />
 <h2 id="saved-filters">Saved Filters<a class="headerlink" href="#saved-filters" title="Permanent link">&para;</a></h2>
 <p>Saved filters are user-scoped filter presets on a board. Any board member (including viewers) can save and restore their own filter presets. Filters are private — users cannot see or modify other users' presets.</p>
@@ -5970,7 +5970,7 @@
 </tbody>
 </table>
 <p><strong>Rate limit:</strong> 20 exports/hour per authenticated user (scope: <code>board_export</code>). Exceeding the limit returns <code>429 Too Many Requests</code>.</p>
-<p>Requires board membership — non-members receive <code>403 Forbidden</code> with the standard permission-denied body (<code>{"detail": "You do not have permission to perform this action."}</code>), or <code>404 Not Found</code> if the board does not exist. If the caller is a member but their role is below the board's <code>export_min_role</code> threshold, returns <code>403 Forbidden</code> with body <code>{"detail": "...", "code": "export_restricted", "min_role": "&lt;threshold&gt;"}</code>. Owners and site admins always bypass the threshold.</p>
+<p>Requires board membership — callers with no access to the board receive <code>404 Not Found</code>, the same as for a board that does not exist. If the caller is a member but their role is below the board's <code>export_min_role</code> threshold, returns <code>403 Forbidden</code> with body <code>{"detail": "...", "code": "export_restricted", "min_role": "&lt;threshold&gt;"}</code>. Owners and site admins always bypass the threshold.</p>
 <p><strong>CSV columns:</strong> <code>Card ID</code>, <code>Title</code>, <code>Description</code>, <code>Column</code>, <code>Swimlane</code>, <code>Priority</code>, <code>Assignee</code>, <code>Labels</code>, <code>Due Date</code>, <code>Weight</code>, <code>Created At</code>, <code>Created By</code>, <code>Last Moved At</code>, <code>Movement Count</code>, <code>Movement History</code></p>
 <p><code>Movement History</code> is a semicolon-separated list of pipe-delimited records: <code>&lt;timestamp&gt;|&lt;from_column&gt;|&lt;to_column&gt;|&lt;moved_by&gt;</code>. Since 1.2, a record created by a board import with history has <code>&lt;moved_by&gt;</code> followed by <code>(imported, originally &lt;name&gt;)</code>, or <code>(imported)</code> when the import file named nobody. Any <code>|</code>, <code>;</code> or line break in that source name is written as a space, so the record keeps its four parts.</p>
 <p>Since 1.2, one further column is <strong>appended</strong> per <a href="#custom-fields-since-12">custom field</a>
@@ -6959,7 +6959,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <hr />
 <h2 id="members">Members<a class="headerlink" href="#members" title="Permanent link">&para;</a></h2>
 <h3 id="post-apiv1boardsidmembers"><code>POST /api/v1/boards/{id}/members/</code><a class="headerlink" href="#post-apiv1boardsidmembers" title="Permanent link">&para;</a></h3>
-<p>Add or update a board member. Requires board admin. Cannot modify a site admin's board membership (same restriction as <code>DELETE</code> below).</p>
+<p>Add or update a board member. Requires board admin. A caller with no access to the board gets <code>404</code>; a member below admin gets <code>403</code>. Cannot modify a site admin's board membership (same restriction as <code>DELETE</code> below).</p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). Since 1.2 a <code>user_id</code> that is present but not an integer, or is beyond the 64-bit integer range, is a <code>400</code> too: a non-integer value used to answer <code>404</code> and an out-of-range one <code>500</code>. An omitted <code>user_id</code> still answers <code>404</code>.</p>
 <p><strong>Request</strong> <code>{ "user_id": 42, "role": "member", "is_moderator": true }</code></p>
 <table>
@@ -6974,7 +6974,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>user_id</code></td>
 <td>✓</td>
-<td>ID of the user to add or update</td>
+<td>ID of the user to add or update. A new membership needs an active user: an id that matches no user and an id that matches an inactive user both return the same <code>404 Not Found</code>. A user who already has a membership can have the role updated whatever their status</td>
 </tr>
 <tr>
 <td><code>role</code></td>
@@ -6991,12 +6991,12 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <p><strong>Visibility of <code>is_moderator</code> in board responses (since 1.1; self-row exception since 1.2):</strong> the <code>is_moderator</code> field is included in the <code>members</code> array of <code>GET /api/v1/boards/{id}/full/</code> for <code>admin</code> and <code>site_admin</code> requesters, on every row. A lower-role requester (<code>member</code>, <code>collaborator</code>, <code>viewer</code>) receives the field only on the row belonging to themselves — so a member promoted to moderator can see their own entitlement — and every other row omits it. This endpoint's own response always carries the field, since it requires board admin. The <code>member.added</code> / <code>member.updated</code> WebSocket broadcast and the <a href="../events/">change feed</a> apply the identical self-row rule per recipient (#1191): the subscriber's/reader's own row always carries the field, every other non-admin-visible row omits it.</p>
 <p><strong><code>is_site_admin</code> on member rows (since 1.2):</strong> each row in the <code>members</code> array of <code>GET /api/v1/boards/{id}/full/</code>, this endpoint's response, and the <code>member.added</code> / <code>member.updated</code> WebSocket broadcast and <a href="../events/">change feed</a> carries a boolean <code>is_site_admin</code> — the member's instance-level site-admin flag, the same flag this endpoint and <code>DELETE</code> below check. Use it, not <code>role</code>, to decide whether a row can be edited: <code>role: "site_admin"</code> means the member has <code>can_access_all_content</code>, which is a separate flag. The field is present only for <code>admin</code> and <code>site_admin</code> requesters, subscribers and readers, and there is no self-row exception (read your own flag from <code>/api/v1/auth/me/</code>). It is never added to the nested <code>user</code> object.</p>
 <h3 id="delete-apiv1boardsidmembersuser_id"><code>DELETE /api/v1/boards/{id}/members/{user_id}/</code><a class="headerlink" href="#delete-apiv1boardsidmembersuser_id" title="Permanent link">&para;</a></h3>
-<p>Remove a member. Requires board admin. Cannot remove a site admin.</p>
+<p>Remove a member. Requires board admin. Cannot remove a site admin. Returns <code>204</code> when the membership is removed. If the user has no membership on the board, the response is the same <code>404 Not Found</code> (status and body) whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member; an inactive user who has a membership can be removed.</p>
 <hr />
 <h2 id="board-invites">Board invites<a class="headerlink" href="#board-invites" title="Permanent link">&para;</a></h2>
 <p><em>(New in 1.2)</em> A board admin can email a <strong>single-use invite</strong> to someone who may not have an account yet, or create a <strong>shareable invite link</strong> to paste anywhere. The invite token (<code>vbnb_</code> prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (<code>prefix</code>) are shown. The address it was sent to is not stored. <em>(1.2+, #1678)</em> An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see <code>POST /api/v1/boards/join/{token}/</code> below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant <code>member</code>, <code>collaborator</code> or <code>viewer</code> — never <code>admin</code>, and never the moderator flag. A board invite never adds anyone to the board's group.</p>
 <h3 id="get-apiv1boardsidinvite-links"><code>GET /api/v1/boards/{id}/invite-links/</code><a class="headerlink" href="#get-apiv1boardsidinvite-links" title="Permanent link">&para;</a></h3>
-<p>List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns <strong>every pending invite plus at most the 50 most recent past ones</strong> (used, expired or revoked); older history is not returned. A caller with no access to the board gets <code>403</code>, a board that does not exist <code>404</code>, an unauthenticated request <code>401</code> — the same as the members endpoints.</p>
+<p>List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns <strong>every pending invite plus at most the 50 most recent past ones</strong> (used, expired or revoked); older history is not returned. A caller with no access to the board, or for a board that does not exist, gets <code>404</code>, an unauthenticated request <code>401</code> — the same as the members endpoints.</p>
 <table>
 <thead>
 <tr>
@@ -7077,7 +7077,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 </code></pre></div>
 <p>The second invite was sent by an account that has since been deleted, so it lists as <code>revoked</code> even though <code>DELETE</code> was never called.</p>
 <h3 id="post-apiv1boardsidinvite-links"><code>POST /api/v1/boards/{id}/invite-links/</code><a class="headerlink" href="#post-apiv1boardsidinvite-links" title="Permanent link">&para;</a></h3>
-<p><em>(New in 1.2)</em> Create a <strong>shareable invite link</strong> (<code>delivery: "link"</code>). Requires board admin — the same permission matrix as the list (<code>403</code> for a caller who is not a board admin or has no access, <code>404</code> for a missing board, <code>401</code> unauthenticated).</p>
+<p><em>(New in 1.2)</em> Create a <strong>shareable invite link</strong> (<code>delivery: "link"</code>). Requires board admin — the same permission matrix as the list (<code>403</code> for a caller who can see the board but is not a board admin, <code>404</code> for a missing board or a caller with no access to it, <code>401</code> unauthenticated).</p>
 <p><strong>Request</strong> <code>{ "role": "viewer", "expiry_days": 7, "single_use": false, "name": "Contractors" }</code></p>
 <table>
 <thead>
@@ -7156,7 +7156,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"detail": "You must be a board admin to manage invites."}</code></td>
-<td>Not a board admin, or no access to the board.</td>
+<td>The caller can see the board but is not a board admin. A caller with no access to the board gets <code>404</code>.</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>
@@ -7258,7 +7258,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"code": "invite_email_disabled", ...}</code> or <code>{"detail": "..."}</code></td>
-<td>Email invites are switched off (<code>INVITE_EMAIL_ENABLED=false</code>, or a demo instance), or the caller is not a board admin.</td>
+<td>Email invites are switched off (<code>INVITE_EMAIL_ENABLED=false</code>, or a demo instance), or the caller can see the board but is not a board admin. A caller with no access to the board gets <code>404</code>.</td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code></td>
@@ -7301,7 +7301,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>403 Forbidden</code></td>
 <td><code>{"detail": "You must be a board admin to manage invites."}</code></td>
-<td>Not a board admin, or no access to the board.</td>
+<td>The caller can see the board but is not a board admin. A caller with no access to the board gets <code>404</code>.</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>
@@ -7396,7 +7396,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="p">}</span>
 </code></pre></div></p>
 <p><code>share_token_expires_at</code> is <code>null</code> when no TTL was requested.</p>
-<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller is not a board admin. <code>400 Bad Request</code> if <code>expires_in_days</code> is not one of the allowed values.</p>
+<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller can see the board but is not a board admin; <code>404 Not Found</code> if the caller has no access to it. <code>400 Bad Request</code> if <code>expires_in_days</code> is not one of the allowed values.</p>
 <h3 id="delete-apiv1boardsidshare"><code>DELETE /api/v1/boards/{id}/share/</code><a class="headerlink" href="#delete-apiv1boardsidshare" title="Permanent link">&para;</a></h3>
 <p>Revoke the public share token for the board. Requires board admin. All existing share links immediately return <code>404 Not Found</code> after revocation. Both the token and any TTL are cleared.</p>
 <p><strong>Permissions:</strong> board <code>admin</code> or <code>site_admin</code> only.</p>
@@ -7407,7 +7407,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">  </span><span class="nt">"share_token_expires_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
 <a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="p">}</span>
 </code></pre></div></p>
-<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller is not a board admin.</p>
+<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller can see the board but is not a board admin; <code>404 Not Found</code> if the caller has no access to it.</p>
 <hr />
 <h2 id="columns">Columns<a class="headerlink" href="#columns" title="Permanent link">&para;</a></h2>
 <p>Column objects include a <code>uid</code> field — a stable 16-character hex identifier that does not change when the column is renamed or reordered. The <code>uid</code> is read-only; any <code>uid</code> value sent in a request body is ignored.</p>

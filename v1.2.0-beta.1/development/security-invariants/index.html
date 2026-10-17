@@ -2896,10 +2896,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" class="md-nav__link">
+  <a href="#rule-5-user-references-resolve-against-active-users-and-imports-within-the-callers-scope" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rule 5: User references in imports resolve only within the caller's scope
+        Rule 5: User references resolve against active users, and imports within the caller's scope
       
     </span>
   </a>
@@ -2911,6 +2911,17 @@
     <span class="md-ellipsis">
       
         Rule 6: Placing a board in a group needs group admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rule-7-board-scoped-routes-answer-404-to-callers-with-no-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 7: Board-scoped routes answer 404 to callers with no access
       
     </span>
   </a>
@@ -4503,19 +4514,33 @@ canonical wording.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="rule-5-user-references-in-imports-resolve-only-within-the-callers-scope">Rule 5: User references in imports resolve only within the caller's scope<a class="headerlink" href="#rule-5-user-references-in-imports-resolve-only-within-the-callers-scope" title="Permanent link">&para;</a></h2>
-<p><strong>Rule.</strong> When an import file names users as assignees, the names
-resolve only against users the importer can already see: the importer,
-co-members of their boards and groups, and the target group. A name outside that
-pool is dropped, so the import neither assigns to nor confirms the existence of
-any other account.</p>
+<h2 id="rule-5-user-references-resolve-against-active-users-and-imports-within-the-callers-scope">Rule 5: User references resolve against active users, and imports within the caller's scope<a class="headerlink" href="#rule-5-user-references-resolve-against-active-users-and-imports-within-the-callers-scope" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> The instance user directory is intentionally open to signed-in users:
+user search and member add by id resolve against active accounts on the
+instance; the user object they return carries only <code>id</code>, <code>username</code>,
+<code>display_name</code> and <code>avatar_url</code>. Search matches only the fields it returns. On the member-add and member-removal
+routes listed below, an id that matches no user, an inactive user, or (for
+removal) an active user with no membership on the target gets the same
+response, status and body. Existing memberships of inactive users stay
+listed and editable; the active-user filter applies when a membership is
+created.</p>
+<p>Imports are narrower by design. When an import file names users as assignees,
+the names resolve only against active users the importer can already see: the
+importer, co-members of their boards and groups, and the target group (a site
+admin or an all-content user matches every active user). A name outside that
+pool is dropped, so a file cannot assign work to an arbitrary account.</p>
 <p>Imported history rows (JSON movement <code>moved_by</code>, activity <code>actor</code>) are not
 resolved at all, inside the pool or out of it: each row is recorded under the
 importer and keeps the file's name as text in <code>imported_from_username</code> (#1675),
 which the timeline, History view and exports display. A new import path that
 writes history rows applies the same rule rather than linking them to accounts.</p>
-<p><strong>Why.</strong> The uploader controls the file. Resolving against all users turns the
-matched count into an existence oracle for every account on the instance.</p>
+<p>Scope of this rule: the surfaces in the table below. Card <code>assignee_id</code> and
+comment mentions are validated against board membership by their own checks
+(<code>boards/utils.py</code>, <code>boards/serializers.py</code>) and are not covered here.</p>
+<p><strong>Why.</strong> The uploader controls an import file, so it resolves against the
+narrower pool and drops what it cannot match. The directory lookups are open on
+purpose (a board admin must be able to find anyone to add), so their invariant is
+the status filter and the uniform response, not scope.</p>
 <table>
 <thead>
 <tr>
@@ -4541,9 +4566,24 @@ matched count into an existence oracle for every account on the instance.</p>
 <td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code> (card members and comment authors; Trello import writes no movement or activity rows)</td>
 </tr>
 <tr>
-<td>Invite emails and member add</td>
-<td><code>boards/views/boards.py</code> <code>BoardViewSet.members</code>; <code>groups/views.py</code> <code>GroupViewSet.members</code></td>
-<td>Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. <code>BoardViewSet.members</code> also checks the submitted <code>role</code> is a string within <code>BoardMembership.Role.values</code></td>
+<td>User search</td>
+<td><code>accounts/views.py</code> <code>UserSearchView</code></td>
+<td>Filters <code>is_active=True</code>; matches <code>username</code> and <code>display_name</code> only</td>
+</tr>
+<tr>
+<td>Board member add or role change</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.members</code></td>
+<td>An existing membership is updated as is; a new one requires an active user. Unknown and inactive ids answer the same <code>404</code>. Also checks the submitted <code>role</code> is a string within <code>BoardMembership.Role.values</code></td>
+</tr>
+<tr>
+<td>Group member role change</td>
+<td><code>groups/views.py</code> <code>GroupViewSet.update_member</code> (PATCH)</td>
+<td>Same lookup and <code>404</code></td>
+</tr>
+<tr>
+<td>Board and group member removal</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.remove_member</code>; <code>groups/views.py</code> <code>GroupViewSet.update_member</code> (DELETE)</td>
+<td>Resolved through the membership row: no membership answers the same <code>404</code> whatever the id is; an inactive user with a membership can be removed</td>
 </tr>
 <tr>
 <td>MCP</td>
@@ -4609,6 +4649,45 @@ surface: create in group by <code>groups/tests/test_groups.py</code>
 imports by <code>boards/tests/test_group_placement_roles.py</code>. The entry-point test
 (<code>GroupPlacementEntryPointTests</code>) checks every API surface in this table; the
 Django admin row is the exception named above.</p>
+<h2 id="rule-7-board-scoped-routes-answer-404-to-callers-with-no-access">Rule 7: Board-scoped routes answer 404 to callers with no access<a class="headerlink" href="#rule-7-board-scoped-routes-answer-404-to-callers-with-no-access" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> A board-scoped route answers <code>404 Not Found</code> to a caller with no access
+to the board, the same as for a board that does not exist. <code>403 Forbidden</code> is
+reserved for a caller who can see the board but whose role is below the minimum
+for the action.</p>
+<p><strong>Why.</strong> <code>BoardViewSet.retrieve</code>, MCP and media already answer <code>404</code> to
+non-members. A nested route that answered differently would make the status code
+depend on whether a board id exists.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nested REST routes (members, cards, columns, swimlanes, labels, custom fields, analytics, export, invites, git lens)</td>
+<td><code>boards/views/_helpers.py</code> <code>get_board_for_user</code></td>
+<td>Raises <code>404</code> when the board is missing or the caller has no role on it; callers raise <code>403</code> for an insufficient role afterward</td>
+</tr>
+<tr>
+<td>Board detail</td>
+<td><code>boards/views/boards.py</code> <code>BoardViewSet.get_queryset</code></td>
+<td>Queryset scoped to accessible boards, so <code>retrieve</code> answers <code>404</code></td>
+</tr>
+<tr>
+<td>Media</td>
+<td><code>boards/views/media.py</code> <code>ServeMediaView</code></td>
+<td><code>404</code> for a non-member</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td><code>mcp_server/tools.py</code></td>
+<td><code>404</code>-equivalent not-found result for inaccessible boards</td>
+</tr>
+</tbody>
+</table>
 <h2 id="rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface">Rule 8: Per-recipient event fields are gated on every broadcast and replay surface<a class="headerlink" href="#rule-8-per-recipient-event-fields-are-gated-on-every-broadcast-and-replay-surface" title="Permanent link">&para;</a></h2>
 <p><strong>Rule.</strong> A board event is fanned out to every subscriber and stored once in the
 change feed. The events and fields listed here are filtered per recipient on

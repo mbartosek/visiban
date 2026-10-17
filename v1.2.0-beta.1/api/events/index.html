@@ -4038,7 +4038,7 @@ cursor makes repeat reads exact rather than approximate.</p>
 <p>Returns committed events for one board, in ascending <code>id</code> order.</p>
 <p><strong>Access</strong> — the requesting user's board role, exactly as for
 <code>GET /api/v1/boards/{id}/full/</code> and for the WebSocket handshake. Every board
-role, including <code>viewer</code>, may read the feed. A non-member gets <code>403</code>. The feed
+role, including <code>viewer</code>, may read the feed. A caller with no access to the board gets <code>404</code>. The feed
 returns the board's retained rows whenever the reader joined the board, bounded
 by <a href="#retention">retention</a>, and each row is filtered for the reader by the rules
 in <a href="#fields-that-depend-on-who-is-reading">Fields that depend on who is reading</a>,
@@ -4160,14 +4160,9 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <td><code>limit</code> is not an integer, or is out of range.</td>
 </tr>
 <tr>
-<td><code>403 Forbidden</code></td>
-<td><code>{"detail": "..."}</code></td>
-<td>The requesting user has no role on this board.</td>
-</tr>
-<tr>
 <td><code>404 Not Found</code></td>
 <td>—</td>
-<td>No board with that id.</td>
+<td>No board with that id, or the requesting user has no access to it.</td>
 </tr>
 <tr>
 <td><code>410 Gone</code></td>

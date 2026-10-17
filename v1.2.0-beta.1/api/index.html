@@ -3968,6 +3968,7 @@
 <li>Write endpoints (<code>POST</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>) require a valid CSRF token or use token-based auth</li>
 <li>Dates are ISO 8601 strings: <code>"2026-04-01"</code></li>
 <li>Permission errors return <code>403 Forbidden</code>; missing resources return <code>404 Not Found</code></li>
+<li><em>(1.2+)</em> Board-scoped routes answer <code>404 Not Found</code> to a caller with no access to the board, the same as for a board that does not exist. <code>403 Forbidden</code> means the caller can see the board but their role is too low for the action</li>
 </ul>
 <h3 id="maintenance-mode-503">Maintenance mode (503)<a class="headerlink" href="#maintenance-mode-503" title="Permanent link">&para;</a></h3>
 <blockquote>
