@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('boards', '0072_db_default_not_null_columns'),
+        ('boards', '0073_export_min_role_help_text'),
     ]
 
     operations = [
