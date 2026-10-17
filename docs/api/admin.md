@@ -239,24 +239,41 @@ Throttled to **5 requests per hour** per user (raised to 9999/hour in `DEBUG`, a
 { "success": true, "code": null, "sent_to": "admin@example.org" }
 ```
 
-On failure the endpoint returns `400` with a code from a fixed taxonomy:
+The success response carries no `detail` key.
 
-| `code` | Meaning |
-|---|---|
-| `dns_failure` | The hostname could not be resolved |
-| `connection_refused` | Nothing accepted a connection on that host and port |
-| `tls_failure` | TLS negotiation failed — often STARTTLS vs implicit SSL, or the wrong port |
-| `auth_failed` | The server rejected the username or password |
-| `timeout` | The server did not respond within the configured timeout |
-| `config_unusable` | The stored configuration is incomplete, or its password cannot be decrypted. `detail` explains which. |
-| `no_recipient` | The requesting admin's account has no email address |
-| `backend_pinned` | `EMAIL_BACKEND` is set explicitly on the server, so neither configuration source is what sends mail and there is nothing here to test |
-| `unknown` | Anything else |
+On failure the endpoint returns `400` with the standard `{"code": str, "detail": str}`
+machine-error shape, plus `"success": false`:
+
+```json
+{
+  "success": false,
+  "code": "auth_failed",
+  "detail": "The mail server rejected the username or password."
+}
+```
+
+`code` comes from a fixed taxonomy and is what clients should switch on. `detail` is always
+present and always a non-empty string: a fixed, neutral message for that code.
+
+| `code` | Meaning | `detail` |
+|---|---|---|
+| `dns_failure` | The hostname could not be resolved | The mail server's hostname could not be resolved. Check the host name. |
+| `connection_refused` | Nothing accepted a connection on that host and port | Nothing accepted a connection on the configured host and port. Check the host, the port, and any firewall in between. |
+| `tls_failure` | TLS negotiation failed — often STARTTLS vs implicit SSL, or the wrong port | The secure connection to the mail server could not be established. Check that STARTTLS or SSL matches the port. |
+| `auth_failed` | The server rejected the username or password | The mail server rejected the username or password. |
+| `timeout` | The server did not respond within the configured timeout | The mail server did not respond within the configured timeout. |
+| `config_unusable` | The stored configuration is incomplete, or its password cannot be decrypted | One of a few fixed messages saying which — for example "Email is set to use the configuration stored in the admin UI, but it is incomplete. Set a host and a sender address in Admin → Settings → Email." |
+| `no_recipient` | The requesting admin's account has no email address | Your account has no email address, so there is nowhere to send the test. Add one in your profile first. |
+| `backend_pinned` | `EMAIL_BACKEND` is set explicitly on the server, so neither configuration source is what sends mail and there is nothing here to test | EMAIL_BACKEND is set on the server, so Visiban cannot test the configuration below — it is not what sends mail. |
+| `unknown` | Anything else | The test email could not be sent. The error type is recorded in the server log. |
+
+The `detail` wording may be refined in any release; do not match on it.
 
 !!! note "The underlying SMTP error is never returned"
-    Only the codes above cross the API boundary. Some mail servers echo the offending
-    protocol line back in their error text, which on an authentication failure can contain
-    the submitted credentials. The full error is logged server-side instead.
+    Neither `detail` nor any other key ever contains the mail server's error text. Some
+    mail servers echo the offending protocol line back in their error text, which on an
+    authentication failure can contain the submitted credentials. Only the code and the
+    exception type are logged server-side — the error text is not logged either.
 
 New codes may be added in any minor release; treat an unrecognized `code` as `unknown`.
 

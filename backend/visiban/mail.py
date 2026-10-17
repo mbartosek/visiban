@@ -75,6 +75,7 @@ class EmailConfigUnusable(Exception):
     """
 
     def __init__(self, code: str, detail: str):
+        # detail is returned to the client by the admin email-test view; fixed literals only.
         super().__init__(detail)
         self.code = code
         self.detail = detail

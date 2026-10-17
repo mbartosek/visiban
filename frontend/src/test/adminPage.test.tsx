@@ -1410,7 +1410,10 @@ describe('AdminPage — Email (SMTP) settings', () => {
   })
 
   it('maps each failure code to a headline and a remedy', async () => {
-    mockSendAdminTestEmail.mockResolvedValue({ success: false, code: 'auth_failed' })
+    mockSendAdminTestEmail.mockResolvedValue({
+      success: false, code: 'auth_failed',
+      detail: 'The mail server rejected the username or password.',
+    })
     await renderEmailSection()
     fireEvent.click(screen.getByText('Send test email'))
     await waitFor(() => {
@@ -1424,10 +1427,26 @@ describe('AdminPage — Email (SMTP) settings', () => {
   })
 
   it('treats an unrecognized failure code as unknown', async () => {
-    mockSendAdminTestEmail.mockResolvedValue({ success: false, code: 'brand_new_code' })
+    mockSendAdminTestEmail.mockResolvedValue({
+      success: false, code: 'brand_new_code', detail: 'Something new.',
+    })
     await renderEmailSection()
     fireEvent.click(screen.getByText('Send test email'))
     await waitFor(() => expect(screen.getByText('The test failed.')).toBeInTheDocument())
+  })
+
+  it('maps the 400 failure envelope by code, never rendering the server detail', async () => {
+    // The real failure path: axios rejects the 400 carrying {success, code, detail} (#1682).
+    const detail = 'The secure connection to the mail server could not be established.'
+    mockSendAdminTestEmail.mockRejectedValue({
+      response: { status: 400, data: { success: false, code: 'tls_failure', detail } },
+    })
+    await renderEmailSection()
+    fireEvent.click(screen.getByText('Send test email'))
+    await waitFor(() => {
+      expect(screen.getByText('Encryption handshake failed.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText(detail)).not.toBeInTheDocument()
   })
 
   it('explains a throttled test without treating it as a failure', async () => {
