@@ -462,7 +462,8 @@ class ChangePasswordCommandTests(TestCase):
             user = User.objects.create_user(username="admin", password="old-pass-1234!x")
             Token.objects.create(user=user)
             PersonalAccessToken.generate(user, "ci")
-            exec(snippet, {})  # noqa: S102 - test-only: runs the documented snippet
+            # The docs run these via `manage.py shell -c`, so run them the same way.
+            call_command("shell", command=snippet)
             user.refresh_from_db()
             self.assertFalse(user.check_password("old-pass-1234!x"))
             self.assertTrue(user.must_change_password)
