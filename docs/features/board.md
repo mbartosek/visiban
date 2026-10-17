@@ -506,7 +506,7 @@ Click **Export** in the board toolbar to download the board data:
 
 > **Added in 1.1** — export permission threshold and audit history (#842, #843)
 
-By default, any board member can export. Admins can raise the threshold per board under **Board Settings → Data → Export permission** to restrict exports to collaborators, members, or admins only — owners and site admins always bypass it.
+By default, any board member can export. Admins can raise the threshold per board under **Board Settings → Data → Export permission** to restrict exports to collaborators, members, or admins only — owners and site admins always bypass it. The threshold limits only the export action and file formats; it does not change what members can read on the board.
 
 Below the threshold, the **Export** button is hidden and direct API calls return `403 export_restricted`. The export endpoints are:
 

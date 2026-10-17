@@ -6,6 +6,7 @@ the role-at-export capture, and the admin-only export-history endpoint.
 """
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -324,7 +325,7 @@ class ExportHistoryEndpointTests(TestCase):
 class ExportMinRoleScopeTests(TestCase):
     """``export_min_role`` scopes the export action and file formats only.
 
-    Owner decision on #1668: the setting is documented as limiting the export
+    The setting is documented as limiting the export
     action (``/export/``, movement exports, and the web UI's export controls),
     not ordinary reads. These tests pin that scope so a change to it is a
     deliberate, documented decision rather than a side effect.
@@ -356,13 +357,41 @@ class ExportMinRoleScopeTests(TestCase):
         titles = sorted(c["title"] for c in r.data["results"])
         self.assertEqual(titles, ["C1", "C2"])
 
+    def test_export_min_role_scopes_export_action_only_card_actions(self):
+        card = Card.objects.filter(board=self.board).first()
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/{card.id}/timeline/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        archived = Card.objects.create(
+            board=self.board, column=card.column, swimlane=card.swimlane,
+            title="Archived", created_by=self.owner, position=5,
+            archived_at=timezone.now(),
+        )
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/archived/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        rows = r.data["results"] if isinstance(r.data, dict) else r.data
+        self.assertEqual([c["id"] for c in rows], [archived.id])
+
     def test_export_min_role_scopes_export_action_only_mcp(self):
         from mcp_server import tools
         from mcp_server.context import reset_current_user, set_current_user
 
+        # Setup: the viewer holds a viewer membership and the board threshold
+        # is admin, so the viewer is below export_min_role.
+        self.assertEqual(self.board.export_min_role, "admin")
+        self.assertTrue(
+            BoardMembership.objects.filter(
+                board=self.board, user=self.viewer, role=BoardMembership.Role.VIEWER
+            ).exists()
+        )
         token = set_current_user(self.viewer)
         try:
-            data = tools.list_cards(board_id=self.board.id)
+            listed = tools.list_cards(board_id=self.board.id)
+            snapshot = tools.board_snapshot(board_id=self.board.id)
         finally:
             reset_current_user(token)
-        self.assertNotIn("error", data)
+        self.assertNotIn("error", listed)
+        self.assertNotIn("error", snapshot)
+        cards = listed["cards"] if isinstance(listed, dict) else listed
+        self.assertEqual(sorted(c["title"] for c in cards), ["C1", "C2"])
+        self.assertEqual(sorted(c["title"] for c in snapshot["cards"]), ["C1", "C2"])
