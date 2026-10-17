@@ -138,12 +138,12 @@ class Command(BaseCommand):
                             board=board,
                         )
                     )
-                    created_count += 1
 
             all_notifications.extend(notifications_to_create)
 
         if all_notifications:
-            create_notifications(all_notifications)
+            # Count rows the funnel wrote, not rows offered to it.
+            created_count = len(create_notifications(all_notifications))
 
         self.stdout.write(
             self.style.SUCCESS(
