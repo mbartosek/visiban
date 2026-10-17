@@ -44,6 +44,36 @@ from .invites import BoardInviteLinksMixin
 
 logger = logging.getLogger(__name__)
 
+
+def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_id):
+    """Group-channel half of a board write that may have changed its group.
+
+    Shared by ``move_group`` and ``perform_update`` (#1684) so a group change
+    looks the same to group subscribers whichever endpoint made it. A group
+    page only knows the boards it has listed: the group the board left must
+    be told to evict it (``board.deleted``), and the group it joined must be
+    told to insert it (``board.created``). ``board.updated`` there would be a
+    patch of a row the page has never seen, which the web client ignores
+    (GroupDetail.tsx). So the new group gets ``board.created`` only, not
+    ``board.updated`` as well, matching what ``move_group`` has always sent;
+    an unchanged group gets a plain ``board.updated``. ``None`` on either
+    side is a personal board, which has no group channel.
+
+    Call it from inside the caller's single ``on_commit`` callback, so the
+    old- and new-group frames go out together after the commit (#753).
+    """
+    if old_group_id is not None and old_group_id != new_group_id:
+        # board_id is kept on move-out for clients keyed by the integer id
+        # (documented in websockets.md); an outright delete sends uid only.
+        _broadcast_group_event(old_group_id, _broadcast.EVT_BOARD_DELETED, {
+            "board_uid": board_data.get("uid"), "board_id": board_id,
+        })
+    if new_group_id is not None and new_group_id != old_group_id:
+        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_CREATED, board_data)
+    elif new_group_id is not None:
+        # Same group: a metadata update.
+        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_UPDATED, board_data)
+
 # Change-feed paging bounds (#1114). The ceiling exists so one request cannot ask
 # the server to serialize an unbounded slice of a busy board's history; a
 # consumer that wants more pages the cursor instead.
@@ -260,6 +290,10 @@ class BoardViewSet(
             # The group rule was checked against the pre-lock snapshot; check
             # it again against the row as it is now (#1655).
             serializer.recheck_group_under_lock(board)
+            # The group the board is in before this write, read from the
+            # locked, refreshed row (as move_group does): a PATCH/PUT that
+            # changes ``group`` is a group move to group subscribers (#1684).
+            old_group_id = board.group_id
             serializer.save()
             board = serializer.instance
             board_id = board.id
@@ -268,14 +302,16 @@ class BoardViewSet(
             # triggering per-field subqueries from the bare post-save instance (#647).
             annotated = self.get_queryset().get(pk=board_id)
             board_data = BoardSerializer(annotated, context={"request": self.request}).data
-            group_id = annotated.group_id
+            new_group_id = annotated.group_id
             event_id = _broadcast.persist_board_event(
                 board_id, _broadcast.EVT_BOARD_UPDATED, board_data, actor_id=self.request.user.id,
             )
-            def _broadcast_updated(bid=board_id, bd=board_data, gid=group_id, eid=event_id):
+            def _broadcast_updated(
+                bid=board_id, bd=board_data,
+                og=old_group_id, ng=new_group_id, eid=event_id,
+            ):
                 _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid)
-                if gid is not None:
-                    _broadcast_group_event(gid, _broadcast.EVT_BOARD_UPDATED, bd)
+                _broadcast_board_group_change(bid, bd, og, ng)
             transaction.on_commit(_broadcast_updated)
 
     @extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409})
@@ -549,15 +585,7 @@ class BoardViewSet(
                 og=old_group_id, ng=new_group_id, eid=event_id,
             ):
                 _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid)
-                if og is not None and og != ng:
-                    _broadcast_group_event(og, _broadcast.EVT_BOARD_DELETED, {
-                        "board_uid": bd.get("uid"), "board_id": bid,
-                    })
-                if ng is not None and ng != og:
-                    _broadcast_group_event(ng, _broadcast.EVT_BOARD_CREATED, bd)
-                elif ng is not None:
-                    # Same group — treat as a metadata update.
-                    _broadcast_group_event(ng, _broadcast.EVT_BOARD_UPDATED, bd)
+                _broadcast_board_group_change(bid, bd, og, ng)
             transaction.on_commit(_broadcast_move)
         return Response(board_data)
 
