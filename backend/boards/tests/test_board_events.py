@@ -561,10 +561,74 @@ class EventsEndpointTests(BoardEventTestBase):
     def test_event_shape(self):
         row = self.client_for(self.owner).get(self.url).data["results"][0]
         self.assertEqual(
-            set(row), {"id", "event", "data", "actor_id", "created_at"},
+            set(row), {"id", "event", "data", "actor_id", "actor", "created_at"},
         )
         self.assertEqual(row["event"], "card.created")
         self.assertEqual(row["actor_id"], self.owner.pk)
+
+    def test_actor_is_the_nested_board_user_shape(self):
+        """#1663: ``actor`` is additive and uses the same BoardUser shape as
+        CardTimelineEntry.actor — and only that shape (no email or prefs)."""
+        row = self.client_for(self.viewer).get(self.url).data["results"][0]
+        self.assertEqual(
+            row["actor"],
+            {
+                "id": self.owner.pk,
+                "username": self.owner.username,
+                "display_name": self.owner.display_name,
+                "avatar_url": self.owner.avatar_url,
+            },
+        )
+
+    def test_actor_resolves_for_a_user_who_has_left_the_board(self):
+        """The case the members list cannot answer — the reason ``actor`` exists."""
+        leaver = _make_user("evt_leaver")
+        record_board_event(self.board.id, "card.updated", {}, actor_id=leaver.pk)
+        row = self.client_for(self.owner).get(self.url).data["results"][-1]
+        self.assertEqual(row["actor_id"], leaver.pk)
+        self.assertEqual(row["actor"]["username"], "evt_leaver")
+
+    def test_actor_is_null_without_an_actor_or_for_a_deleted_account(self):
+        record_board_event(self.board.id, "card.updated", {"sys": True}, actor_id=None)
+        gone = _make_user("evt_gone")
+        record_board_event(self.board.id, "card.updated", {"gone": True}, actor_id=gone.pk)
+        gone_id = gone.pk
+        gone.delete()
+
+        rows = self.client_for(self.owner).get(self.url).data["results"]
+        system_row, deleted_row = rows[-2], rows[-1]
+        self.assertIsNone(system_row["actor_id"])
+        self.assertIsNone(system_row["actor"])
+        # actor_id is a plain column, so it keeps the stale id; actor is null.
+        self.assertEqual(deleted_row["actor_id"], gone_id)
+        self.assertIsNone(deleted_row["actor"])
+
+    def test_endpoint_query_count_is_constant_in_page_size_and_actor_count(self):
+        """#1663 N+1 guard: the actor is resolved with one bulk fetch per page.
+
+        Measured at the HTTP layer so the view's wiring is what is proven, not
+        just the serializer in isolation: 5 rows by 1 actor and 55 rows by 6
+        distinct actors must cost exactly the same number of queries.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client = self.client_for(self.owner)
+        with CaptureQueriesContext(connection) as small:
+            resp = client.get(self.url)
+        self.assertEqual(len(resp.data["results"]), 5)
+
+        actors = [_make_user(f"evt_nq{n}") for n in range(5)]
+        for n in range(50):
+            record_board_event(
+                self.board.id, "card.updated", {"n": n}, actor_id=actors[n % 5].pk,
+            )
+        with CaptureQueriesContext(connection) as large:
+            resp = client.get(self.url)
+        self.assertEqual(len(resp.data["results"]), 55)
+        self.assertEqual({r["actor"]["id"] for r in resp.data["results"]},
+                         {self.owner.pk, *(a.pk for a in actors)})
+        self.assertEqual(len(large), len(small))
 
     def test_malformed_cursor_is_rejected_rather_than_silently_restarted(self):
         c = self.client_for(self.owner)
@@ -611,12 +675,13 @@ class EventsEndpointTests(BoardEventTestBase):
             403,
         )
 
-    def test_serializing_a_page_costs_one_query_regardless_of_size(self):
+    def test_serializing_a_page_costs_two_queries_regardless_of_size(self):
         """actor_id is a column, not a relation — a page cannot N+1 on the actor.
 
         Serialization is inside ``assertNumQueries`` on purpose: fetching rows in
         one query proves nothing if ``to_representation`` then walks a FK per row.
-        50 rows with distinct actors is the shape an N+1 would show up in.
+        50 rows with distinct actors is the shape an N+1 would show up in. The
+        second query is ``actor_map``'s single bulk user fetch (#1663).
         """
         from boards.serializers import BoardEventSerializer
 
@@ -626,12 +691,33 @@ class EventsEndpointTests(BoardEventTestBase):
                 self.board.id, "card.updated", {"n": n}, actor_id=actors[n % 5].pk,
             )
 
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             rows = list(
                 BoardEvent.objects.filter(board_id=self.board.id).order_by("id")[:500]
             )
-            data = BoardEventSerializer(rows, many=True, context={"role": "admin"}).data
+            data = BoardEventSerializer(
+                rows, many=True,
+                context={"role": "admin", "actors": BoardEventSerializer.actor_map(rows)},
+            ).data
             self.assertEqual(len(data), 55)
+            self.assertTrue(all(row["actor"] is not None for row in data))
+
+    def test_serializer_without_an_actor_map_never_fetches_per_row(self):
+        """A caller that forgets ``context["actors"]`` gets ``actor: null`` —
+        "show less", never a hidden per-row query."""
+        from boards.serializers import BoardEventSerializer
+
+        rows = self.events()
+        with self.assertNumQueries(0):
+            data = BoardEventSerializer(rows, many=True, context={"role": "admin"}).data
+        self.assertTrue(all(row["actor"] is None for row in data))
+        self.assertTrue(all(row["actor_id"] == self.owner.pk for row in data))
+
+    def test_actor_map_issues_no_query_for_a_page_without_actors(self):
+        from boards.serializers import BoardEventSerializer
+
+        with self.assertNumQueries(0):
+            self.assertEqual(BoardEventSerializer.actor_map([]), {})
 
 
 class ReadSideStrippingTests(BoardEventTestBase):

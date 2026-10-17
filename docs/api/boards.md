@@ -95,7 +95,7 @@ Board change feed — committed board mutations in ascending `id` order, so an o
 
 **Query parameters:** `after` (cursor — the last event `id` processed; default `0`) and `limit` (`1`–`500`, default `100`). Both are validated, not clamped; an out-of-range or malformed value returns `400`.
 
-**Response:** `{ "results": [{ id, event, data, actor_id, created_at }, ...], "next": <int|null> }`. `next` is the cursor for the following page, or `null` when the caller is caught up.
+**Response:** `{ "results": [{ id, event, data, actor_id, actor, created_at }, ...], "next": <int|null> }`. `next` is the cursor for the following page, or `null` when the caller is caught up. `actor` (since 1.2, #1663) is the acting user as a nullable nested `BoardUser` object (`id`, `username`, `display_name`, `avatar_url`), alongside the unchanged integer `actor_id`; see [Change Feed](events.md).
 
 **Permissions:** any board role, the same gate as `/full/` and the WebSocket handshake — the feed replays events the caller could already have streamed. `is_moderator` is stripped from `member.*` payloads for roles below `admin`, exactly as the WebSocket consumer strips it — except on the row belonging to the reader themselves, which always carries the field (#1191).
 

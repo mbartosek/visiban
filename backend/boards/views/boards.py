@@ -681,9 +681,14 @@ class BoardViewSet(
         # `next` means "there is probably more", not "the newest id you hold".
         # A full page may or may not be the last one; a short page definitely is.
         next_cursor = rows[-1].pk if len(rows) == limit else None
+        # One bulk user fetch for the whole page (#1663), never one per row.
         return Response({
             "results": BoardEventSerializer(
-                rows, many=True, context={"role": role, "reader_id": request.user.id}
+                rows, many=True, context={
+                    "role": role,
+                    "reader_id": request.user.id,
+                    "actors": BoardEventSerializer.actor_map(rows),
+                },
             ).data,
             "next": next_cursor,
         })

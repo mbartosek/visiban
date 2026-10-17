@@ -142,14 +142,54 @@ class BoardEventSerializer(serializers.ModelSerializer):
     (see that model's docstring on why an append-only table must not cascade),
     and it makes an N+1 on the actor structurally impossible: there is no
     relation to walk, so serializing a 500-row page costs exactly the one query
-    that fetched it. Consumers that need a username resolve it once against the
-    members list they already hold.
+    that fetched it.
+
+    ``actor`` (#1663) is the additive nested form of the same user, in the
+    ``BoardUser`` shape the other 1.2 "who did it" fields use
+    (``CardTimelineEntry.actor``, ``CardMovement.moved_by``). It covers the case
+    the members list cannot answer: an actor who has since left the board. It is
+    still not a relation walk. The caller resolves every actor on the page with
+    ONE bulk query (``actor_map``) and passes the result as ``context["actors"]``;
+    serialization reads only that dict, so a page costs two queries whatever its
+    size. ``actor`` is ``null`` when ``actor_id`` is null, when the account has
+    since been deleted (``actor_id`` keeps the stale integer — the column is not
+    a FK), or when no ``actors`` map was supplied: a missing map must mean "show
+    less", never a per-row fetch.
     """
+
+    actor = serializers.SerializerMethodField(
+        help_text=(
+            "The acting user, nested (#1663). Null when actor_id is null or the "
+            "account no longer exists; actor_id is unchanged and always present."
+        ),
+    )
 
     class Meta:
         model = BoardEvent
-        fields = ["id", "event", "data", "actor_id", "created_at"]
+        fields = ["id", "event", "data", "actor_id", "actor", "created_at"]
         read_only_fields = fields
+
+    @staticmethod
+    def actor_map(rows) -> dict:
+        """Resolve every distinct actor on a page in one query: ``{id: User}``.
+
+        A page with no actors (or no rows) issues no query at all.
+        """
+        ids = {row.actor_id for row in rows if row.actor_id is not None}
+        if not ids:
+            return {}
+        users = User.objects.filter(pk__in=ids).only(
+            "id", "username", "display_name", "avatar_url",
+        )
+        return {u.pk: u for u in users}
+
+    @extend_schema_field(BoardUserSerializer(allow_null=True))
+    def get_actor(self, obj):
+        actors = self.context.get("actors")
+        if obj.actor_id is None or not actors:
+            return None
+        user = actors.get(obj.actor_id)
+        return BoardUserSerializer(user).data if user is not None else None
 
     def to_representation(self, instance):
         """Apply the same per-recipient stripping the WebSocket consumer applies.
