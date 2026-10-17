@@ -314,9 +314,11 @@ class GroupSerializer(serializers.ModelSerializer):
     is_starred = serializers.SerializerMethodField()
     navigation_only = serializers.SerializerMethodField(
         help_text=(
-            "True when the requesting user sees this group only because it is an "
-            "ancestor of a group they belong to. Such a group carries navigation "
-            "fields only: description is empty, shared_labels and "
+            "True when the requesting user has no access to this group itself "
+            "(no membership in it or in one of its ancestors within the capped "
+            "walk) and it is returned only so navigation (tree, breadcrumbs) "
+            "keeps working, e.g. an ancestor of a group they belong to. Fields "
+            "are withheld: description is empty, shared_labels and "
             "allowed_priorities are empty arrays, and the counts are 0."
         ),
     )
@@ -362,9 +364,15 @@ class GroupSerializer(serializers.ModelSerializer):
     # backward compatibility). ``navigation_only`` tells a client that these
     # values are withheld, not real zeros. ``owner``, ``created_at``,
     # ``parent``/``parent_name``, ``ancestors`` and ``is_starred`` (the
-    # caller's own flag) stay: the sidebar tree and breadcrumbs use them, and
-    # the owner of an ancestor already appears as an inherited member of the
-    # caller's own group. ``default_board_member_role`` stays too: it is a
+    # caller's own flag) stay: the sidebar tree and breadcrumbs use them.
+    # ``owner`` (BoardUserSerializer: id, username, display_name, avatar_url;
+    # no email) stays because the client's ``Group`` type requires it, and an
+    # ancestor's owner normally also holds an admin membership there, so they
+    # already appear as an inherited member of the caller's own group. The
+    # exception: an admin can remove the owner's membership row
+    # (``update_member`` DELETE has no owner guard), and then the owner's
+    # public profile fields are visible here without that membership.
+    # ``default_board_member_role`` stays too: it is a
     # required enum in the client contract (no empty value of its type
     # exists), it is deprecated with no effect (#1430), and it is
     # non-sensitive ancestor configuration.

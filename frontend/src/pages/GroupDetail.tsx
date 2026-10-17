@@ -831,9 +831,12 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                         </svg>
                         <p className="text-fg font-medium">{sg.name}</p>
                       </div>
-                      <p className="text-fg-muted text-xs">
-                        {sg.board_count} board{sg.board_count !== 1 ? "s" : ""} · {sg.member_count} member{sg.member_count !== 1 ? "s" : ""}
-                      </p>
+                      {/* Counts are withheld (0) for a navigation-only row (#1681). */}
+                      {!sg.navigation_only && (
+                        <p className="text-fg-muted text-xs">
+                          {sg.board_count} board{sg.board_count !== 1 ? "s" : ""} · {sg.member_count} member{sg.member_count !== 1 ? "s" : ""}
+                        </p>
+                      )}
                     </button>
                   ))}
                 </div>

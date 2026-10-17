@@ -853,9 +853,11 @@ export interface Group {
   shared_labels: GroupLabel[];
   is_starred: boolean;
   /**
-   * True when the caller sees this group only as an ancestor of a group they
-   * belong to (sidebar navigation). description is then empty, shared_labels
-   * and allowed_priorities are empty arrays, and the counts are 0.
+   * True when the caller has no access to this group itself and it is
+   * returned only so navigation (tree, breadcrumbs) keeps working, e.g. an
+   * ancestor of a group they belong to. Fields are withheld: description is
+   * empty, shared_labels and allowed_priorities are empty arrays, and the
+   * counts are 0.
    */
   navigation_only: boolean;
   // Only present on the retrieve endpoint (GroupDetailSerializer); absent on list.

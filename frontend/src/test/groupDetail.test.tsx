@@ -168,6 +168,23 @@ describe('GroupDetail', () => {
     mockUnstarGroup.mockResolvedValue({})
   })
 
+  it('hides counts on a navigation-only subgroup card (#1681)', async () => {
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([
+      { ...fakeGroup, id: 2, name: 'Full Sub', parent: 1, board_count: 4, member_count: 3 },
+      {
+        ...fakeGroup, id: 3, name: 'Edge Sub', parent: 1, navigation_only: true,
+        board_count: 0, member_count: 0,
+      },
+    ])
+    mockGetGroupBoards.mockResolvedValue([])
+    renderGroupDetail()
+    expect(await screen.findByText('Edge Sub')).toBeInTheDocument()
+    expect(screen.getByText(/4 boards · 3 members/)).toBeInTheDocument()
+    expect(screen.queryByText(/0 boards · 0 members/)).not.toBeInTheDocument()
+  })
+
   it('shows loading state', () => {
     mockGetGroup.mockReturnValue(new Promise(() => {}))
     mockGetGroupMembers.mockReturnValue(new Promise(() => {}))

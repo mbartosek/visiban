@@ -5,7 +5,7 @@ Groups organize boards into a hierarchy — subgroups, shared members, shared la
 ## Groups
 
 ### `GET /api/v1/groups/`
-List all groups accessible to the current user: groups they belong to, their subgroups, and the ancestors of those groups (so a client can render the path to a subgroup). Ancestor groups the user is not a member of are returned navigation-only: each such row has `navigation_only: true`, `description: ""`, `member_count`, `board_count` and `subgroup_count` of `0`, and empty `shared_labels` and `allowed_priorities` — see [Ancestor groups](#ancestor-groups-navigation-only). For example, a user whose only membership is the subgroup `Platform` receives its parent like this:
+List all groups accessible to the current user: groups they belong to, their subgroups, and the ancestors of those groups (so a client can render the path to a subgroup). A group the user has no access to itself (no membership in it or in one of its ancestors), returned only so navigation (tree, breadcrumbs) keeps working — typically an ancestor of one of their groups — is returned navigation-only, with its fields withheld: each such row has `navigation_only: true`, `description: ""`, `member_count`, `board_count` and `subgroup_count` of `0`, and empty `shared_labels` and `allowed_priorities` — see [Ancestor groups](#ancestor-groups-navigation-only). For example, a user whose only membership is the subgroup `Platform` receives its parent like this:
 
 ```json
 {
@@ -66,11 +66,11 @@ Get group details.
 | `allowed_priorities` | array | **Advisory.** Copied onto a board's `allowed_priorities` when the board is created through `POST /groups/{id}/boards/`; it does not restrict card priorities, because the board-level field is not enforced either. Empty array means all priorities allowed. Duplicate entries are silently de-duplicated (order of first occurrence is kept); a submitted list longer than 100 entries is rejected with `400 Bad Request`. |
 | `ancestors` | array | Ordered list of ancestor groups from root to immediate parent. Each entry is `{ "id": 1, "name": "Acme Corp" }`. Empty for top-level groups. **Only present on this single-object retrieve endpoint** — the list endpoint (`GET /api/v1/groups/`) omits `ancestors`. |
 | `created_at` | string | ISO 8601 timestamp |
-| `navigation_only` | boolean | *(1.2+)* `true` when the requesting user sees this group only as an ancestor of a group they belong to. See [Ancestor groups](#ancestor-groups-navigation-only). |
+| `navigation_only` | boolean | *(1.2+)* `true` when the requesting user has no access to this group itself and it is returned only so navigation (tree, breadcrumbs) keeps working; its fields are withheld. See [Ancestor groups](#ancestor-groups-navigation-only). |
 
 #### Ancestor groups (navigation-only)
 
-*(1.2+)* Group access is inherited downward only: membership in a subgroup grants nothing on its parent. The list and retrieve endpoints still return the ancestors of a user's groups so clients can render the sidebar tree and breadcrumbs, but for a user who is not a member of the ancestor (directly or through one of its own ancestors) the group is returned with `navigation_only: true` and these fields set to empty values:
+*(1.2+)* Group access is inherited downward only: membership in a subgroup grants nothing on its parent. The list and retrieve endpoints still return the ancestors of a user's groups so clients can render the sidebar tree and breadcrumbs, but a group the user has no access to itself — not a member of it or of one of its ancestors within the 6-level walk, including a group they own without a membership row — is returned with `navigation_only: true` and these fields withheld (set to empty values):
 
 | Field | Value for a navigation-only group |
 |---|---|
@@ -79,7 +79,7 @@ Get group details.
 | `shared_labels` | `[]` |
 | `allowed_priorities` | `[]` |
 
-`id`, `name`, `parent`, `parent_name`, `owner`, `created_at`, `default_board_member_role`, `is_starred` and (on retrieve) `ancestors` are returned as for a member. `default_board_member_role` is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read `navigation_only` to tell withheld values from real zeros. This matches the nested routes, which already answer `403` to such a user (`/members/`, `/boards/`, `/subgroups/`, `/labels/`, `/descendant-boards/`, `/star/`), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.
+`id`, `name`, `parent`, `parent_name`, `owner`, `created_at`, `default_board_member_role`, `is_starred` and (on retrieve) `ancestors` are returned as for a member. `default_board_member_role` is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. `owner` (public profile fields only, no email) is returned because clients require it; an ancestor's owner is normally also a member there, but an owner whose membership was removed is still named. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read `navigation_only` to tell withheld values from real zeros. This matches the nested routes, which already answer `403` to such a user (`/members/`, `/boards/`, `/subgroups/`, `/labels/`, `/descendant-boards/`, `/star/`), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.
 
 **Backward compatibility:** before 1.2 these fields carried the ancestor's real values for this role; no key was removed or retyped.
 
