@@ -534,7 +534,9 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
   };
 
   const handleTogglePriority = async (priority: Priority) => {
-    if (!group) return;
+    // A navigation-only group's empty allowed_priorities is withheld, not "all
+    // allowed", so it must not seed a toggle (#1681).
+    if (!group || group.navigation_only) return;
     const current = group.allowed_priorities.length > 0 ? group.allowed_priorities : (["low", "medium", "high", "urgent"] as Priority[]);
     const next = current.includes(priority)
       ? current.filter((p) => p !== priority)
@@ -733,12 +735,15 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
               </p>
             </div>
 
-            <p className="text-fg-muted text-sm">
-              {group.member_count} member{group.member_count !== 1 ? "s" : ""}
-              {" · "}
-              {group.board_count} board{group.board_count !== 1 ? "s" : ""}
-              {group.subgroup_count > 0 && ` · ${group.subgroup_count} subgroup${group.subgroup_count !== 1 ? "s" : ""}`}
-            </p>
+            {/* Counts are withheld (0) for a navigation-only group (#1681). */}
+            {!group.navigation_only && (
+              <p className="text-fg-muted text-sm">
+                {group.member_count} member{group.member_count !== 1 ? "s" : ""}
+                {" · "}
+                {group.board_count} board{group.board_count !== 1 ? "s" : ""}
+                {group.subgroup_count > 0 && ` · ${group.subgroup_count} subgroup${group.subgroup_count !== 1 ? "s" : ""}`}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <ConnectionStatus
@@ -1040,7 +1045,9 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                 </p>
               </div>
 
-              {/* Allowed priorities */}
+              {/* Allowed priorities — hidden for a navigation-only group, whose
+                  empty list is withheld rather than "all allowed" (#1681). */}
+              {!group.navigation_only && (
               <div className="mb-5">
                 <label className="text-fg-tertiary text-sm block mb-2">Allowed priorities on new boards</label>
                 <div className="flex flex-wrap gap-2">
@@ -1075,6 +1082,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                 </div>
                 <p className="text-fg-faint text-xs mt-2">Click to toggle. At least one priority must remain enabled.</p>
               </div>
+              )}
 
               {/* Shared label library */}
               <div>

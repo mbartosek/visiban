@@ -23,7 +23,7 @@ from accounts.models import User
 
 from . import broadcast as group_broadcast
 from .models import Group
-from .serializers import GroupSerializer
+from .serializers import GroupSerializer, full_group_access
 from .services import GroupTransferError, transfer_group_ownership
 
 
@@ -173,7 +173,10 @@ class GroupAdmin(admin.ModelAdmin):
             )
             .get(pk=group_id)
         )
-        data = GroupSerializer(group).data
+        # Full detail: the payload goes to this group's own channel, whose
+        # subscribers are its members (ancestor-or-self); there is no request
+        # viewer here, and without ``group_access`` the serializer withholds.
+        data = GroupSerializer(group, context={"group_access": full_group_access}).data
 
         def _send(gid=group_id, payload=data):
             group_broadcast.broadcast_group_event(

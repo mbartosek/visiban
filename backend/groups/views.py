@@ -34,6 +34,7 @@ from .models import (
 )
 from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupLabelSerializer, GroupMembershipSerializer,
+    full_group_access,
     GroupInviteLinkSerializer, GroupInviteLinkCreateSerializer, GroupInviteLinkEmailSerializer,
     _ALLOWED_PRIORITY_SLUGS, _MAX_ALLOWED_PRIORITIES_LENGTH,
 )
@@ -364,6 +365,11 @@ class GroupViewSet(viewsets.ModelViewSet):
             # The resolver reads the caller's memberships once for the whole
             # list instead of once per group (#1681).
             context["group_access"] = group_access_resolver(self.request.user)
+        elif self.action in ("create", "update", "partial_update"):
+            # The response describes a group the caller administers: create
+            # gives them an admin membership on the new group, and
+            # update/partial_update run _require_group_admin first.
+            context["group_access"] = full_group_access
         return context
 
     def perform_create(self, serializer):
@@ -387,7 +393,13 @@ class GroupViewSet(viewsets.ModelViewSet):
             # _member_count / _board_count / _subgroup_count / _is_starred
             # fields as every other group payload.
             annotated = self.get_queryset().get(pk=group.pk)
-            group_data = GroupSerializer(annotated, context={"request": self.request}).data
+            # Full detail: the creator now holds an admin membership on this
+            # group, and the payload goes to this group's channel and its
+            # parent's, whose subscribers have access to it (ancestor-or-self
+            # membership of the new group).
+            group_data = GroupSerializer(
+                annotated, context={"request": self.request, "group_access": full_group_access},
+            ).data
             parent_id = group.parent_id
 
             def _broadcast_created(gid=group.pk, pid=parent_id, data=group_data):
@@ -435,7 +447,12 @@ class GroupViewSet(viewsets.ModelViewSet):
                 # Inherited admin rights moved with the subtree (#1513).
                 _revoke_lapsed_subtree_invite_links(group)
             annotated = self._annotated_groups().get(pk=group.pk)
-            group_data = GroupSerializer(annotated, context={"request": request}).data
+            # Full detail: the caller passed _require_group_admin, and the
+            # payload goes to this group's own channel, whose subscribers are
+            # its members (ancestor-or-self).
+            group_data = GroupSerializer(
+                annotated, context={"request": request, "group_access": full_group_access},
+            ).data
 
             def _broadcast_updated(gid=group.pk, data=group_data):
                 from .broadcast import broadcast_group_event
@@ -745,6 +762,13 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
         )
+        # The resolver, not full_group_access, even though the caller passed
+        # _require_group_member on ``group``: both walks are capped at
+        # _GROUP_TRAVERSAL_MAX_DEPTH, and creating a subgroup does not enforce
+        # that depth (only a parent change does), so a subgroup at the edge of
+        # a deep tree can be listed here while the membership predicate, which
+        # the subgroup's own nested routes use, does not cover it. The
+        # resolver keeps this list consistent with those routes at one query.
         context = {"request": request, "group_access": group_access_resolver(request.user)}
         return Response(GroupSerializer(subgroups, many=True, context=context).data)
 
@@ -1042,7 +1066,11 @@ class GroupViewSet(viewsets.ModelViewSet):
             # subqueries each, doubled across the broadcast and response
             # serializations — eight avoidable queries per request (#993).
             annotated = self.get_queryset().get(pk=group.pk)
-            group_data = GroupSerializer(annotated, context={"request": request}).data
+            # Full detail: only the owner reaches this point, and the payload
+            # goes to this group's own channel (members only).
+            group_data = GroupSerializer(
+                annotated, context={"request": request, "group_access": full_group_access},
+            ).data
 
             def _broadcast_transfer(gid=group.pk, data=group_data):
                 from .broadcast import broadcast_group_event
@@ -1393,14 +1421,23 @@ class GroupViewSet(viewsets.ModelViewSet):
         allowed_fields = {"default_board_member_role", "allowed_priorities"}
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
 
-        serializer = GroupSerializer(group, data=data, partial=True)
+        # Full detail: _require_group_admin passed above; this serializer
+        # validates and saves, and the response below is built separately.
+        serializer = GroupSerializer(
+            group, data=data, partial=True,
+            context={"request": request, "group_access": full_group_access},
+        )
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             serializer.save()
             # Re-fetch through ``get_queryset`` so the count annotations are
             # populated — same pattern as ``transfer_ownership`` (#993).
             annotated = self.get_queryset().get(pk=group.pk)
-            group_data = GroupSerializer(annotated, context={"request": request}).data
+            # Full detail: same admin check as above; the broadcast goes to
+            # this group's own channel (members only).
+            group_data = GroupSerializer(
+                annotated, context={"request": request, "group_access": full_group_access},
+            ).data
 
             def _broadcast_defaults(gid=group.pk, gd=group_data):
                 from .broadcast import broadcast_group_event
@@ -1728,6 +1765,6 @@ class JoinGroupView(APIView):
         # GroupSerializer would otherwise run, which "parent"-only
         # select_related would turn into one query per level.
         group_data = GroupSerializer(
-            annotated_group, context={"request": request, "group_access": lambda g: True},
+            annotated_group, context={"request": request, "group_access": full_group_access},
         ).data
         return Response(group_data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

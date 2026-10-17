@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from groups.models import Group, GroupLabel, GroupMembership
+from groups.serializers import GroupSerializer, full_group_access
 
 _WITHHELD = {
     "description": "",
@@ -107,6 +108,35 @@ class AncestorGroupFieldsTests(TestCase):
         self.assertEqual(
             self.client.get(f"/api/v1/groups/{self.parent.id}/labels/").status_code, 403,
         )
+
+    def test_owner_without_membership_of_parent_gets_navigation_only(self):
+        # Ownership alone is not membership for the access predicate the
+        # nested routes use, so the payload follows the same rule.
+        owner = User.objects.create_user(username="ownernomember", password="pass")
+        self.parent.owner = owner
+        self.parent.save(update_fields=["owner"])
+        GroupMembership.objects.create(
+            group=self.sub, user=owner, role=GroupMembership.Role.MEMBER,
+        )
+        data = self._get(owner, f"/api/v1/groups/{self.parent.id}/")
+        self.assertNavigationOnly(data)
+        self.client.force_authenticate(owner)
+        for route in ("labels", "members", "boards"):
+            self.assertEqual(
+                self.client.get(f"/api/v1/groups/{self.parent.id}/{route}/").status_code,
+                403, route,
+            )
+
+    # -- serializer without a viewer ------------------------------------
+
+    def test_serializer_without_context_withholds(self):
+        data = GroupSerializer(self.parent).data
+        self.assertNavigationOnly(data)
+
+    def test_serializer_with_full_group_access_returns_all_fields(self):
+        data = GroupSerializer(self.parent, context={"group_access": full_group_access}).data
+        self.assertFull(data)
+        self.assertEqual(data["description"], "Parent notes")
 
     # -- list ------------------------------------------------------------
 

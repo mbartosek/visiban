@@ -205,6 +205,17 @@ def _subtree_height(group, limit):
     return limit + 1
 
 
+def full_group_access(group):
+    """``group_access`` context value for a caller already cleared for full detail.
+
+    ``GroupSerializer`` withholds non-navigation fields unless it can tell the
+    viewer may see them (see ``GroupSerializer._is_navigation_only``). Pass
+    this only where the code has already established that every recipient of
+    the payload is a member or admin of the group, and say why at the call.
+    """
+    return True
+
+
 class GroupLabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupLabel
@@ -353,7 +364,10 @@ class GroupSerializer(serializers.ModelSerializer):
     # ``parent``/``parent_name``, ``ancestors`` and ``is_starred`` (the
     # caller's own flag) stay: the sidebar tree and breadcrumbs use them, and
     # the owner of an ancestor already appears as an inherited member of the
-    # caller's own group.
+    # caller's own group. ``default_board_member_role`` stays too: it is a
+    # required enum in the client contract (no empty value of its type
+    # exists), it is deprecated with no effect (#1430), and it is
+    # non-sensitive ancestor configuration.
     _NAVIGATION_ONLY_EMPTY = {
         "description": "",
         "member_count": 0,
@@ -373,9 +387,13 @@ class GroupSerializer(serializers.ModelSerializer):
         its WebSocket channel (#1656). The group payload follows the same rule.
 
         The view passes ``group_access`` (``group_access_resolver``) in the
-        context so a list costs one membership query in total. Without it the
-        single-group predicate runs (one query). With no authenticated request
-        user (Django admin, internal callers) nothing is withheld.
+        context so a list costs one membership query in total. A caller that
+        has already authorized the viewer for full detail (a group admin on a
+        write path, a broadcast to the group's own channel) passes
+        ``full_group_access`` instead. Without ``group_access`` the
+        single-group predicate runs for an authenticated request user (one
+        query). With neither, there is no viewer to judge, so the fields are
+        withheld: a serializer built without context fails closed.
         """
         # Memoized per serializer (a ``many=True`` list reuses one child), not
         # on ``obj``: the answer depends on the viewer, and one instance may be
@@ -391,7 +409,7 @@ class GroupSerializer(serializers.ModelSerializer):
             request = context.get("request")
             user = getattr(request, "user", None)
             if user is None or not user.is_authenticated:
-                result = False
+                result = True
             else:
                 result = not user_has_group_access(user, obj)
         cache[obj.pk] = result
