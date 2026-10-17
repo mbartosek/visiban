@@ -49,8 +49,8 @@ export default function CreateGroupModal({ parentGroup, onCreated, onClose }: Pr
       setPhase("post-creation");
       setTimeout(() => subgroupInputRef.current?.focus(), 0);
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string; name?: string[] } } })?.response?.data;
-      setError(detail?.detail ?? detail?.name?.[0] ?? "Failed to create group.");
+      const detail = (err as { response?: { data?: { detail?: string; parent?: string[]; name?: string[] } } })?.response?.data;
+      setError(detail?.detail ?? detail?.parent?.[0] ?? detail?.name?.[0] ?? "Failed to create group.");
     } finally {
       setSaving(false);
     }
@@ -70,8 +70,8 @@ export default function CreateGroupModal({ parentGroup, onCreated, onClose }: Pr
       setSubgroupName("");
       subgroupInputRef.current?.focus();
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string; name?: string[] } } })?.response?.data;
-      setSubgroupError(detail?.detail ?? detail?.name?.[0] ?? "Failed to create subgroup.");
+      const detail = (err as { response?: { data?: { detail?: string; parent?: string[]; name?: string[] } } })?.response?.data;
+      setSubgroupError(detail?.detail ?? detail?.parent?.[0] ?? detail?.name?.[0] ?? "Failed to create subgroup.");
     } finally {
       setSubgroupSaving(false);
     }

@@ -144,28 +144,27 @@ def _parent_not_allowed():
     return serializers.ValidationError(_PARENT_NOT_ALLOWED, code="does_not_exist")
 
 
-# Stand-in for a ``parent`` id that does not resolve to a group, on update only.
-# It never reaches save(): ``GroupSerializer._check_parent_change`` always
-# raises for it, after the same authority check as any other parent change.
+# Stand-in for a ``parent`` id that does not resolve to a group. It never
+# reaches save(): ``GroupSerializer.validate_parent`` always raises for it, on
+# create and update alike, so it answers like a parent the caller may not use.
 _UNKNOWN_PARENT = object()
 
 
 class ParentGroupField(serializers.PrimaryKeyRelatedField):
     """``parent`` on :class:`GroupSerializer`.
 
-    On update, an id that does not resolve to a group is passed on as
-    ``_UNKNOWN_PARENT`` so ``GroupSerializer.validate_parent`` answers it
-    exactly as it answers a group the caller may not use: 403 when the caller
-    may not change this group's parent at all, otherwise the same 400 body
-    (message and code). On create the field behaves as DRF's default.
+    An id that does not resolve to a group is passed on as ``_UNKNOWN_PARENT``
+    so ``GroupSerializer.validate_parent`` answers it exactly as it answers a
+    group the caller may not use. On update that is 403 when the caller may
+    not change this group's parent at all, otherwise the 400 body (message and
+    code) shared with create.
     """
 
     def to_internal_value(self, data):
         try:
             return super().to_internal_value(data)
         except serializers.ValidationError as exc:
-            updating = getattr(self.parent, "instance", None) is not None
-            if updating and exc.get_codes() == ["does_not_exist"]:
+            if exc.get_codes() == ["does_not_exist"]:
                 return _UNKNOWN_PARENT
             raise
 
@@ -330,7 +329,7 @@ class GroupSerializer(serializers.ModelSerializer):
         help_text=field_enforcement.GROUP_ALLOWED_PRIORITIES,
     )
     # Same kwargs ModelSerializer derives for the nullable FK; see
-    # ParentGroupField for the update-time behavior.
+    # ParentGroupField for how an unresolvable id is answered.
     parent = ParentGroupField(
         queryset=Group.objects.all(), allow_null=True, required=False,
     )
@@ -515,15 +514,29 @@ class GroupSerializer(serializers.ModelSerializer):
         return value
 
     def validate_parent(self, value):
-        """Check a change of ``parent`` on an existing group.
+        """Check ``parent`` on create, or a change of it on an existing group.
 
-        Create is authorized in ``GroupViewSet.perform_create``; on update this
-        applies the rules in ``_check_parent_change`` to the instance the
-        serializer was bound to. ``GroupViewSet.perform_update`` applies them
+        On create the caller must administer the parent (directly or through an
+        ancestor); an unknown id and a parent the caller may not use get the
+        same 400 body, matching update and the board ``group`` field (#1691).
+        ``GroupViewSet.perform_create`` still enforces the admin check as a
+        backstop. On update this applies the rules in
+        ``_check_parent_change`` to the instance the serializer was bound to.
+        ``GroupViewSet.perform_update`` applies them
         again to the row re-read under its lock (``recheck_parent_under_lock``)
         before saving.
         """
         if self.instance is None:
+            if value is None:
+                return value
+            user = getattr(self.context.get("request"), "user", None)
+            parent = (
+                None
+                if value is _UNKNOWN_PARENT
+                else Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
+            )
+            if parent is None or user is None or not user_is_group_admin(user, parent):
+                raise _parent_not_allowed()
             return value
         self._check_parent_change(value, self.instance)
         return value

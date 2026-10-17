@@ -258,6 +258,47 @@ describe('CreateGroupModal', () => {
     )
   })
 
+  it('shows the server message when createGroup rejects with a parent field error', async () => {
+    mockCreateGroup.mockRejectedValue({
+      response: { data: { parent: ['Select a parent group you administer.'] } },
+    })
+
+    render(<CreateGroupModal onCreated={onCreated} onClose={onClose} />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByPlaceholderText('e.g. Engineering'), 'Sub')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(screen.getByText('Select a parent group you administer.')).toBeInTheDocument()
+    )
+    expect(onCreated).not.toHaveBeenCalled()
+  })
+
+  it('shows the server message when a subgroup create rejects with a parent field error', async () => {
+    const parentCreated = makeGroup({ id: 5, name: 'Infra' })
+    mockCreateGroup.mockResolvedValueOnce(parentCreated)
+
+    render(<CreateGroupModal parentGroup={makeGroup({ id: 2, name: 'Platform' })} onCreated={onCreated} onClose={onClose} />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByPlaceholderText('e.g. Backend'), 'Infra')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByPlaceholderText('Subgroup name')).toBeInTheDocument())
+
+    mockCreateGroup.mockRejectedValueOnce({
+      response: { data: { parent: ['Select a parent group you administer.'] } },
+    })
+    await user.type(screen.getByPlaceholderText('Subgroup name'), 'Child')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(screen.getByText('Select a parent group you administer.')).toBeInTheDocument()
+    )
+    expect(onCreated).toHaveBeenCalledTimes(1)
+    expect(onCreated).toHaveBeenCalledWith(parentCreated)
+  })
+
   it('shows a fallback error message when the API rejects with no structured body', async () => {
     mockCreateGroup.mockRejectedValue(new Error('Network Error'))
 
