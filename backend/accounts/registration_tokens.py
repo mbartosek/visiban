@@ -47,7 +47,7 @@ def _site_redeem(link, user):
     from .invite_utils import consume_invite_token
 
     # The account's email keys the per-address dedup on multi-use links (#925).
-    consume_invite_token(link, email=user.email)
+    consume_invite_token(link, email=user.email, user=user)
 
 
 def _group_validate(raw_token):

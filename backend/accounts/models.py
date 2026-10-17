@@ -739,7 +739,8 @@ class InviteLink(models.Model):
     # How the link reached its recipient (#731): "link" links are copied by an
     # admin and count against MAX_ACTIVE_INVITE_LINKS; "email" links are sent
     # straight to one address by the send endpoint and are capped separately
-    # (MAX_PENDING_EMAILED_INVITE_LINKS). The address itself is never stored.
+    # (MAX_PENDING_EMAILED_INVITE_LINKS). The plaintext address is never stored;
+    # see recipient_hash below.
     delivery = models.CharField(
         max_length=8, choices=Delivery.choices, default=Delivery.LINK,
         # db_default keeps the column default in the database after AddField
@@ -747,18 +748,36 @@ class InviteLink(models.Model):
         # during a rolling deploy can INSERT without hitting NOT NULL.
         db_default=Delivery.LINK,
     )
+    # Keyed hash of the address an emailed invite was sent to (#1703; see
+    # visiban/invite_recipient.py). Redemption compares it with the redeeming
+    # account's addresses. NULL for shareable links and for emailed invites
+    # minted before #1703, which redeem as they always have. Never serialized.
+    recipient_hash = models.CharField(max_length=64, null=True, blank=True, editable=False)
 
     class Meta:
         db_table = "invite_links"
         ordering = ["-created_at"]
 
     @classmethod
-    def generate(cls, created_by, expires_at=None, single_use=False, delivery=None):
+    def generate(
+        cls, created_by, expires_at=None, single_use=False, delivery=None, recipient_email=None,
+    ):
         """Create a new link, persist the hash, return (instance, raw_token).
 
         The raw_token is the only time the plain-text value is available — the
         caller must return it to the user exactly once and never again.
+
+        ``recipient_email`` (the send-invite endpoint's address) binds the
+        invite to that address (#1703); only its keyed hash is stored.
         """
+        from visiban.invite_recipient import hash_recipient
+
+        delivery = delivery or cls.Delivery.LINK
+        recipient_hash = hash_recipient(recipient_email)
+        # An emailed invite is always bound to its address (#1703): minting one
+        # without an address would silently create an invite anyone can use.
+        if delivery == cls.Delivery.EMAIL and recipient_hash is None:
+            raise ValueError("An emailed site invite needs a recipient_email.")
         raw = INVITE_LINK_PREFIX + secrets.token_hex(20)  # "vbnl_" + 40 hex chars
         token_hash = hashlib.sha256(raw.encode()).hexdigest()
         prefix = raw[:8]
@@ -768,7 +787,8 @@ class InviteLink(models.Model):
             prefix=prefix,
             expires_at=expires_at,
             single_use=single_use,
-            delivery=delivery or cls.Delivery.LINK,
+            delivery=delivery,
+            recipient_hash=recipient_hash,
         )
         return instance, raw
 

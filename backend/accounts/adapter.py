@@ -150,7 +150,7 @@ _INVITE_ERROR_CODES = {
     "invite_invalid": "invite_invalid",
     "invite_expired": "invite_expired",
     "invite_not_for_registration": "invite_not_for_registration",
-    # An emailed group/board invite bound to another address (#1678).
+    # An emailed site, group or board invite bound to another address (#1678, #1703).
     "invite_recipient_mismatch": "invite_recipient_mismatch",
 }
 

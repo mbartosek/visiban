@@ -1360,6 +1360,7 @@ class AdminInviteLinkSendView(APIView):
                 expires_at=timezone.now() + timedelta(days=int(data["expires_in_days"])),
                 single_use=True,
                 delivery=InviteLink.Delivery.EMAIL,
+                recipient_email=data["email"],
             )
             logger.info(
                 "invite_link.created pk=%d prefix=%s created_by=%d single_use=%s delivery=email",
