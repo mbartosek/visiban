@@ -31,7 +31,12 @@ import time
 from django.db import connection
 from django.db.backends.signals import connection_created
 
-DEFAULT_TIMEOUT = 10.0
+# Shorter than the callers' HOLD_TIMEOUT / WAIT (10s): the holder's
+# release.wait() starts before this poll does, so with an equal timeout a
+# thread that never blocks could see the holder time out and commit first,
+# which muddies the failure. 5s still leaves wide headroom on a loaded
+# runner: a thread only needs one request's setup time to reach its lock.
+DEFAULT_TIMEOUT = 5.0
 POLL_INTERVAL = 0.02
 
 # thread ident -> backend pid of the most recent connection that thread opened.

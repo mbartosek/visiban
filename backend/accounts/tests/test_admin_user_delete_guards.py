@@ -21,7 +21,7 @@ from django.urls import reverse
 import accounts.admin as admin_module
 from accounts.models import User
 from boards.models import Board
-from boards.tests.lock_wait import wait_until_blocked_on_lock
+from boards.tests.lock_wait import assert_blocked_on_lock, wait_until_blocked_on_lock
 
 PW = "pw123456!x"
 
@@ -621,7 +621,7 @@ class DeleteLockSequenceTests(TransactionTestCase):
         self.assertTrue(holding.wait(self.WAIT))
         deleter = self._delete_thread(results)
         deleter.start()
-        deleter.join(1.5)  # blocked on the card the writer holds
+        assert_blocked_on_lock(self, deleter, "user delete did not wait for the card the writer holds")
         go.set()
         w.join(self.WAIT)
         deleter.join(self.WAIT)
