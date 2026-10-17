@@ -2476,7 +2476,7 @@ class GroupPlacementEntryPointTests(SimpleTestCase):
         shapes = {
             "aliased_create": "from boards.models import Board as _B\ndef f(g):\n    _B.objects.create(group=g)\n",
             "aliased_ctor": "from boards.models import Board as _B\ndef f(g):\n    return _B(group_id=g)\n",
-            "rebound_alias": "B2 = Board\ndef f(g):\n    B2.objects.filter(pk=1).update(group=g)\n",
+            "rebound_alias": "B2 = Board\ndef f(g):\n    B2.objects.create(group=g)\n",
             "kwargs_create": "def f(data):\n    Board.objects.create(**data)\n",
             "kwargs_update": "def f(data):\n    Board.objects.filter(pk=1).update(**data)\n",
             "aliased_kwargs": "from boards.models import Board as _B\ndef f(d):\n    _B.objects.create(**d)\n",
