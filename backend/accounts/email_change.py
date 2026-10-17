@@ -253,12 +253,13 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
     The previous address is mailed whether or not it was ever verified.
     Deliberate: on ``optional``/``none`` installs an unverified address is
     often the only one an account has, so it is the only place a notice can
-    go. The abuse this allows is bounded: the content is only the account's
-    display name (or username) and the site name, with no link and no new
-    address, and a notice is only sent when the account itself changes its
-    email (rate-limited per user with username changes) or an administrator
-    does, so it cannot be aimed at an arbitrary mailbox more often than an
-    account's own address changes. Never raises, so a mail failure
+    go. The cost is that an account can direct notices at addresses it picks
+    (set an address, then change away from it). That is bounded: email
+    changes share the per-user ``choose_username`` budget (10/min), so one
+    account can cause roughly 600 notices an hour under ``optional``/``none``
+    (under ``mandatory`` a new address must be confirmed from its mailbox
+    first). The content is fixed text: the site name and a neutral greeting,
+    with no user-controlled strings, no link and no new address. Never raises, so a mail failure
     cannot turn a committed change into an error; failures are logged by
     user id and exception type only, never by address.
     """
@@ -268,19 +269,15 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
     from django.core.mail import EmailMessage, get_connection
     from django.template.loader import render_to_string
 
-    from boards.notifications_email import _flatten, _flatten_subject
+    from boards.notifications_email import _flatten_subject
     from visiban.invite_email import SITE_NAME
 
     logger = logging.getLogger(__name__)
-    user = get_user_model().objects.filter(pk=user_id).only(
-        "username", "display_name"
-    ).first()
-    if user is None or not previous_email:
+    if not previous_email or not get_user_model().objects.filter(pk=user_id).exists():
         return
-    context = {
-        "name": _flatten(user.display_name or user.username),
-        "site_name": SITE_NAME,
-    }
+    # Fixed text only: no name or other user-chosen string goes to an address
+    # the account may have picked (see the docstring).
+    context = {"site_name": SITE_NAME}
     connection = None
     try:
         connection = get_connection(

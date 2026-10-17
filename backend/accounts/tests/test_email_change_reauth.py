@@ -316,6 +316,18 @@ class PreviousAddressNoticeTests(TestCase):
         self.assertNotIn(NEW, notices[0].subject)
 
     @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
+    def test_notice_carries_no_user_controlled_text(self):
+        User.objects.filter(pk=self.user.pk).update(
+            display_name="Visit evil.example now", first_name="Zed"
+        )
+        self._change(NEW)
+        (notice,) = _notices()
+        for text in ("evil.example", "Zed", "kim"):
+            self.assertNotIn(text, notice.body)
+            self.assertNotIn(text, notice.subject)
+        self.assertIn("Visiban", notice.body)
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
     def test_blanking_the_email_notifies_the_previous_address(self):
         self._change("")
         self.assertEqual([m.to for m in _notices()], [[OLD]])

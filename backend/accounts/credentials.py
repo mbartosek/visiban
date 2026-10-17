@@ -132,10 +132,9 @@ def email_change_requires_current_password(user, requested_email) -> bool:
     change routes do. A signed-in session alone is not enough.
 
     Accounts without a usable password (sign-in through an identity provider
-    only) are not asked: there is no password to give, and a reset link for
-    such an account is only ever sent to an address already verified on it
-    (``accounts.tokens.AddressBoundTokenGenerator``), so the stored email is
-    not what decides where a link can go. The reset gate itself
+    only) are not asked: they have no password to confirm. That exemption is
+    a scoping choice for this change, not a claim that their email change
+    needs no further protection; tracked in #1709. The reset gate itself
     (``accounts.forms._ResetLinkGateMixin``) is deliberately left alone:
     tightening it would cut off password reset on ``EMAIL_VERIFICATION=none``
     installs, where no address is ever verified.

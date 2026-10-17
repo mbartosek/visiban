@@ -442,6 +442,15 @@ touched — so it is zero-downtime and requires no operator action.
       the request is authenticated with a personal access token or the login API token; an
       interactive (signed-in) session is required. Other profile fields are unaffected, and a
       request that omits `email` or sends the current value unchanged still succeeds.
+    - **A session also needs the current password to change the email** of an account that
+      has a password: the same requests must include the new optional `current_password`
+      field, or they get `400` with a `current_password` error. Accounts that sign in only
+      through an identity provider are not asked, and requests that don't change `email` are
+      unaffected. Custom clients that let users change their email should send the field
+      (see [Authentication API](../api/authentication.md#patch-apiv1authme)).
+    - **The previous address is notified of an email change.** Whenever an account's email
+      changes to a different address, by any route, the previous address receives a short
+      notice. Make sure outbound email is configured if you rely on it.
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.
