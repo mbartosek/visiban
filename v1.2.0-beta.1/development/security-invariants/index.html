@@ -4200,8 +4200,8 @@ re-checks.</p>
 <tbody>
 <tr>
 <td>REST</td>
-<td><code>boards/permissions.py</code> <code>get_board_role</code>; <code>groups/models.py</code> <code>user_has_group_access</code> (group endpoints)</td>
-<td>Role resolved from current membership on every request</td>
+<td><code>boards/permissions.py</code> <code>get_board_role</code>; <code>groups/models.py</code> <code>user_has_group_access</code> (group endpoints), <code>group_access_resolver</code> (its bulk form, used by <code>GroupSerializer</code> for the group list and retrieve)</td>
+<td>Role resolved from current membership on every request; an ancestor group listed for navigation but not covered by the predicate is serialized navigation-only (<code>GroupSerializer._NAVIGATION_ONLY_EMPTY</code>); a <code>GroupSerializer</code> with no viewer in its context also renders navigation-only, and full-detail callers opt out with <code>full_group_access</code> (<code>groups/tests/test_group_serializer_context_guard.py</code> requires every construction to pass <code>context</code>)</td>
 </tr>
 <tr>
 <td>REST authentication</td>
