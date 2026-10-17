@@ -860,6 +860,12 @@ export interface Group {
    * counts are 0.
    */
   navigation_only: boolean;
+  /**
+   * True when the caller may place a board in this group (create, move or
+   * import into it): group admin of it or an ancestor, or a user with
+   * can_access_all_content. Same rule the server enforces on those writes.
+   */
+  can_place_boards: boolean;
   // Only present on the retrieve endpoint (GroupDetailSerializer); absent on list.
   ancestors?: { id: number; name: string }[];
 }

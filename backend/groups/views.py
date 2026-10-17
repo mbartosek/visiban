@@ -30,7 +30,7 @@ from . import broadcast as _group_broadcast
 from .invite_registration import link_can_register
 from .models import (
     GROUP_PARENT_CHAIN, Group, GroupFavorite, GroupLabel, GroupMembership, GroupInviteLink,
-    group_access_resolver,
+    group_access_resolver, group_admin_resolver,
 )
 from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupLabelSerializer, GroupMembershipSerializer,
@@ -365,6 +365,9 @@ class GroupViewSet(viewsets.ModelViewSet):
             # The resolver reads the caller's memberships once for the whole
             # list instead of once per group (#1681).
             context["group_access"] = group_access_resolver(self.request.user)
+            # can_place_boards: one admin-membership query for the whole list,
+            # same predicate as _require_group_admin (#1692).
+            context["group_admin"] = group_admin_resolver(self.request.user)
         elif self.action in ("create", "update", "partial_update"):
             # The response describes a group the caller administers: create
             # gives them an admin membership on the new group, and
@@ -769,7 +772,11 @@ class GroupViewSet(viewsets.ModelViewSet):
         # a deep tree can be listed here while the membership predicate, which
         # the subgroup's own nested routes use, does not cover it. The
         # resolver keeps this list consistent with those routes at one query.
-        context = {"request": request, "group_access": group_access_resolver(request.user)}
+        context = {
+            "request": request,
+            "group_access": group_access_resolver(request.user),
+            "group_admin": group_admin_resolver(request.user),
+        }
         return Response(GroupSerializer(subgroups, many=True, context=context).data)
 
     # ------------------------------------------------------------------

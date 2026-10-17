@@ -91,21 +91,54 @@ def user_is_group_admin(user, group):
     drift. Same traversal shape as ``user_has_group_access``: one capped walk
     up the parent chain, then one batched membership query.
     ``can_access_all_content`` bypasses.
+
+    ``group_admin_resolver`` is the bulk form; both are built from
+    ``_admin_bypass``, ``_admin_memberships`` and ``_capped_chain_ids`` so the
+    rule is written once.
     """
-    if getattr(user, "can_access_all_content", False):
+    if _admin_bypass(user):
         return True
-    ancestor_ids = []
+    return _admin_memberships(user).filter(group_id__in=_capped_chain_ids(group)).exists()
+
+
+def group_admin_resolver(user):
+    """Return ``is_admin(group) -> bool``, the bulk form of ``user_is_group_admin``.
+
+    Placing a board in a group (``POST /groups/{id}/boards/``, move-group,
+    import) requires ``user_is_group_admin``; ``GroupSerializer.can_place_boards``
+    reports it through this resolver (#1692), so a list of groups costs one
+    membership query in total instead of one per group. Each call walks the
+    group's already-loaded ``parent`` chain; callers should ``select_related``
+    that chain (``GroupViewSet`` does).
+    """
+    if _admin_bypass(user):
+        return lambda group: True
+    admin_ids = set(_admin_memberships(user).values_list("group_id", flat=True))
+
+    def is_admin(group):
+        return not admin_ids.isdisjoint(_capped_chain_ids(group))
+
+    return is_admin
+
+
+def _admin_bypass(user):
+    return bool(getattr(user, "can_access_all_content", False))
+
+
+def _admin_memberships(user):
+    return GroupMembership.objects.filter(user=user, role=GroupMembership.Role.ADMIN)
+
+
+def _capped_chain_ids(group):
+    """PKs of ``group`` and its ancestors, capped at ``_GROUP_TRAVERSAL_MAX_DEPTH``."""
+    ids = []
     node = group
     depth = 0
     while node and depth < _GROUP_TRAVERSAL_MAX_DEPTH:
-        ancestor_ids.append(node.pk)
+        ids.append(node.pk)
         node = node.parent
         depth += 1
-    return GroupMembership.objects.filter(
-        group_id__in=ancestor_ids,
-        user=user,
-        role=GroupMembership.Role.ADMIN,
-    ).exists()
+    return ids
 
 
 def get_accessible_group_ids(user):

@@ -11,6 +11,12 @@ interface TreeNode {
   children: TreeNode[];
 }
 
+// Placing a board in a group needs group admin there or on an ancestor; the
+// server reports that per group as `can_place_boards` (#1692). Groups the
+// caller cannot place into stay in the tree (their subgroups may be
+// placeable, and the tree is the navigation) but are disabled with a reason.
+const NOT_PLACEABLE_REASON = "Group admins only";
+
 interface Props {
   board: Board;
   onMoved: (updated: Board) => void;
@@ -152,6 +158,8 @@ function GroupPickerNode({
           icon={"\u{1F465}"}
           selected={selected === node.group.id}
           onSelect={() => onSelect(node.group.id)}
+          disabledReason={node.group.can_place_boards ? undefined : NOT_PLACEABLE_REASON}
+          reasonId={`move-board-group-reason-${node.group.id}`}
         />
       </div>
 
@@ -182,18 +190,28 @@ function GroupPickerNode({
 }
 
 function PickerRow({
-  label, icon, selected, onSelect,
+  label, icon, selected, onSelect, disabledReason, reasonId,
 }: {
   label: string;
   icon: string;
   selected: boolean;
   onSelect: () => void;
+  /** When set, the row is blocked: aria-disabled (stays focusable), with this reason shown and described. */
+  disabledReason?: string;
+  reasonId?: string;
 }) {
+  const blocked = disabledReason !== undefined;
   return (
     <button
-      onClick={onSelect}
+      type="button"
+      onClick={blocked ? undefined : onSelect}
+      aria-disabled={blocked || undefined}
+      aria-describedby={blocked ? reasonId : undefined}
+      title={disabledReason}
       className={`flex items-center gap-2 flex-1 px-3 py-2 rounded text-left transition text-sm focus:outline-none focus:ring-2 focus:ring-primary-emphasis ${
-        selected ? "bg-info/20 text-info-on-tint" : "hover:bg-surface-hover text-fg-secondary"
+        blocked
+          ? "cursor-not-allowed text-fg-muted"
+          : selected ? "bg-info/20 text-info-on-tint" : "hover:bg-surface-hover text-fg-secondary"
       }`}
     >
       <span className={`shrink-0 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition ${
@@ -203,6 +221,11 @@ function PickerRow({
       </span>
       <span>{icon}</span>
       <span className="flex-1 truncate font-medium">{label}</span>
+      {blocked && (
+        <span id={reasonId} className="shrink-0 text-xs text-fg-muted">
+          {disabledReason}
+        </span>
+      )}
     </button>
   );
 }

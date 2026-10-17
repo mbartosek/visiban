@@ -299,7 +299,7 @@ describe('MoveBoardModal', () => {
     expect(screen.queryByText('No groups available.')).not.toBeInTheDocument()
   })
 
-  const teamGroup = { id: 7, name: 'Team Group', parent: null } as never
+  const teamGroup = { id: 7, name: 'Team Group', parent: null, can_place_boards: true } as never
   const httpError = (status: number) =>
     new AxiosError('failed', 'ERR_BAD_REQUEST', undefined, undefined, { status } as never)
 
@@ -337,6 +337,45 @@ describe('MoveBoardModal', () => {
     await user.click(await screen.findByText('Team Group'))
     await user.click(screen.getByText('Move'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not move this board. Try again.')
+  })
+})
+
+// #1692 — groups the caller cannot place boards into are disabled with a reason.
+describe('MoveBoardModal group placement rights', () => {
+  const lockedParent = { id: 10, name: 'Locked Parent', parent: null, can_place_boards: false } as never
+  const openChild = { id: 11, name: 'Open Child', parent: 10, can_place_boards: true } as never
+
+  beforeEach(() => { mockMoveBoardToGroup.mockClear() })
+
+  it('disables a group the caller cannot place into, with a described reason', async () => {
+    mockListGroups.mockResolvedValueOnce([lockedParent])
+    render(<MoveBoardModal board={fakeBoard} onMoved={vi.fn()} onClose={vi.fn()} />)
+    const row = (await screen.findByText('Locked Parent')).closest('button')!
+    expect(row).toHaveAttribute('aria-disabled', 'true')
+    const reason = screen.getByText('Group admins only')
+    expect(row).toHaveAttribute('aria-describedby', reason.id)
+    expect(row).toHaveAttribute('title', 'Group admins only')
+    await userEvent.setup().click(row)
+    expect(screen.getByText('Move')).toBeDisabled()
+    expect(mockMoveBoardToGroup).not.toHaveBeenCalled()
+  })
+
+  it('keeps a placeable subgroup of a locked parent selectable', async () => {
+    mockMoveBoardToGroup.mockResolvedValueOnce({ ...fakeBoard, group: 11 })
+    mockListGroups.mockResolvedValueOnce([lockedParent, openChild])
+    const onMoved = vi.fn()
+    render(<MoveBoardModal board={fakeBoard} onMoved={onMoved} onClose={vi.fn()} />)
+    const user = userEvent.setup()
+    const parentRow = (await screen.findByText('Locked Parent')).closest('button')!
+    // The expand chevron sits beside the row and stays usable.
+    await user.click(parentRow.previousElementSibling as HTMLElement)
+    const childRow = screen.getByText('Open Child').closest('button')!
+    expect(childRow).not.toHaveAttribute('aria-disabled')
+    expect(childRow).not.toHaveAttribute('aria-describedby')
+    await user.click(childRow)
+    await user.click(screen.getByText('Move'))
+    await waitFor(() => expect(onMoved).toHaveBeenCalled())
+    expect(mockMoveBoardToGroup).toHaveBeenCalledWith(fakeBoard.id, 11)
   })
 })
 

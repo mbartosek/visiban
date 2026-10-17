@@ -321,6 +321,14 @@ class GroupSerializer(serializers.ModelSerializer):
             "allowed_priorities are empty arrays, and the counts are 0."
         ),
     )
+    can_place_boards = serializers.SerializerMethodField(
+        help_text=(
+            "True when the requesting user may place a board in this group "
+            "(create, move or import a board into it): they are a group admin "
+            "of it or of one of its ancestors, or have can_access_all_content. "
+            "Same predicate the server enforces on those writes."
+        ),
+    )
     # Schema-only declaration — see AllowedPrioritiesField. Mirrors the kwargs
     # DRF derives for the model field (it has a default, so it is not required),
     # so the runtime field behaves exactly as the auto-generated one did.
@@ -340,10 +348,11 @@ class GroupSerializer(serializers.ModelSerializer):
             "id", "name", "description", "owner", "parent", "parent_name",
             "member_count", "board_count", "subgroup_count", "created_at",
             "default_board_member_role", "allowed_priorities", "shared_labels",
-            "is_starred", "navigation_only",
+            "is_starred", "navigation_only", "can_place_boards",
         ]
         read_only_fields = [
             "owner", "created_at", "shared_labels", "is_starred", "navigation_only",
+            "can_place_boards",
         ]
         # Schema-only (#1077): see visiban/field_enforcement.py.
         extra_kwargs = {
@@ -437,6 +446,26 @@ class GroupSerializer(serializers.ModelSerializer):
                 if key in data:
                     data[key] = type(empty)(empty)
         return data
+
+    def get_can_place_boards(self, obj) -> bool:
+        """The caller's board-placement right on ``obj`` (#1692).
+
+        Uses ``user_is_group_admin`` (via its bulk form when the view passes
+        ``group_admin`` = ``group_admin_resolver`` in the context), the same
+        predicate ``_require_group_admin`` enforces on board create, move and
+        import, so the flag and the enforcement cannot drift. Without a
+        resolver the single-group predicate runs for an authenticated request
+        user (one query); with no viewer it fails closed.
+        """
+        context = self.context or {}
+        is_admin = context.get("group_admin")
+        if is_admin is not None:
+            return bool(is_admin(obj))
+        request = context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return False
+        return user_is_group_admin(user, obj)
 
     def get_member_count(self, obj) -> int:
         # Use annotation from GroupViewSet.get_queryset() when available to avoid

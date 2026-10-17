@@ -140,7 +140,7 @@ const fakeGroup: Group = {
   parent: null, parent_name: null,
   member_count: 2, board_count: 1, subgroup_count: 0, created_at: '',
   default_board_member_role: 'member', allowed_priorities: [], shared_labels: [],
-  is_starred: false, navigation_only: false,
+  is_starred: false, navigation_only: false, can_place_boards: false,
 }
 
 function renderGroupDetail(locationState?: Record<string, unknown>, user: User = fakeUser) {
