@@ -513,6 +513,20 @@ class ExtensionUrlpatternsWiringTests(SimpleTestCase):
         self.assertIs(extension[0], ext[0])
         self.assertTrue(any(p is ext[0] for p in urlpatterns))
 
+    def test_extension_urlpatterns_are_the_same_objects_appended(self):
+        # The gate matches extension routes to mounted routes by identity, so a
+        # re-wrapped copy would silently turn an extension route into an OSS one.
+        ext = [
+            url_path("sso/acs/", _saml_acs, name="ext_acs"),
+            url_path("sso/login/", _saml_acs, name="ext_login"),
+        ]
+        extension, urlpatterns = self._reload_urls(ext)
+        self.assertEqual(len(extension), len(ext))
+        for planted, held in zip(ext, extension):
+            self.assertIs(planted, held)
+        for planted in ext:
+            self.assertTrue(any(p is planted for p in urlpatterns))
+
     def test_without_enterprise_extension_urlpatterns_is_empty(self):
         extension, urlpatterns = self._reload_urls(None)
         self.assertEqual(extension, [])
