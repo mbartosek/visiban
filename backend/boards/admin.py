@@ -722,7 +722,6 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
     def delete_model(self, request, obj):
         board_id = obj.id
         board_uid = obj.uid
-        group_id = obj.group_id
         # Cards first, then the board's columns, then the board (#1603,
         # #1602; see lock_cards_for_cascade).
         with transaction.atomic():
@@ -732,6 +731,14 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 boards=Board.objects.filter(pk=obj.pk),
             )
             _require_present_for_admin(Board.objects.filter(pk=obj.pk))
+            # The group the board is in when it is deleted, read from the row
+            # the lock above now holds rather than from ``obj``: ``obj`` was
+            # read before the lock, so a move-group that committed in between
+            # would make ``board.deleted`` go to the group the board already
+            # left (#1712; same ordering as save_model, #1684).
+            group_id = (
+                Board.objects.filter(pk=obj.pk).values_list("group_id", flat=True).first()
+            )
             super().delete_model(request, obj)
             _record_board_and_group_event(
                 board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
@@ -747,7 +754,15 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 boards=Board.objects.filter(pk__in=queryset.values("pk")),
             )
             # Capture identifiers before delete — post-delete each instance's pk is cleared.
-            deleted = [(b.id, b.uid, b.group_id) for b in queryset]
+            # Read through a fresh query, not by iterating ``queryset``: the
+            # admin action has already evaluated it (to build the confirmation
+            # page), so iterating would replay the cached pre-lock rows and
+            # send ``board.deleted`` to a group the board has since left (#1712).
+            deleted = list(
+                Board.objects.filter(pk__in=queryset.values("pk")).values_list(
+                    "id", "uid", "group_id"
+                )
+            )
             super().delete_queryset(request, queryset)
             for board_id, board_uid, group_id in deleted:
                 _record_board_and_group_event(

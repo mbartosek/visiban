@@ -303,6 +303,113 @@ class AdminSaveOldGroupTests(_RaceBase):
         self.assertEqual(created, [g2.pk, g3.pk], calls)
 
 
+class RestDeleteOldGroupTests(_RaceBase):
+    """BoardViewSet.destroy notifies the group the board was in when deleted."""
+
+    def test_rest_delete_behind_a_move_sends_board_deleted_to_the_group_it_was_in(self):
+        """BoardViewSet.destroy reads the group from the locked row (#1712):
+        get_object() ran before the lock, so a move-group committing meanwhile
+        must not leave board.deleted going to the group the board had left."""
+        g1, g2 = (self._admin_group(n) for n in ("R1", "R2"))
+        Board.objects.filter(pk=self.board.pk).update(group=g1)
+        calls = []
+        lock = threading.Lock()
+
+        def record(group_id, event, payload):
+            with lock:
+                calls.append((group_id, event))
+
+        with patch("boards.views.boards._broadcast_group_event", side_effect=record):
+            moved, deleted = self._race(
+                "boards.views.boards.lock_board_row_or_404",
+                lambda: self._client().post(
+                    f"{self.base}/move-group/", {"group_id": g2.pk}, format="json"
+                ),
+                lambda: self._client().delete(f"{self.base}/"),
+            )
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", b"")[:300])
+        self.assertFalse(Board.objects.filter(pk=self.board.pk).exists())
+        told = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(told, [g1.pk, g2.pk], calls)
+
+
+@_PLAIN_STATIC
+class AdminDeleteOldGroupTests(_RaceBase):
+    """BoardAdmin.delete_model reads the board's group under the board row
+    lock (#1712), as save_model does (#1684, #1708)."""
+
+    def test_admin_delete_behind_a_move_sends_board_deleted_to_the_group_it_was_in(self):
+        """``delete_view`` reads the board before ``delete_model`` locks it, so
+        a move-group that commits in between leaves ``obj.group_id`` stale.
+        Reading it above the lock would tell g1 (already told by the move)
+        instead of g2, the group the board was in when it was deleted."""
+        g1, g2 = (self._admin_group(n) for n in ("D1", "D2"))
+        Board.objects.filter(pk=self.board.pk).update(group=g1)
+        root = User.objects.create_superuser(
+            username="root1712", email="root1712@example.com", password="pw123456!x"
+        )
+        url = reverse("admin:boards_board_delete", args=[self.board.pk])
+        calls = []
+        lock = threading.Lock()
+
+        def record(group_id, event, payload):
+            with lock:
+                calls.append((group_id, event))
+
+        def admin_delete():
+            client = Client()
+            client.force_login(User.objects.get(pk=root.pk))
+            return client.post(url, {"post": "yes"})
+
+        # The move broadcasts through the view's helper, the delete through the admin's.
+        with patch("boards.views.boards._broadcast_group_event", side_effect=record), patch(
+            "boards.admin._broadcast_group_event", side_effect=record
+        ):
+            moved, deleted = self._race(
+                "boards.views.boards.lock_board_row_or_404",
+                lambda: self._client().post(
+                    f"{self.base}/move-group/", {"group_id": g2.pk}, format="json"
+                ),
+                admin_delete,
+            )
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(deleted.status_code, 302, getattr(deleted, "content", b"")[:300])
+        self.assertFalse(Board.objects.filter(pk=self.board.pk).exists())
+        told = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(told, [g1.pk, g2.pk], calls)
+
+    def test_bulk_delete_queryset_reads_group_after_the_lock_even_when_cached(self):
+        """The admin action evaluates the queryset to build its confirmation
+        page, so ``delete_queryset`` receives cached pre-lock rows. It must
+        re-read the group from the database under the lock."""
+        from django.contrib import admin as django_admin
+        from django.test import RequestFactory
+
+        g1, g2 = (self._admin_group(n) for n in ("Q1", "Q2"))
+        Board.objects.filter(pk=self.board.pk).update(group=g1)
+        root = User.objects.create_superuser(
+            username="root1712q", email="root1712q@example.com", password="pw123456!x"
+        )
+        model_admin = django_admin.site._registry[Board]
+        queryset = Board.objects.filter(pk=self.board.pk)
+        list(queryset)  # cache the pre-move rows, as get_deleted_objects does
+        request = RequestFactory().post("/")
+        request.user = root
+        calls = []
+
+        def record(group_id, event, payload):
+            calls.append((group_id, event))
+
+        # The group changes after the queryset was cached, before the delete.
+        Board.objects.filter(pk=self.board.pk).update(group=g2)
+        # No test transaction wraps this case, so on_commit runs at the outer atomic's exit.
+        with patch("boards.admin._broadcast_group_event", side_effect=record):
+            model_admin.delete_queryset(request, queryset)
+        told = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(told, [g2.pk], calls)
+
+
 class DefinitionAndLabelUpdateVsDeleteTests(_RaceBase):
     """A PATCH queued behind a DELETE of the same row answers 404 and does
     not re-insert it (UPDATE matched nothing, ``save()`` fell back to INSERT)."""

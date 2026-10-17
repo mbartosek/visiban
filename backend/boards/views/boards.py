@@ -329,7 +329,6 @@ class BoardViewSet(
             raise PermissionDenied
         board_id = board.id
         board_uid = board.uid
-        group_id = board.group_id
         board_name = board.name
         with transaction.atomic():
             # Lock the board's cards, then its columns, before Django
@@ -345,6 +344,14 @@ class BoardViewSet(
             # Queued behind another delete of this board: nothing is left to
             # delete, so answer 404 rather than a second board.deleted.
             require_present_or_404(Board.objects.filter(pk=board.pk))
+            # The group the board is in when it is deleted, read from the row
+            # the lock above holds: ``board`` came from get_object() before the
+            # lock, so a move-group that committed meanwhile would make
+            # board.deleted go to the group the board already left (#1712;
+            # same ordering as move_group).
+            group_id = (
+                Board.objects.filter(pk=board.pk).values_list("group_id", flat=True).first()
+            )
             board.delete()
             # board_uid is the stable identifier for terminal events (#979).
             # All deletion events (card/column/swimlane/label/saved_filter)
