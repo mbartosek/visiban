@@ -343,9 +343,11 @@ class BoardAdminBroadcastTests(TestCase):
     GroupDetail.tsx's dashboard/boards-list view listens for
     board.created/updated/deleted exclusively on the group socket, so every
     save/delete here must fire on BOTH boards.broadcast.broadcast_board_event
-    (board channel) and boards.admin._broadcast_group_event (group channel,
-    only when the board actually belongs to a group) — mirroring
-    BoardViewSet's own dual on_commit broadcast in boards/views/boards.py.
+    (board channel) and the group channel (only when the board actually
+    belongs to a group): boards.admin._broadcast_group_event on create and
+    delete, and, on a change, the group-move helper shared with
+    BoardViewSet.perform_update/move_group, which sends through
+    boards.views.boards._broadcast_group_event (#1684).
     """
 
     def setUp(self):
@@ -373,8 +375,10 @@ class BoardAdminBroadcastTests(TestCase):
         board.name = "Renamed via admin"
         # A field the form does not carry, changed after ``board`` was read.
         Board.objects.filter(pk=board.pk).update(card_density="compact")
+        # A change's group sends go through the shared group-move helper in
+        # boards.views.boards (#1684).
         with patch("boards.broadcast.broadcast_board_event") as mock_broadcast, \
-             patch("boards.admin._broadcast_group_event") as mock_group:
+             patch("boards.views.boards._broadcast_group_event") as mock_group:
             with self.captureOnCommitCallbacks(execute=True):
                 self.admin.save_model(request, board, _DummyForm(), change=True)
             mock_broadcast.assert_called_once()
@@ -431,6 +435,79 @@ class BoardAdminBroadcastTests(TestCase):
             self.assertEqual(mock_group.call_count, 2)
             emitted = {call.args[0] for call in mock_group.call_args_list}
             self.assertEqual(emitted, {self.group.id})
+
+
+class BoardAdminGroupChangeTests(TestCase):
+    """An admin change of ``group`` is a group move to group subscribers, as a
+    REST PATCH or move-group is (#1684): board.deleted to the group the board
+    left, board.created to the one it joined, board.updated on the board
+    channel either way."""
+
+    class _GroupForm(_DummyForm):
+        fields = {"name": None, "group": None}
+        changed_data = ["group"]
+
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(username="admin1684", password="p", email="h@x")
+        self.old = Group.objects.create(name="Old 1684", owner=self.admin_user)
+        self.new = Group.objects.create(name="New 1684", owner=self.admin_user)
+        self.admin = BoardAdmin(Board, AdminSite())
+
+    def _save(self, board, group, form=None):
+        board.group = group
+        with patch("boards.broadcast.broadcast_board_event") as mock_board, \
+             patch("boards.views.boards._broadcast_group_event") as mock_group, \
+             patch("boards.admin._broadcast_group_event") as mock_admin_group:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                self.admin.save_model(
+                    _make_request(self.admin_user), board, form or self._GroupForm(), change=True,
+                )
+        # Every group send on a change goes through the shared helper.
+        mock_admin_group.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+        self.assertEqual([c.args[1] for c in mock_board.call_args_list], ["board.updated"])
+        payload = mock_board.call_args.args[2]
+        return [c.args for c in mock_group.call_args_list], payload
+
+    def test_group_a_to_b(self):
+        board = Board.objects.create(name="M", owner=self.admin_user, group=self.old)
+        calls, payload = self._save(board, self.new)
+        self.assertEqual(calls, [
+            (self.old.id, "board.deleted", {"board_uid": str(board.uid), "board_id": board.id}),
+            (self.new.id, "board.created", payload),
+        ])
+        board.refresh_from_db()
+        self.assertEqual(board.group_id, self.new.id)
+
+    def test_group_a_to_none(self):
+        board = Board.objects.create(name="M", owner=self.admin_user, group=self.old)
+        calls, _ = self._save(board, None)
+        self.assertEqual(calls, [
+            (self.old.id, "board.deleted", {"board_uid": str(board.uid), "board_id": board.id}),
+        ])
+
+    def test_none_to_group_b(self):
+        board = Board.objects.create(name="M", owner=self.admin_user)
+        calls, payload = self._save(board, self.new)
+        self.assertEqual(calls, [(self.new.id, "board.created", payload)])
+
+    def test_unchanged_group_sends_board_updated_only(self):
+        board = Board.objects.create(name="M", owner=self.admin_user, group=self.old)
+        board.name = "Renamed"
+        calls, payload = self._save(board, self.old, form=_DummyForm())
+        self.assertEqual(calls, [(self.old.id, "board.updated", payload)])
+
+    def test_old_group_is_read_from_the_stored_row(self):
+        """The group the board actually left is the stored one, not the
+        instance's earlier read: a move committed after ``board`` was read
+        must be the one told the board left."""
+        board = Board.objects.create(name="M", owner=self.admin_user, group=self.old)
+        middle = Group.objects.create(name="Middle 1684", owner=self.admin_user)
+        Board.objects.filter(pk=board.pk).update(group=middle)
+        calls, _ = self._save(board, self.new)
+        self.assertEqual([c[:2] for c in calls], [
+            (middle.id, "board.deleted"), (self.new.id, "board.created"),
+        ])
 
 
 class BoardMembershipAdminBroadcastTests(TestCase):

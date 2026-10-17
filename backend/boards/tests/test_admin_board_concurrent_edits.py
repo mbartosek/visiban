@@ -17,7 +17,7 @@ ordering with real threads and connections on PostgreSQL.
 
 import threading
 from unittest import skipUnless
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django import forms
 from django.db import connection, connections
@@ -134,8 +134,12 @@ class BoardAdminConcurrentEditTests(_Fixtures, TestCase):
 
     def post(self, data, change=None):
         """POST to the board form, with broadcasts captured and run on commit."""
+        # A change's group sends go through the group-move helper in
+        # boards.views.boards (#1684); patch both bindings with one mock.
+        group_bc = MagicMock()
         with patch("boards.broadcast.broadcast_board_event") as board_bc, \
-             patch("boards.admin._broadcast_group_event") as group_bc, \
+             patch("boards.admin._broadcast_group_event", group_bc), \
+             patch("boards.views.boards._broadcast_group_event", group_bc), \
              self.captureOnCommitCallbacks(execute=True):
             if change is None:
                 response = self.client.post(self.board_url(), data)

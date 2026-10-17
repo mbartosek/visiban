@@ -133,6 +133,112 @@ class GroupBroadcastWiringTests(TestCase):
             mock_group.assert_not_called()
 
 
+
+class BoardGroupChangeViaUpdateTests(TestCase):
+    """A PATCH/PUT that changes ``group`` is a group move to group subscribers
+    (#1684): board.deleted to the old group, board.created to the new one, the
+    same frames move-group sends. Before the fix it sent board.updated to the
+    new group only, so the old group kept listing the board and the new group
+    got a patch for a board it had never seen.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="owner", password="pass")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.old = _make_group(self.user, name="Old")
+        self.new = _make_group(self.user, name="New")
+
+    def _write(self, method, url, body):
+        """Run one request with on_commit callbacks executed, returning the
+        response, the group-channel calls, and the board-channel calls."""
+        with patch("boards.views.boards._broadcast_group_event") as mock_group, \
+             patch("boards.broadcast.broadcast_board_event") as mock_board:
+            with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                resp = getattr(self.client, method)(url, body, format="json")
+        group_calls = [c.args for c in mock_group.call_args_list]
+        board_calls = [c.args[1] for c in mock_board.call_args_list]
+        return resp, group_calls, board_calls, callbacks
+
+    def _patch(self, board, body):
+        return self._write("patch", f"/api/v1/boards/{board.id}/", body)
+
+    def test_patch_group_change_moves_board_between_group_channels(self):
+        board = _make_board(self.user, group=self.old)
+        resp, group_calls, board_calls, callbacks = self._patch(board, {"group": self.new.id})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # One callback, so the old/new frames go out together (#753).
+        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(group_calls, [
+            (self.old.id, "board.deleted", {"board_uid": str(board.uid), "board_id": board.id}),
+            (self.new.id, "board.created", resp.json()),
+        ])
+        # The board channel still gets its board.updated.
+        self.assertEqual(board_calls, ["board.updated"])
+
+    def test_patch_group_to_null_sends_board_deleted_to_old_group_only(self):
+        board = _make_board(self.user, group=self.old)
+        resp, group_calls, board_calls, _ = self._patch(board, {"group": None})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(group_calls, [
+            (self.old.id, "board.deleted", {"board_uid": str(board.uid), "board_id": board.id}),
+        ])
+        self.assertEqual(board_calls, ["board.updated"])
+
+    def test_patch_personal_board_into_group_sends_board_created_only(self):
+        board = _make_board(self.user, group=None)
+        resp, group_calls, board_calls, _ = self._patch(board, {"group": self.new.id})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(group_calls, [(self.new.id, "board.created", resp.json())])
+        self.assertEqual(board_calls, ["board.updated"])
+
+    def test_patch_without_group_change_sends_only_board_updated(self):
+        board = _make_board(self.user, group=self.old)
+        resp, group_calls, board_calls, _ = self._patch(board, {"name": "Renamed"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(group_calls, [(self.old.id, "board.updated", resp.json())])
+        self.assertEqual(board_calls, ["board.updated"])
+
+    def test_patch_echoing_current_group_is_not_a_move(self):
+        board = _make_board(self.user, group=self.old)
+        resp, group_calls, _, _ = self._patch(board, {"group": self.old.id, "name": "R"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual([c[:2] for c in group_calls], [(self.old.id, "board.updated")])
+
+    def test_put_group_change_moves_board_between_group_channels(self):
+        board = _make_board(self.user, group=self.old)
+        resp, group_calls, _, _ = self._write(
+            "put", f"/api/v1/boards/{board.id}/", {"name": board.name, "group": self.new.id},
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual([c[:2] for c in group_calls], [
+            (self.old.id, "board.deleted"), (self.new.id, "board.created"),
+        ])
+
+    def test_patch_personal_board_without_group_sends_no_group_events(self):
+        board = _make_board(self.user, group=None)
+        resp, group_calls, board_calls, _ = self._patch(board, {"name": "Renamed"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(group_calls, [])
+        self.assertEqual(board_calls, ["board.updated"])
+
+    def test_patch_and_move_group_send_the_same_group_frames(self):
+        """Both endpoints share one helper; guard against them drifting apart."""
+        a = _make_board(self.user, group=self.old, name="A")
+        b = _make_board(self.user, group=self.old, name="B")
+        _, via_patch, _, _ = self._patch(a, {"group": self.new.id})
+        resp, via_move, _, _ = self._write(
+            "post", f"/api/v1/boards/{b.id}/move-group/", {"group_id": self.new.id},
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(via_move, [
+            (self.old.id, "board.deleted", {"board_uid": str(b.uid), "board_id": b.id}),
+            (self.new.id, "board.created", resp.json()),
+        ])
+        self.assertEqual([c[:2] for c in via_patch], [c[:2] for c in via_move])
+        self.assertEqual(set(via_patch[0][2]), set(via_move[0][2]))
+
+
 class GroupMembershipBroadcastNamingTests(TestCase):
     """Group membership events use the member.* naming that mirrors the board
     channel (member.added / member.updated), so a single frontend socket layer

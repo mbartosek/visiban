@@ -219,6 +219,37 @@ class MoveGroupOldGroupTests(_RaceBase):
         self.assertEqual(created, [g2.pk, g3.pk], calls)
 
 
+    def test_patch_behind_a_move_sends_board_deleted_to_the_group_it_left(self):
+        """perform_update reads the old group from the locked, refreshed row
+        (#1684): a group PATCH queued behind a move-group must tell the group
+        the move put the board in, not the one its pre-lock read saw."""
+        g1, g2, g3 = (self._admin_group(n) for n in ("P1", "P2", "P3"))
+        Board.objects.filter(pk=self.board.pk).update(group=g1)
+        calls = []
+        lock = threading.Lock()
+
+        def record(group_id, event, data):
+            with lock:
+                calls.append((group_id, event))
+
+        with patch("boards.views.boards._broadcast_group_event", side_effect=record):
+            moved, patched = self._race(
+                "boards.views.boards.lock_board_row_or_404",
+                lambda: self._client().post(
+                    f"{self.base}/move-group/", {"group_id": g2.pk}, format="json"
+                ),
+                lambda: self._client().patch(
+                    f"{self.base}/", {"group": g3.pk}, format="json"
+                ),
+            )
+        self.assertEqual((moved.status_code, patched.status_code), (200, 200), patched.content[:300])
+        self.assertEqual(Board.objects.get(pk=self.board.pk).group_id, g3.pk)
+        deleted = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(deleted, [g1.pk, g2.pk], calls)
+        created = [g for g, e in calls if e == _broadcast.EVT_BOARD_CREATED]
+        self.assertEqual(created, [g2.pk, g3.pk], calls)
+
+
 class DefinitionAndLabelUpdateVsDeleteTests(_RaceBase):
     """A PATCH queued behind a DELETE of the same row answers 404 and does
     not re-insert it (UPDATE matched nothing, ``save()`` fell back to INSERT)."""
