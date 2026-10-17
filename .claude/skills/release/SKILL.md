@@ -95,6 +95,10 @@ Before running the script:
       non-merge commits, have passed without a tag, say so in the pre-flight summary — a cut
       that large carries untested publish-path changes and a large diff surface at once.
       Informational only; it does not block the cut.
+- [ ] **Roll the API compatibility baseline forward (GA tags only).** Regenerate
+      `scripts/compat-baseline/<tag>/` and repoint `BASELINE_SCHEMA` / `BASELINE_ENV` in
+      `scripts/check-api-compat.py`, per `docs/development/api-compat-gate.md`, so the next
+      cycle's `api-compat-check` diffs against this release.
 
 ## Step 1b — Documentation audit
 

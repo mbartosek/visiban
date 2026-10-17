@@ -701,6 +701,48 @@ backend-test-coverage:
       - backend/coverage.xml
     when: always
 
+# Public-contract compatibility diff against the last GA tag (#1667). The REST
+# schema and the env var names settings.py reads are a 1.0+ public contract;
+# nothing diffed them against a release, so "zero removals since v1.1.0" was a
+# manual claim. Fails on a removed endpoint/field/parameter, a type change, a
+# new required request field, or a response field that became optional or
+# nullable; additions pass. Deliberate breaks are allow-listed, with a
+# mandatory issue reference, in scripts/compat-baseline/allowlist.json.
+# Baseline regeneration (at each GA tag): docs/development/api-compat-gate.md.
+api-compat-check:
+  extends: .pip-cache
+  stage: test
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/python:3.12-slim
+  # No unconditional main fallback (#1266) — nothing needs this job.
+  rules:
+    - changes: &api-compat-paths
+        - backend/**/*
+        - scripts/check-api-compat.py
+        - scripts/_paths.py
+        - scripts/compat-baseline/**/*
+        - scripts/tests/check-api-compat.test.sh
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *api-compat-paths
+  variables:
+    # Schema generation only introspects serializers — Django never opens a
+    # connection — so a syntactically valid DATABASE_URL is all this needs.
+    DATABASE_URL: "postgres://${CI_POSTGRES_USER}:${CI_POSTGRES_PASSWORD}@localhost:5432/${CI_POSTGRES_DB}"
+    REDIS_URL: "redis://localhost:6379/0"
+    DJANGO_SECRET_KEY: "${CI_DJANGO_SECRET_KEY}"
+    DEBUG: "True"
+    ALLOWED_HOSTS: "localhost"
+    GIT_LENS_ENABLED: "True"
+  before_script:
+    - pip install --quiet -r backend/requirements.txt
+  script:
+    # Self-test FIRST (#1093): prove the detector still fires before trusting
+    # a green run over the real schema.
+    - python3 scripts/check-api-compat.py --self-test
+    - bash scripts/tests/check-api-compat.test.sh
+    - python3 scripts/check-api-compat.py
+  allow_failure: false
+
 # Diff coverage (MR only) — #1076.
 #
 # The aggregate --fail-under=90 above measures the whole codebase, not the
