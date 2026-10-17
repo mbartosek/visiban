@@ -3992,6 +3992,9 @@ name something comparable:</p>
 </ul>
 <h2 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h2>
 <p><code>COMPONENT_MAP</code> in the script is authoritative. As of #1338 it is:</p>
+<blockquote>
+<p><code>CurrentUser</code> -&gt; <code>User</code>: its instance-level flags are frozen (#1664); new ones go on <code>SiteConfig</code>. See <a href="../../api/authentication/#frozen-instance-flags-on-authuser">Frozen instance flags</a>.</p>
+</blockquote>
 <table>
 <thead>
 <tr>

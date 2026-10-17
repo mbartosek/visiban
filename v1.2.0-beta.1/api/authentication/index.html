@@ -2254,6 +2254,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#frozen-instance-flags-on-authuser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frozen instance flags on /auth/user/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#get-apiv1authme" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5299,6 +5310,11 @@ normal endpoint includes <code>"code": "must_change_username"</code> so API/PAT 
 can detect the condition and call this endpoint programmatically.</p>
 <hr />
 <h2 id="user-profile">User profile<a class="headerlink" href="#user-profile" title="Permanent link">&para;</a></h2>
+<h3 id="frozen-instance-flags-on-authuser">Frozen instance flags on <code>/auth/user/</code><a class="headerlink" href="#frozen-instance-flags-on-authuser" title="Permanent link">&para;</a></h3>
+<p><code>/auth/user/</code> (and <code>/auth/me/</code>) is the identity object, and the instance-wide flags already on it are <strong>frozen</strong>: <code>uploads_enabled</code>, <code>git_lens_enabled</code>, <code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code>. They stay for the 1.x contract and are never removed or renamed.</p>
+<p><strong>Why:</strong> each flag on this object can add a settings, cache, or database read to every <code>/auth/user/</code> request and becomes a permanent field on a 1.0+ identity object.</p>
+<p><strong>The rule:</strong> new instance-level flags go on <a href="#get-apiv1authsite-config"><code>GET /api/v1/auth/site-config/</code></a> (or a capabilities payload), never on this object. Only per-user state belongs here.</p>
+<p><code>demo_mode</code> and <code>demo_next_reset_at</code> also appear on <code>site-config</code>. That duplication is intentional: the SPA reads <code>site-config</code> before login and <code>/auth/user/</code> after, and both must report the same values and types. A test pins both field sets (<code>backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py</code>) and a type assertion keeps the TypeScript <code>User</code> and <code>SiteConfig</code> in step.</p>
 <h3 id="get-apiv1authme"><code>GET /api/v1/auth/me/</code><a class="headerlink" href="#get-apiv1authme" title="Permanent link">&para;</a></h3>
 <p>Returns the authenticated user's profile.</p>
 <div class="admonition note">
