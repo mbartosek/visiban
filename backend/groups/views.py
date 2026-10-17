@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from accounts.permissions import TokenHasScope
 from visiban.authorization import invite_creator_is_valid, principal_is_active
 from visiban.permissions import MustNotHavePendingPasswordChange, MustNotHavePendingUsernameChange
+from visiban.request_shape import coerce_int_id, optional_text, require_json_object
 from visiban.utils import get_client_ip
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -522,7 +523,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     @extend_schema(summary="Update a member's role", methods=["PATCH"], responses=GroupMembershipSerializer)
     @extend_schema(summary="Remove a member", methods=["DELETE"], responses={204: None})
-    @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[^/.]+)")
+    @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
     def update_member(self, request, pk=None, user_id=None):
         from accounts.models import User
         group = self.get_object()
@@ -664,7 +665,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
         # PATCH — update role
         membership = get_object_or_404(GroupMembership, group=group, user=target_user)
-        role = request.data.get("role")
+        role = require_json_object(request).get("role")
         if role not in GroupMembership.Role.values:
             return Response({"detail": f"Must be one of: {', '.join(GroupMembership.Role.values)}"}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
@@ -775,12 +776,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         # it), so a `group` in the body is dropped before validation: it has
         # always been ignored here, and BoardSerializer.validate_group must not
         # turn an ignored key into a 400 (#1655).
-        data = request.data
+        data = require_json_object(request)
         if "group" in data:
             data = data.copy()
             data.pop("group")
         serializer = BoardSerializer(data=data)
         serializer.is_valid(raise_exception=True)
+        # Validated before any write so a non-string value is a 400 (#1669).
+        swimlane_name = (optional_text(data, "swimlane_name") or "General")[:255]
         # Wrap the entire creation sequence in a transaction so a failure in any
         # step (column bulk_create, swimlane create, label copy, allowed_priorities
         # save) rolls back the board and membership — preventing orphaned rows.
@@ -805,7 +808,6 @@ class GroupViewSet(viewsets.ModelViewSet):
             template = resolve_board_template(serializer.validated_data.get("template", ""))
             create_template_columns(board, template)
 
-            swimlane_name = ((request.data.get("swimlane_name") or "").strip() or "General")[:255]
             Swimlane.objects.create(board=board, name=swimlane_name, position=0, color="#6B7280")
 
             # Apply group defaults: copy shared labels and allowed priorities
@@ -985,6 +987,10 @@ class GroupViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only the group owner can transfer ownership.")
 
         new_owner_id = request.data.get("new_owner_id")
+        if new_owner_id is not None:
+            # Missing keeps the existing 400 "must already be a member"; a
+            # present but non-integer/out-of-range id is a 400, not a 500 (#1669).
+            new_owner_id = coerce_int_id(new_owner_id, "new_owner_id")
         confirmation = request.data.get("confirmation", "")
 
         # Require typing the group name as confirmation
@@ -1312,7 +1318,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         request=GroupLabelSerializer, responses=GroupLabelSerializer,
     )
     @extend_schema(summary="Delete a group shared label", methods=["DELETE"], responses={204: None})
-    @action(detail=True, methods=["patch", "delete"], url_path=r"labels/(?P<label_id>[^/.]+)")
+    @action(detail=True, methods=["patch", "delete"], url_path=r"labels/(?P<label_id>[0-9]+)")
     def update_group_label(self, request, pk=None, label_id=None):
         """PATCH or DELETE a group shared label."""
         group = self.get_object()

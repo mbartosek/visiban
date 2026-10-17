@@ -32,6 +32,8 @@ from rest_framework.exceptions import (
     APIException, NotFound, PermissionDenied, ValidationError as _DRFValidationError,
 )
 
+from visiban.request_shape import id_in_db_range
+
 from ..models import Board, BoardFavorite, BoardMembership, Card
 from ..permissions import (
     GROUP_ANCESTOR_SELECT_RELATED,
@@ -456,6 +458,12 @@ def validate_full_reorder_order(order, existing_ids, *, item_label, scope_label)
         raise _DRFValidationError(
             {"order": f"order must be a list of integer {item_label} IDs."}
         ) from None
+    # An id beyond the database integer range would overflow in the lookup (a
+    # 500) rather than simply not match (#1669).
+    if not all(id_in_db_range(i) for i in order_ints):
+        raise _DRFValidationError(
+            {"order": f"order must be a list of integer {item_label} IDs."}
+        )
     if len(order_ints) != len(set(order_ints)):
         raise _DRFValidationError(
             {"order": f"order must not contain duplicate {item_label} IDs."}

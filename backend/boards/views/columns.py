@@ -14,6 +14,7 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.request_shape import require_json_object
 
 from .. import broadcast as _broadcast
 from ..models import Board, BoardMembership, Column
@@ -176,7 +177,7 @@ class ColumnViewSet(viewsets.ModelViewSet):
         board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
-        order = request.data.get("order", [])  # list of column IDs in new order
+        order = require_json_object(request).get("order", [])  # list of column IDs in new order
         with transaction.atomic():
             # Lock the board row before reading the current column set, same as
             # perform_create/perform_update, so a concurrent create/delete can't

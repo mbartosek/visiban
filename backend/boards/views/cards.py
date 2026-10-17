@@ -1803,7 +1803,7 @@ class CardViewSet(viewsets.ModelViewSet):
             "either end may remove it. Minimum role: member."
         ),
     )
-    @action(detail=True, methods=["delete"], url_path="relations/(?P<relation_pk>[^/.]+)")
+    @action(detail=True, methods=["delete"], url_path=r"relations/(?P<relation_pk>[0-9]+)")
     def relation_detail(self, request, board_pk=None, pk=None, relation_pk=None):
         """Delete one relation, from either end of it."""
         board, role = self._board_and_role()

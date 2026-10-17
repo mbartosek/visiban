@@ -2,6 +2,7 @@
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,6 +13,8 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.request_shape import coerce_int_id, require_json_object
+
 from ..models import Notification
 from ..permissions import get_board_role
 
@@ -147,10 +150,14 @@ class NotificationMarkReadView(APIView):
     ]
 
     def post(self, request):
-        if request.data.get("all"):
+        body = require_json_object(request)
+        if body.get("all"):
             Notification.objects.filter(recipient=request.user, read=False).update(read=True)
         else:
-            ids = request.data.get("ids", [])
+            ids = body.get("ids", [])
+            if not isinstance(ids, list):
+                raise ValidationError({"ids": "ids must be a list of integer notification IDs."})
+            ids = [coerce_int_id(i, "ids") for i in ids]
             Notification.objects.filter(recipient=request.user, id__in=ids).update(read=True)
         return Response({"ok": True})
 
