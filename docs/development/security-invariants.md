@@ -285,6 +285,13 @@ each surface that delivers them:
 - `is_site_admin` on the same events, and `invite` on `member.added`, are shown
   to admin and site_admin recipients only (`site_admin_field_visible`,
   `invite_field_visible`);
+- `is_starred` (`ACTOR_SCOPED_FIELDS`) on `board.created`, `board.updated`,
+  `group.created` and `group.updated` (`ACTOR_SCOPED_FIELD_EVENTS`) is the acting
+  user's own value and is shown only to that user (`without_actor_scoped_fields`).
+  The actor comes from the `actor_id` the broadcast helpers put on the
+  channel-layer message beside the envelope (never on the wire), or from the feed
+  row's `actor_id`; writers of these events pass it. A frame or row without an
+  actor omits the field for everyone;
 - admin-only board fields (`ADMIN_ONLY_BOARD_FIELDS`) are dropped for every
   recipient (`without_admin_only_board_fields`);
 - admin-only swimlane custom field values are never in a broadcast payload, and
@@ -299,16 +306,18 @@ one surface only leaves the same field readable through another.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| Board WebSocket | `boards/consumers.py` `BoardConsumer.board_event` | Per-user drop (`per_user_event_visible`), then `moderator_field_visible`, `site_admin_field_visible`, `invite_field_visible` on `MODERATOR_BEARING_EVENTS`, using the subscriber's re-resolved role |
-| Group WebSocket | `groups/consumers.py` `GroupConsumer.group_event` | Per-user drop only, over `GROUP_PER_USER_EVENTS` (derived from `PER_USER_EVENTS`). There is no `is_moderator`, `is_site_admin` or `invite` strip on this surface: the group channel's `member.added` carries a `GroupMembershipSerializer` row, which has none of those fields |
-| Change feed | `boards/views/boards.py` `BoardViewSet.events`; `boards/serializers.py` `BoardEventSerializer.to_representation` | The view excludes other users' `PER_USER_EVENTS` rows in the page query; the serializer applies the three member-field helpers with the reader's role, `without_admin_only_board_fields`, and the swimlane re-filter (`shareable_swimlane_field_ids`) |
-| Broadcast and persist (write time) | `boards/broadcast.py` `broadcast_board_event`, `persist_board_event`; `groups/broadcast.py` `broadcast_group_event` | `without_admin_only_board_fields`; swimlane payloads built from the public `SwimlaneSerializer` |
+| Board WebSocket | `boards/consumers.py` `BoardConsumer.board_event` | Per-user drop (`per_user_event_visible`), then `moderator_field_visible`, `site_admin_field_visible`, `invite_field_visible` on `MODERATOR_BEARING_EVENTS`, using the subscriber's re-resolved role, then `without_actor_scoped_fields` against the message's `actor_id` |
+| Group WebSocket | `groups/consumers.py` `GroupConsumer.group_event` | Per-user drop over `GROUP_PER_USER_EVENTS` (derived from `PER_USER_EVENTS`), then `without_actor_scoped_fields` against the message's `actor_id`. There is no `is_moderator`, `is_site_admin` or `invite` strip on this surface: the group channel's `member.added` carries a `GroupMembershipSerializer` row, which has none of those fields |
+| Change feed | `boards/views/boards.py` `BoardViewSet.events`; `boards/serializers.py` `BoardEventSerializer.to_representation` | The view excludes other users' `PER_USER_EVENTS` rows in the page query; the serializer applies the three member-field helpers with the reader's role, `without_admin_only_board_fields`, `without_actor_scoped_fields` against the row's `actor_id`, and the swimlane re-filter (`shareable_swimlane_field_ids`). `group.created` / `group.updated` are not persisted, so the feed has no group rows |
+| Broadcast and persist (write time) | `boards/broadcast.py` `broadcast_board_event`, `record_board_event`, `persist_board_event`; `groups/broadcast.py` `broadcast_group_event` | `without_admin_only_board_fields`; swimlane payloads built from the public `SwimlaneSerializer`; `actor_id` carried on the channel-layer message for the consumers' `without_actor_scoped_fields` |
 | REST board and members | `boards/serializers.py` `BoardFullSerializer.get_members`, `get_swimlanes`; `BoardMembershipSerializer.to_representation` | `moderator_field_visible`, `site_admin_field_visible`; `SwimlaneAdminSerializer` for admin and site_admin only |
 | Board export | `boards/views/import_export.py` `BoardImportExportMixin.export` | Admin-only swimlane definitions and their values are included for admin exporters only |
 
 Coverage: `boards/tests/test_event_payload_scoping.py` (per-user events on both
 channels and the feed, `invite`, swimlane re-filtering, and a check that every
 `*star_changed` and `saved_filter.*` event is in the per-user sets),
+`boards/tests/test_actor_scoped_event_fields.py` (`is_starred` per recipient on
+both channels for each write path, and in the feed for every reader role),
 `boards/tests/test_board_events.py` `ReadSideStrippingTests` (including the
 shared-helper identity check), `boards/tests/test_consumer_role_refresh.py`, and
 `boards/tests/test_member_site_admin_flag.py`.

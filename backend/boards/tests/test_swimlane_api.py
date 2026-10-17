@@ -196,5 +196,6 @@ class SwimlaneSetCollapsedTests(TestCase):
             self.board.id, "swimlane.updated", mock_broadcast.call_args[0][2],
             # Additive #1114 field: the frame now names the change-feed row.
             event_id=mock_broadcast.call_args[1]["event_id"],
+            actor_id=self.admin.id,
         )
         self.assertEqual(mock_broadcast.call_args[0][1], "swimlane.updated")

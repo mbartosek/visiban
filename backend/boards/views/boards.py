@@ -45,7 +45,7 @@ from .invites import BoardInviteLinksMixin
 logger = logging.getLogger(__name__)
 
 
-def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_id):
+def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_id, *, actor_id=None):
     """Group-channel half of a board write that may have changed its group.
 
     Shared by ``move_group`` and ``perform_update`` (#1684) so a group change
@@ -64,6 +64,9 @@ def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_
     BoardAdmin's change path calls it too, so its group-channel sends go
     through this module's ``_broadcast_group_event`` (tests patch it as
     ``boards.views.boards._broadcast_group_event``).
+
+    ``actor_id`` is the acting user, passed through so the group consumer
+    sends ``is_starred`` (the actor's own value) to the actor only (#1705).
     """
     if old_group_id is not None and old_group_id != new_group_id:
         # board_id is kept on move-out for clients keyed by the integer id
@@ -72,10 +75,10 @@ def _broadcast_board_group_change(board_id, board_data, old_group_id, new_group_
             "board_uid": board_data.get("uid"), "board_id": board_id,
         })
     if new_group_id is not None and new_group_id != old_group_id:
-        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_CREATED, board_data)
+        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_CREATED, board_data, actor_id=actor_id)
     elif new_group_id is not None:
         # Same group: a metadata update.
-        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_UPDATED, board_data)
+        _broadcast_group_event(new_group_id, _broadcast.EVT_BOARD_UPDATED, board_data, actor_id=actor_id)
 
 # Change-feed paging bounds (#1114). The ceiling exists so one request cannot ask
 # the server to serialize an unbounded slice of a busy board's history; a
@@ -262,10 +265,14 @@ class BoardViewSet(
             event_id = _broadcast.persist_board_event(
                 board_id, _broadcast.EVT_BOARD_CREATED, board_data, actor_id=self.request.user.id,
             )
-            def _broadcast_created(bid=board_id, bd=board_data, gid=group_id, eid=event_id):
-                _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid)
+            def _broadcast_created(
+                bid=board_id, bd=board_data, gid=group_id, eid=event_id, aid=self.request.user.id,
+            ):
+                _broadcast.broadcast_board_event(
+                    bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid, actor_id=aid,
+                )
                 if gid is not None:
-                    _broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd)
+                    _broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd, actor_id=aid)
             transaction.on_commit(_broadcast_created)
 
     def perform_update(self, serializer):
@@ -311,10 +318,12 @@ class BoardViewSet(
             )
             def _broadcast_updated(
                 bid=board_id, bd=board_data,
-                og=old_group_id, ng=new_group_id, eid=event_id,
+                og=old_group_id, ng=new_group_id, eid=event_id, aid=self.request.user.id,
             ):
-                _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid)
-                _broadcast_board_group_change(bid, bd, og, ng)
+                _broadcast.broadcast_board_event(
+                    bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid, actor_id=aid,
+                )
+                _broadcast_board_group_change(bid, bd, og, ng, actor_id=aid)
             transaction.on_commit(_broadcast_updated)
 
     @extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409})
@@ -592,10 +601,12 @@ class BoardViewSet(
             )
             def _broadcast_move(
                 bid=board_id, bd=board_data,
-                og=old_group_id, ng=new_group_id, eid=event_id,
+                og=old_group_id, ng=new_group_id, eid=event_id, aid=request.user.id,
             ):
-                _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid)
-                _broadcast_board_group_change(bid, bd, og, ng)
+                _broadcast.broadcast_board_event(
+                    bid, _broadcast.EVT_BOARD_UPDATED, bd, event_id=eid, actor_id=aid,
+                )
+                _broadcast_board_group_change(bid, bd, og, ng, actor_id=aid)
             transaction.on_commit(_broadcast_move)
         return Response(board_data)
 

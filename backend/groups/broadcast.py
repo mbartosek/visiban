@@ -88,7 +88,9 @@ def without_viewer_specific_group_fields(payload):
     return {k: v for k, v in payload.items() if k not in VIEWER_SPECIFIC_GROUP_FIELDS}
 
 
-def broadcast_group_event(group_id: int, event_type: str, payload: dict) -> None:
+def broadcast_group_event(
+    group_id: int, event_type: str, payload: dict, *, actor_id: int | None = None
+) -> None:
     """Broadcast a group-scoped event (board.created / board.updated / board.deleted) to
     WebSocket clients subscribed to ``group_{group_id}``.
 
@@ -114,6 +116,11 @@ def broadcast_group_event(group_id: int, event_type: str, payload: dict) -> None
     deliberately broad for the same reason as the board helper. It is not a
     "never raises" guarantee: payload serialization runs outside the ``try``, so
     an unserializable payload (a code bug) still raises.
+
+    ``actor_id`` is the acting user (#1705), carried on the channel-layer
+    message beside the envelope, never on the wire. ``GroupConsumer`` sends the
+    actor's per-user fields (``boards.permissions.ACTOR_SCOPED_FIELDS``) to the
+    actor only; without it they are omitted for every subscriber.
     """
     channel_layer = get_channel_layer()
     if channel_layer is None:
@@ -126,14 +133,11 @@ def broadcast_group_event(group_id: int, event_type: str, payload: dict) -> None
     safe_payload = json.loads(JSONRenderer().render(
         without_viewer_specific_group_fields(without_admin_only_board_fields(payload))
     ))
+    message = {"type": "group_event", "payload": {"event": event_type, "data": safe_payload}}
+    if actor_id is not None:
+        message["actor_id"] = actor_id
     try:
-        async_to_sync(channel_layer.group_send)(
-            f"group_{group_id}",
-            {
-                "type": "group_event",
-                "payload": {"event": event_type, "data": safe_payload},
-            },
-        )
+        async_to_sync(channel_layer.group_send)(f"group_{group_id}", message)
     except Exception as exc:  # noqa: BLE001 — best-effort publish, see docstring
         logger.warning(
             "group broadcast dropped: group_id=%s event=%s error=%s",

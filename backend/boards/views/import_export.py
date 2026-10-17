@@ -1816,12 +1816,16 @@ class BoardImportExportMixin:
             event_id = _broadcast.persist_board_event(
                 board_id, _broadcast.EVT_BOARD_CREATED, event_payload, actor_id=request.user.id,
             )
-            def _broadcast_created(bid=board_id, bd=event_payload, gid=group_id, eid=event_id):
-                _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid)
+            def _broadcast_created(
+                bid=board_id, bd=event_payload, gid=group_id, eid=event_id, aid=request.user.id,
+            ):
+                _broadcast.broadcast_board_event(
+                    bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid, actor_id=aid,
+                )
                 # Group-scoped broadcast powers the boards-list live view (#753).
                 if gid is not None:
                     from groups.broadcast import broadcast_group_event
-                    broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd)
+                    broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd, actor_id=aid)
             transaction.on_commit(_broadcast_created)
         # The board body stays at the top level (unwrapped) so existing
         # clients keep working; ``import_summary`` is additive (#119).
@@ -1953,11 +1957,15 @@ class BoardImportExportMixin:
             board_id, _broadcast.EVT_BOARD_CREATED, board_data, actor_id=request.user.id,
         )
 
-        def _broadcast_created(bid=board_id, bd=board_data, gid=group_id, eid=event_id):
-            _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid)
+        def _broadcast_created(
+            bid=board_id, bd=board_data, gid=group_id, eid=event_id, aid=request.user.id,
+        ):
+            _broadcast.broadcast_board_event(
+                bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid, actor_id=aid,
+            )
             if gid is not None:
                 from groups.broadcast import broadcast_group_event
-                broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd)
+                broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd, actor_id=aid)
         transaction.on_commit(_broadcast_created)
         return board_data
 
@@ -2432,12 +2440,16 @@ class BoardImportExportMixin:
             event_id = _broadcast.persist_board_event(
                 board_id, _broadcast.EVT_BOARD_CREATED, event_payload, actor_id=request.user.id,
             )
-            def _broadcast_created(bid=board_id, bd=event_payload, gid=group_id, eid=event_id):
-                _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid)
+            def _broadcast_created(
+                bid=board_id, bd=event_payload, gid=group_id, eid=event_id, aid=request.user.id,
+            ):
+                _broadcast.broadcast_board_event(
+                    bid, _broadcast.EVT_BOARD_CREATED, bd, event_id=eid, actor_id=aid,
+                )
                 # Group-scoped broadcast powers the boards-list live view (#753).
                 if gid is not None:
                     from groups.broadcast import broadcast_group_event
-                    broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd)
+                    broadcast_group_event(gid, _broadcast.EVT_BOARD_CREATED, bd, actor_id=aid)
             transaction.on_commit(_broadcast_created)
         # The board body stays at the top level (unwrapped) so existing
         # clients keep working; ``import_summary`` is additive (#119).

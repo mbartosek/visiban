@@ -1,10 +1,12 @@
 /**
  * Per-user fields that the backend serializes into `board.updated` /
  * `board.created` payloads using the ACTING user's request context (#1559).
- * Every subscriber receives the actor's value, so merging it into local state
- * shows one user's star on another user's screen. The wire payload is
- * unchanged (1.x WebSocket contract); clients drop these fields before merging
- * and read per-user state from dedicated events instead (`board.star_changed`).
+ * Since #1705 the server sends them only to the acting user's sockets and
+ * omits them for everyone else, but the actor's own copy still carries a
+ * value that may be stale next to `board.star_changed`, and older servers
+ * send it to every subscriber. Clients therefore drop these fields before
+ * merging and read per-user state from dedicated events instead
+ * (`board.star_changed`).
  *
  * Add the next per-user field here so every consumer picks it up.
  */

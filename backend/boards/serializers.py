@@ -33,6 +33,7 @@ from .permissions import (
     invite_field_visible,
     moderator_field_visible,
     site_admin_field_visible,
+    without_actor_scoped_fields,
 )
 
 from .models import (
@@ -285,7 +286,9 @@ class BoardEventSerializer(serializers.ModelSerializer):
         swimlane rows are re-filtered against the board's current shareable
         swimlane field definitions (``context["shareable_swimlane_field_ids"]``).
         Per-user rows (``PER_USER_EVENTS``) never reach this serializer for
-        another reader: the view excludes them from the page query.
+        another reader: the view excludes them from the page query. The acting
+        user's ``is_starred`` on ``board.created`` / ``board.updated`` rows is
+        kept for that user only (#1705), matched on the row's ``actor_id``.
 
         A non-admin reader still sees the flag on the row that is their OWN
         membership (#1191, mirroring the /full/ self-row exception from
@@ -299,6 +302,13 @@ class BoardEventSerializer(serializers.ModelSerializer):
         # path already omits them; this read-side pass also covers any row that
         # was stored before that guard existed.
         data["data"] = without_admin_only_board_fields(data.get("data"))
+        # The acting user's per-user fields (``is_starred`` on board.created /
+        # board.updated) are returned only to that user (#1705), as the socket
+        # forwards them only to the actor's own sockets. Matched on the row's
+        # ``actor_id``; a null actor or an unknown reader omits them.
+        data["data"] = without_actor_scoped_fields(
+            instance.event, data.get("data"), self.context.get("reader_id"), instance.actor_id,
+        )
         if instance.event in MODERATOR_BEARING_EVENTS:
             role = self.context.get("role")
             reader_id = self.context.get("reader_id")
