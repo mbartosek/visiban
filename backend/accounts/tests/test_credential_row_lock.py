@@ -480,6 +480,7 @@ class ResetLinkRedeemedOnceTests(TransactionTestCase):
         self.assertEqual(results["second"], 403)
 
 
+@override_settings(ROOT_URLCONF="accounts.tests.allauth_reset_urls")
 class ResetLinkRecheckTests(TestCase):
     """The reset link is re-validated on the locked row in ``save()`` (#1623); runs on every backend."""
 

@@ -1311,6 +1311,10 @@ class InviteRegisterView(RegisterView):
         except InviteTokenError as exc:
             return Response({"invite_token": [exc.detail]}, status=status.HTTP_400_BAD_REQUEST)
 
+        # The emailed-invite address check (#1678) runs in perform_create, after
+        # the form has validated and before the account is created.
+        self._invite = invite
+
         # Registration and redemption share this view's transaction, so a
         # failed registration (400) leaves the invite unconsumed and a refused
         # redemption rolls the new account back.
@@ -1329,6 +1333,22 @@ class InviteRegisterView(RegisterView):
         return response
 
     def perform_create(self, serializer):
+        # An emailed group/board invite is bound to the address it was sent to
+        # (#1678). Checked here — after the serializer has validated the whole
+        # form, so a form error reads the same whatever address was typed, and
+        # before the account exists, so a mismatch is a plain 400 that creates
+        # nothing and leaves the invite usable. The locked check at redemption
+        # re-applies it to the created account. The error is an ``email`` field
+        # error with a ``code``, not an ``invite_token`` one: the invite itself
+        # is still valid and the client should keep it.
+        invite = getattr(self, "_invite", None)
+        if invite is not None:
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+
+            from visiban.invite_recipient import MISMATCH_CODE, REGISTRATION_MISMATCH_DETAIL, signup_address_admits
+
+            if not signup_address_admits(invite, serializer.validated_data.get("email")):
+                raise DRFValidationError({"email": [REGISTRATION_MISMATCH_DETAIL], "code": MISMATCH_CODE})
         # Keep the new account so the invite can be redeemed for it;
         # dj-rest-auth's create() does not hand the user back.
         user = super().perform_create(serializer)
@@ -1381,6 +1401,56 @@ class AdminPasswordChangeRedirectView(View):
 
     def dispatch(self, request, *args, **kwargs):
         return HttpResponseRedirect(f"{settings.FRONTEND_URL.rstrip('/')}/settings")
+
+
+@method_decorator(never_cache, name="dispatch")
+class PasswordResetRedirectView(View):
+    """Send allauth's server-rendered password-reset pages to the SPA (#1554).
+
+    Mounted over ``/accounts/password/reset/``, ``.../reset/done/`` and
+    ``.../reset/key/done/`` ahead of the allauth include (``visiban/urls.py``),
+    so password reset has one implementation: the SPA's ``/forgot-password``
+    and ``/reset-password/<uid>/<token>`` pages over the REST routes. Every
+    method redirects, nothing is read from the request body or query string,
+    and the destination is built only from ``FRONTEND_URL``. The routes keep
+    allauth's URL names so ``reverse()`` and the pending-action middleware's
+    exempt-view list (decided on the resolved view name) are unchanged.
+
+    ``accounts.forms.VisibanResetPasswordKeyForm`` and the ``password_reset``
+    signal receiver stay as defense in depth for a URLconf that mounts
+    allauth's own views.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        return HttpResponseRedirect(f"{settings.FRONTEND_URL.rstrip('/')}/forgot-password")
+
+
+@method_decorator(never_cache, name="dispatch")
+class PasswordResetKeyRedirectView(PasswordResetRedirectView):
+    """``/accounts/password/reset/key/<uidb36>-<key>/``: forward a well-formed link to the SPA.
+
+    Reset emails sent earlier link here. The URL regex bounds ``uidb36`` and
+    ``key``; they go to the SPA reset route unchanged, the same uid/token pair
+    the REST confirm route redeems, so those links keep working. The response
+    is never cached and sends ``Referrer-Policy: no-referrer`` so the key does
+    not leak through a cache or the Referer header.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        response = HttpResponseRedirect(
+            f"{settings.FRONTEND_URL.rstrip('/')}/reset-password/{kwargs['uidb36']}/{kwargs['key']}"
+        )
+        response["Referrer-Policy"] = "no-referrer"
+        return response
+
+
+@method_decorator(never_cache, name="dispatch")
+class PasswordResetMalformedKeyRedirectView(PasswordResetRedirectView):
+    """Any other ``/accounts/password/reset/key/...`` path (oversized or odd characters).
+
+    Goes to ``/forgot-password`` and forwards no part of the path, so a
+    malformed link never reaches allauth's stock page.
+    """
 
 
 class VisibanSignupView(AllauthSignupView):

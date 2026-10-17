@@ -97,6 +97,13 @@ the fuzz itself ran and failed, the job files one tracking issue titled
 open. That needs a `FUZZ_DEEP_API_TOKEN` (or `KAIZEN_API_TOKEN`) CI variable with `api`
 scope. Without one, the job log shows what would have been filed.
 
+**Unobserved baseline entries (#1582).** `st run` reports only a count ("Unobserved entries: N").
+Every fuzz job also writes the JSON run report (`schemathesis-report.json`, a job artifact), and
+`after_script` runs `scripts/fuzz_baseline_unobserved.py`, which logs the id, operation and
+check of each unobserved baseline entry. It is log-only and never changes the job result. Prune an
+entry from `backend/schemathesis-baseline.json` only when both an MR-style run and the deep
+nightly list it as unobserved.
+
 **Issue Board Lens routes (`backend-schema-fuzz-git-lens`, #1338).** The `git_lens` app and
 its routes exist only with `GIT_LENS_ENABLED=true`, and `backend-schema-fuzz` runs with the flag
 off, so the lens endpoints were never fuzzed. A third job, `backend-schema-fuzz-git-lens`,
