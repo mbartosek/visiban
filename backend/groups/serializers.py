@@ -386,7 +386,12 @@ class GroupSerializer(serializers.ModelSerializer):
     }
 
     def _is_navigation_only(self, obj) -> bool:
-        """True when the viewer reaches ``obj`` only by walking up from a subgroup.
+        """True when the viewer has no membership-based access to ``obj`` itself.
+
+        That is: no membership on ``obj`` or on one of its ancestors within the
+        capped walk, and no ``can_access_all_content`` bypass. Such a group is
+        returned for navigation only, with its fields withheld; this includes a
+        group the caller owns without being a member of it.
 
         ``get_accessible_group_ids`` lists ancestors so the sidebar can show the
         path to a user's subgroup, but access inherits downward only
