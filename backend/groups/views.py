@@ -14,7 +14,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from accounts.permissions import TokenHasScope
 from visiban.authorization import invite_creator_is_valid, principal_is_active
 from visiban.permissions import MustNotHavePendingPasswordChange, MustNotHavePendingUsernameChange
-from visiban.request_shape import coerce_int_id, require_json_object
+from visiban.request_shape import coerce_int_id, optional_text, require_json_object
 from visiban.utils import get_client_ip
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -782,6 +782,8 @@ class GroupViewSet(viewsets.ModelViewSet):
             data.pop("group")
         serializer = BoardSerializer(data=data)
         serializer.is_valid(raise_exception=True)
+        # Validated before any write so a non-string value is a 400 (#1669).
+        swimlane_name = (optional_text(data, "swimlane_name") or "General")[:255]
         # Wrap the entire creation sequence in a transaction so a failure in any
         # step (column bulk_create, swimlane create, label copy, allowed_priorities
         # save) rolls back the board and membership — preventing orphaned rows.
@@ -806,7 +808,6 @@ class GroupViewSet(viewsets.ModelViewSet):
             template = resolve_board_template(serializer.validated_data.get("template", ""))
             create_template_columns(board, template)
 
-            swimlane_name = ((request.data.get("swimlane_name") or "").strip() or "General")[:255]
             Swimlane.objects.create(board=board, name=swimlane_name, position=0, color="#6B7280")
 
             # Apply group defaults: copy shared labels and allowed priorities

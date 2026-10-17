@@ -43,6 +43,27 @@ class AuthEndpointMalformedBodyTests(TestCase):
             r = self.client.post(url, {"name": "ok", "expires_at": bad}, format="json")
             self.assertEqual(r.status_code, 400, repr(bad))
 
+    def test_pat_create_expires_at_edge_cases(self):
+        url = "/api/v1/auth/tokens/"
+        # Impossible date, and falsy / non-string values (only None and "" are absent).
+        for bad in ("2026-02-30T00:00:00Z", "not-a-date", 0, False, [], {}):
+            r = self.client.post(url, {"name": "t", "expires_at": bad}, format="json")
+            self.assertEqual(r.status_code, 400, repr(bad))
+            self.assertEqual(r.json()["detail"], "Invalid expires_at value.", repr(bad))
+        for absent in (None, ""):
+            r = self.client.post(url, {"name": f"t{absent}", "expires_at": absent}, format="json")
+            self.assertEqual(r.status_code, 201, repr(absent))
+
+    def test_pat_create_naive_expires_at_is_utc(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        naive = (timezone.now() + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+        r = self.client.post("/api/v1/auth/tokens/", {"name": "n", "expires_at": naive}, format="json")
+        self.assertEqual(r.status_code, 201)
+        past = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        r = self.client.post("/api/v1/auth/tokens/", {"name": "n2", "expires_at": past}, format="json")
+        self.assertEqual(r.status_code, 400)
+
     def test_pat_create_valid_unchanged(self):
         r = self.client.post("/api/v1/auth/tokens/", {"name": "ci"}, format="json")
         self.assertEqual(r.status_code, 201)

@@ -96,8 +96,7 @@ Change a member's role. Requires group admin. Cannot modify a site admin.
 
 Valid roles: `admin`, `member`, `collaborator`, `viewer`
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
-
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). A non-numeric `{user_id}` in the path is `404`, as before.
 *(1.2+)* Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
@@ -121,7 +120,6 @@ List boards in this group. Requires group membership.
 
 ### `POST /api/v1/groups/{id}/boards/`
 
-Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (previously `500`).
 Create a board in this group. Requires group admin. Boards created here inherit the group's `shared_labels` and `allowed_priorities` automatically. The seeded `allowed_priorities` value is not enforced on cards (see [Field Enforcement](../architecture/field-enforcement.md)).
 
 **Request**
@@ -132,6 +130,8 @@ Create a board in this group. Requires group admin. Boards created here inherit 
 | `description` | No | Optional free-text description |
 | `template` | No | Template slug to pre-populate columns. Valid values match those from `GET /api/v1/boards/templates/` (e.g. `simple_kanban`, `sales_pipeline`, `customer_support`). Default: `simple_kanban`. Omitting the field (or sending `""`/`null`) uses the default; a non-blank slug that doesn't match an active template returns `400 {"code": "unknown_template", "detail": "..."}` — same validation and error shape as `POST /api/v1/boards/` (#1115). |
 | `swimlane_name` | No | Label for the swimlane axis (e.g. `"Customer"`, `"Team"`). Defaults to `"General"`; truncated to 255 characters |
+
+Since 1.2, a body that is not a JSON object, or a non-string `swimlane_name`, returns `400 Bad Request` (a non-string `swimlane_name`, and a numeric or boolean body, returned `500` before).
 
 ### `GET /api/v1/groups/{id}/descendant-boards/`
 List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.
@@ -304,8 +304,7 @@ Transfer group ownership to another user. Requires the **current owner** (not ju
 - `new_owner_id` — the user ID of the new owner; must already be a group **admin**
 - `confirmation` — must exactly match the group's name (case-sensitive) to prevent accidental transfers
 
-Since 1.2, a `new_owner_id` that is not an integer in the 64-bit range, or a body that is not a JSON object, returns `400 Bad Request` (previously `500`).
-
+Since 1.2, a `new_owner_id` that is not an integer, or is beyond the 64-bit integer range, returns `400 Bad Request` (it returned `500` before). A body that is not a JSON object was already a `400`.
 The previous owner becomes a regular admin after transfer. Returns the updated group object.
 
 **Error responses**

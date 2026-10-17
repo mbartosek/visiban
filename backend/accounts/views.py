@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import timedelta, timezone as dt_timezone
 
 from django.conf import settings
 from django.contrib import messages
@@ -1006,11 +1006,18 @@ class PersonalAccessTokenListCreateView(APIView):
 
         expires_at = None
         raw_expires = body.get("expires_at")
-        if raw_expires:
-            # parse_datetime raises TypeError on a non-string (#1669).
-            expires_at = parse_datetime(raw_expires) if isinstance(raw_expires, str) else None
+        # Only None and "" mean "no expiry"; any other non-string (0, false, [],
+        # {}) is invalid rather than silently minting a non-expiring token.
+        if raw_expires is not None and raw_expires != "":
+            try:
+                expires_at = parse_datetime(raw_expires) if isinstance(raw_expires, str) else None
+            except ValueError:  # well-formed but impossible, e.g. 2026-02-30
+                expires_at = None
             if expires_at is None:
                 return Response({"detail": "Invalid expires_at value."}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(expires_at):
+                # The API documents expires_at as UTC; a value with no offset is UTC.
+                expires_at = expires_at.replace(tzinfo=dt_timezone.utc)
             max_expiry = timezone.now() + timedelta(days=365)
             if expires_at > max_expiry:
                 return Response(

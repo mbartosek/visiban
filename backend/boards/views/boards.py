@@ -22,7 +22,7 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
-from visiban.request_shape import coerce_int_id, require_json_object
+from visiban.request_shape import coerce_int_id, optional_text, require_json_object
 
 from .. import broadcast as _broadcast
 from ..models import (
@@ -188,6 +188,8 @@ class BoardViewSet(
         # Wrap the entire creation sequence in a transaction so a failure
         # in any step (e.g. swimlane creation) rolls back the board,
         # membership, and columns — preventing orphaned records.
+        # Read before any write so a malformed swimlane_name is a clean 400 (#1669).
+        swimlane_name = optional_text(self.request.data, "swimlane_name")
         with transaction.atomic():
             board = serializer.save(owner=self.request.user)
             BoardMembership.objects.create(board=board, user=self.request.user, role=BoardMembership.Role.ADMIN)
@@ -202,7 +204,6 @@ class BoardViewSet(
             # Prefer the user-supplied swimlane name from the modal prompt;
             # no template currently defines a non-empty default, so an
             # omitted swimlane_name simply creates no swimlane.
-            swimlane_name = (self.request.data.get("swimlane_name") or "").strip()
             if swimlane_name:
                 Swimlane.objects.create(board=board, name=swimlane_name, position=0, color="#6B7280")
 

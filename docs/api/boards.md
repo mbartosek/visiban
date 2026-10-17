@@ -28,6 +28,8 @@ Create a board.
 | `description` | | Board description (default: `""`) |
 | `template` | | Template slug to use for column layout (default: `"simple_kanban"`). See `GET /api/v1/boards/templates/` for available slugs. Omitting the field (or sending `""`/`null`) uses the default; sending a non-blank slug that doesn't match an active template returns `400` — see **Errors** below. |
 | `swimlane_name` | | Name for the first swimlane. Omitting it (or sending blank) creates the board with **no** swimlane at all — no template currently supplies a non-empty default. Contrast with [`POST /groups/{id}/boards/`](groups.md#boards), which defaults an omitted value to `"General"`. |
+
+Since 1.2, a non-string `swimlane_name` returns `400 Bad Request` with the error keyed to `swimlane_name` (it returned `500` before).
 | `group` | | Integer group ID — assigns the board to this group at creation time. Since 1.2 the caller must be an admin of the group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /groups/{id}/boards/`](groups.md#boards). `null` or omitted creates a personal board. |
 
 **Errors**
@@ -125,7 +127,7 @@ List only boards the requesting user has starred.
 ### `POST /api/v1/boards/{id}/move-group/`
 Move board to a different group (or `null` for personal).
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). A `group_id` that is not an integer or is out of range is `404`, as before.
 
 **Minimum role:** Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
 
@@ -1116,7 +1118,7 @@ Creating the board broadcasts `board.created` on the same channels as the native
 ### `POST /api/v1/boards/{id}/members/`
 Add or update a board member. Requires board admin. Cannot modify a site admin's board membership (same restriction as `DELETE` below).
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Since 1.2 a `user_id` that is present but not an integer, or is beyond the 64-bit integer range, is a `400` too: a non-integer value used to answer `404` and an out-of-range one `500`. An omitted `user_id` still answers `404`.
 
 **Request** `{ "user_id": 42, "role": "member", "is_moderator": true }`
 
@@ -1428,7 +1430,7 @@ Since 1.2, if cards keep being created in, or moved into, the column while it is
 ### `POST /api/v1/boards/{id}/columns/reorder/`
 Reorder columns. Requires board admin.
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 
 **Request** `{ "order": [3, 1, 4, 2] }` — `order` must be **exactly** this board's
 current column IDs: every column once, no duplicates, and no ID from another
@@ -1533,7 +1535,7 @@ A `swimlane.updated` WebSocket event is broadcast to all connected board clients
 ### `POST /api/v1/boards/{id}/swimlanes/reorder/`
 Reorder swimlanes. Requires board admin.
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 
 **Request** `{ "order": [2, 1, 3] }` — `order` must be **exactly** this board's
 current swimlane IDs: every swimlane once, no duplicates, and no ID from another
@@ -1845,7 +1847,7 @@ with it.**
 Reorder definitions. Requires board admin. `POST` is accepted as well, matching the column
 and swimlane reorder actions.
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 
 **Request** `{ "order": [3, 1, 2] }` — custom field IDs in the new order. IDs belonging to
 another board are ignored.
@@ -1959,7 +1961,7 @@ deleted with it.**
 Reorder definitions. Requires board admin. `POST` is accepted as well, matching the column,
 swimlane, and card-custom-field reorder actions.
 
-Since 1.2, a request body that is not a JSON object, or an id that is not an integer or is outside the 64-bit range, returns `400 Bad Request` (it previously returned `500`).
+Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 
 **Request** `{ "order": [5, 3, 4] }` — swimlane custom field IDs in the new order. IDs
 belonging to another board are silently ignored rather than reordered or exposed.

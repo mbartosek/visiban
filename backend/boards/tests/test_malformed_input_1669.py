@@ -175,9 +175,24 @@ class MalformedInputTests(TestCase):
         self.assertEqual(self.client.patch(url, {"role": "viewer"}, format="json").status_code, 200)
 
     def test_board_create_non_object_body(self):
-        # boards.py perform_create / groups create_board read swimlane_name from
-        # request.data after the serializer; confirmed 400, not 500.
+        # A non-object body is rejected (serializer on POST /boards/,
+        # require_json_object on the group endpoint).
         for url in ("/api/v1/boards/", f"/api/v1/groups/{self.group.id}/boards/"):
             for bad in NON_OBJECT_BODIES:
                 r = self.client.post(url, bad, format="json")
                 self.assertTrue(400 <= r.status_code < 500, f"{url} {bad!r}: {r.status_code}")
+
+    def test_board_create_non_string_swimlane_name(self):
+        for url in ("/api/v1/boards/", f"/api/v1/groups/{self.group.id}/boards/"):
+            for bad in (5, [1], {"a": 1}, True):
+                before = Board.objects.count()
+                r = self.client.post(url, {"name": "n", "swimlane_name": bad}, format="json")
+                self.assertEqual(r.status_code, 400, f"{url} {bad!r}")
+                self.assertIn("swimlane_name", r.json())
+                self.assertEqual(Board.objects.count(), before)
+            r = self.client.post(url, {"name": "ok", "swimlane_name": " Lane "}, format="json")
+            self.assertEqual(r.status_code, 201, url)
+            self.assertEqual(
+                list(Swimlane.objects.filter(board_id=r.json()["id"]).values_list("name", flat=True)),
+                ["Lane"],
+            )

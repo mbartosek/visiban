@@ -82,7 +82,7 @@ Mark notifications as read. Requires authentication.
 
 **Response** `{ "ok": true }`
 
-Since 1.2, a body that is not a JSON object, an `ids` value that is not a list, or an entry that is not an integer in the 64-bit range returns `400 Bad Request` (previously `500`).
+Since 1.2, a body that is not a JSON object, an `ids` value that is not a list, and an `ids` entry that is not an integer within the 64-bit range return `400 Bad Request` (they returned `500` before).
 
 ---
 

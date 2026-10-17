@@ -32,6 +32,20 @@ def require_json_object(request):
     return data
 
 
+def optional_text(body, field):
+    """Return ``body[field]`` stripped, ``""`` when absent/blank, else raise a 400.
+
+    For optional free-text fields read straight off ``request.data`` (outside
+    a serializer). A truthy non-string would raise AttributeError on
+    ``.strip()``; it is a field-keyed 400 instead. Falsy values keep their
+    long-standing meaning of "not supplied".
+    """
+    value = body.get(field) or ""
+    if not isinstance(value, str):
+        raise ValidationError({field: "Must be a string."})
+    return value.strip()
+
+
 def coerce_int_id(value, field="id"):
     """Return ``value`` as an int, or raise a 400 naming ``field``.
 
