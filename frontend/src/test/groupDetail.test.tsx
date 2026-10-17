@@ -140,7 +140,7 @@ const fakeGroup: Group = {
   parent: null, parent_name: null,
   member_count: 2, board_count: 1, subgroup_count: 0, created_at: '',
   default_board_member_role: 'member', allowed_priorities: [], shared_labels: [],
-  is_starred: false,
+  is_starred: false, navigation_only: false,
 }
 
 function renderGroupDetail(locationState?: Record<string, unknown>, user: User = fakeUser) {
@@ -166,6 +166,23 @@ describe('GroupDetail', () => {
     mockGetGroupDescendantBoards.mockResolvedValue([])
     mockStarGroup.mockResolvedValue({})
     mockUnstarGroup.mockResolvedValue({})
+  })
+
+  it('hides counts on a navigation-only subgroup card (#1681)', async () => {
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([
+      { ...fakeGroup, id: 2, name: 'Full Sub', parent: 1, board_count: 4, member_count: 3 },
+      {
+        ...fakeGroup, id: 3, name: 'Edge Sub', parent: 1, navigation_only: true,
+        board_count: 0, member_count: 0,
+      },
+    ])
+    mockGetGroupBoards.mockResolvedValue([])
+    renderGroupDetail()
+    expect(await screen.findByText('Edge Sub')).toBeInTheDocument()
+    expect(screen.getByText(/4 boards · 3 members/)).toBeInTheDocument()
+    expect(screen.queryByText(/0 boards · 0 members/)).not.toBeInTheDocument()
   })
 
   it('shows loading state', () => {
@@ -874,6 +891,30 @@ describe('GroupDetail', () => {
 
       fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
     }
+
+    it('shows the allowed-priorities control and header counts for a full group', async () => {
+      await loadAndSwitchToSettings()
+      expect(await screen.findByText('Allowed priorities on new boards')).toBeInTheDocument()
+      expect(screen.getByText(/2 members/)).toBeInTheDocument()
+    })
+
+    it('hides allowed priorities and header counts for a navigation-only group (#1681)', async () => {
+      mockGetGroup.mockResolvedValue({
+        ...fakeGroup,
+        navigation_only: true,
+        member_count: 0, board_count: 0, subgroup_count: 0,
+        allowed_priorities: [], shared_labels: [],
+      })
+      mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+      mockGetSubgroups.mockResolvedValue([])
+      mockGetGroupBoards.mockResolvedValue([])
+      renderGroupDetail()
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+      expect(await screen.findByText('Board defaults')).toBeInTheDocument()
+      expect(screen.queryByText('Allowed priorities on new boards')).not.toBeInTheDocument()
+      expect(screen.queryByText(/0 members/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/0 boards/)).not.toBeInTheDocument()
+    })
 
     it('switching to Settings tab renders the Board defaults section heading', async () => {
       await loadAndSwitchToSettings()

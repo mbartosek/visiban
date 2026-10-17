@@ -85,12 +85,14 @@ function GroupNode({
         {/* Name */}
         <span className="text-fg text-sm font-medium flex-1 min-w-0 truncate">{group.name}</span>
 
-        {/* Stats */}
-        <span className="text-fg-muted text-xs shrink-0 tabular-nums">
-          {group.board_count} board{group.board_count !== 1 ? "s" : ""}
-          {" · "}
-          {group.member_count} member{group.member_count !== 1 ? "s" : ""}
-        </span>
+        {/* Stats — withheld (0) for a navigation-only ancestor, so not shown (#1681) */}
+        {!group.navigation_only && (
+          <span className="text-fg-muted text-xs shrink-0 tabular-nums">
+            {group.board_count} board{group.board_count !== 1 ? "s" : ""}
+            {" · "}
+            {group.member_count} member{group.member_count !== 1 ? "s" : ""}
+          </span>
+        )}
 
         {/* Add subgroup button — visible on hover */}
         <button

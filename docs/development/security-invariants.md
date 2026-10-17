@@ -93,7 +93,7 @@ re-checks.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| REST | `boards/permissions.py` `get_board_role`; `groups/models.py` `user_has_group_access` (group endpoints) | Role resolved from current membership on every request |
+| REST | `boards/permissions.py` `get_board_role`; `groups/models.py` `user_has_group_access` (group endpoints), `group_access_resolver` (its bulk form, used by `GroupSerializer` for the group list and retrieve) | Role resolved from current membership on every request; an ancestor group listed for navigation but not covered by the predicate is serialized navigation-only (`GroupSerializer._NAVIGATION_ONLY_EMPTY`); a `GroupSerializer` with no viewer in its context also renders navigation-only, and full-detail callers opt out with `full_group_access` (`groups/tests/test_group_serializer_context_guard.py` requires every construction to pass `context`) |
 | REST authentication | `PATAuthentication`; DRF `SessionAuthentication`, `TokenAuthentication` | Each checks `user.is_active` on every request |
 | Login and session issuance | `accounts/views.py` `ThrottledLoginView`; `accounts/backends.py` `EmailBackend` | `user_can_authenticate` refuses inactive users at login; allauth `respond_user_inactive` handles existing social accounts |
 | Personal access tokens and DRF auth token | `accounts/admin_views.py` `AdminUserDeactivateView._revoke_invite_links` | Deletes the user's PATs and DRF auth `Token` (`accounts/credentials.py` `revoke_auth_token`); invoked by `AdminUserDeactivateView.post` and by `AdminUserDetailView.patch` when `is_active` becomes false |

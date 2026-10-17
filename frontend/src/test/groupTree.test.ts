@@ -14,6 +14,7 @@ function makeGroup(id: number, parent: number | null = null): Group {
     parent, parent_name: null, member_count: 0, board_count: 0,
     subgroup_count: 0, created_at: '', default_board_member_role: 'member',
     allowed_priorities: [], shared_labels: [], is_starred: false,
+    navigation_only: false,
   }
 }
 

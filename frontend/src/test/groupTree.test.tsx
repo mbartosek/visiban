@@ -29,7 +29,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     parent: null, parent_name: null,
     member_count: 3, board_count: 2, subgroup_count: 0, created_at: '',
     default_board_member_role: 'member', allowed_priorities: [], shared_labels: [],
-    is_starred: false,
+    is_starred: false, navigation_only: false,
     ...overrides,
   }
 }
@@ -100,6 +100,20 @@ describe('GroupTree', () => {
     )
     expect(screen.getByText(/3 boards/)).toBeInTheDocument()
     expect(screen.getByText(/5 members/)).toBeInTheDocument()
+  })
+
+  it('hides stats for a navigation-only ancestor group (#1681)', () => {
+    const nodes = buildGroupTree([
+      makeGroup({ navigation_only: true, board_count: 0, member_count: 0 }),
+    ])
+    render(
+      <MemoryRouter>
+        <GroupTree nodes={nodes} onGroupCreated={vi.fn()} />
+      </MemoryRouter>
+    )
+    expect(screen.getByText('Engineering')).toBeInTheDocument()
+    expect(screen.queryByText(/0 boards/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 members/)).not.toBeInTheDocument()
   })
 
   it('expands children when the chevron is clicked', async () => {
