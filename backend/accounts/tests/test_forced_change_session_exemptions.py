@@ -44,6 +44,7 @@ from django.urls import re_path
 from accounts.checks import (
     check_pending_action_extra_exempt_views,
     check_pending_action_extra_exempt_views_not_oss_gated,
+    check_operator_changepassword_command,
     check_pending_action_middleware_installed,
 )
 from accounts.models import SiteSetting, User
@@ -736,3 +737,24 @@ class MiddlewareOrderingTests(TestCase):
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()["code"], DEMO_READ_ONLY_CODE)
         self.assertEqual(client.get("/accounts/email/")["Location"], FRONTEND)
+
+
+class OperatorChangepasswordCheckTests(SimpleTestCase):
+    def test_project_settings_pass(self):
+        self.assertEqual(check_operator_changepassword_command(None), [])
+
+    def test_django_builtin_provider_fails(self):
+        with mock.patch("django.core.management.get_commands", return_value={"changepassword": "django.contrib.auth"}):
+            errors = check_operator_changepassword_command(None)
+        self.assertEqual([e.id for e in errors], ["accounts.E008"])
+
+    def test_missing_command_fails(self):
+        with mock.patch("django.core.management.get_commands", return_value={}):
+            errors = check_operator_changepassword_command(None)
+        self.assertEqual([e.id for e in errors], ["accounts.E008"])
+
+    def test_check_is_registered(self):
+        from django.core import checks
+
+        registered = checks.registry.registry.get_checks(include_deployment_checks=True)
+        self.assertIn(check_operator_changepassword_command, registered)
