@@ -42,8 +42,7 @@ recorded forced-change decision (`gated` or `exempt: <reason>`) that the
 middleware keeps for each pending flag.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist), Rule 5, or Rule 6
-(whose enumeration test is tracked in #1693), and it
+enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
 does not test locking; the concurrent tests for each consume-once path do.
 [Authorization Entry Points](authorization-entry-points.md) says what each
 entry point calls and how that test finds them.
@@ -224,8 +223,8 @@ it is intentionally outside the enumeration. The API rows are covered per
 surface: create in group by `groups/tests/test_groups.py`
 `test_non_admin_cannot_create_board_in_group`, the board `group` field by
 `boards/tests/test_board_group_field_validation.py`, and move group and the
-imports by `boards/tests/test_group_placement_roles.py`. The enumeration test
-that checks every surface in this table is tracked in #1693.
+imports by `boards/tests/test_group_placement_roles.py`. The entry-point test
+(`GroupPlacementEntryPointTests`) checks every surface in this table.
 
 ## Rule 8: Per-recipient event fields are gated on every broadcast and replay surface
 
@@ -298,10 +297,9 @@ shared-helper identity check), `boards/tests/test_consumer_role_refresh.py`, and
    `boards/tests/test_import_user_scope.py` covers it. Rule 6 is not in that
    position: its API surfaces are several call sites of a shared check
    (`_require_group_admin`, directly or through
-   `resolve_group_for_board_placement`), so it needs the enumeration test and
-   does not have it yet; that test is tracked in #1693. Until then the
-   per-surface tests listed under Rule 6 are the coverage. The Django admin
-   form is a separate, staff-only exception.
+   `resolve_group_for_board_placement`), so the test finds every function that
+   writes `Board.group` and requires it to call the check or be allowlisted.
+   The Django admin form is a separate, staff-only exception.
 6. Keep gap tracking out of this page. A surface that needs work is an issue,
    not a row annotation.
 

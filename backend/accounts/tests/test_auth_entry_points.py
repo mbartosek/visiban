@@ -26,6 +26,11 @@ not route through that definition:
   invite up by its token calls ``invite_creator_is_valid`` (or a registration
   refusal function pinned to it), and the pinned call sites in
   ``REQUIRED_SHARED_CALLS`` make their shared calls (checked with ``ast``).
+- **Group placement** — every function in the installed apps that writes
+  `Board.group` calls the shared group-admin check (`_require_group_admin`,
+  `resolve_group_for_board_placement`) or is in `GROUP_PLACEMENT_ALLOWLIST` with
+  a reason; every writable `group` field on a `Board` serializer validates
+  through it (Rule 6).
 - **allauth adapter** — the configured adapters are the project's, the signup
   hooks allauth calls are overridden there, and the account-matching and
   registration paths call the shared functions.
@@ -2075,3 +2080,250 @@ class InviteRedemptionCallSiteTests(SimpleTestCase):
     def test_negative_a_vanished_function_is_reported(self):
         failures = required_call_violations({f"{__name__}.no_such_function_1517": frozenset({"x"})})
         self.assertIn("no longer exists", failures[0])
+
+
+# ---------------------------------------------------------------------------
+# Placing a board in a group (Rule 6, #1693)
+# ---------------------------------------------------------------------------
+
+#: A function that writes ``Board.group`` must call one of these. The first two
+#: are the shared check in ``groups/views.py``; ``_check_group_change`` is the
+#: serializer's wrapper around it; ``_resolve_import_group`` is the import
+#: mixin's wrapper around ``resolve_group_for_board_placement`` (pinned below).
+GROUP_PLACEMENT_CHECK_CALLS: frozenset = frozenset(
+    {
+        "_require_group_admin",
+        "resolve_group_for_board_placement",
+        "_check_group_change",
+        "_resolve_import_group",
+    }
+)
+
+#: The wrappers above must really reach the shared check, or a site calling
+#: one would count as checked while enforcing nothing.
+GROUP_PLACEMENT_PINS: dict[str, frozenset] = {
+    "groups.views.resolve_group_for_board_placement": frozenset({"_require_group_admin"}),
+    "boards.views.import_export.BoardImportExportMixin._resolve_import_group": frozenset(
+        {"resolve_group_for_board_placement"}
+    ),
+    "boards.serializers.BoardSerializer._check_group_change": frozenset({"_require_group_admin"}),
+    "boards.serializers.BoardSerializer.validate_group": frozenset({"_check_group_change"}),
+    # Trello import takes the group as an argument, so its entry point must
+    # resolve it (execute_plan is allowlisted below on that basis).
+    "boards.views.import_export.BoardImportExportMixin.import_trello": frozenset({"_resolve_import_group"}),
+}
+
+#: Functions that write a ``group`` or ``group_id`` attribute, or pass
+#: ``group=`` to a save/create, without going through the shared check, each
+#: with the reason that is safe. Keyed by the function's qualified name. A stale
+#: entry fails ``test_group_placement_allowlist_has_no_stale_entries``.
+GROUP_PLACEMENT_ALLOWLIST: dict[str, str] = {
+    "boards.services.trello_import.execute_plan": (
+        "Receives the group from import_trello, which resolves it through "
+        "_resolve_import_group (pinned in GROUP_PLACEMENT_PINS)."
+    ),
+    "boards.management.commands.seed_demo_data.Command._create_demo_group": (
+        "Management command run by an operator with shell access; no request user to authorize."
+    ),
+    "groups.consumers.GroupConsumer.connect": "Stores the group id the WebSocket connected to; writes no Board.",
+    "groups.admin.TransferOwnershipForm.__init__": "Stores the form's Group instance; writes no Board.",
+    "groups.views.GroupViewSet.group_labels": (
+        "serializer.save(group=group) on a GroupLabelSerializer; writes a GroupLabel, not a Board."
+    ),
+}
+
+_GROUP_ATTRS = ("group", "group_id")
+_WRITE_CALLS = frozenset({"create", "get_or_create", "update_or_create", "bulk_create", "save", "update"})
+
+
+def _group_write_reason(node) -> str | None:
+    """Why *node* writes ``Board.group``, or None. Syntactic and deliberately
+    broad: any ``.group``/``.group_id`` assignment, ``Board(group=...)``,
+    ``Board.objects....create/update(group=...)`` and any ``.save(group=...)``
+    or ``.update(group=...)`` (a serializer or queryset of unknown model)."""
+    if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr in _GROUP_ATTRS:
+                return f"assigns .{target.attr}"
+    if isinstance(node, ast.Call) and any(k.arg in _GROUP_ATTRS for k in node.keywords):
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        root = _chain_root(node)
+        if name == "Board" or (root == "Board" and name in _WRITE_CALLS):
+            return f"calls Board {name}(group=...)"
+        if name in ("save", "update"):
+            return f"calls .{name}(group=...)"
+    return None
+
+
+def group_write_sites(tree, module_name):
+    """``(qualname, reason, function_node)`` for each function (innermost) in
+    *tree* with a Board.group write. Module-level writes are ``<module>``."""
+    found = []
+
+    def visit(node, stack, owner):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, stack + [child.name], owner)
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                visit(child, stack + [child.name], (".".join([module_name, *stack, child.name]), child))
+            else:
+                reason = _group_write_reason(child)
+                if reason is not None:
+                    found.append((owner[0] if owner else f"{module_name}.<module>", reason, owner[1] if owner else child))
+                visit(child, stack, owner)
+
+    visit(tree, [], None)
+    # Collapse to one entry per function.
+    unique = {}
+    for qual, reason, fn in found:
+        unique.setdefault(qual, (qual, reason, fn))
+    return list(unique.values())
+
+
+def group_placement_violations(sites, allowlist) -> list[str]:
+    failures = []
+    for qual, reason, fn in sites:
+        if qual in allowlist or GROUP_PLACEMENT_CHECK_CALLS & _called_names_in_tree(fn):
+            continue
+        failures.append(
+            f"{qual} {reason} without calling the shared group-admin check "
+            f"({sorted(GROUP_PLACEMENT_CHECK_CALLS)}). Route it through "
+            "groups.views.resolve_group_for_board_placement / _require_group_admin, or add it to "
+            "GROUP_PLACEMENT_ALLOWLIST with the reason it is safe."
+        )
+    return failures
+
+
+def discover_group_write_sites():
+    sites = []
+    for module_name, path in _project_modules():
+        sites.extend(group_write_sites(ast.parse(path.read_text(encoding="utf-8")), module_name))
+    return sites
+
+
+def _board_serializers():
+    from boards.models import Board
+    from rest_framework import serializers as drf_serializers
+
+    seen, stack = [], [drf_serializers.ModelSerializer]
+    while stack:
+        cls = stack.pop()
+        for sub in cls.__subclasses__():
+            stack.append(sub)
+            meta = getattr(sub, "Meta", None)
+            if getattr(meta, "model", None) is Board and sub not in seen:
+                seen.append(sub)
+    return seen
+
+
+def writable_group_serializer_violations(serializer_classes) -> list[str]:
+    failures = []
+    for cls in serializer_classes:
+        field = cls().fields.get("group")
+        if field is None or field.read_only:
+            continue
+        validate = getattr(cls, "validate_group", None)
+        if validate is None or "_check_group_change" not in _called_names(validate):
+            failures.append(
+                f"{cls.__module__}.{cls.__qualname__} exposes a writable 'group' field but its "
+                "validate_group does not call _check_group_change (the group-admin check)."
+            )
+    return failures
+
+
+class GroupPlacementEntryPointTests(SimpleTestCase):
+    """Rule 6: every write of ``Board.group`` goes through the shared check."""
+
+    def test_discovery_finds_the_known_write_sites(self):
+        quals = {q for q, _, _ in discover_group_write_sites()}
+        for expected in (
+            "boards.views.boards.BoardViewSet.move_group",
+            "groups.views.GroupViewSet.boards",
+            "boards.services.trello_import.execute_plan",
+        ):
+            self.assertIn(expected, quals)
+
+    def test_every_group_write_goes_through_the_shared_check(self):
+        failures = group_placement_violations(discover_group_write_sites(), GROUP_PLACEMENT_ALLOWLIST)
+        self.assertEqual(failures, [], "\n".join(failures))
+
+    def test_group_placement_allowlist_has_no_stale_entries(self):
+        quals = {q for q, _, _ in discover_group_write_sites()}
+        self.assertEqual(sorted(set(GROUP_PLACEMENT_ALLOWLIST) - quals), [])
+        for qual, why in GROUP_PLACEMENT_ALLOWLIST.items():
+            self.assertTrue(why.strip(), qual)
+
+    def test_wrappers_reach_the_shared_check(self):
+        failures = required_call_violations(GROUP_PLACEMENT_PINS)
+        self.assertEqual(failures, [], "\n".join(failures))
+
+    def test_every_writable_board_group_serializer_field_is_checked(self):
+        serializer_classes = _board_serializers()
+        names = {c.__name__ for c in serializer_classes}
+        self.assertIn("BoardSerializer", names)
+        failures = writable_group_serializer_violations(serializer_classes)
+        self.assertEqual(failures, [], "\n".join(failures))
+
+    # -- Negative tests.
+
+    _UNGUARDED = textwrap.dedent(
+        """
+        class NewView:
+            def attach(self, request, board):
+                board.group = Group.objects.get(pk=request.data["group"])
+                board.save()
+
+            def create_it(self, request):
+                return Board.objects.create(name="x", group_id=request.data["g"])
+
+            def checked(self, request, board):
+                board.group = resolve_group_for_board_placement(request.user, 1)
+
+            def relabel(self, serializer):
+                serializer.save(group=None)
+
+        Board.objects.filter(pk=1).update(group=None)
+        """
+    )
+
+    def test_negative_unguarded_write_sites_are_reported(self):
+        sites = group_write_sites(ast.parse(self._UNGUARDED), "synthetic")
+        self.assertEqual(
+            {q for q, _, _ in sites},
+            {
+                "synthetic.NewView.attach",
+                "synthetic.NewView.create_it",
+                "synthetic.NewView.checked",
+                "synthetic.NewView.relabel",
+                "synthetic.<module>",
+            },
+        )
+        failures = group_placement_violations(sites, {})
+        self.assertEqual(len(failures), 4, failures)
+        self.assertFalse(any("NewView.checked" in f for f in failures))
+
+    def test_negative_an_allowlisted_site_is_not_reported(self):
+        sites = group_write_sites(ast.parse(self._UNGUARDED), "synthetic")
+        failures = group_placement_violations(sites, {"synthetic.NewView.attach": "reason"})
+        self.assertFalse(any("NewView.attach" in f for f in failures))
+
+    def test_negative_a_writable_group_field_without_the_check_is_reported(self):
+        from rest_framework import serializers as drf_serializers
+
+        from boards.models import Board
+
+        class Unchecked(drf_serializers.ModelSerializer):
+            class Meta:
+                model = Board
+                fields = ["id", "group"]
+
+        try:
+            failures = writable_group_serializer_violations([Unchecked])
+        finally:
+            # Subclass registry is weak, but drop the reference explicitly so
+            # the discovery test never sees this class.
+            del Unchecked
+        self.assertEqual(len(failures), 1, failures)
+        self.assertIn("validate_group", failures[0])
