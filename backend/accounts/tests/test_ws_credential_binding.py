@@ -367,9 +367,9 @@ class WsOriginWildcardHostsCheckTests(TestCase):
     """accounts.W002: recommend exact hostnames when ALLOWED_HOSTS has wildcards (#1687)."""
 
     def _check(self):
-        from accounts.checks import check_ws_origin_wildcard_hosts_without_origins
+        from accounts.checks import check_wildcard_allowed_hosts
 
-        return check_ws_origin_wildcard_hosts_without_origins(None)
+        return check_wildcard_allowed_hosts(None)
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
     def test_star_warns(self):
@@ -402,14 +402,32 @@ class WsOriginWildcardHostsCheckTests(TestCase):
         self.assertEqual(self._check(), [])
 
     def test_default_settings_values_are_clean(self):
-        # The shipped default ALLOWED_HOSTS is exact loopback names.
-        with override_settings(DEBUG=False, ALLOWED_HOSTS=["localhost", "127.0.0.1"]):
+        # Read the shipped default out of settings.py itself (the `default=`
+        # of the ALLOWED_HOSTS env.list call) so a change to it is caught.
+        import ast
+        from pathlib import Path
+
+        import visiban.settings as settings_module
+
+        tree = ast.parse(Path(settings_module.__file__).read_text())
+        default = None
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "ALLOWED_HOSTS" for t in node.targets)
+                and isinstance(node.value, ast.Call)
+            ):
+                for kw in node.value.keywords:
+                    if kw.arg == "default":
+                        default = ast.literal_eval(kw.value)
+        self.assertIsNotNone(default)
+        with override_settings(DEBUG=False, ALLOWED_HOSTS=default):
             self.assertEqual(self._check(), [])
 
     def test_registered_under_the_security_tag(self):
         from django.core import checks
 
-        from accounts.checks import check_ws_origin_wildcard_hosts_without_origins as fn
+        from accounts.checks import check_wildcard_allowed_hosts as fn
 
         self.assertIn(fn, checks.registry.registry.get_checks(include_deployment_checks=False))
         self.assertIn(checks.Tags.security, fn.tags)
