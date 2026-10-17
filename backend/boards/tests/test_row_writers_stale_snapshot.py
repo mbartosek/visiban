@@ -303,6 +303,37 @@ class AdminSaveOldGroupTests(_RaceBase):
         self.assertEqual(created, [g2.pk, g3.pk], calls)
 
 
+class RestDeleteOldGroupTests(_RaceBase):
+    """BoardViewSet.destroy notifies the group the board was in when deleted."""
+
+    def test_rest_delete_behind_a_move_sends_board_deleted_to_the_group_it_was_in(self):
+        """BoardViewSet.destroy reads the group from the locked row (#1712):
+        get_object() ran before the lock, so a move-group committing meanwhile
+        must not leave board.deleted going to the group the board had left."""
+        g1, g2 = (self._admin_group(n) for n in ("R1", "R2"))
+        Board.objects.filter(pk=self.board.pk).update(group=g1)
+        calls = []
+        lock = threading.Lock()
+
+        def record(group_id, event, payload):
+            with lock:
+                calls.append((group_id, event))
+
+        with patch("boards.views.boards._broadcast_group_event", side_effect=record):
+            moved, deleted = self._race(
+                "boards.views.boards.lock_board_row_or_404",
+                lambda: self._client().post(
+                    f"{self.base}/move-group/", {"group_id": g2.pk}, format="json"
+                ),
+                lambda: self._client().delete(f"{self.base}/"),
+            )
+        self.assertEqual(moved.status_code, 200)
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", b"")[:300])
+        self.assertFalse(Board.objects.filter(pk=self.board.pk).exists())
+        told = [g for g, e in calls if e == _broadcast.EVT_BOARD_DELETED]
+        self.assertEqual(told, [g1.pk, g2.pk], calls)
+
+
 @_PLAIN_STATIC
 class AdminDeleteOldGroupTests(_RaceBase):
     """BoardAdmin.delete_model reads the board's group under the board row
