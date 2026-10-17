@@ -4138,7 +4138,7 @@ write the same data over MCP, a socket, an invite link or an import.</p>
 <tr>
 <td>Django admin</td>
 <td><code>/admin/</code> (<code>django.contrib.admin.site</code>); <code>accounts/admin.py</code> <code>VisibanUserAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code></td>
-<td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page. The Group admin (<code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>) is limited to active superusers for list, view, add, change, delete and app-index visibility (#1617; <code>accounts/tests/test_admin_group_restrictions.py</code>)</td>
+<td>Django's <code>AdminSite</code> requires an active staff user; <code>PendingAccountActionMiddleware</code> applies the forced-change gates to every admin view the same way as for <code>/accounts/</code>, with <code>/admin/logout/</code> the only exception. <code>/admin/password_change/</code> redirects to the SPA's Settings page. The Group admin (<code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>) is limited to active superusers for list, view, add, change, delete and app-index visibility (#1617; <code>accounts/tests/test_admin_group_restrictions.py</code>). The workspace group admin (<code>groups/admin.py</code> <code>GroupAdmin</code>) is likewise limited to active superusers and is read-only apart from its "Transfer ownership" action (<code>groups/tests/test_admin_transfer_ownership.py</code>)</td>
 </tr>
 <tr>
 <td>Django admin (email, login identity and API token models)</td>
@@ -4399,9 +4399,9 @@ access described in Rule 2.</p>
 <td>Invalid or expired token clears <code>PENDING_INVITE_SESSION_KEY</code></td>
 </tr>
 <tr>
-<td>Grants edited in the Django admin (group permissions, board membership <code>role</code> and <code>is_moderator</code>, board <code>owner</code> and <code>group</code>, site settings)</td>
-<td><code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>, <code>SiteSettingAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code>, <code>BoardAdmin</code></td>
-<td>A revocation committed by any route (the REST API, another admin form) is not undone by a later save of a form rendered before it: the save writes only the fields the administrator changed, and a form whose <code>row_version</code> no longer matches the stored record is refused (<code>visiban/admin_row_version.py</code>)</td>
+<td>Grants edited in the Django admin (group permissions, board membership <code>role</code> and <code>is_moderator</code>, board <code>owner</code> and <code>group</code>, workspace group <code>owner</code>, site settings)</td>
+<td><code>accounts/admin.py</code> <code>SuperuserOnlyGroupAdmin</code>, <code>SiteSettingAdmin</code>; <code>boards/admin.py</code> <code>BoardMembershipAdmin</code>, <code>BoardAdmin</code>; <code>groups/admin.py</code> <code>GroupAdmin</code></td>
+<td><code>groups.admin.GroupAdmin</code> is superuser-only and read-only (no change form, so the row-version text below does not apply to it); its one write, the "Transfer ownership" action, runs <code>groups.services.transfer_group_ownership</code> (shared with the REST endpoint) under row locks, guarded by <code>expected_owner_id</code> (the owner recorded in the rendered confirm form, so a stale page is refused and moves nothing), and is recorded in the admin log. A revocation committed by any route (the REST API, another admin form) is not undone by a later save of a form rendered before it: the save writes only the fields the administrator changed, and a form whose <code>row_version</code> no longer matches the stored record is refused (<code>visiban/admin_row_version.py</code>)</td>
 </tr>
 </tbody>
 </table>

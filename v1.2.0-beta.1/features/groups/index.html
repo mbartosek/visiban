@@ -4278,6 +4278,7 @@
 <h2 id="transferring-group-ownership">Transferring group ownership<a class="headerlink" href="#transferring-group-ownership" title="Permanent link">&para;</a></h2>
 <p>Only the <strong>current owner</strong> of a group can transfer ownership, and only to an existing group <strong>admin</strong>. Confirm the transfer by typing the group name exactly as shown.</p>
 <p>After transfer, the previous owner becomes a regular admin — not removed from the group.</p>
+<p>If the owner has left or been deactivated, a superuser can transfer the group from the Django admin; see <a href="../../administration/django-admin/#transferring-a-groups-ownership">Transferring a group's ownership</a>.</p>
 <p><strong>API:</strong> <code>POST /api/v1/groups/{id}/transfer-ownership/</code> with <code>{ "new_owner_id": 42, "confirmation": "Group Name" }</code></p>
 <h2 id="starring-groups">Starring groups<a class="headerlink" href="#starring-groups" title="Permanent link">&para;</a></h2>
 <p>The star button (☆/★) in the group detail page header lets you mark frequently-visited groups as favorites. Starred groups appear in a <strong>Favorite Groups</strong> section at the top of the sidebar for quick access. The star updates optimistically and rolls back on failure.</p>
