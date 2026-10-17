@@ -421,6 +421,7 @@ Move a card to a new column/swimlane/position. Creates a `CardMovement` record i
 |---|---|---|
 | `moved_by` | object | User who performed the move — `{ id, username, display_name, avatar_url }` |
 | `movement_type` | string | Always `"move"` for explicit card moves via this endpoint |
+| `imported_from_username` | string / null | *Since 1.2.* Always `null` here; set only on records created by a board import with history (see the history endpoints below) |
 | `notes` | string | Optional notes recorded at move time (empty string by default) |
 
 The `movement` key is **absent** from the response when only the position changed within the same cell (no column or swimlane change) — a `CardMovement` record is created, and the `movement` key included, only when the card actually changes column or swimlane.
@@ -458,7 +459,7 @@ The `*_uid` fields in the movement record are permanent — they remain set even
 ## History
 
 ### `GET /api/v1/boards/{board_id}/cards/{id}/movements/`
-Full movement history for a card. Each record includes `card_uid`, `card_title`, `from_column_uid`, `to_column_uid`, `from_swimlane_uid`, and `to_swimlane_uid` in addition to the FK and name fields. UID fields are stable across column/swimlane renames and deletions. See [Stable UIDs](../features/stable-uids.md).
+Full movement history for a card. Each record includes `card_uid`, `card_title`, `from_column_uid`, `to_column_uid`, `from_swimlane_uid`, and `to_swimlane_uid` in addition to the FK and name fields, and since 1.2 `imported_from_username` (see the activities table below). UID fields are stable across column/swimlane renames and deletions. See [Stable UIDs](../features/stable-uids.md).
 
 ### `GET /api/v1/boards/{board_id}/cards/{id}/activities/`
 Activity log (field changes, comments, attachments, checklist events).
@@ -471,6 +472,7 @@ Activity log (field changes, comments, attachments, checklist events).
 | `to_value` | string | |
 | `actor` | object \| `null` | User who triggered the event, or `null` if that user has since been deleted |
 | `created_at` | string | ISO 8601 timestamp |
+| `imported_from_username` | string \| `null` | *Since 1.2.* `null` unless the entry was created by a board import with history; then `actor` is the importing user and this is the username the import file named (`""` when it named nobody). History imported by earlier versions carries `null`, since the original name was not kept. See [Imported history](../features/card-history.md#imported-history) |
 
 ```json
 [
@@ -480,7 +482,8 @@ Activity log (field changes, comments, attachments, checklist events).
     "from_value": "To Do",
     "to_value": "In Progress",
     "actor": { "id": 3, "username": "jordan", "display_name": "Jordan Lee", "avatar_url": null },
-    "created_at": "2026-09-20T14:03:11Z"
+    "created_at": "2026-09-20T14:03:11Z",
+    "imported_from_username": null
   }
 ]
 ```
@@ -577,6 +580,7 @@ Use this endpoint when you need a single list combining moves, comments, field e
 | `ts` | string | ISO 8601 timestamp — `moved_at` for movements, `created_at` for activities |
 | `actor` | object / null | User who triggered the event — `{ id, username, display_name, avatar_url }`. `null` for system-generated events |
 | `event_type` | string | Concrete event type (see group mapping table above). For `kind: "move"` entries this is the `movement_type` value (e.g. `"move"`, `"archived"`, `"unarchived"`) |
+| `imported_from_username` | string / null | *Since 1.2.* The underlying record's `imported_from_username` — `null` unless it came from a board import with history |
 | `data` | object | Raw fields from the underlying record. Shape differs by `kind` — see examples above. `move` entries include column/swimlane FK IDs, names, timestamp, type, and notes. `activity` entries include `event_type`, `from_value`, and `to_value`. |
 
 **Errors**

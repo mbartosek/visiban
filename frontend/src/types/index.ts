@@ -642,6 +642,13 @@ export interface CardMovement {
   moved_at: string;
   notes: string;
   movement_type: "move" | "archived" | "unarchived";
+  /**
+   * Set only on a row created by a board import with history (#1675):
+   * `moved_by` is then the importer and this is the username the import file
+   * named (`""` when it named nobody). `null` on every other row, including
+   * history imported by earlier versions (the original name was not kept).
+   */
+  imported_from_username: string | null;
 }
 
 export type CardActivityEventType =
@@ -667,6 +674,8 @@ export interface CardActivity {
   to_value: string;
   actor: BoardUser | null;
   created_at: string;
+  /** See `CardMovement.imported_from_username` (#1675). */
+  imported_from_username: string | null;
 }
 
 export interface CardTimelineEntry {
@@ -676,6 +685,8 @@ export interface CardTimelineEntry {
   actor: BoardUser | null;
   event_type: string;
   data: Record<string, unknown>;
+  /** See `CardMovement.imported_from_username` (#1675). */
+  imported_from_username: string | null;
 }
 
 export interface CardComment {

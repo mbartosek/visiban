@@ -69,6 +69,7 @@ function makeMovement(overrides: Partial<CardMovement> = {}): CardMovement {
     moved_at: '2026-03-20T10:00:00Z',
     notes: '',
     movement_type: 'move',
+    imported_from_username: null,
     ...overrides,
   }
 }
@@ -286,6 +287,42 @@ describe('MovementHistoryView — slide-in panel', () => {
     await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
     expect(screen.getAllByText('Todo').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Done').length).toBeGreaterThan(0)
+  })
+})
+
+describe('MovementHistoryView — imported rows (#1675)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMovements.mockResolvedValue({
+      results: [makeMovement({ imported_from_username: 'carol' })],
+      count: 1,
+    })
+  })
+
+  it('shows the source name under the mover in the table and in the panel', async () => {
+    renderView()
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    const cellNote = screen.getByText('imported, originally carol')
+    expect(cellNote).toHaveAttribute('title', 'imported, originally carol')
+    fireEvent.click(row)
+    await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
+    expect(screen.getByText(/· imported, originally carol/)).toBeInTheDocument()
+  })
+
+  it('says "imported" when the file named nobody', async () => {
+    mockGetMovements.mockResolvedValue({
+      results: [makeMovement({ imported_from_username: '' })],
+      count: 1,
+    })
+    renderView()
+    await waitFor(() => expect(screen.getByText('imported')).toBeInTheDocument())
+  })
+
+  it('shows no note on a row recorded on the board', async () => {
+    mockGetMovements.mockResolvedValue({ results: [makeMovement()], count: 1 })
+    renderView()
+    await waitFor(() => screen.getByTestId('history-row'))
+    expect(screen.queryByText(/imported/)).not.toBeInTheDocument()
   })
 })
 

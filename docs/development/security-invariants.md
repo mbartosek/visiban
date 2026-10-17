@@ -178,20 +178,26 @@ canonical wording.
 
 ## Rule 5: User references in imports resolve only within the caller's scope
 
-**Rule.** When an import file names users (assignee, actor, mover), the names
+**Rule.** When an import file names users as assignees, the names
 resolve only against users the importer can already see: the importer,
 co-members of their boards and groups, and the target group. A name outside that
 pool is dropped, so the import neither assigns to nor confirms the existence of
 any other account.
+
+Imported history rows (JSON movement `moved_by`, activity `actor`) are not
+resolved at all, inside the pool or out of it: each row is recorded under the
+importer and keeps the file's name as text in `imported_from_username` (#1675),
+which the timeline, History view and exports display. A new import path that
+writes history rows applies the same rule rather than linking them to accounts.
 
 **Why.** The uploader controls the file. Resolving against all users turns the
 matched count into an existence oracle for every account on the instance.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` |
-| CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` |
-| Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` |
+| JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` (assignee); history rows use the importer plus `_imported_from_username` |
+| CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` (assignee; CSV import writes no history rows) |
+| Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` (card members and comment authors; Trello import writes no movement or activity rows) |
 | Invite emails and member add | `boards/views/boards.py` `BoardViewSet.members`; `groups/views.py` `GroupViewSet.members` | Not an import surface; listed so a reviewer of a new bulk-add path checks it against this rule. `BoardViewSet.members` also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 

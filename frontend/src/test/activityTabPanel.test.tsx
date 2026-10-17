@@ -30,6 +30,7 @@ function makeEntry(overrides: Partial<{
   actor: { id: number; username: string; display_name: string; avatar_url: string } | null;
   event_type: string;
   data: Record<string, unknown>;
+  imported_from_username: string | null;
 }> = {}) {
   return {
     id: 1,
@@ -38,6 +39,7 @@ function makeEntry(overrides: Partial<{
     actor: { id: 1, username: "jdoe", display_name: "Jane Doe", avatar_url: "" },
     event_type: "priority_change",
     data: { from_value: "low", to_value: "high", event_type: "priority_change" },
+    imported_from_username: null as string | null,
     ...overrides,
   };
 }
@@ -194,6 +196,57 @@ describe("ActivityTabPanel", () => {
     render(<ActivityTabPanel boardId={1} cardId={1} />);
     await waitFor(() => {
       expect(screen.getByText("To Do → In Progress")).toBeInTheDocument();
+    });
+  });
+
+  describe("imported entries (#1675)", () => {
+    const checklist = (id: number, text: string, imported: string | null) =>
+      makeEntry({
+        id,
+        event_type: "checklist_item_added",
+        data: { event_type: "checklist_item_added", from_value: "", to_value: text },
+        imported_from_username: imported,
+      });
+
+    it("shows the source name next to the importer on moves and activities", async () => {
+      mockGetTimeline.mockResolvedValue(
+        makeTimelinePage([
+          makeMoveEntry({ id: 1, imported_from_username: "carol" }),
+          makeEntry({ id: 2, imported_from_username: "" }),
+        ])
+      );
+      render(<ActivityTabPanel boardId={1} cardId={1} />);
+      await waitFor(() => {
+        expect(screen.getByText("by Jane Doe · imported, originally carol")).toBeInTheDocument();
+      });
+      expect(screen.getByText("by Jane Doe · imported")).toBeInTheDocument();
+    });
+
+    it("shows the note without a by-line when the importer is gone", async () => {
+      mockGetTimeline.mockResolvedValue(
+        makeTimelinePage([makeEntry({ id: 1, actor: null, imported_from_username: "carol" })])
+      );
+      render(<ActivityTabPanel boardId={1} cardId={1} />);
+      await waitFor(() => {
+        expect(screen.getByText("imported, originally carol")).toBeInTheDocument();
+      });
+    });
+
+    it("keeps imported checklist entries out of a group of recorded ones", async () => {
+      mockGetTimeline.mockResolvedValue(
+        makeTimelinePage([
+          checklist(1, "a", "carol"),
+          checklist(2, "b", "carol"),
+          checklist(3, "c", null),
+        ])
+      );
+      render(<ActivityTabPanel boardId={1} cardId={1} />);
+      await waitFor(() => {
+        expect(screen.getByText('Added checklist items: "a", "b"')).toBeInTheDocument();
+      });
+      expect(screen.getByText('Added checklist item: "c"')).toBeInTheDocument();
+      expect(screen.getByText("by Jane Doe · imported, originally carol")).toBeInTheDocument();
+      expect(screen.getByText("by Jane Doe")).toBeInTheDocument();
     });
   });
 });

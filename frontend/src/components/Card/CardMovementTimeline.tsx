@@ -4,6 +4,7 @@ import { getCardMovements, getCardActivities } from "../../api/cards";
 import type { CardActivity, CardMovement } from "../../types";
 import { userDisplayName } from "../../types";
 import { formatDateTime, formatDateStr } from "../../utils/date";
+import { historyAttribution } from "../../utils/importedHistory";
 
 interface Props {
   boardId: number;
@@ -36,6 +37,7 @@ type ChecklistGroup = {
   event_type: ChecklistEventType;
   items: string[];
   actor: CardActivity["actor"];
+  imported_from_username: string | null;
   created_at: string;
 };
 
@@ -53,7 +55,13 @@ function collapseChecklistGroups(entries: TimelineEntry[]): DisplayEntry[] {
     const a = entry.data;
     const value = a.event_type === "checklist_item_deleted" ? a.from_value : a.to_value;
     const last = result[result.length - 1];
-    if (last?.kind === "checklist-group" && last.event_type === (a.event_type as ChecklistEventType)) {
+    // Imported and recorded entries never share a group (#1675).
+    const importedFrom = a.imported_from_username ?? null;
+    if (
+      last?.kind === "checklist-group" &&
+      last.event_type === (a.event_type as ChecklistEventType) &&
+      last.imported_from_username === importedFrom
+    ) {
       last.items.push(value);
     } else {
       result.push({
@@ -62,6 +70,7 @@ function collapseChecklistGroups(entries: TimelineEntry[]): DisplayEntry[] {
         event_type: a.event_type as ChecklistEventType,
         items: [value],
         actor: a.actor,
+        imported_from_username: importedFrom,
         created_at: a.created_at,
       });
     }
@@ -170,7 +179,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
         {visible.map((entry: DisplayEntry) => {
           if (entry.kind === "checklist-group") {
             const cg = entry;
-            const actor = cg.actor ? userDisplayName(cg.actor) : null;
+            const attribution = historyAttribution(cg.actor ? userDisplayName(cg.actor) : null, cg.imported_from_username);
             const plural = cg.items.length > 1;
             const labels: Record<ChecklistEventType, [string, string]> = {
               checklist_item_added:     ["Added checklist item",   "Added checklist items"],
@@ -187,7 +196,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
                 <div className="bg-surface border border-line rounded-lg px-3 py-2.5 flex flex-col gap-1 shadow-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-fg-secondary">{label}: {itemList}</span>
-                    {actor && <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>}
+                    {attribution && <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>}
                   </div>
                   <time className="text-xs text-fg-tertiary">{formatDateTime(cg.created_at, userDateFormat, userTimeFormat)}</time>
                 </div>
@@ -197,7 +206,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
 
           if (entry.kind === "move") {
             const m = entry.data as CardMovement;
-            const actor = m.moved_by ? userDisplayName(m.moved_by) : null;
+            const attribution = historyAttribution(m.moved_by ? userDisplayName(m.moved_by) : null, m.imported_from_username);
 
             if (m.from_column === null) {
               return (
@@ -206,7 +215,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
                   <div className="bg-surface border border-line rounded-lg px-3 py-2.5 flex flex-col gap-1 shadow-sm">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-fg-secondary">Created in <ColumnName id={m.to_column} name={m.to_column_name} columnIds={columnIds} /></span>
-                      {actor && <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>}
+                      {attribution && <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>}
                     </div>
                     <time className="text-xs text-fg-tertiary">{formatDateTime(m.moved_at, userDateFormat, userTimeFormat)}</time>
                   </div>
@@ -234,7 +243,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
                     {m.from_swimlane_name && m.to_swimlane_name && m.from_swimlane_name !== m.to_swimlane_name && (
                       <span className="text-xs text-fg-tertiary">({m.from_swimlane_name} → {m.to_swimlane_name})</span>
                     )}
-                    {actor && <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>}
+                    {attribution && <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <time className="text-xs text-fg-tertiary">{formatDateTime(m.moved_at, userDateFormat, userTimeFormat)}</time>
@@ -247,7 +256,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
 
           const a = entry.data as CardActivity;
           const { line1 } = activityLabel(a, userDateFormat);
-          const actor = a.actor ? userDisplayName(a.actor) : null;
+          const attribution = historyAttribution(a.actor ? userDisplayName(a.actor) : null, a.imported_from_username);
 
           return (
             <li key={`activity-${a.id}`} className="relative mb-3 ml-4">
@@ -255,7 +264,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
               <div className="bg-surface border border-line rounded-lg px-3 py-2.5 flex flex-col gap-1 shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-fg-secondary">{line1}</span>
-                  {actor && <span className="text-xs text-fg-tertiary ml-auto shrink-0">by {actor}</span>}
+                  {attribution && <span className="text-xs text-fg-tertiary ml-auto shrink-0 max-w-full truncate" title={attribution}>{attribution}</span>}
                 </div>
                 <time className="text-xs text-fg-tertiary">{formatDateTime(a.created_at, userDateFormat, userTimeFormat)}</time>
               </div>

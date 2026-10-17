@@ -417,6 +417,7 @@ Each result object fields:
 | `moved_at` | string | ISO 8601 timestamp |
 | `movement_type` | string | One of `move`, `archived`, `unarchived` |
 | `notes` | string | Optional notes recorded at move time |
+| `imported_from_username` | string / null | *Since 1.2.* `null` unless the record was created by a board import with history; then `moved_by` is the importing user and this is the username the import file named (`""` when it named nobody). History imported by earlier versions carries `null`, since the original name was not kept. See [Imported history](../features/card-history.md#imported-history) |
 
 **Errors:** `403 Forbidden` if the caller is not a board member; `404 Not Found` if the board does not exist.
 
@@ -499,7 +500,7 @@ Requires board membership — non-members receive `403 Forbidden` with the stand
 
 **CSV columns:** `Card ID`, `Title`, `Description`, `Column`, `Swimlane`, `Priority`, `Assignee`, `Labels`, `Due Date`, `Weight`, `Created At`, `Created By`, `Last Moved At`, `Movement Count`, `Movement History`
 
-`Movement History` is a semicolon-separated list of pipe-delimited records: `<timestamp>|<from_column>|<to_column>|<moved_by>`.
+`Movement History` is a semicolon-separated list of pipe-delimited records: `<timestamp>|<from_column>|<to_column>|<moved_by>`. Since 1.2, a record created by a board import with history has `<moved_by>` followed by ` (imported, originally <name>)`, or ` (imported)` when the import file named nobody. Any `|`, `;` or line break in that source name is written as a space, so the record keeps its four parts.
 
 Since 1.2, one further column is **appended** per [custom field](#custom-fields-since-12)
 defined on the board, in the fields' display order, headed `Custom: <field name>`. The
@@ -526,7 +527,9 @@ Export the board as JSON. Returns `application/json`. Same permission rules as t
 
 The top-level `schema_version` field is always `2` in 1.1+ exports. The importer understands versions 0 (pre-1.0, no field present), 1, and 2. Version 2 adds `archived_at` per card, `movement_type`, movement `notes`, and comment `created_at`.
 
-Each card also carries its own `movements` (`{from_column, to_column, from_swimlane, to_swimlane, moved_by, moved_at, notes, movement_type}`, one per `CardMovement`) and `activities` (`{event_type, from_value, to_value, actor, created_at}`, one per `CardActivity`) arrays, mirroring the [movements](cards.md#history) and [activities](cards.md#history) endpoints. As with the rest of this export, `moved_by`/`actor` are usernames rather than user objects, and `null` when the acting user has since been deleted.
+Each card also carries its own `movements` (`{from_column, to_column, from_swimlane, to_swimlane, moved_by, moved_at, notes, movement_type}`, one per `CardMovement`) and `activities` (`{event_type, from_value, to_value, actor, created_at}`, one per `CardActivity`) arrays, mirroring the [movements](cards.md#history) and [activities](cards.md#history) endpoints. As with the rest of this export, `moved_by`/`actor` are usernames rather than user objects, and `null` when the acting user has since been deleted. Since 1.2 both also carry `imported_from_username` (additive; `schema_version` stays `2`): `null` for history recorded on the board, and the source username for a row that came from an earlier import.
+
+On import with `history` on, every movement and activity entry is recorded under the importing user and keeps the file's time. Its source name is kept as text in `imported_from_username` — the entry's own `imported_from_username` when the file has one (a re-exported import), otherwise its `moved_by` / `actor`, or `""` when there is neither. Source names are never resolved to accounts; only `assignee` is. `imported_from_username` must be a string or `null`, at most 150 characters, with no NUL characters.
 
 Since 1.2 the payload also carries the board's `custom_fields` schema and each card's
 `custom_field_values`, keyed by field name. Both are **additive**, so `schema_version`
@@ -588,10 +591,10 @@ caller below `admin` — the same role gate this export already applies to a swi
       "comments": [{ "author": "bob", "body": "On it.", "created_at": "2026-03-02T09:00:00Z" }],
       "checklist": [{ "text": "Write tests", "is_checked": false }],
       "movements": [
-        { "from_column": null, "to_column": "Backlog", "from_swimlane": null, "to_swimlane": "Acme Corp", "moved_by": "alice", "moved_at": "2026-03-01T10:00:00Z", "notes": "", "movement_type": "move" }
+        { "from_column": null, "to_column": "Backlog", "from_swimlane": null, "to_swimlane": "Acme Corp", "moved_by": "alice", "moved_at": "2026-03-01T10:00:00Z", "notes": "", "movement_type": "move", "imported_from_username": null }
       ],
       "activities": [
-        { "event_type": "priority_change", "from_value": "medium", "to_value": "high", "actor": "alice", "created_at": "2026-03-01T11:00:00Z" }
+        { "event_type": "priority_change", "from_value": "medium", "to_value": "high", "actor": "alice", "created_at": "2026-03-01T11:00:00Z", "imported_from_username": null }
       ]
     }
   ]
@@ -658,7 +661,7 @@ The whole-import limit is an upper bound on every row the import inserts, counte
 - Column and swimlane `position`, card `weight` and `position`, and column `wip_limit` and `weight_limit` must be integers from 0 to 2,147,483,647. Only `wip_limit` and `weight_limit` may be `null`.
 - Column positions must be unique. A column with no `position` takes its index in the list, so an explicit position can collide with another column's default. Swimlane positions may repeat.
 - Text values must not be `null`, a list, or an object, and must not contain NUL characters: column, swimlane, and label `color`; swimlane `contact_email` and `notes`; board and card `description`; comment `body`; checklist `text`; movement `notes`; activity `from_value` and `to_value`. A plain number or `true`/`false` is stored as its text (`5` → `"5"`, `true` → `"True"`), as in earlier releases; `NaN` and `Infinity` are refused. A key left out takes its default.
-- Text values stored in a limited column must fit it: column and swimlane `name` (255), label `name` (50), `color` (7), `contact_email` (254), card `title` (500), checklist `text` (500), movement `notes` (500), the column and swimlane names in a movement (255), the `name` form field (255), and usernames in `assignee`, `moved_by`, and `actor` (150).
+- Text values stored in a limited column must fit it: column and swimlane `name` (255), label `name` (50), `color` (7), `contact_email` (254), card `title` (500), checklist `text` (500), movement `notes` (500), the column and swimlane names in a movement (255), the `name` form field (255), usernames in `assignee`, `moved_by`, and `actor` (150), and `imported_from_username` on movements and activities (150).
 - Column `is_done` and `allow_card_creation`, and checklist `is_checked`, must be `true` or `false`.
 - Dates and timestamps (`due_date`, `archived_at`, and comment, movement, and activity timestamps) must be strings that name a real date or time; a number such as `20200101`, an impossible value such as `2024-02-30` or `T25:00:00`, or a time whose UTC equivalent falls outside years 1–9999 (such as `9999-12-31T23:59:59-12:00`) is rejected.
 - A file that cannot be parsed, including one with an integer literal of more than 4,300 digits or nesting too deep to parse, returns `{"detail": "The uploaded file is not valid JSON."}`.
@@ -702,7 +705,7 @@ Board structure (name, columns, swimlanes) is always imported. Every option is a
 The importer writes its own "label added", "checklist item added" and "weight changed"
 entries only for history the file does not already record: with `history` on, a card whose
 `activities` already contain that event type keeps the file's entries (with their original
-actor and timestamp) and gets no synthetic copy, so re-importing an export does not double
+timestamp and source name, recorded under the importing user) and gets no synthetic copy, so re-importing an export does not double
 its history.
 
 One more option is not an include flag:

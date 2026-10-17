@@ -171,4 +171,24 @@ describe('CardMovementTimeline', () => {
     await userEvent.setup().click(screen.getByText('Show full history'))
     expect(screen.getByText('Priority: low → high')).toBeInTheDocument()
   })
+
+  it('shows the source name next to the importer on imported rows (#1675)', async () => {
+    mockGetMovements.mockResolvedValue([
+      { id: 1, from_column: null, from_column_name: '', from_column_uid: '', to_column: 10, to_column_name: 'To Do', to_column_uid: 'c1', from_swimlane: null, from_swimlane_name: '', from_swimlane_uid: '', to_swimlane: 20, to_swimlane_name: 'A', to_swimlane_uid: 's1', moved_by: fakeUser, moved_at: '2026-01-01T00:00:00Z', notes: '', movement_type: 'move' as const, imported_from_username: 'carol' },
+    ])
+    mockGetActivities.mockResolvedValue([
+      { id: 1, event_type: 'priority_change', from_value: 'low', to_value: 'high', actor: fakeUser, created_at: '2026-01-02T00:00:00Z', imported_from_username: '' },
+      { id: 2, event_type: 'checklist_item_added', from_value: '', to_value: 'a', actor: fakeUser, created_at: '2026-01-03T00:00:00Z', imported_from_username: 'carol' },
+      { id: 3, event_type: 'checklist_item_added', from_value: '', to_value: 'b', actor: fakeUser, created_at: '2026-01-03T00:00:01Z', imported_from_username: null },
+    ])
+    render(<CardMovementTimeline boardId={1} cardId={1} />)
+    await waitFor(() => {
+      expect(screen.getByText('by Jane Doe · imported, originally carol')).toBeInTheDocument()
+    })
+    await userEvent.setup().click(screen.getByText('Show full history'))
+    expect(screen.getByText('by Jane Doe · imported')).toBeInTheDocument()
+    // The imported and recorded checklist entries stay in separate groups.
+    expect(screen.getAllByText('by Jane Doe · imported, originally carol')).toHaveLength(2)
+    expect(screen.getByText('by Jane Doe')).toBeInTheDocument()
+  })
 })

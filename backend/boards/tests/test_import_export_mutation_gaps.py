@@ -952,11 +952,15 @@ class ImportJsonDefaultsTests(ImportBase):
         self.assertEqual(
             (first.from_swimlane_uid, first.to_swimlane_uid), (general.uid, general.uid)
         )
-        self.assertEqual(first.moved_by, mover)
+        # Imported history is the importer's; the file's name is kept as
+        # typed, even when it matches a visible account (#1675).
+        self.assertEqual(first.moved_by, self.user)
+        self.assertEqual(first.imported_from_username, "mover")
+        self.assertNotEqual(first.moved_by, mover)
         self.assertEqual(first.notes, "shipped")
         self.assertEqual(first.movement_type, "archived")
         self.assertEqual(first.moved_at.isoformat(), "2024-05-06T07:08:09+00:00")
-        # Unknown names keep the exported text and an empty uid; unknown mover -> importer.
+        # Unknown names keep the exported text and an empty uid.
         self.assertIsNone(second.from_column)
         self.assertEqual(second.from_column_name, "Deleted col")
         self.assertEqual(second.from_column_uid, "")
@@ -966,11 +970,14 @@ class ImportJsonDefaultsTests(ImportBase):
         self.assertEqual(second.to_swimlane_uid, "")
         self.assertEqual(second.from_swimlane_name, "")
         self.assertEqual(second.moved_by, self.user)
+        self.assertEqual(second.imported_from_username, "ghost")
         self.assertEqual(second.movement_type, "move")
         self.assertEqual(second.notes, "")
         self.assertEqual(third.movement_type, "move")
         self.assertEqual((third.from_column_name, third.to_column_name), ("", ""))
         self.assertEqual(third.moved_by, self.user)
+        # No name in the file: still marked imported, with an empty name.
+        self.assertEqual(third.imported_from_username, "")
 
     def test_activity_import_skips_unknown_types_and_falls_back_to_importer(self):
         actor = User.objects.create_user(username="Actor", password="x")
@@ -1001,12 +1008,15 @@ class ImportJsonDefaultsTests(ImportBase):
             [a.event_type for a in acts], ["title_change", "due_date_change"]
         )
         self.assertEqual(
-            (acts[0].from_value, acts[0].to_value, acts[0].actor), ("a", "b", actor)
+            (acts[0].from_value, acts[0].to_value, acts[0].actor), ("a", "b", self.user)
         )
+        self.assertEqual(acts[0].imported_from_username, "actor")
+        self.assertNotEqual(acts[0].actor, actor)
         self.assertEqual(acts[0].created_at.isoformat(), "2023-01-02T03:04:05+00:00")
         self.assertEqual(
             (acts[1].from_value, acts[1].to_value, acts[1].actor), ("", "", self.user)
         )
+        self.assertEqual(acts[1].imported_from_username, "ghost")
 
     def test_file_history_suppresses_the_synthetic_entry_of_the_same_type(self):
         self.post(
@@ -1993,6 +2003,7 @@ class ExportJsonShapeTests(ExportBase):
                     "moved_at": t0.isoformat(),
                     "notes": "first",
                     "movement_type": "archived",
+                    "imported_from_username": None,
                 },
                 {
                     "from_column": "Todo",
@@ -2003,6 +2014,7 @@ class ExportJsonShapeTests(ExportBase):
                     "moved_at": late.moved_at.isoformat(),
                     "notes": "later",
                     "movement_type": "move",
+                    "imported_from_username": None,
                 },
             ],
         )
@@ -2017,6 +2029,7 @@ class ExportJsonShapeTests(ExportBase):
                 "moved_at",
                 "notes",
                 "movement_type",
+                "imported_from_username",
             ],
         )
         self.assertEqual(
@@ -2028,6 +2041,7 @@ class ExportJsonShapeTests(ExportBase):
                     "to_value": "3",
                     "actor": None,
                     "created_at": t0.isoformat(),
+                    "imported_from_username": None,
                 },
                 {
                     "event_type": "title_change",
@@ -2035,6 +2049,7 @@ class ExportJsonShapeTests(ExportBase):
                     "to_value": "y",
                     "actor": "owner",
                     "created_at": a_late.created_at.isoformat(),
+                    "imported_from_username": None,
                 },
             ],
         )
@@ -2046,6 +2061,7 @@ class ExportJsonShapeTests(ExportBase):
                 "to_value",
                 "actor",
                 "created_at",
+                "imported_from_username",
             ],
         )
 
@@ -2609,14 +2625,61 @@ class ExportImportRoundTripTests(ExportBase):
             (imported.notes, imported.movement_type, imported.moved_by),
             ("shipped", "move", self.owner),
         )
-        # Re-export must keep the key set stable across the trip.
+        self.assertEqual(imported.imported_from_username, "owner")
+        # Re-export must keep the key set stable across the trip; the only
+        # difference is the row now says where it came from (#1675).
         again = json.loads(self.export("json", board=new_board).content)
         original = json.loads(exported)
         self.assertEqual(list(again), list(original))
         self.assertEqual(list(again["cards"][0]), list(original["cards"][0]))
+        [again_mv] = again["cards"][0]["movements"]
+        [original_mv] = original["cards"][0]["movements"]
+        self.assertIsNone(original_mv["imported_from_username"])
+        self.assertEqual(again_mv["imported_from_username"], "owner")
         self.assertEqual(
-            again["cards"][0]["movements"], original["cards"][0]["movements"]
+            {**again_mv, "imported_from_username": None}, original_mv
         )
+
+    def test_second_import_keeps_the_first_source_name(self):
+        # Exporting an imported board and importing it again, as someone
+        # else, keeps the first file's name rather than the first importer's
+        # (#1675). The new importer is the attributed user.
+        source = User.objects.create_user(username="carol", password="x")
+        card = self.make_card("T")
+        mv = CardMovement.objects.create(
+            card=card, from_column=self.col, to_column=self.col2,
+            from_swimlane=self.sw, to_swimlane=self.sw, moved_by=source,
+        )
+        act = CardActivity.objects.create(
+            card=card, event_type="title_change", from_value="a", to_value="b", actor=source,
+        )
+        t0 = timezone.now().replace(microsecond=0) - datetime.timedelta(days=3)
+        CardMovement.objects.filter(pk=mv.pk).update(moved_at=t0)
+        CardActivity.objects.filter(pk=act.pk).update(created_at=t0)
+
+        def _roundtrip(board, importer):
+            exported = self.export("json", board=board).content
+            cache.clear()
+            self.client.force_authenticate(importer)
+            resp = self.client.post(
+                IMPORT_URL,
+                {"file": SimpleUploadedFile("x.json", exported, content_type="application/json")},
+                format="multipart",
+            )
+            self.assertEqual(resp.status_code, 201, resp.content)
+            return Board.objects.get(pk=resp.json()["id"])
+
+        first = _roundtrip(self.board, self.owner)
+        second_importer = User.objects.create_user(username="dave", password="x")
+        self.client.force_authenticate(self.owner)
+        second = _roundtrip(first, second_importer)
+
+        mv2 = CardMovement.objects.get(card__board=second)
+        act2 = CardActivity.objects.get(card__board=second, event_type="title_change")
+        self.assertEqual((mv2.moved_by, mv2.imported_from_username), (second_importer, "carol"))
+        self.assertEqual((act2.actor, act2.imported_from_username), (second_importer, "carol"))
+        # Source times are kept on both hops.
+        self.assertEqual((mv2.moved_at, act2.created_at), (t0, t0))
 
 
 # ---------------------------------------------------------------------------

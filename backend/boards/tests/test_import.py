@@ -948,8 +948,8 @@ class BoardImportBulkUserLookupTests(TestCase):
         self.assertEqual(card0.assignee, self.alice)
         self.assertEqual(card1.assignee, self.bob)
 
-    def test_import_resolves_moved_by_from_bulk_lookup(self):
-        """moved_by on CardMovement should be resolved via the bulk user map."""
+    def test_imported_movement_is_attributed_to_importer(self):
+        """An imported movement is the importer's, keeping the file's name as text (#1675)."""
         data = self._data_with_users(card_count=1)
         resp = self.client.post(
             "/api/v1/boards/import/",
@@ -961,10 +961,11 @@ class BoardImportBulkUserLookupTests(TestCase):
         card = Card.objects.get(board_id=board_id, title="Card 0")
         mv = CardMovement.objects.filter(card=card).first()
         self.assertIsNotNone(mv)
-        self.assertEqual(mv.moved_by, self.bob)
+        self.assertEqual(mv.moved_by, self.user)
+        self.assertEqual(mv.imported_from_username, "bob")
 
-    def test_import_resolves_actor_from_bulk_lookup(self):
-        """actor on CardActivity should be resolved via the bulk user map."""
+    def test_imported_activity_is_attributed_to_importer(self):
+        """An imported activity is the importer's, keeping the file's name as text (#1675)."""
         data = self._data_with_users(card_count=1)
         resp = self.client.post(
             "/api/v1/boards/import/",
@@ -976,11 +977,12 @@ class BoardImportBulkUserLookupTests(TestCase):
         card = Card.objects.get(board_id=board_id, title="Card 0")
         act = CardActivity.objects.filter(card=card).first()
         self.assertIsNotNone(act)
-        self.assertEqual(act.actor, self.alice)
+        self.assertEqual(act.actor, self.user)
+        self.assertEqual(act.imported_from_username, "alice")
 
     def test_unknown_username_falls_back_gracefully(self):
-        """Unknown assignee should resolve to None; unknown moved_by/actor
-        should fall back to the importing user."""
+        """Unknown assignee should resolve to None; history rows are the
+        importer's whatever name they carry (#1675)."""
         data = self._data_with_users(card_count=1)
         data["cards"][0]["assignee"] = "nonexistent_user"
         data["cards"][0]["movements"][0]["moved_by"] = "ghost"
@@ -996,8 +998,10 @@ class BoardImportBulkUserLookupTests(TestCase):
         self.assertIsNone(card.assignee)
         mv = CardMovement.objects.filter(card=card).first()
         self.assertEqual(mv.moved_by, self.user)
+        self.assertEqual(mv.imported_from_username, "ghost")
         act = CardActivity.objects.filter(card=card).first()
         self.assertEqual(act.actor, self.user)
+        self.assertEqual(act.imported_from_username, "ghost")
 
     @override_settings(DEBUG=True)
     def test_no_per_card_user_queries(self):

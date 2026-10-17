@@ -57,12 +57,18 @@ class ImportUserScopeTests(TestCase):
         self.assertEqual(resp.status_code, 201, resp.content)
         return Board.objects.get(pk=resp.data["id"])
 
-    def test_visible_user_is_linked_everywhere(self):
+    def test_visible_user_is_linked_as_assignee_and_named_on_history(self):
+        # A visible user is linked as the assignee; history rows stay the
+        # importer's and keep the file's name as text (#1675).
         board = self._import(_payload())
         card = Card.objects.get(board=board)
         self.assertEqual(card.assignee, self.seen)
-        self.assertEqual(CardMovement.objects.get(card=card).moved_by, self.seen)
-        self.assertEqual(CardActivity.objects.get(card=card).actor, self.seen)
+        mv = CardMovement.objects.get(card=card)
+        act = CardActivity.objects.get(card=card)
+        self.assertEqual(mv.moved_by, self.importer)
+        self.assertEqual(act.actor, self.importer)
+        self.assertEqual(mv.imported_from_username, "seen")
+        self.assertEqual(act.imported_from_username, "seen")
 
     def test_unseen_user_is_not_linked_as_assignee_or_actor(self):
         board = self._import(_payload(assignee="hidden", mover="hidden", actor="hidden"))

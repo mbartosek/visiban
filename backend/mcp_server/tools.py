@@ -452,6 +452,9 @@ def _serialize_movement(movement):
         "to_swimlane": movement.to_swimlane_name or None,
         "moved_at": movement.moved_at.isoformat(),
         "moved_by": _serialize_user(movement.moved_by) if movement.moved_by_id else None,
+        # Same as the REST field (#1675): the source file's username on a row
+        # created by a board import with history, null otherwise.
+        "imported_from_username": movement.imported_from_username,
     }
 
 
@@ -470,6 +473,7 @@ def _serialize_activity(activity):
         "to_value": activity.to_value,
         "actor": _serialize_user(activity.actor) if activity.actor_id else None,
         "created_at": activity.created_at.isoformat(),
+        "imported_from_username": activity.imported_from_username,
     }
 
 
