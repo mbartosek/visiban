@@ -2213,6 +2213,8 @@ def _board_serializers():
         for sub in cls.__subclasses__():
             stack.append(sub)
             meta = getattr(sub, "Meta", None)
+            if "<locals>" in sub.__qualname__:
+                continue  # a class defined inside a test, not product code
             if getattr(meta, "model", None) is Board and sub not in seen:
                 seen.append(sub)
     return seen
@@ -2234,7 +2236,15 @@ def writable_group_serializer_violations(serializer_classes) -> list[str]:
 
 
 class GroupPlacementEntryPointTests(SimpleTestCase):
-    """Rule 6: every write of ``Board.group`` goes through the shared check."""
+    """Rule 6: every write of ``Board.group`` goes through the shared check.
+
+    Limits: the allowlist is keyed per function, so a new Board.group write
+    inside an allowlisted function is masked; re-check those entries when
+    editing them. The check is presence-only: it does not verify ordering, that
+    the checked group is the one written, or that every branch is covered. The
+    scan misses setattr, **kwargs create/update, bulk_update and
+    save(update_fields=["group"]) shapes.
+    """
 
     def test_discovery_finds_the_known_write_sites(self):
         quals = {q for q, _, _ in discover_group_write_sites()}
