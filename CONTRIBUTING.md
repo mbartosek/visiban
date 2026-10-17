@@ -141,6 +141,7 @@ Visiban is licensed under [Apache 2.0](LICENSE). There is no separate contributo
 
 - Follow PEP 8
 - All new API endpoints should have corresponding tests in `backend/boards/tests/`
+- New instance-wide flags go on `SiteConfig` (`/auth/site-config/`), never on `CurrentUserSerializer` (`/auth/user/`); its flags are frozen (see `docs/api/authentication.md`)
 - Keep views thin — business logic belongs in models or dedicated service functions
 - All card mutation endpoints must use `@transaction.atomic`
 

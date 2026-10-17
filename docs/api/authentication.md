@@ -660,6 +660,16 @@ can detect the condition and call this endpoint programmatically.
 
 ## User profile
 
+### Frozen instance flags on `/auth/user/`
+
+`/auth/user/` (and `/auth/me/`) is the identity object, and the instance-wide flags already on it are **frozen**: `uploads_enabled`, `git_lens_enabled`, `maintenance_mode`, `maintenance_message`, `demo_mode`, and `demo_next_reset_at`. They stay for the 1.x contract and are never removed or renamed.
+
+**Why:** each flag on this object can add a settings, cache, or database read to every `/auth/user/` request and becomes a permanent field on a 1.0+ identity object.
+
+**The rule:** new instance-level flags go on [`GET /api/v1/auth/site-config/`](#get-apiv1authsite-config) (or a capabilities payload), never on this object. Only per-user state belongs here.
+
+`demo_mode` and `demo_next_reset_at` also appear on `site-config`. That duplication is intentional: the SPA reads `site-config` before login and `/auth/user/` after, and both must report the same values and types. A test pins both field sets (`backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py`) and a type assertion keeps the TypeScript `User` and `SiteConfig` in step.
+
 ### `GET /api/v1/auth/me/`
 Returns the authenticated user's profile.
 

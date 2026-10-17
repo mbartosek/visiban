@@ -731,6 +731,10 @@ class CurrentUserSerializer(UserSerializer):
     board full response before the cache is warm.
     """
 
+    # FROZEN (#1664): the instance-wide flags below (uploads_enabled .. demo_next_reset_at)
+    # are a closed list. New instance flags go on SiteConfig (/auth/site-config/), not here;
+    # see docs/api/authentication.md#frozen-instance-flags-on-authuser. The "lives here
+    # for the same reason" notes below explain history, not a pattern to repeat.
     uploads_enabled = serializers.SerializerMethodField()
     # Surfaces the Issue Board Lens experiment flag to the SPA so it can show or
     # hide the lens entry point. Read from settings (no DB hit), so it stays on

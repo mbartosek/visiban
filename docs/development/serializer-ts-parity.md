@@ -101,6 +101,8 @@ name something comparable:
 
 `COMPONENT_MAP` in the script is authoritative. As of #1338 it is:
 
+> `CurrentUser` -> `User`: its instance-level flags are frozen (#1664); new ones go on `SiteConfig`. See [Frozen instance flags](../api/authentication.md#frozen-instance-flags-on-authuser).
+
 | Schema component | TypeScript interface | Also name-checked by #821 |
 |---|---|---|
 | `Board` | `Board` | yes |
