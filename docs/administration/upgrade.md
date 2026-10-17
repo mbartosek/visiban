@@ -304,6 +304,29 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! warning "Edits to seeded system board templates are overwritten"
+    `boards/0054` (#1115) rewrites `columns_json` for the built-in system templates, matched by
+    slug, to correct drift in `project_delivery` and `legal_compliance` and to add `is_done`
+    flags. Any admin edit to a seeded system template's columns is lost on upgrade, and
+    rolling the migration back restores the original constants, not your previous values.
+    Board templates have no admin page and no write API (`GET /api/v1/boards/templates/` is
+    read-only). Before upgrading, save the `columns_json` of any customized system template from
+    that endpoint, only as a reference for which columns you changed. Do not re-apply it
+    verbatim: it lacks the `is_done` flags and the corrected `project_delivery` and
+    `legal_compliance` columns that `boards/0054` adds. After upgrading, read the new
+    `columns_json` (from the endpoint or `manage.py shell`), re-apply only your own edits on top
+    of it, and keep `is_done: true` on terminal columns. In `manage.py shell`:
+    `t = BoardTemplate.objects.get(slug="..."); t.columns_json = [...]; t.save()` (import
+    `BoardTemplate` from `boards.models`). Existing boards are not affected; only
+    future board creations and the template preview use these rows.
+
+!!! note "Very large `users` tables"
+    `accounts/0030` runs an `UPDATE` on `users` in the same transaction as its column
+    additions, so the table lock (`ACCESS EXCLUSIVE`) is held while the update runs. This is
+    fast at typical sizes. `accounts/0036` is a standalone data migration that only
+    row-locks superuser rows, which is negligible. On installs with millions of user rows, run
+    `migrate` during a maintenance window.
+
 !!! note "Browser WebSocket connections check the Origin header"
     A WebSocket handshake that carries an `Origin` header must match `CORS_ALLOWED_ORIGINS`,
     `CSRF_TRUSTED_ORIGINS`, or a host in `ALLOWED_HOSTS`. If your public hostname differs from
