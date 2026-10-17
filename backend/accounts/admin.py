@@ -194,7 +194,8 @@ def user_deletion_refusals(targets, actor):
         if group_count:
             reasons.append(
                 f"{target}: User owns groups that must be transferred before "
-                f"deletion (owned groups: {group_count})."
+                f"deletion (owned groups: {group_count}). A superuser can use "
+                "the Groups admin's \"Transfer ownership\" action."
             )
     target_pks = {t.pk for t in targets}
     single = len(targets) == 1

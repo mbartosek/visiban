@@ -1000,31 +1000,18 @@ class GroupViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # New owner must be a current admin member
-        try:
-            membership = GroupMembership.objects.get(group=group, user_id=new_owner_id)
-        except GroupMembership.DoesNotExist:
-            return Response(
-                {"detail": "New owner must already be a group member."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if membership.role != GroupMembership.Role.ADMIN:
-            return Response(
-                {"detail": "New owner must be an admin of this group."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Transfer: new owner gets owner role, previous owner becomes admin
+        # Transfer: new owner gets owner role, previous owner becomes admin.
+        # The rules live in ``transfer_group_ownership`` so the Django admin
+        # action applies the same ones.
         from django.db import transaction
+        from .services import GroupTransferError, transfer_group_ownership
         with transaction.atomic():
-            group.owner_id = new_owner_id
-            group.save(update_fields=["owner_id"])
-            # Ensure previous owner stays as admin member
-            GroupMembership.objects.update_or_create(
-                group=group, user=request.user,
-                defaults={"role": GroupMembership.Role.ADMIN},
-            )
+            try:
+                group = transfer_group_ownership(
+                    group.pk, new_owner_id, expected_owner_id=request.user.id,
+                )
+            except GroupTransferError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             # Re-fetch through ``get_queryset`` so the ``_member_count``,
             # ``_board_count``, ``_subgroup_count`` and ``_is_starred``
             # annotations are populated.  Without the annotations the
