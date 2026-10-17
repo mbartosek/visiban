@@ -245,4 +245,12 @@ def notify_new_mentions(card, actor, old_text: str, new_text: str) -> None:
         Card.objects.filter(pk=fresh_card.pk).update(
             mentioned_user_ids=list(already_notified | set(new_ids))
         )
-        create_notifications(notifications, context={"source": "description"})
+        created = create_notifications(notifications, context={"source": "description"})
+        # The funnel can drop recipients it does not deliver to. Record only the
+        # users who actually received a row, so a dropped user is notified of
+        # this mention if they become eligible later.
+        created_ids = {n.recipient_id for n in created}
+        if created_ids != set(new_ids):
+            Card.objects.filter(pk=fresh_card.pk).update(
+                mentioned_user_ids=list(already_notified | created_ids)
+            )

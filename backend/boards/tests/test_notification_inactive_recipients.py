@@ -144,6 +144,54 @@ class InactiveRecipientTests(TestCase):
         self._assert_recipient(self.active, True)
         self._assert_recipient(self.inactive, False)
 
+    def test_description_mention_guard_records_only_notified_users(self):
+        """#1689: a skipped user stays out of the guard, so a later mention
+        after they are reactivated still notifies them."""
+        card = self._card()
+        with self.captureOnCommitCallbacks(execute=True):
+            notify_new_mentions(card, self.owner, "", "cc @act1686 @ina1686")
+        card.refresh_from_db()
+        self.assertIn(self.active.pk, card.mentioned_user_ids)
+        self.assertNotIn(self.inactive.pk, card.mentioned_user_ids)
+
+        self.inactive.is_active = True
+        self.inactive.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            notify_new_mentions(card, self.owner, "", "again @act1686 @ina1686")
+        self.assertEqual(Notification.objects.filter(recipient=self.inactive).count(), 1)
+        # The already-notified user is not notified a second time.
+        self.assertEqual(Notification.objects.filter(recipient=self.active).count(), 1)
+        card.refresh_from_db()
+        self.assertIn(self.inactive.pk, card.mentioned_user_ids)
+
+    def test_due_soon_count_matches_rows_written(self):
+        for user in (self.active, self.inactive):
+            user.notif_due_soon = True
+            user.save()
+        tomorrow = timezone.localdate() + datetime.timedelta(days=1)
+        self._card(assignee=self.active, due_date=tomorrow)
+        self._card(assignee=self.inactive, due_date=tomorrow)
+        out = StringIO()
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("notify_due_soon", stdout=out)
+        self.assertEqual(Notification.objects.count(), 1)
+        self.assertIn("1 notifications created", out.getvalue())
+
+    def test_stale_count_matches_rows_written(self):
+        for user in (self.owner, self.active, self.inactive):
+            user.notif_stale = True
+            user.save()
+        card = self._card(assignee=self.inactive)
+        Card.objects.filter(pk=card.pk).update(
+            created_at=timezone.now() - datetime.timedelta(days=60)
+        )
+        out = StringIO()
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("notify_stale_cards", stdout=out)
+        rows = Notification.objects.filter(action_type=Notification.ActionType.STALE).count()
+        self.assertGreaterEqual(rows, 1)
+        self.assertIn(f"{rows} notifications created", out.getvalue())
+
     @patch("boards.broadcast.broadcast_board_event")
     def test_assignment(self, _bc):
         card = self._card()

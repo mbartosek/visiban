@@ -160,7 +160,6 @@ class Command(BaseCommand):
                     board=board,
                 )
             )
-            created_count += 1
 
         if to_create:
             # One create_notifications call per due_date, because context is
@@ -170,7 +169,9 @@ class Command(BaseCommand):
             for notification in to_create:
                 by_due_date.setdefault(notification.card.due_date, []).append(notification)
             for due_date, batch in by_due_date.items():
-                create_notifications(batch, context={"due_date": due_date.isoformat()})
+                created_count += len(
+                    create_notifications(batch, context={"due_date": due_date.isoformat()})
+                )
 
         self._report(created_count, skipped_count)
 
