@@ -1311,7 +1311,7 @@ class InviteRegisterView(RegisterView):
         except InviteTokenError as exc:
             return Response({"invite_token": [exc.detail]}, status=status.HTTP_400_BAD_REQUEST)
 
-        # The emailed-invite address check (#1678) runs in perform_create, after
+        # The emailed-invite address check (#1678, #1703) runs in perform_create, after
         # the form has validated and before the account is created.
         self._invite = invite
 
@@ -1333,8 +1333,8 @@ class InviteRegisterView(RegisterView):
         return response
 
     def perform_create(self, serializer):
-        # An emailed group/board invite is bound to the address it was sent to
-        # (#1678). Checked here — after the serializer has validated the whole
+        # An emailed site, group or board invite is bound to the address it was sent to
+        # (#1678, #1703). Checked here — after the serializer has validated the whole
         # form, so a form error reads the same whatever address was typed, and
         # before the account exists, so a mismatch is a plain 400 that creates
         # nothing and leaves the invite usable. The locked check at redemption
