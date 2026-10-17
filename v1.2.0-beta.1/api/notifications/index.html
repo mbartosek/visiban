@@ -4073,6 +4073,7 @@ while its <code>notif_*</code> counterpart is <code>false</code>. See
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"all"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p><strong>Response</strong> <code>{ "ok": true }</code></p>
+<p>Since 1.2, a body that is not a JSON object, an <code>ids</code> value that is not a list, and an <code>ids</code> entry that is not an integer within the 64-bit range return <code>400 Bad Request</code> (they returned <code>500</code> before).</p>
 <hr />
 <h3 id="get-apiv1notificationsunread-count"><code>GET /api/v1/notifications/unread-count/</code><a class="headerlink" href="#get-apiv1notificationsunread-count" title="Permanent link">&para;</a></h3>
 <p>Return the count of unread notifications for the current user. Used by the navbar bell badge. Requires authentication.</p>

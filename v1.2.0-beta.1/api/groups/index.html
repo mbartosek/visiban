@@ -4588,6 +4588,7 @@
 <p>Change a member's role. Requires group admin. Cannot modify a site admin.</p>
 <p><strong>Request</strong> <code>{ "role": "admin" }</code></p>
 <p>Valid roles: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></p>
+<p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). A non-numeric <code>{user_id}</code> in the path is <code>404</code>, as before.</p>
 <p><em>(1.2+)</em> Changing a member's role away from <code>admin</code> revokes their unused <a href="#invite-links">invite links</a> in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits <code>invite_link.revoked</code> on its group's channel. This frees their slots under the 5-active-link cap.</p>
 <h3 id="delete-apiv1groupsidmembersuser_id"><code>DELETE /api/v1/groups/{id}/members/{user_id}/</code><a class="headerlink" href="#delete-apiv1groupsidmembersuser_id" title="Permanent link">&para;</a></h3>
 <p>Remove a member. Requires group admin. Cannot remove a site admin. <em>(1.2+)</em> The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an <code>invite_link.revoked</code> event per link.</p>
@@ -4634,6 +4635,7 @@
 </tr>
 </tbody>
 </table>
+<p>Since 1.2, a body that is not a JSON object, or a non-string <code>swimlane_name</code>, returns <code>400 Bad Request</code> (a non-string <code>swimlane_name</code>, and a numeric or boolean body, returned <code>500</code> before).</p>
 <h3 id="get-apiv1groupsiddescendant-boards"><code>GET /api/v1/groups/{id}/descendant-boards/</code><a class="headerlink" href="#get-apiv1groupsiddescendant-boards" title="Permanent link">&para;</a></h3>
 <p>List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.</p>
 <p><strong>Response</strong> — array of board summary objects (same shape as <code>GET /api/v1/groups/{id}/boards/</code>). Each board's <code>group_detail</code> is always populated with a <code>GroupBrief</code> payload including the <code>ancestors</code> chain, so callers can render a full relative breadcrumb without an extra request (#845). <code>ancestors</code> is root-first and does <strong>not</strong> include the board's direct parent group — that name is in <code>group_name</code>.</p>
@@ -4900,6 +4902,7 @@
 <li><code>new_owner_id</code> — the user ID of the new owner; must already be a group <strong>admin</strong></li>
 <li><code>confirmation</code> — must exactly match the group's name (case-sensitive) to prevent accidental transfers</li>
 </ul>
+<p>Since 1.2, a <code>new_owner_id</code> that is not an integer, or is beyond the 64-bit integer range, returns <code>400 Bad Request</code> (it returned <code>500</code> before). A body that is not a JSON object was already a <code>400</code>.</p>
 <p>The previous owner becomes a regular admin after transfer. Returns the updated group object.</p>
 <p><strong>Error responses</strong>
 - <code>403 Forbidden</code> — you are not the current owner
