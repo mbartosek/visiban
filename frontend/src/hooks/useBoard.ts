@@ -168,6 +168,12 @@ export function useBoard() {
       if (axiosErr?.response?.status === 403) {
         const data = axiosErr.response.data as { code?: string; detail?: string };
         setMoveError({ code: "permission_denied", detail: data?.detail ?? "You do not have permission to move this card." });
+      } else if (axiosErr?.response?.status === 404) {
+        // The card or board is gone, or access to the board was lost: a
+        // caller with no access gets 404, not 403. Reload so the board either
+        // refreshes or, when it is no longer reachable, navigates away —
+        // rather than the card silently snapping back.
+        load();
       } else if (axiosErr?.response?.status === 503) {
         // The instance went read-only mid-drag (#783). Without this branch the
         // card silently snaps back with no explanation at all — the optimistic

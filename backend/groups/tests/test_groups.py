@@ -833,12 +833,12 @@ class SubgroupVisibilityTests(TestCase):
         self.assertIn(self.direct_sub.id, ids)
         self.assertIn(self.inherited_sub.id, ids)
 
-    def test_non_member_gets_403(self):
+    def test_non_member_gets_404(self):
         """A user who belongs to neither the parent nor any subgroup must be refused."""
         stranger = User.objects.create_user(username="stranger_sgv", password="pass")
         self.client.force_authenticate(stranger)
         r = self.client.get(f"/api/v1/groups/{self.parent.id}/subgroups/")
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class Issue846ParentMembershipVisibilityTests(TestCase):

@@ -331,7 +331,7 @@ class ExternalRefRbacTests(_ExternalRefBase):
         client = APIClient()
         client.force_authenticate(stranger)
         r = self._patch({"external_ref": GH}, client=client)
-        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(CardExternalRef.objects.exists())
 
 

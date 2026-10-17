@@ -62,11 +62,11 @@ class CardTimelineAccessTests(TestCase):
         self.assertIn("count", data)
         self.assertIn("results", data)
 
-    def test_non_member_gets_403(self):
+    def test_non_member_gets_404(self):
         outsider = User.objects.create_user(username="outsider", password="pass")
         self.client.force_authenticate(outsider)
         r = self.client.get(self.url)
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_gets_401(self):
         self.client.logout()

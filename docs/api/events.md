@@ -37,7 +37,7 @@ Returns committed events for one board, in ascending `id` order.
 **Access** — the requesting user's board role, exactly as for
 `GET /api/v1/boards/{id}/full/` and for the WebSocket handshake. Every board
 role, including `viewer`, may read the feed: it replays frames the same user
-could already have streamed. A non-member gets `403`.
+could already have streamed. A caller with no access to the board gets `404`.
 
 **Query parameters**
 
@@ -98,8 +98,7 @@ Keep calling with `after` set to the previous response's `next` until `next` is
 |---|---|---|
 | `400 Bad Request` | `{"after": ["Must be an integer event id."]}` | `after` is not an integer, or is negative. |
 | `400 Bad Request` | `{"limit": ["Must be between 1 and 500."]}` | `limit` is not an integer, or is out of range. |
-| `403 Forbidden` | `{"detail": "..."}` | The requesting user has no role on this board. |
-| `404 Not Found` | — | No board with that id. |
+| `404 Not Found` | — | No board with that id, or the requesting user has no access to it. |
 | `410 Gone` | `{"detail": "...", "code": "cursor_expired", "resync_url": "http://.../api/v1/boards/42/full/"}` | The cursor has been pruned and newer events exist, so continuity cannot be proven. Re-sync via `resync_url` and resume from the newest `event_id` seen after that. |
 
 !!! note "410 is deliberately narrow"

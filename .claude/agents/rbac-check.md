@@ -37,7 +37,7 @@ Every non-public endpoint must require authentication. Check:
 For any endpoint that accesses board-scoped resources:
 - Does it call `get_board_role(request.user, board)` or equivalent?
 - Does it return the **same** response (404) for a board that does not exist and for one the caller cannot access, whether the target arrives in the URL or in the request body? Do not leak existence to non-members.
-- Some older nested routes still answer 403 for an inaccessible-but-existing board. That is existing behavior, not a pattern to copy; changing the status code is an API change that needs its own compatibility decision.
+- Board-scoped routes answer 404 to a caller with no access to the board (`get_board_for_user`) and 403 only for a too-low role on a visible board; see Rule 7 in `docs/development/security-invariants.md`.
 
 ### 3. Verify role enforcement per action
 

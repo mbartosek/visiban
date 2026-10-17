@@ -204,4 +204,4 @@ class MovementUidRoleVisibilityTests(TestCase):
     def test_non_member_cannot_read_movements(self):
         outsider = User.objects.create_user(username="outsider", password="pw")
         resp = self._get_movements(outsider)
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 404)

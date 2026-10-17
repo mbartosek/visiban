@@ -60,31 +60,31 @@ class CrossBoardCardIDORTests(TestCase):
         resp = self.client.get(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/",
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_update_card_on_other_board(self, _broadcast):
         resp = self.client.patch(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/",
             {"title": "Hijacked"},
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_delete_card_on_other_board(self, _broadcast):
         resp = self.client.delete(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/",
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_list_cards_on_other_board(self, _broadcast):
         resp = self.client.get(f"/api/v1/boards/{self.board_b.pk}/cards/")
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_move_card_on_other_board(self, _broadcast):
         resp = self.client.post(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/move/",
             {"column_id": self.col_b.pk, "swimlane_id": self.swim_b.pk, "position": 0},
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @patch(PATCH_BROADCAST)
@@ -106,13 +106,13 @@ class CrossBoardCommentIDORTests(TestCase):
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/comments/",
             {"body": "Sneaky comment"},
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_list_comments_on_other_board_card(self, _broadcast):
         resp = self.client.get(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/comments/",
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @patch(PATCH_BROADCAST)
@@ -136,10 +136,10 @@ class CrossBoardAttachmentIDORTests(TestCase):
             {"file": f},
             format="multipart",
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_cannot_list_attachments_on_other_board_card(self, _broadcast):
         resp = self.client.get(
             f"/api/v1/boards/{self.board_b.pk}/cards/{self.card_b.pk}/attachments/",
         )
-        self.assertIn(resp.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)

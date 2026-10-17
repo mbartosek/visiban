@@ -254,9 +254,7 @@ class SwimlaneCustomFieldDefinitionRbacTests(SwimlaneCustomFieldTestBase):
     def test_a_non_member_cannot_reach_the_board(self):
         outsider = _make_user("scf_outsider")
         r = self._client_for(outsider).get(self.url)
-        self.assertIn(
-            r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
-        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_a_definition_from_another_board_is_a_404(self):
         """IDOR: the queryset is board-scoped, so a foreign id is not found.
@@ -1082,9 +1080,7 @@ class SwimlaneCustomFieldUrlTypeTests(SwimlaneCustomFieldTestBase):
     def test_a_non_member_cannot_write_a_url_value(self):
         outsider = _make_user("scf_url_outsider")
         r = self._patch_value("https://example.com", client=self._client_for(outsider))
-        self.assertIn(
-            r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)
-        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(SwimlaneCustomFieldValue.objects.exists())
 
     def test_url_type_is_frozen_once_a_row_holds_a_value(self):
@@ -1265,13 +1261,13 @@ class SwimlaneCustomFieldMultiSelectTypeTests(SwimlaneCustomFieldTestBase):
 
     def test_only_a_board_admin_can_write(self):
         outsider = _make_user("scf_ms_outsider")
-        for user in (self.member, self.viewer, outsider):
+        for user in (self.member, self.viewer):
             with self.subTest(user=user.username):
                 r = self._patch_value(["EMEA"], client=self._client_for(user))
-                self.assertIn(
-                    r.status_code,
-                    (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
-                )
+                self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        with self.subTest(user=outsider.username):
+            r = self._patch_value(["EMEA"], client=self._client_for(outsider))
+            self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIsNone(self._stored())
 
     def test_the_broadcast_carries_the_string_value_after_commit(self):
@@ -1399,7 +1395,7 @@ class SwimlaneCustomFieldNumberFormatTests(SwimlaneCustomFieldTestBase):
         outsider = self._client_for(_make_user("scf_nf_outsider"))
         anonymous = APIClient()
         for label, client, expected in (
-            ("outsider", outsider, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)),
+            ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
             ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
         ):
             with self.subTest(client=label):
@@ -1654,7 +1650,7 @@ class SwimlaneCustomFieldChoiceColorTests(SwimlaneCustomFieldTestBase):
         outsider = self._client_for(_make_user("scf_cc_outsider"))
         anonymous = APIClient()
         for label, client, expected in (
-            ("outsider", outsider, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND)),
+            ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
             ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
         ):
             with self.subTest(client=label):

@@ -409,9 +409,9 @@ This method is not recommended for scripts. Use token auth for all non-browser c
 ## User search
 
 ### `GET /api/v1/users/?search=<query>`
-Search users by display name, username, or first name. Requires authentication. Excludes the requesting user from results. Used internally for @mention autocomplete and the member invite typeahead.
+Search active users by display name or username. Requires authentication. Excludes the requesting user from results. Used internally for @mention autocomplete and the member invite typeahead.
 
-> **Note:** Email is intentionally excluded from the search criteria. Filtering on email without returning it would allow any authenticated caller to silently confirm whether a given email address exists on the instance. Search is limited to username, display name, and first name only.
+> **Note:** Email is intentionally excluded from the search criteria. Filtering on email without returning it would allow any authenticated caller to silently confirm whether a given email address exists on the instance. Only active users are returned, and only the fields the response returns (username and display name) are matched.
 
 Rate-limited to 30 requests/minute per user.
 
@@ -419,7 +419,7 @@ Rate-limited to 30 requests/minute per user.
 
 | Param | Description |
 |---|---|
-| `search` | Search term — minimum 2 characters; partial match on username, display name, and first name. Returns `[]` for shorter queries. |
+| `search` | Search term — minimum 2 characters; partial match on username and display name. Returns `[]` for shorter queries. |
 
 **Response** `[{ "id": 5, "username": "alice", "display_name": "Alice Smith", "avatar_url": null }, ...]`
 

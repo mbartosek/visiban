@@ -304,6 +304,18 @@ After rolling back, restart the backend container with the previous image versio
 
 ### Upgrading to 1.2.x
 
+!!! warning "Status codes changed on board-scoped and member routes"
+    Requests from a caller with no access to a board now return `404 Not Found` on every
+    board-scoped route, the same answer as for a board that does not exist; `403 Forbidden`
+    stays for a caller whose role is too low on a board they can see. A `DELETE` of a member
+    who has no membership on the board or group returns `404` instead of `204`. User search
+    and adding a board member match active users only.
+
+    **Check any integration, script, or automation** that treats `403` as "no access" on a
+    board route, or that relies on `DELETE .../members/{user_id}/` succeeding for a user who
+    is not a member. See [Security Invariants](../development/security-invariants.md)
+    (Rules 5 and 7) (#1670).
+
 !!! warning "Edits to seeded system board templates are overwritten"
     `boards/0054` (#1115) rewrites `columns_json` for the built-in system templates, matched by
     slug, to correct drift in `project_delivery` and `legal_compliance` and to add `is_done`

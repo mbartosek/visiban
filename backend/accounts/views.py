@@ -307,7 +307,7 @@ class SocialSignupRedirectThrottle(AnonRateThrottle):
 
 
 class UserSearchView(APIView):
-    """Search users by display name, email, or username; requires at least 2 characters."""
+    """Search active users by display name or username; requires at least 2 characters."""
 
     permission_classes = [
         IsAuthenticated,
@@ -323,11 +323,11 @@ class UserSearchView(APIView):
             return Response([])
         users = (
             User.objects.filter(
-                Q(display_name__icontains=query)
-                | Q(username__icontains=query)
-                | Q(first_name__icontains=query)
-                # email intentionally excluded: filtering on email without returning it
-                # creates a silent email-existence oracle for any authenticated caller.
+                Q(display_name__icontains=query) | Q(username__icontains=query),
+                is_active=True,
+                # Only fields the response returns are matched: email and first_name
+                # are excluded because filtering on a field the response omits
+                # makes the result set depend on data the caller cannot see.
             )
             .exclude(pk=request.user.pk)
             .order_by("display_name", "username")[:10]

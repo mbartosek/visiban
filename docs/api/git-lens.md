@@ -110,7 +110,7 @@ Placement uses a first-match ladder in the order shown above (e.g. a closed issu
 
 Retrieve the saved LensConnection for a board.
 
-**Permissions:** Any board member. Non-members receive `403 Forbidden`.
+**Permissions:** Any board member. Callers with no access to the board receive `404 Not Found`.
 
 **Response — 200 OK**
 ```json
@@ -135,8 +135,7 @@ Retrieve the saved LensConnection for a board.
 
 | Status | Condition |
 |---|---|
-| `403 Forbidden` | Caller is not a member of the board |
-| `404 Not Found` | No lens connection is configured for this board, or `GIT_LENS_ENABLED` is not set |
+| `404 Not Found` | Caller has no access to the board, no lens connection is configured for this board, or `GIT_LENS_ENABLED` is not set |
 
 ---
 
@@ -215,7 +214,7 @@ Remove the LensConnection for a board. The board's issue data cache is also purg
 
 Fetch live issue data from the remote provider for a board, pivoted into columns and swimlanes. The board must have a saved LensConnection (see above).
 
-**Permissions:** Any board member. Non-members receive `403 Forbidden`.
+**Permissions:** Any board member. Callers with no access to the board receive `404 Not Found`.
 
 **Query parameters**
 
@@ -415,8 +414,7 @@ There is deliberately no `available_labels` or `available_assignees` field: ever
 
 | Status | Body | Condition |
 |---|---|---|
-| `403 Forbidden` | `{ "detail": "..." }` | Caller is not a board member |
-| `404 Not Found` | `{ "detail": "..." }` | Board does not exist, no connection is configured, or `GIT_LENS_ENABLED` is not set |
+| `404 Not Found` | `{ "detail": "..." }` | Board does not exist or the caller has no access to it, no connection is configured, or `GIT_LENS_ENABLED` is not set |
 | `409 Conflict` | `{ "detail": "...", "code": "auth_required" }` | Provider is GitHub and the requesting user has not linked their GitHub account. The user must connect their GitHub account via profile settings before fetching data. |
 | `429 Too Many Requests` | `{ "detail": "...", "code": "rate_limited", "retry_after": 47 }` | The provider's API rate limit has been reached. `retry_after` is the number of seconds to wait before retrying. |
 | `429 Too Many Requests` | `{ "detail": "...", "code": "fetch_budget_exhausted" }` | The caller's own upstream-fetch budget is spent (see [Refresh and rate limits](#refresh-and-rate-limits)) and no cached copy exists to serve instead. No `retry_after`; retry after the budget window (5 minutes) elapses. |

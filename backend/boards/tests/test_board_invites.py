@@ -631,8 +631,8 @@ class DeactivationRevokesBoardInvitesTests(_BoardFixture, TestCase):
 @override_settings(INVITE_EMAIL_ENABLED=True, DEMO_MODE=False, DEFAULT_FROM_EMAIL="invites@acme.test")
 class BoardInviteRbacMatrixTests(_BoardFixture, TestCase):
     """Exact status codes, matching the existing ``/members/`` endpoint: a user
-    with no access to the board gets 403 (``get_board_for_user`` resolves the
-    board by pk, then refuses a None role), a missing board is 404, and an
+    with no access to the board gets 404 (``get_board_for_user`` treats it like a
+    missing board), a member whose role is too low gets 403, and an
     anonymous caller is 401 (token auth's ``WWW-Authenticate`` header)."""
 
     def setUp(self):
@@ -674,11 +674,11 @@ class BoardInviteRbacMatrixTests(_BoardFixture, TestCase):
         link, _ = self.make_invite()
         return client.delete(f"/api/v1/boards/{board_pk}/invite-links/{link.pk}/")
 
-    def test_members_endpoint_baseline_for_non_member_is_403(self):
+    def test_members_endpoint_baseline_for_non_member_is_404(self):
         r = self.client_for(self.denied["non_member"]).post(
             f"/api/v1/boards/{self.board.pk}/members/", {"user_id": self.owner.pk}, format="json",
         )
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_allowed_set(self):
         expected = {"list": 200, "send": 202, "revoke": 204, "create": 201}
@@ -691,8 +691,11 @@ class BoardInviteRbacMatrixTests(_BoardFixture, TestCase):
         for endpoint in ("list", "send", "revoke", "create"):
             for label, user in self.denied.items():
                 with self.subTest(endpoint=endpoint, user=label):
+                    # No access to the board is a 404 (the board is not visible);
+                    # a visible board with too low a role is a 403.
+                    expected = status.HTTP_404_NOT_FOUND if label == "non_member" else status.HTTP_403_FORBIDDEN
                     self.assertEqual(
-                        self._call(self.client_for(user), endpoint).status_code, status.HTTP_403_FORBIDDEN,
+                        self._call(self.client_for(user), endpoint).status_code, expected,
                     )
             with self.subTest(endpoint=endpoint, user="anonymous"):
                 self.assertEqual(self._call(APIClient(), endpoint).status_code, status.HTTP_401_UNAUTHORIZED)

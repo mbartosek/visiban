@@ -421,12 +421,12 @@ class CardRelationRbacTests(_RelationTestBase):
         self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(CardRelation.objects.count(), 0)
 
-    def test_non_member_gets_403(self):
+    def test_non_member_gets_404(self):
         outsider = _make_user("rel_outsider")
         client = APIClient()
         client.force_authenticate(outsider)
         r = self._link(self.card_a, self.card_b, client=client)
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_anonymous_gets_401_or_403(self):
         r = self._link(self.card_a, self.card_b, client=APIClient())

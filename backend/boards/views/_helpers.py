@@ -29,7 +29,7 @@ from django_filters import DateTimeFilter, NumberFilter
 from drf_spectacular.utils import OpenApiResponse, inline_serializer
 from rest_framework import serializers as _drf_serializers
 from rest_framework.exceptions import (
-    APIException, NotFound, PermissionDenied, ValidationError as _DRFValidationError,
+    APIException, NotFound, ValidationError as _DRFValidationError,
 )
 
 from visiban.request_shape import id_in_db_range
@@ -252,7 +252,12 @@ def get_accessible_boards_queryset(user):
 
 
 def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=False):
-    """Return (board, role) for board_id if user has access; raise 404 or 403 otherwise.
+    """Return (board, role) for board_id if user has access; raise 404 otherwise.
+
+    A board that does not exist and a board the user cannot access both answer
+    404, matching ``BoardViewSet.retrieve``, MCP and media. Callers that need a
+    minimum role raise 403 themselves once this returns: that is a role
+    failure on a board the user can already see.
 
     Loads the board with select_related for owner and the group ancestor chain
     (up to 6 levels) so that get_board_role() and BoardFullSerializer.get_members()
@@ -369,7 +374,9 @@ def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=F
             board_id,
             getattr(user, "pk", "anon"),
         )
-        raise PermissionDenied
+        # Same body get_object_or_404 produces for a missing board, so the two
+        # cases cannot be told apart from the response.
+        raise NotFound("No Board matches the given query.")
     return board, role
 
 
