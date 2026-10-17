@@ -1113,7 +1113,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                 {isAdmin ? (
                   <DemoInert active={settingsInert} describedBy={DEMO_SETTINGS_NOTICE_ID}>
                     <p className="text-xs text-fg-muted mb-2">
-                      Choose who can export this board. Owners and site admins always bypass this threshold.
+                      Choose who can use the export action and download export files. This does not change what members can view on the board. Owners and site admins always bypass this threshold.
                     </p>
                     <SelectDropdown
                       value={exportMinRole}

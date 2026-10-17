@@ -319,3 +319,50 @@ class ExportHistoryEndpointTests(TestCase):
         entries = data["results"] if isinstance(data, dict) and "results" in data else data
         null_actor_entries = [e for e in entries if e["actor"] is None]
         self.assertEqual(len(null_actor_entries), 1)
+
+
+class ExportMinRoleScopeTests(TestCase):
+    """``export_min_role`` scopes the export action and file formats only.
+
+    Owner decision on #1668: the setting is documented as limiting the export
+    action (``/export/``, movement exports, and the web UI's export controls),
+    not ordinary reads. These tests pin that scope so a change to it is a
+    deliberate, documented decision rather than a side effect.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="scope_owner", password="pass")
+        self.viewer = User.objects.create_user(username="scope_viewer", password="pass")
+        self.board = _make_board(self.owner, export_min_role="admin")
+        _add_member(self.board, self.viewer, BoardMembership.Role.VIEWER)
+        self.client = APIClient()
+        self.client.force_authenticate(self.viewer)
+
+    def test_export_min_role_scopes_export_action_only(self):
+        # The export action itself honors the threshold.
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/export/")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Ordinary reads are governed by board membership, not the threshold.
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/cards/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(r.data), 2)
+
+        r = self.client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        r = self.client.get("/api/v1/cards/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        titles = sorted(c["title"] for c in r.data["results"])
+        self.assertEqual(titles, ["C1", "C2"])
+
+    def test_export_min_role_scopes_export_action_only_mcp(self):
+        from mcp_server import tools
+        from mcp_server.context import reset_current_user, set_current_user
+
+        token = set_current_user(self.viewer)
+        try:
+            data = tools.list_cards(board_id=self.board.id)
+        finally:
+            reset_current_user(token)
+        self.assertNotIn("error", data)
