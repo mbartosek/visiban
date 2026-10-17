@@ -4898,7 +4898,7 @@ sees it appear or disappear without a reload.</p>
 </tr>
 </tbody>
 </table>
-<p>A board that moves between groups emits two events atomically (single <code>transaction.on_commit</code> callback): <code>board.deleted</code> on the old group's channel and <code>board.created</code> on the new group's channel.</p>
+<p>A board that moves between groups emits two events atomically (single <code>transaction.on_commit</code> callback): <code>board.deleted</code> on the old group's channel and <code>board.created</code> on the new group's channel. A board moved out of a group to personal sends only the <code>board.deleted</code>, and a personal board moved into a group sends only the <code>board.created</code>. Since 1.2 this is the same whether the move is made with <a href="../boards/#post-apiv1boardsidmove-group"><code>POST /api/v1/boards/{id}/move-group/</code></a> or by changing <code>group</code> with <code>PATCH</code>/<code>PUT /api/v1/boards/{id}/</code> or in the Django admin (#1684). Before 1.2, a <code>PATCH</code>/<code>PUT</code> or Django admin group change sent <code>board.updated</code> to the new group's channel only, so the old group's page kept listing the board until reloaded. The board channel receives <code>board.updated</code> for a group move either way.</p>
 <p>Personal boards (no group) do not emit events on any group channel.</p>
 <hr />
 <h2 id="delivery-guarantees">Delivery guarantees<a class="headerlink" href="#delivery-guarantees" title="Permanent link">&para;</a></h2>
