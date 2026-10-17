@@ -4076,11 +4076,12 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="s2">"card.moved"</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"card"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="nt">"movement"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">"actor_id"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-15T10:22:41.881Z"</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">"next"</span><span class="p">:</span><span class="w"> </span><span class="mi">84213</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">}</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"actor"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"display_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"avatar_url"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-15T10:22:41.881Z"</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">"next"</span><span class="p">:</span><span class="w"> </span><span class="mi">84213</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4109,7 +4110,12 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <tr>
 <td><code>actor_id</code></td>
 <td>integer / null</td>
-<td>The user who caused the event, or <code>null</code> when there was no authenticated actor. A plain id, not a nested user object — resolve it against the board's member list.</td>
+<td>The user who caused the event, or <code>null</code> when there was no authenticated actor. A plain column, not a foreign key: it keeps its value even after the account is deleted.</td>
+</tr>
+<tr>
+<td><code>actor</code></td>
+<td>object / null</td>
+<td><em>Added in 1.2 (#1663).</em> The same user as <code>actor_id</code>, in the nested <code>BoardUser</code> shape (<code>id</code>, <code>username</code>, <code>display_name</code>, <code>avatar_url</code>) used by every board-scoped actor field except invite links — see <a href="../#actor-fields-who-did-it">Actor fields</a>. It resolves even when the actor has since left the board, so you do not need the member list to label a row. <code>null</code> when <code>actor_id</code> is <code>null</code> or the account no longer exists. Every actor on a page is fetched in one query, so page cost does not grow with the number of distinct actors.</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>

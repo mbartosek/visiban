@@ -3988,6 +3988,41 @@ password-reset/forced-change flows, the admin API itself, and the health probes.
 MCP write tools (<code>create_card</code>, <code>move_card</code>, <code>update_card</code>, <code>archive_card</code>) return an equivalent
 <code>{"error": {"code": "maintenance_mode", "detail": "..."}}</code> result instead of a 503 — see
 <a href="mcp/#tool-errors">MCP Server</a>.</p>
+<h3 id="actor-fields-who-did-it">Actor fields ("who did it")<a class="headerlink" href="#actor-fields-who-did-it" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Settled in 1.2</strong> (#1663)</p>
+</blockquote>
+<p>Resources that record which user did something use one of three shapes. Each is
+deliberate, and none will be removed or renamed in 1.x:</p>
+<table>
+<thead>
+<tr>
+<th>Shape</th>
+<th>Where</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nested <code>BoardUser</code> — <code>{ id, username, display_name, avatar_url }</code>, or <code>null</code></td>
+<td><code>CardTimelineEntry.actor</code>, <code>CardActivity.actor</code>, <code>CardMovement.moved_by</code>, <code>BoardExportLog.actor</code>, <code>LensConnection.created_by</code>, and <code>BoardEvent.actor</code> on the <a href="events/">change feed</a></td>
+<td>The default for every board-scoped resource except invite links (see the username row below). <code>null</code> means there was no authenticated actor, or the account has since been deleted.</td>
+</tr>
+<tr>
+<td>Integer id — <code>actor_id</code> / <code>created_by_id</code></td>
+<td>The <a href="events/">change feed</a> (<code>BoardEvent.actor_id</code>), the admin action log (alongside <code>actor_username</code>), and the <code>invite.created_by_id</code> of a <a href="websockets/#member-events"><code>member.added</code></a> WebSocket payload (which the change feed replays verbatim inside <code>data</code>)</td>
+<td>The row is append-only and stores a plain column, not a foreign key, so it can outlive the user. On the change feed it sits next to the nested <code>actor</code>; the id is kept for consumers that already join against the member list. A broadcast payload carries ids only because it is built once for every subscriber; resolve <code>invite.created_by_id</code> against the member list.</td>
+</tr>
+<tr>
+<td>Username string — <code>created_by_username</code></td>
+<td>Every invite-link row: site (<code>/admin/invite-links/</code>), group, board, and the site-admin board-invite list</td>
+<td>One consistent convention across the whole invite family since 1.1 (#1008). The rows are only ever rendered as a "created by …" label, and <code>null</code> means the creator's account was deleted or anonymized.</td>
+</tr>
+</tbody>
+</table>
+<p>New endpoints follow the same rules: a new board-scoped actor field is a nested
+<code>BoardUser</code>; a new invite-link serializer uses <code>created_by_username</code> so the invite
+family stays uniform; no other resource gains a new <code>*_username</code> field.</p>
 <h3 id="url-path-style">URL path style<a class="headerlink" href="#url-path-style" title="Permanent link">&para;</a></h3>
 <p>Path segments use <code>kebab-case</code> (e.g. <code>/auth/change-password/</code>, <code>/boards/&lt;id&gt;/saved-filters/</code>, <code>/boards/&lt;id&gt;/move-group/</code>). This is the canonical style and the convention you should rely on when writing new integrations.</p>
 <p>One legacy endpoint still accepts a <code>snake_case</code> alias for backward compatibility:</p>
