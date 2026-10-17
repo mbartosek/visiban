@@ -30,7 +30,7 @@ does not.
 | Who may admit new accounts | `sender_may_admit_accounts(sender)` | Registration through a board or group invite, before `invite_creator_is_valid`; the site invite creator rule (`accounts/invite_utils.py` `site_invite_creator_admits`) |
 | Current role on a board or group (Rule 2) | `boards.permissions.get_board_role`, `groups.models.user_has_group_access` | REST, MCP tools, both consumers' handshake and re-check |
 | Consume-once registration tokens (Rule 4) | `accounts.registration_tokens.registration_token_kind` (unchanged) | `InviteRegisterView`, `SocialRegistrationAdapter.save_user` |
-| Placing a board in a group (Rule 6) | `groups/views.py` `_require_group_admin`; `resolve_group_for_board_placement` (move group and JSON, CSV and Trello import) | Not yet enumerated by the entry-point test; that test is tracked in #1693. Covered per surface by `groups/tests/test_groups.py`, `boards/tests/test_board_group_field_validation.py` and `boards/tests/test_group_placement_roles.py` |
+| Placing a board in a group (Rule 6) | `groups/views.py` `_require_group_admin`; `resolve_group_for_board_placement` (move group and JSON, CSV and Trello import) | Every function in the installed apps that writes `Board.group` (an attribute assignment, or `group=` passed to `Board` create or to `.save()` and `.update()`) must call the shared check or be in `GROUP_PLACEMENT_ALLOWLIST` with a reason; every writable `group` field on a `Board` serializer must have a `validate_group` that reaches `_require_group_admin`; the wrappers are pinned in `GROUP_PLACEMENT_PINS`. Per-surface role behavior is covered by `groups/tests/test_groups.py`, `boards/tests/test_board_group_field_validation.py` and `boards/tests/test_group_placement_roles.py` |
 | Import user scoping (Rule 5) | `boards/services/trello_import.py` `visible_users` (unchanged); JSON and CSV reach it through `boards/views/import_export.py` `_resolve_import_users` | `BoardImportExportMixin` only. Intentionally outside the enumeration test: it is already one shared function, and every import format enters through the one mixin, so there is no second transport for a copy to drift on. `boards/tests/test_import_user_scope.py` covers it |
 
 The session-based HTML surfaces, allauth's pages under `/accounts/` and the
@@ -280,3 +280,16 @@ backend CI job runs with the flag off, so the `backend-test-git-lens` job also
 runs this test with the flag on, and the lens views are enumerated there. The
 allowlists contain no flag-dependent entries, so the stale-entry check passes
 either way.
+
+## How the group-placement scan finds them
+
+`GroupPlacementEntryPointTests` parses every non-test module of the installed
+apps with `ast` and reports each function that assigns `.group` or `.group_id`,
+passes `group=` to a `Board` create or to `.save()` / `.update()`, or calls the
+reverse manager `.boards.add`, `.boards.set` or `.boards.create`. Each reported
+function must call `_require_group_admin`, `resolve_group_for_board_placement`,
+`_check_group_change` or `_resolve_import_group`, or be listed in
+`GROUP_PLACEMENT_ALLOWLIST` with a reason. A runtime pass also requires every
+writable `group` field on a `Board` serializer to validate through the check.
+The scan is syntactic and presence-only; it misses `setattr`, `**kwargs`
+create or update, `bulk_update` and `save(update_fields=["group"])`.
