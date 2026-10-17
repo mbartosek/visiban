@@ -584,6 +584,9 @@ class UserSerializer(serializers.ModelSerializer):
                 {"current_password": [credentials_module.EMAIL_CHANGE_PASSWORD_INCORRECT_MESSAGE]}
             )
         password_attempts.current_password_accepted(attempt)
+        # The hash the password was accepted against; ``update`` re-checks it
+        # under the user-row lock (#1711).
+        self._verified_password_hash = self.instance.password
 
     def validate(self, attrs):
         # Checked in to_internal_value; never a column to write.
@@ -688,6 +691,8 @@ class UserSerializer(serializers.ModelSerializer):
         - Under ``mandatory``, sending the current address back while a change is
           pending withdraws that change.
         """
+        from contextlib import nullcontext
+
         from django.db import IntegrityError, transaction
 
         from .email_change import (
@@ -718,28 +723,46 @@ class UserSerializer(serializers.ModelSerializer):
         if "email" in validated_data and validated_data["email"] == (instance.email or ""):
             validated_data.pop("email")
 
-        try:
-            with transaction.atomic():
-                instance = self._save_changed_fields(instance, validated_data)
-        except IntegrityError:
-            # unique_username_ci is the backstop for a concurrent rename racing
-            # validate_username (same TOCTOU handling as ChooseUsernameView).
-            if new_username is not None:
-                raise serializers.ValidationError({"username": [USERNAME_TAKEN_MESSAGE]})
-            raise
+        verified_hash = getattr(self, "_verified_password_hash", None)
+        # One transaction from the lock to the last write, so the password
+        # that was accepted is still the stored one when the address changes.
+        with transaction.atomic() if verified_hash is not None else nullcontext():
+            if verified_hash is not None:
+                # #1711: the current password was checked against the copy of
+                # the row loaded when the request started. Re-read the row
+                # under the user-row lock (serialized with every credential
+                # change) and refuse when the stored hash is no longer the one
+                # that was checked. A hash re-encoded by a login (same
+                # password, new salt) is refused too and the client retries.
+                from . import credentials as credentials_module
 
-        if pending_email is not None:
+                locked = credentials_module.lock_user_row(instance)
+                if locked.password != verified_hash or not locked.is_active:
+                    raise serializers.ValidationError(
+                        {"current_password": [credentials_module.EMAIL_CHANGE_PASSWORD_INCORRECT_MESSAGE]}
+                    )
             try:
-                request_email_change(self.context.get("request"), instance, pending_email)
-            except DjangoValidationError:
-                # #1312: the address is already verified for this account but
-                # collides with another account's username/email — see
-                # request_email_change's docstring for why this one branch
-                # checks (it bypasses confirmation entirely).
-                raise serializers.ValidationError({"email": [EMAIL_TAKEN_MESSAGE]})
-            instance.refresh_from_db(fields=["email"])
-        elif cancel_pending:
-            cancel_email_change(instance)
+                with transaction.atomic():
+                    instance = self._save_changed_fields(instance, validated_data)
+            except IntegrityError:
+                # unique_username_ci is the backstop for a concurrent rename racing
+                # validate_username (same TOCTOU handling as ChooseUsernameView).
+                if new_username is not None:
+                    raise serializers.ValidationError({"username": [USERNAME_TAKEN_MESSAGE]})
+                raise
+
+            if pending_email is not None:
+                try:
+                    request_email_change(self.context.get("request"), instance, pending_email)
+                except DjangoValidationError:
+                    # #1312: the address is already verified for this account but
+                    # collides with another account's username/email — see
+                    # request_email_change's docstring for why this one branch
+                    # checks (it bypasses confirmation entirely).
+                    raise serializers.ValidationError({"email": [EMAIL_TAKEN_MESSAGE]})
+                instance.refresh_from_db(fields=["email"])
+            elif cancel_pending:
+                cancel_email_change(instance)
         return instance
 
     @staticmethod

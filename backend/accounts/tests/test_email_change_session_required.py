@@ -194,7 +194,9 @@ class EmailChangeSessionRequirementTests(TestCase):
                 client = PasswordConfirmingAPIClient(password="pass12345678")
                 client.force_login(self.user)
                 new = f"dana-pending-{n}@new.example"
-                r = client.patch(url, {"email": new}, format="json")
+                # The confirmation mail goes out on commit.
+                with self.captureOnCommitCallbacks(execute=True):
+                    r = client.patch(url, {"email": new}, format="json")
                 self.assertEqual(r.status_code, status.HTTP_200_OK)
                 self.assertEqual(r.json()["pending_email"], new)
                 self.user.refresh_from_db()
