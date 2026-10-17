@@ -4571,6 +4571,31 @@
 <td>✅ Implemented — <code>visiban/settings.py</code> (#716). Constraint (#1337): the include must not replace <code>ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR</code> with anything that is not <code>accounts.tokens.VisibanPasswordResetTokenGenerator</code> or a subclass of it — subclasses are accepted. System check <code>accounts.E001</code> (Error) stops startup otherwise; <code>SILENCED_SYSTEM_CHECKS = ["accounts.E001"]</code> is the explicit opt-out.</td>
 </tr>
 <tr>
+<td><code>extension_urlpatterns</code> module attribute (<code>visiban/urls.py</code>)</td>
+<td>Pending-action gate: tells an extension's own routes from OSS routes (<code>visiban.middleware.oss_gated_view_names</code>, <code>accounts.E007</code>)</td>
+<td>✅ Implemented — #1593. <strong>Stable (1.0+ compatibility rules).</strong> It is a list holding the <em>same pattern objects</em> that are appended to <code>urlpatterns</code> from <code>enterprise.urls.enterprise_urlpatterns</code>; the gate matches them by object identity. An extension must keep its routes in <code>enterprise_urlpatterns</code> and must not re-wrap, copy, or rebuild them (for example a new <code>path()</code>/<code>re_path()</code> around the same view) after that list is handed to OSS, or its routes are silently treated as OSS routes. Pinned by <code>accounts/tests/test_forced_change_session_exemptions.py</code>. Identity rule: <a href="../../development/authorization-entry-points/">Authorization entry points</a> and the <a href="../../development/security-invariants/">security invariants registry</a></td>
+</tr>
+<tr>
+<td><code>PENDING_ACTION_EXTRA_GATED_PREFIXES</code> setting (<code>visiban/settings.py</code>)</td>
+<td>Extension packages that mount their own session-based HTML pages (for example <code>/sso/</code>)</td>
+<td>✅ Implemented — #1551. <strong>Stable.</strong> Tuple of path prefixes, each with a leading and trailing slash, that <code>PendingAccountActionMiddleware</code> gates like <code>/accounts/</code> and <code>/admin/</code>. Default <code>()</code>. Validated by <code>accounts.E004</code>. See <a href="../../development/authorization-entry-points/">Authorization entry points</a></td>
+</tr>
+<tr>
+<td><code>PENDING_ACTION_EXTRA_EXEMPT_VIEWS</code> setting (<code>visiban/settings.py</code>)</td>
+<td>Extension views a user with a pending forced change must still reach (for example an SSO callback)</td>
+<td>✅ Implemented — #1561. <strong>Stable.</strong> Tuple of exact resolved view names; each must meet the admission rule in <a href="../../development/authorization-entry-points/">Authorization entry points</a>. Default <code>()</code>. Validated by <code>accounts.E006</code>; a name that resolves to an OSS-gated view is rejected by <code>accounts.E007</code> and ignored at runtime</td>
+</tr>
+<tr>
+<td><code>TicketAuthMiddleware</code> (<code>accounts/ws_auth.py</code>)</td>
+<td>WebSocket routing, including <code>enterprise.routing.enterprise_websocket_urlpatterns</code></td>
+<td>✅ Implemented. <strong>Stable.</strong> Authenticates a WebSocket upgrade from a <code>?ticket=</code> parameter. Must be nested <em>inside</em> <code>AuthMiddlewareStack</code> (<code>AuthMiddlewareStack(TicketAuthMiddleware(URLRouter(...)))</code>); see its docstring for why, and <a href="../../api/websockets/">WebSockets</a> for the handshake</td>
+</tr>
+<tr>
+<td><code>accounts.E001</code>–<code>E007</code> and <code>accounts.W001</code> system checks (<code>accounts/checks.py</code>)</td>
+<td>Startup guard rails for the extension surface above</td>
+<td>✅ Implemented. <strong>Stable IDs.</strong> <code>E001</code> reset-token generator lost the address binding (#1337), <code>E002</code> allauth by-code password reset enabled (#1314, #1337), <code>W001</code> session engine cannot support WebSocket credential revocation (#1483), <code>E003</code> <code>FRONTEND_URL</code> under a gated path (#1551), <code>E004</code> malformed <code>PENDING_ACTION_EXTRA_GATED_PREFIXES</code> entry, <code>E005</code> pending-action middleware missing from <code>MIDDLEWARE</code> or placed before <code>AuthenticationMiddleware</code> (#1561), <code>E006</code> malformed <code>PENDING_ACTION_EXTRA_EXEMPT_VIEWS</code> entry, <code>E007</code> exempt view that is OSS-gated (#1589, #1593). IDs are never reused or renumbered, so <code>SILENCED_SYSTEM_CHECKS</code> entries keep working</td>
+</tr>
+<tr>
 <td>Enterprise WebSocket routing extension point (<code>enterprise.routing.enterprise_websocket_urlpatterns</code>)</td>
 <td>All enterprise WebSocket URL registrations</td>
 <td>✅ Implemented — <code>visiban/asgi.py</code>, mirrors the HTTP URL extension point above; silently skipped (<code>ImportError</code>) when the enterprise package is not installed (#1009)</td>

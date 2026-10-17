@@ -2043,6 +2043,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#stability-and-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stability and versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#enabling-the-server" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4280,6 +4291,20 @@
 <p class="admonition-title">Note</p>
 <p>This is the Phase 1 (OSS core) surface: board discovery, full card CRUD, and the <code>board://</code>/<code>card://</code> resources below. A full setup guide is tracked separately.</p>
 </div>
+<hr />
+<h2 id="stability-and-versioning">Stability and versioning<a class="headerlink" href="#stability-and-versioning" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>The MCP surface is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is <strong>not</strong> experimental.</p>
+<ul>
+<li><strong>Tool names</strong> (<code>list_boards</code>, <code>list_columns</code>, <code>list_swimlanes</code>, <code>list_cards</code>, <code>create_card</code>, <code>move_card</code>, <code>update_card</code>, <code>archive_card</code>) and <strong>resource URIs</strong> (<code>board://{board_id}</code>, <code>card://{card_id}</code>) are never removed or renamed in a minor or patch release.</li>
+<li><strong>Argument schemas</strong> change additively only: new arguments are optional with a sensible default, and an existing argument is never removed, renamed, made required, or given a different type.</li>
+<li><strong>Results and error payloads</strong> only gain fields; existing fields keep their name and type. The error <code>code</code> values listed under <a href="#tool-errors">Tool errors</a> are never removed.</li>
+<li>A tool or resource that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.</li>
+<li>New tools, resources, optional arguments, and result fields can appear in any minor release, so clients should ignore fields they do not recognize.</li>
+<li>The configuration names <code>MCP_SERVER_ENABLED</code>, <code>MCP_ALLOWED_HOSTS</code>, <code>MCP_THROTTLE_*_RATE</code>, and the <code>/mcp</code> path follow the environment-variable rules: they are not renamed, and a rename keeps the old name as a deprecated alias for at least one minor release.</li>
+</ul>
 <hr />
 <h2 id="enabling-the-server">Enabling the server<a class="headerlink" href="#enabling-the-server" title="Permanent link">&para;</a></h2>
 <p>Set the environment variable on the backend and restart it:</p>
