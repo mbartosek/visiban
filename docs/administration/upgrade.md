@@ -123,9 +123,9 @@ Four patterns break this compatibility — or block the upgrade outright — and
 
 A `NOT NULL` column without a default added to an existing table blocks any `INSERT` from the old code that does not know about the new column. The old container cannot supply a value for a column it does not know about.
 
-**Safe:** `nullable=True` or a `default=` value on the field. The old code omits the column from its `INSERT`; PostgreSQL fills in `NULL` or the default.
+**Safe:** `null=True` or a `db_default=` value on the field (use `db_default=` alongside `default=`: on PostgreSQL a plain Python `default=` is dropped from the database after `AddField`, so old pods can still fail; see [Database migrations](../development/database-migrations.md)). The old code omits the column from its `INSERT`; PostgreSQL fills in `NULL` or the default.
 
-**Unsafe:** `NOT NULL` with no default. Every `INSERT` from the old code fails with a constraint violation.
+**Unsafe:** `NOT NULL` with no `db_default=`, even if the field has a Python-level `default=` (PostgreSQL drops that after `AddField`). Every `INSERT` from the old code fails with a constraint violation.
 
 If a column genuinely must be `NOT NULL` with no default, the migration must be split across releases:
 

@@ -37,7 +37,7 @@ What is flagged
    ``ValidateConstraint`` that follows it still scans the table and can fail.
 3. ``AlterUniqueTogether`` / ``AlterIndexTogether`` — rebuilds the table's unique index and
    fails on any duplicate.
-4. ``AddField`` that is not nullable and carries no ``default`` — Django cannot add such a
+4. ``AddField`` that is not nullable and carries no ``default=`` or ``db_default=`` — Django cannot add such a
    column to a table with existing rows at all; there is no value to give them.
 5. ``AlterField`` that explicitly sets ``null=False`` — making an existing column NOT NULL
    fails if any row is still NULL.
@@ -67,6 +67,12 @@ What is not flagged
   existed under a new filename; see ``docs/development/database-migrations.md``.
 - An operation carrying an inline ``# constraint-safe: <reason>`` comment, on the operation's
   own line or within the four lines above it. The reason after the colon is mandatory.
+
+Advisory on ``db_default`` (#1680): this scan only checks that a NOT NULL ``AddField`` has
+*some* ``default=`` so existing rows can be backfilled. It deliberately does not fail a
+``default=``-only column, even though PostgreSQL drops a Python-level default after
+``AddField`` and a rolling deploy's old pods can then hit a NOT NULL violation on INSERT.
+The fix hint recommends ``db_default=``; enforcing it is the ``migration-check`` agent's job.
 
 Migrations from before this rule are listed in ``GRANDFATHERED`` by filename, the same
 convention #1081 uses, and for the same reason: re-checking applied history buys nothing and
@@ -142,7 +148,8 @@ GUIDANCE = {
     "AddField-not-null": (
         "Django cannot add a NOT NULL column with no default to a table that already has "
         "rows — add `null=True` (and tighten it in a later migration once backfilled) or "
-        "give the field a `default=`"
+        "give the field `db_default=` (keep `default=` for the ORM-side value; a "
+        "Python-level `default=` alone is dropped from the database after AddField)"
     ),
     "AlterField-null-false": (
         "making an existing column NOT NULL fails if any row is still NULL — backfill the "
@@ -241,7 +248,10 @@ def _field_risk(node: ast.Call, op_name: str) -> str | None:
     is_unique = _is_true(_keyword(field, "unique"))
 
     if op_name == "AddField":
-        has_default = _keyword(field, "default") is not None
+        has_default = (
+            _keyword(field, "default") is not None
+            or _keyword(field, "db_default") is not None
+        )
         if is_unique and not _is_true(null_kw):
             return "unique=True"
         if not _is_true(null_kw) and not has_default:
@@ -643,6 +653,19 @@ _BAD_FIXTURES = {
 }
 
 _GOOD_FIXTURES = {
+    "AddField not-null with db_default only": """
+        from django.db import migrations, models
+
+        class Migration(migrations.Migration):
+            dependencies = [("boards", "0001_initial")]
+            operations = [
+                migrations.AddField(
+                    model_name="card",
+                    name="priority",
+                    field=models.IntegerField(db_default=0),
+                ),
+            ]
+        """,
     "AddConstraint preceded by RunPython in the same migration": """
         from django.db import migrations, models
 

@@ -84,8 +84,9 @@ migrations.AddField(
 
 Put the same `db_default` on the model field so `makemigrations --check` stays clean. A migration
 that has already shipped gets an additive `AlterField` rather than an edit in place. The
-`check_migration_constraint_safety` scan below accepts any `default=` and so does not catch this;
-`migration-check` does.
+`check_migration_constraint_safety` scan below accepts any `default=` and so does not fail on this;
+`migration-check` enforces it. The scan stays advisory by decision (#1680): its fix hint
+recommends `db_default=` (alongside `default=`), but it never fails a `default=`-only column.
 
 ## Adding an index
 
@@ -552,7 +553,7 @@ the way a plain `AddConstraint` would. This check watches `ValidateConstraint`, 
 | `migrations.AddConstraint` | yes | validates every row when applied |
 | `visiban.db_operations.ValidateConstraint` | yes | the deferred half of the NOT VALID pair still scans every row |
 | `AlterUniqueTogether` / `AlterIndexTogether` | yes | rebuilds the table's unique index, fails on any duplicate |
-| `AddField` with no `null=True` and no `default` | yes | Django cannot add the column to a populated table with nothing to put in existing rows |
+| `AddField` with no `null=True`, no `default=` and no `db_default=` | yes | Django cannot add the column to a populated table with nothing to put in existing rows |
 | `AlterField` with explicit `null=False` | yes | making an existing column NOT NULL fails if any row is still NULL |
 | `AddField` / `AlterField` with `unique=True` | yes, with one exception below | fails on any pre-existing duplicate value |
 | `AddField` with `unique=True` **and** `null=True` | **no** | PostgreSQL does not treat NULL as equal to NULL, so a unique index over a nullable brand-new column never rejects a pre-existing row — every one of them just gets NULL (`boards/0034_board_share_token`, `groups/0010_hash_group_invite_token` are this exact shape) |
