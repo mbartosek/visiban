@@ -162,7 +162,7 @@ The group page subscribes to a per-group WebSocket channel (`ws/groups/<group_id
 
 | Event | Description |
 |---|---|
-| `board.created` | A new board was created in this group, or a board was moved into it (with move-group, or by changing the board's `group` with `PATCH`/`PUT`) |
+| `board.created` | A new board was created in this group, or a board was moved into it (with move-group, by changing the board's `group` with `PATCH`/`PUT`, or by changing its group in the Django admin) |
 | `board.updated` | A board was renamed or its settings changed |
 | `board.deleted` | A board was deleted or moved out of this group |
 
