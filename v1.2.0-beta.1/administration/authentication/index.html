@@ -4133,6 +4133,7 @@ stays signed in.</p>
 <p><strong>SMTP requirement</strong> — password reset emails require outbound email to be configured. See <code>EMAIL_HOST</code> and related settings in <a href="../configuration/">Configuration</a>. If email is not configured, reset emails are silently dropped (no error is shown to the user). In that case, administrators can reset passwords manually:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>backend<span class="w"> </span>python<span class="w"> </span>manage.py<span class="w"> </span>changepassword<span class="w"> </span>&lt;username&gt;
 </code></pre></div>
+<p>Resetting a password this way revokes the account's personal access tokens and its API auth token, so credentials issued under the old password stop working. It does not change whether the account must choose a new password.</p>
 <p>For API details, see <a href="../../api/authentication/#forgot-password">Authentication API — Forgot password</a>.</p>
 <h2 id="oauth-google-github-gitlab">OAuth (Google, GitHub, GitLab)<a class="headerlink" href="#oauth-google-github-gitlab" title="Permanent link">&para;</a></h2>
 <p>See the <a href="../../getting-started/oauth/">OAuth Setup</a> guide for step-by-step configuration of each provider.</p>
