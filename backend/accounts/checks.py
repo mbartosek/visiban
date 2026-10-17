@@ -295,3 +295,36 @@ def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs)
         for name in candidates
         if name in oss_gated
     ]
+
+
+@checks.register(checks.Tags.security)
+def check_wildcard_allowed_hosts(app_configs, **kwargs):
+    """Recommend exact hostnames when ALLOWED_HOSTS uses a wildcard entry (#1687).
+
+    The WebSocket Origin check (``accounts.ws_origin``) also accepts an origin
+    whose host matches ``ALLOWED_HOSTS``, ignoring scheme and port, so a ``*``
+    or leading-dot entry makes that match as broad as the pattern. Listing
+    origins in ``CORS_ALLOWED_ORIGINS`` does not narrow that host match, so the
+    check does not look at them: the remedy is exact hostnames. Skipped when
+    ``DEBUG`` is on; CI sets an exact ``ALLOWED_HOSTS``. A Warning,
+    not an Error: the matching rule itself is unchanged in 1.2 (#1697).
+    """
+    from django.conf import settings
+
+    if settings.DEBUG:
+        return []
+    hosts = getattr(settings, "ALLOWED_HOSTS", None) or []
+    if not any(h == "*" or h.startswith(".") for h in hosts):
+        return []
+    return [
+        checks.Warning(
+            "ALLOWED_HOSTS contains a wildcard entry.",
+            hint=(
+                "Consider listing exact hostnames, which also keeps WebSocket "
+                "origin matching exact. Silence with "
+                "SILENCED_SYSTEM_CHECKS=['accounts.W002'] if intended. "
+                "See docs/api/websockets.md."
+            ),
+            id="accounts.W002",
+        )
+    ]
