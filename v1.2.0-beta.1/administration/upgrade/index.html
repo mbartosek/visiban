@@ -4634,6 +4634,11 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
 <li><strong>The previous address is notified of an email change.</strong> Whenever an account's email
   changes to a different address, by any route, the previous address receives a short
   notice. Make sure outbound email is configured if you rely on it.</li>
+<li><strong>Accounts without a password get address and first-password notices.</strong> On an
+  account that signs in only through an identity provider, adding or confirming an
+  email address sends a short notice to the account's current email, and setting a
+  first password, from a reset link or by the signed-in user, sends one to the account's email address and every
+  verified address on the account.</li>
 <li><strong>Connecting a sign-in provider asks for the password first.</strong> When an account that
   has a password connects a provider from Settings, it is asked to confirm that password
   once, on allauth's <code>/accounts/reauthenticate/</code> page. In the Visiban app the user then
