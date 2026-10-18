@@ -365,7 +365,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
     try {
       const updated = await setBoardMember(board.id, userId, role);
       setMembers((prev) => {
-        const next = prev.map((m) => m.user.id === userId ? { ...m, role: updated.role, is_moderator: updated.is_moderator } : m);
+        const next = prev.map((m) => m.user.id === userId ? { ...m, id: updated.id ?? m.id, role: updated.role, is_moderator: updated.is_moderator } : m);
         if (!next.find((m) => m.user.id === userId)) next.push(updated);
         return next;
       });
@@ -381,7 +381,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
     setMemberActionError(null);
     try {
       const updated = await setBoardMember(board.id, userId, currentRole, !isModerator);
-      setMembers((prev) => prev.map((m) => m.user.id === userId ? { ...m, is_moderator: updated.is_moderator } : m));
+      setMembers((prev) => prev.map((m) => m.user.id === userId ? { ...m, id: updated.id ?? m.id, is_moderator: updated.is_moderator } : m));
     } catch {
       setMemberActionError("Failed to update moderator status. Please try again.");
     } finally {

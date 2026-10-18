@@ -41,7 +41,7 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
     try {
       const updated = await setBoardMember(board.id, userId, role);
       const next = members.map((m) =>
-        m.user.id === userId ? { ...m, role: updated.role } : m
+        m.user.id === userId ? { ...m, id: updated.id ?? m.id, role: updated.role } : m
       );
       if (!next.find((m) => m.user.id === userId)) {
         next.push(updated);
