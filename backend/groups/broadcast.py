@@ -66,6 +66,27 @@ DEPRECATED_GROUP_EVENTS: dict[str, str] = {}
 
 INTENTIONALLY_UNHANDLED_GROUP_EVENTS: dict[str, str] = {}
 
+# Group payload fields whose value depends on who is asking (#1692). A frame
+# goes to every subscriber of the group channel, but the payload was built for
+# the acting user (or for no viewer at all), so these are dropped from every
+# group event rather than sent with someone else's answer. Clients read them
+# over REST. Top-level keys only, like ``ADMIN_ONLY_BOARD_FIELDS``.
+VIEWER_SPECIFIC_GROUP_FIELDS = frozenset({"can_place_boards"})
+
+
+def without_viewer_specific_group_fields(payload):
+    """Return *payload* without the top-level keys in ``VIEWER_SPECIFIC_GROUP_FIELDS``.
+
+    Applied once, in ``broadcast_group_event``, so every group event (created,
+    updated, ownership transfer, board defaults, Django admin transfer) is
+    covered without each call site having to remember it. Keys are dropped,
+    not nulled, so a client merging the frame keeps the value it read over
+    REST. A non-dict payload is returned unchanged.
+    """
+    if not isinstance(payload, dict) or VIEWER_SPECIFIC_GROUP_FIELDS.isdisjoint(payload):
+        return payload
+    return {k: v for k, v in payload.items() if k not in VIEWER_SPECIFIC_GROUP_FIELDS}
+
 
 def broadcast_group_event(group_id: int, event_type: str, payload: dict) -> None:
     """Broadcast a group-scoped event (board.created / board.updated / board.deleted) to
@@ -100,8 +121,11 @@ def broadcast_group_event(group_id: int, event_type: str, payload: dict) -> None
     # DRF serializer.data may contain datetime/Decimal objects that msgpack cannot
     # serialize. Round-trip through JSONRenderer to get plain Python types.
     # Drops admin-only board fields at the top level of the payload only; nested
-    # values pass through unchanged (see ADMIN_ONLY_BOARD_FIELDS).
-    safe_payload = json.loads(JSONRenderer().render(without_admin_only_board_fields(payload)))
+    # values pass through unchanged (see ADMIN_ONLY_BOARD_FIELDS). Per-viewer
+    # group fields are dropped the same way (VIEWER_SPECIFIC_GROUP_FIELDS).
+    safe_payload = json.loads(JSONRenderer().render(
+        without_viewer_specific_group_fields(without_admin_only_board_fields(payload))
+    ))
     try:
         async_to_sync(channel_layer.group_send)(
             f"group_{group_id}",

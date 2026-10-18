@@ -23,7 +23,8 @@ List all groups accessible to the current user: groups they belong to, their sub
   "allowed_priorities": [],
   "shared_labels": [],
   "is_starred": false,
-  "navigation_only": true
+  "navigation_only": true,
+  "can_place_boards": false
 }
 ```
 
@@ -67,6 +68,20 @@ Get group details.
 | `ancestors` | array | Ordered list of ancestor groups from root to immediate parent. Each entry is `{ "id": 1, "name": "Acme Corp" }`. Empty for top-level groups. **Only present on this single-object retrieve endpoint** — the list endpoint (`GET /api/v1/groups/`) omits `ancestors`. |
 | `created_at` | string | ISO 8601 timestamp |
 | `navigation_only` | boolean | *(1.2+)* `true` when the requesting user has no access to this group itself and it is returned only so navigation (tree, breadcrumbs) keeps working; its fields are withheld. See [Ancestor groups](#ancestor-groups-navigation-only). |
+| `can_place_boards` | boolean | *(1.2+)* `true` when the requesting user may place a board in this group — create one through [`POST /groups/{id}/boards/`](#post-apiv1groupsidboards), move one in with `POST /boards/{id}/move-group/`, or import one into it. See [Board placement](#board-placement-can_place_boards). |
+
+#### Board placement (`can_place_boards`)
+
+*(1.2+)* Placing a board in a group requires the group admin role on that group or on one of its ancestors (within the 6-level walk), or access to all content. `can_place_boards` reports that rule for the requesting user, computed with the same check the server applies to those writes, so a client can disable groups it would refuse instead of waiting for a `403`. It is returned on every REST response that carries a group object (list, retrieve, `/subgroups/`, create, update, `board-defaults`, `transfer-ownership`, and the invite join response); the list computes it for every row with one query. A navigation-only group is always `false`. For example, a member of `Engineering` who administers only its subgroup `Platform` receives:
+
+```json
+[
+  { "id": 1, "name": "Engineering", "parent": null, "navigation_only": false, "can_place_boards": false },
+  { "id": 2, "name": "Platform", "parent": 1, "navigation_only": false, "can_place_boards": true }
+]
+```
+
+(Other fields omitted.) The value describes the requesting user, so it is REST-only: `group.*` WebSocket event payloads do not carry `can_place_boards`, because one frame goes to every subscriber of the group. Re-read it over REST when a group event arrives.
 
 #### Ancestor groups (navigation-only)
 

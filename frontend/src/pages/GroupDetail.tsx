@@ -577,6 +577,12 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
     group?.owner.id === user.id ||
     members.find((m) => m.user.id === user.id)?.role === "admin";
 
+  // Creating or importing a board here is board placement, which the server
+  // allows only for a group admin of this group or an ancestor (or a user with
+  // access to all content). Follow its answer rather than isAdmin, which looks
+  // only at this group's direct roles (#1692).
+  const canPlaceBoards = group?.can_place_boards === true;
+
   const activeTab = isAdmin && searchParams.get("tab") === "settings" ? "settings" : "boards";
 
   // Build Navbar breadcrumb from the ancestors array when available (full chain);
@@ -847,7 +853,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
             <section>
               <div className="flex items-center gap-3 mb-3">
                 <h2 className="text-fg font-semibold">Boards</h2>
-                {isAdmin && (
+                {canPlaceBoards && (
                   <button
                     onClick={() => setImportingBoard(true)}
                     className="text-sm text-fg-secondary hover:text-fg hover:bg-surface-hover px-3 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
@@ -898,7 +904,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     </button>
                   </div>
                 ))}
-                {isAdmin && (
+                {canPlaceBoards && (
                   <button
                     onClick={() => setCreatingBoard(true)}
                     className="w-full border-2 border-dashed border-line hover:border-line-emphasis hover:bg-surface/50 rounded px-4 py-3 text-left transition group focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
@@ -906,7 +912,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     <p className="text-fg-muted group-hover:text-fg-secondary font-medium transition">+ New board</p>
                   </button>
                 )}
-                {!isAdmin && boards.length === 0 && !showSubgroupBoards && (
+                {!canPlaceBoards && boards.length === 0 && !showSubgroupBoards && (
                   <p className="text-fg-faint text-sm">No boards yet.</p>
                 )}
 
