@@ -188,6 +188,25 @@ class GroupWriterVsGroupDeleteTests(_GroupDeleteRaceBase):
     def test_invite_link_create_behind_group_delete(self):
         self._assert_delete_then_writer(*self._race(self.DELETE_HOLD, self._delete, self._invite_create))
 
+    def test_concurrent_invite_link_creates_respect_the_cap(self):
+        """With 4 active links, two creates serialize on the group row: one 201, one cap 400.
+
+        Fails if the create's group lock is dropped or weakened to FOR KEY
+        SHARE: the second create would not wait, and both would read a
+        count of 4.
+        """
+        for i in range(4):
+            GroupInviteLink.generate(group=self.group, created_by=self.sender, name=f"C1719-{i}")
+        first, second = self._race(self.INVITE_CREATE_HOLD, self._invite_create, self._invite_create)
+        self.assertEqual(first.status_code, 201, first.content[:300])
+        self.assertEqual(second.status_code, 400, second.content[:300])
+        self.assertEqual(second.json(), {"detail": "Maximum of 5 active invite links per group."})
+        active = GroupInviteLink.objects.filter(
+            group=self.group, is_active=True, used_at__isnull=True,
+            delivery=GroupInviteLink.Delivery.LINK,
+        ).count()
+        self.assertEqual(active, 5)
+
     # -- emailed invite send --------------------------------------------
 
     def test_group_delete_behind_invite_send(self):
@@ -247,15 +266,34 @@ class GroupWriterVsGroupDeleteTests(_GroupDeleteRaceBase):
     def test_group_delete_behind_transfer_rechecks_the_owner(self):
         transferred, deleted = self._race(self.COMMIT_HOLD, self._transfer, self._delete)
         self.assertEqual(transferred.status_code, 200, transferred.content[:300])
-        # The sender no longer owns the group (#1638's owner re-check), but
-        # is a site admin, which may delete any group.
-        self.assertIn(deleted.status_code, (204, 403), deleted.content[:300])
+        # The sender no longer owns the group, and is_site_admin does not
+        # grant can_access_all_content, so #1638's owner re-check under the
+        # lock refuses the delete.
+        self.assertEqual(deleted.status_code, 403, deleted.content[:300])
+        self.assertEqual(Group.objects.get(pk=self.group_id).owner_id, self.heir.pk)
         self.assertEqual([r.getMessage() for r in self.errors.records], [])
 
     def test_transfer_behind_group_delete(self):
         self._assert_delete_then_writer(*self._race(self.DELETE_HOLD, self._delete, self._transfer))
 
     # -- group PATCH (rename) and board defaults -------------------------
+
+    def test_reparent_onto_a_parent_deleted_meanwhile_answers_400(self):
+        """A PATCH naming a new parent that a delete holds waits, then gets the unknown-parent 400."""
+        mover = Group.objects.create(name="M1719", owner=self.sender)
+        GroupMembership.objects.create(group=mover, user=self.sender, role=GroupMembership.Role.ADMIN)
+
+        def reparent():
+            return self._client().patch(f"/api/v1/groups/{mover.pk}/", {"parent": self.group_id}, format="json")
+
+        deleted, patched = self._race(self.DELETE_HOLD, self._delete, reparent)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(patched.status_code, 400, patched.content[:300])
+        self.assertEqual(patched.json(), {"parent": ["Select a parent group you administer."]})
+        mover.refresh_from_db()
+        self.assertIsNone(mover.parent_id)
+        self._assert_everything_gone()
+
 
     def test_group_delete_behind_rename(self):
         self._assert_writer_then_delete(*self._race(self.COMMIT_HOLD, self._rename, self._delete))
@@ -278,6 +316,28 @@ class GroupWriterVsGroupDeleteTests(_GroupDeleteRaceBase):
     def test_member_role_change_behind_group_delete(self):
         # Before: save() re-inserted the membership under the deleted group.
         self._assert_delete_then_writer(*self._race(self.DELETE_HOLD, self._delete, self._member_role))
+
+
+class InviteRevokeVsJoinTests(_GroupDeleteRaceBase):
+    """A revoke waits for an in-flight join through the same link (group -> invite order)."""
+
+    def test_revoke_behind_join_answers_consumed(self):
+        def revoke():
+            client = APIClient()
+            client.force_authenticate(User.objects.get(pk=self.sender.pk))
+            return client.delete(f"/api/v1/groups/{self.group_id}/invite-links/{self.link.pk}/")
+
+        joined, revoked = self._race(self.JOIN_HOLD, self._join, revoke)
+        self.assertEqual(joined.status_code, 201, joined.content[:300])
+        self.assertEqual(revoked.status_code, 400, revoked.content[:300])
+        self.assertEqual(
+            revoked.json(), {"detail": "This link has already been consumed and cannot be revoked."},
+        )
+        self.link.refresh_from_db()
+        self.assertTrue(self.link.is_active)
+        self.assertIsNotNone(self.link.used_at)
+        self.assertTrue(GroupMembership.objects.filter(group=self.group, user=self.joiner).exists())
+        self.assertEqual([r.getMessage() for r in self.errors.records], [])
 
 
 class BoardImportVsGroupDeleteTests(_GroupDeleteRaceBase):

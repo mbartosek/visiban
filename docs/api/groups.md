@@ -385,7 +385,6 @@ The previous owner becomes a regular admin after transfer. Returns the updated g
 - `400 Bad Request` — `new_owner_id` is not a member of this group
 - `400 Bad Request` — `new_owner_id` is a member but not an admin
 - `400 Bad Request` — the group's owner changed while the request was being processed (`Only the group owner can transfer ownership.`)
-
 - `404 Not Found` *(1.2+)* — the group was deleted while the request waited for it (#1719)
 
 ---
@@ -409,7 +408,7 @@ Create a group shared label. Requires group admin.
 ### `PATCH /api/v1/groups/{id}/labels/{label_id}/`
 Update a group shared label name or color. Requires group admin.
 
-*(1.2+)* A update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers an update of a label deleted while it waited; before, the update re-created the deleted label.
+*(1.2+)* An update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers an update of a label deleted while it waited; before, the update re-created the deleted label.
 
 ### `DELETE /api/v1/groups/{id}/labels/{label_id}/`
 Delete a group shared label. Requires group admin. Does **not** remove the label from boards that already inherited it.
