@@ -7,7 +7,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import ErrorDetail, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import (
@@ -17,6 +17,7 @@ from drf_spectacular.utils import (
 from accounts.models import User
 from accounts.permissions import TokenHasScope
 from groups.broadcast import broadcast_group_event as _broadcast_group_event
+from groups.services import lock_group_for_board_placement
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -123,6 +124,18 @@ def _parse_events_limit(raw):
     return limit
 
 
+
+def _group_gone_error():
+    """The ``400 {"group": [...]}`` the serializer gives an unknown group (#1638).
+
+    Board create and ``PATCH``/``PUT`` re-check the target group under its
+    lock; one deleted since validation is answered exactly as an unknown id
+    would have been, so a client sees one documented shape either way.
+    """
+    from ..serializers import _BOARD_GROUP_NOT_ALLOWED_MSG
+
+    return ValidationError({"group": [ErrorDetail(_BOARD_GROUP_NOT_ALLOWED_MSG, code="does_not_exist")]})
+
 class BoardViewSet(
     BoardAnalyticsMixin,
     BoardImportExportMixin,
@@ -226,6 +239,13 @@ class BoardViewSet(
         # Read before any write so a malformed swimlane_name is a clean 400 (#1669).
         swimlane_name = optional_text(self.request.data, "swimlane_name")
         with transaction.atomic():
+            # The target group row before the board insert (#1638): see
+            # lock_group_for_board_placement. A create into a group being
+            # deleted answers the serializer's unknown-group 400 instead of a
+            # 500 at COMMIT.
+            target_group = serializer.validated_data.get("group")
+            if target_group is not None and not lock_group_for_board_placement(target_group.pk):
+                raise _group_gone_error()
             board = serializer.save(owner=self.request.user)
             BoardMembership.objects.create(board=board, user=self.request.user, role=BoardMembership.Role.ADMIN)
 
@@ -288,6 +308,15 @@ class BoardViewSet(
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied("Only board admins can edit board settings.")
         with transaction.atomic():
+            # A PATCH/PUT that names a group takes that group row before the
+            # board row (#1638, lock_group_for_board_placement): group ->
+            # board, the order a group delete takes, so a group change inside
+            # a subtree being deleted cannot deadlock with the delete. A group
+            # deleted meanwhile is the serializer's unknown-group 400, not a
+            # 404 (which here means the board itself is gone).
+            target_group = serializer.validated_data.get("group")
+            if target_group is not None and not lock_group_for_board_placement(target_group.pk):
+                raise _group_gone_error()
             # Board row first (#1602): a board delete holds it from the start
             # of its cascade, and a PATCH queued behind one must answer 404,
             # not let save() fall back to an INSERT that resurrects the board.
@@ -576,6 +605,14 @@ class BoardViewSet(
             board.group = None
 
         with transaction.atomic():
+            # The target group row before the board row (#1638): a group
+            # delete holds the group rows of its subtree from the start and
+            # reaches this board at its collector's SET_NULL, so a move that
+            # held the board row and asked for the group only at COMMIT (the
+            # deferred foreign key) deadlocked against it. A move into a group
+            # being deleted answers 404. See lock_group_for_board_placement.
+            if board.group_id is not None and not lock_group_for_board_placement(board.group_id):
+                raise NotFound
             # Board row first (#1602): a move queued behind a board delete
             # answers 404 rather than re-inserting the board. update_fields so
             # the write is an UPDATE only and cannot overwrite settings with

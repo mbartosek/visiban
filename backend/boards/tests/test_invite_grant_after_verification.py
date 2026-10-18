@@ -860,7 +860,7 @@ class BoardConcurrentConfirmationTests(_BoardKind, _ConcurrentConfirmationTests,
 
 class GroupConcurrentConfirmationTests(_GroupKind, _ConcurrentConfirmationTests, TransactionTestCase):
     grant_module = "groups.invite_registration"
-    row_lock_attr = "_lock_invite_group"
+    row_lock_attr = "lock_invite_group"
     refusal_attr = "group_link_registration_refusal"
 
     @staticmethod
@@ -870,7 +870,7 @@ class GroupConcurrentConfirmationTests(_GroupKind, _ConcurrentConfirmationTests,
         return redeem_reserved_group_invites(user, address)
 
     def other_invite_writer(self):
-        # The group join path locks only the invite row.
+        # The group join path (group row, then the invite row since #1638).
         existing = User.objects.create_user(username="existing", password="p", email="existing@example.org")
         EmailAddress.objects.create(user=existing, email=INVITED, verified=True, primary=False)
         client = APIClient()
