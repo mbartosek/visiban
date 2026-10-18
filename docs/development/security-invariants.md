@@ -45,7 +45,8 @@ function that writes `Board.group` must call the shared group-admin check or be
 allowlisted.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist) or Rule 5, and it
+enumerate Rule 3 (the revocation table is a review checklist), Rule 5, Rule 9
+or Rule 10 (review checklists, pinned by the tests named under each), and it
 does not test locking; the concurrent tests for each consume-once path do.
 [Authorization Entry Points](authorization-entry-points.md) says what each
 entry point calls and how that test finds them.
@@ -340,6 +341,64 @@ both channels for each write path, and in the feed for every reader role),
 `boards/tests/test_board_events.py` `ReadSideStrippingTests` (including the
 shared-helper identity check), `boards/tests/test_consumer_role_refresh.py`, and
 `boards/tests/test_member_site_admin_flag.py`.
+
+## Rule 9: Role writers validate against the model enum, and role readers fail closed
+
+**Rule.** Every code path that stores a board or group role validates the
+request-supplied value against the model's role enum (`Role.values`) before the
+write, and rejects a non-string or out-of-set value. Every helper that resolves a
+role from a stored row treats a value outside the enum as no role, not as a
+role: `choices` is not enforced on save, so the stored string cannot be trusted
+to be a member of the enum.
+
+**Why.** Role comparisons treat an unknown string as meaningful (a ladder that
+ranks known roles can rank an unknown one anywhere). Validation at the writer
+keeps bad values out; the fail-closed reader bounds the damage of one that
+arrives by any other route, such as a shell write or an older release.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Board member add or role change (REST) | `boards/views/boards.py` `BoardViewSet.members` | The submitted `role` must be a string within `BoardMembership.Role.values`, else `400`, before any row is written |
+| Group member role change (REST) | `groups/views.py` `GroupViewSet.update_member` (PATCH) | The submitted `role` must be within `GroupMembership.Role.values`, else `400` |
+| Board invite links, link and email (REST) | `boards/serializers.py` `BoardInviteLinkCreateSerializer`, `BoardInviteLinkEmailSerializer`; `boards/models.py` `BoardInviteLink.generate` | A `ChoiceField` limited to the roles an invite may grant; `generate` repeats the check against `GRANTABLE_ROLES` (a subset of `Role.values`) |
+| Group invite links, link and email (REST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`, `GroupInviteLinkEmailSerializer` | A `ChoiceField` over `GroupInviteLink.Role.choices` |
+| Invite redemption at registration | `boards/invites.py` `role_is_grantable`, `_would_create_membership`; `groups/invite_registration.py` `group_link_registration_refusal` | The stored link role must be in the grantable set (`GRANTABLE_ROLES`) or `GroupMembership.Role.values`, else the invite is refused as invalid |
+| Board role resolution (all transports) | `boards/permissions.py` `get_board_role`, `get_board_roles` | A stored board membership role outside `BoardMembership.Role.values` resolves to no access; a stored group role outside `GroupMembership.Role.values` is skipped in the ancestor walk (`_nearest_ancestor_role`); the moderator flag is honored only for an in-enum role |
+| WebSocket (board and group) | `boards/consumers.py` `_lookup_role`; `groups/consumers.py` `_user_can_access_group_id` | Roles come from `get_board_role` and `user_has_group_access`; neither consumer accepts a role from a frame |
+| MCP | `mcp_server/tools.py` `_resolve_board` | Roles come from `get_board_role` and `get_board_roles`; no tool writes a membership role |
+
+Coverage: `boards/tests/test_members_role_validation.py` (writer rejection,
+stored out-of-enum board and group roles, bulk resolver, moderator flag),
+`groups/tests/test_groups.py` (`test_invalid_role_returns_400`,
+`test_all_valid_roles_are_accepted`, `test_invalid_invite_link_role_returns_400`).
+
+## Rule 10: A second transport is no broader than REST for the same role
+
+**Rule.** Where a feature reaches the same data over a second transport
+(WebSocket, MCP, change feed, export), its access predicate and its output
+field set for a given role are no broader than the REST ones for that role.
+The predicate is shared code where possible (one function called by every
+transport) and the output is either built from the REST serializer or from an
+explicit allow-list pinned by a test to the REST field set. A field REST omits
+for a role is omitted on every other transport for that role.
+
+**Why.** Hand-written shapes and copied predicates drift: a field added to one
+serializer, or a rule tightened on one endpoint, does not reach a copy. A deny
+list on the second transport fails open on the next field added; an allow-list
+fails closed.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check |
+| WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
+| MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `get_board_role` and `get_board_roles`, with a missing board and an inaccessible board answered alike (Rule 7) |
+| MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
+| Change feed and board export | `boards/serializers.py` `BoardEventSerializer.to_representation`; `boards/views/import_export.py` `BoardImportExportMixin.export` | Rule 8 rows: per-reader field gating with the reader's role |
+
+Coverage: `mcp_server/tests/test_mcp.py` (`UserFieldParityTests`, which pins
+user-bearing keys and card keys to the REST serializers for the lowest role, and
+`test_web_only_fields_are_never_exposed`), `boards/tests/test_consumer_role_refresh.py`,
+and the Rule 8 tests.
 
 ## How to add a rule
 
