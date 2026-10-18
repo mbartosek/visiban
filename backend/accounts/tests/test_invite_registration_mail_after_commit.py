@@ -198,10 +198,9 @@ class InviteRegistrationMailTests(_BoardInviteMixin, TestCase):
         # A redemption refused after the account was created rolls the account
         # back; the mail for it must not leave (before #1639 it already had).
         _link, raw = self._make_board_invite()
-        # One client, already holding a session from a prior signup, as in
-        # boards/tests/test_board_invite_registration.py's 409 tests: a fresh
-        # client's session row is created inside the rolled-back transaction,
-        # and the session middleware then answers 400 instead of the view's 409.
+        # One client, already holding a session from a prior signup. A fresh
+        # client answers the same 409 since #1718 (see
+        # boards/tests/test_board_invite_registration.py).
         client = APIClient()
         creator = User.objects.create_user(username="c1639r", password="p", is_site_admin=True)
         _site, site_raw = InviteLink.generate(created_by=creator)

@@ -234,6 +234,111 @@ class BoardInviteRegistrationTests(_Fixture, TestCase):
         self.assertFalse(User.objects.filter(email="dup@example.com").exists())
 
 
+class RolledBackRegistrationAnswers409Tests(_Fixture, TestCase):
+    """#1718: a 409 rollback answers the documented JSON for a client with no session.
+
+    ``complete_signup`` logs the new user in, which creates the session row
+    inside the transaction the 409 branch then rolls back. For a brand-new
+    client the session middleware used to fail saving that vanished row and
+    turn the response into an HTML 400. The earlier 409 tests only passed
+    because their client already held a session.
+    """
+
+    def setUp(self):
+        cache.clear()
+        set_mode(SiteSetting.RegistrationMode.INVITE_ONLY)
+        self.make_board()
+
+    def tearDown(self):
+        set_mode(SiteSetting.RegistrationMode.OPEN)
+        cache.clear()
+
+    def _register(self, email, token, client=None):
+        return (client or APIClient()).post(
+            REGISTER_URL,
+            {"email": email, "password1": PASSWORD, "password2": PASSWORD, "invite_token": token},
+        )
+
+    def _assert_clean_409(self, r, email, client):
+        self.assertEqual(r.status_code, status.HTTP_409_CONFLICT, r.content[:300])
+        self.assertEqual(r["Content-Type"], "application/json")
+        self.assertIn("invite_token", r.json())
+        self.assertFalse(User.objects.filter(email=email).exists())
+        # Not logged in, and no session cookie was handed out for the rolled-back user.
+        self.assertNotIn("sessionid", r.cookies)
+        self.assertNotIn("_auth_user_id", client.session)
+
+    def test_site_invite_409_for_a_fresh_client(self):
+        from accounts.models import InviteLink
+
+        site_link, raw = InviteLink.generate(created_by=self.sender, single_use=False)
+        self.assertIn(self._register("dup@example.com", raw).status_code, (201, 204))
+        User.objects.filter(email="dup@example.com").update(email="renamed@example.com")
+        client = APIClient()
+        r = self._register("dup@example.com", raw, client=client)
+        self._assert_clean_409(r, "dup@example.com", client)
+
+    def test_board_invite_409_for_a_fresh_client(self):
+        from accounts.invite_utils import InviteTokenError
+
+        link, raw = self.make_invite()
+        client = APIClient()
+        with mock.patch(
+            "boards.invites.redeem_board_registration_token",
+            side_effect=InviteTokenError("invite_invalid", "This invite link is invalid."),
+        ):
+            r = self._register("board1718@example.com", raw, client=client)
+        self._assert_clean_409(r, "board1718@example.com", client)
+        link.refresh_from_db()
+        self.assertIsNone(link.used_at)
+
+    def test_group_invite_409_for_a_fresh_client(self):
+        from accounts.invite_utils import InviteTokenError
+        from groups.models import Group, GroupMembership
+
+        group = Group.objects.create(name="G1718", owner=self.owner)
+        GroupMembership.objects.create(group=group, user=self.sender, role=GroupMembership.Role.ADMIN)
+        link, raw = generate_invite(
+            GroupInviteLink,
+            group=group,
+            created_by=self.sender,
+            role=GroupInviteLink.Role.VIEWER,
+            single_use=True,
+            delivery=GroupInviteLink.Delivery.EMAIL,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        client = APIClient()
+        with mock.patch(
+            "groups.invite_registration.redeem_group_registration_token",
+            side_effect=InviteTokenError("invite_invalid", "This invite link is invalid."),
+        ):
+            r = self._register("group1718@example.com", raw, client=client)
+        self._assert_clean_409(r, "group1718@example.com", client)
+        link.refresh_from_db()
+        self.assertIsNone(link.used_at)
+
+    def test_409_keeps_an_existing_session_of_the_same_client(self):
+        """A client that already holds a session keeps it: still logged in as
+        the earlier account, with its cookie neither replaced nor cleared."""
+        from accounts.models import InviteLink
+
+        client = APIClient()
+        _first, first_raw = InviteLink.generate(created_by=self.sender, single_use=True)
+        self.assertIn(self._register("first1718@example.com", first_raw, client=client).status_code, (201, 204))
+        first_user = User.objects.get(email="first1718@example.com")
+        cookie_before = client.cookies["sessionid"].value
+        self.assertEqual(client.session["_auth_user_id"], str(first_user.pk))
+
+        _dup, raw = InviteLink.generate(created_by=self.sender, single_use=False)
+        self.assertIn(self._register("dup2@example.com", raw).status_code, (201, 204))
+        User.objects.filter(email="dup2@example.com").update(email="renamed2@example.com")
+        r = self._register("dup2@example.com", raw, client=client)
+        self.assertEqual(r.status_code, status.HTTP_409_CONFLICT, r.content[:300])
+        self.assertEqual(r["Content-Type"], "application/json")
+        self.assertEqual(client.cookies["sessionid"].value, cookie_before)
+        self.assertEqual(client.session["_auth_user_id"], str(first_user.pk))
+
+
 @override_settings(LOGIN_REDIRECT_URL="http://localhost:5173")
 class BoardInviteOAuthTests(_Fixture, TestCase):
 
