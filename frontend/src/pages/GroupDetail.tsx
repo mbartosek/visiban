@@ -122,6 +122,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
   const [addingLabel, setAddingLabel] = useState(false);
   const [labelError, setLabelError] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
   const [defaultsSaved, setDefaultsSaved] = useState(false);
@@ -502,7 +503,14 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
 
   const handleDeleteGroup = async () => {
     setConfirmDeleteGroup(false);
-    await deleteGroup(groupId);
+    setDeleteError(null);
+    try {
+      await deleteGroup(groupId);
+    } catch {
+      // Nothing local changed before the call, so only the error needs surfacing.
+      setDeleteError("Failed to delete group. Please try again.");
+      return;
+    }
     // void: navigate() can return a Promise in React Router v7; fire-and-forget,
     // the group was already deleted and there is nothing to roll back.
     void navigate("/");
@@ -544,8 +552,13 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
 
   const handleDeleteGroupLabel = async (labelId: number) => {
     setConfirmRemoveLabelId(null);
-    await deleteGroupLabel(groupId, labelId);
-    setGroup((prev) => prev ? { ...prev, shared_labels: prev.shared_labels.filter((l) => l.id !== labelId) } : prev);
+    setLabelError(null);
+    try {
+      await deleteGroupLabel(groupId, labelId);
+      setGroup((prev) => prev ? { ...prev, shared_labels: prev.shared_labels.filter((l) => l.id !== labelId) } : prev);
+    } catch {
+      setLabelError("Failed to remove label. Please try again.");
+    }
   };
 
   const handleTogglePriority = async (priority: Priority) => {
@@ -558,8 +571,13 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
       : [...current, priority];
     // Keep at least one priority enabled
     if (next.length === 0) return;
-    const updated = await updateGroupBoardDefaults(groupId, { allowed_priorities: next });
-    setGroup((prev) => prev ? { ...prev, allowed_priorities: updated.allowed_priorities } : prev);
+    setDefaultsError(null);
+    try {
+      const updated = await updateGroupBoardDefaults(groupId, { allowed_priorities: next });
+      setGroup((prev) => prev ? { ...prev, allowed_priorities: updated.allowed_priorities } : prev);
+    } catch {
+      setDefaultsError("Failed to save allowed priorities.");
+    }
   };
 
   const handleDefaultRoleChange = async (role: "admin" | "member" | "collaborator" | "viewer") => {
@@ -1062,7 +1080,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     ]}
                   />
                   {defaultsSaved && <span className="text-success text-xs">Saved</span>}
-                  {defaultsError && <span className="text-danger text-xs">{defaultsError}</span>}
+                  {defaultsError && <span role="alert" className="text-danger text-xs">{defaultsError}</span>}
                 </div>
                 {/* #1430: deprecated; stored but never read. Access comes from GroupMembership.role via get_board_role(). Control kept for API compatibility. */}
                 <p id="group-default-member-role-hint" className="text-fg-muted text-xs mt-2">
@@ -1091,7 +1109,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     return (
                       <button
                         key={p}
-                        onClick={() => handleTogglePriority(p)}
+                        onClick={() => { void handleTogglePriority(p); }}
                         aria-pressed={active}
                         className={`px-3 py-1 rounded border text-xs font-medium transition capitalize focus:outline-none focus:ring-2 focus:ring-primary-emphasis ${
                           active
@@ -1126,7 +1144,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                           <span className="text-fg-tertiary">
                             Remove <span className="text-fg font-medium">{label.name}</span> from this group?
                           </span>
-                          <button onClick={() => handleDeleteGroupLabel(label.id)} className="text-danger hover:text-danger font-medium transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Confirm</button>
+                          <button onClick={() => { void handleDeleteGroupLabel(label.id); }} className="text-danger hover:text-danger font-medium transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Confirm</button>
                           <button onClick={() => setConfirmRemoveLabelId(null)} className="text-fg-tertiary hover:text-fg transition rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis">Cancel</button>
                         </div>
                       ) : (
@@ -1171,7 +1189,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                     Add
                   </button>
                 </div>
-                {labelError && <p className="text-danger text-xs mt-1">{labelError}</p>}
+                {labelError && <p role="alert" className="text-danger text-xs mt-1">{labelError}</p>}
               </div>
             </section>
 
@@ -1195,6 +1213,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                   Delete group
                 </button>
               </div>
+              {deleteError && <p role="alert" className="text-danger text-xs mt-2">{deleteError}</p>}
             </section>
           </div>
         )}
@@ -1331,7 +1350,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
         <p className="text-fg-tertiary text-sm mb-5">This will permanently delete the group and all its boards. This cannot be undone.</p>
         <div className="flex gap-3 justify-end">
           <button onClick={() => setConfirmDeleteGroup(false)} className="text-fg-tertiary text-sm hover:text-fg px-3 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis">Cancel</button>
-          <button onClick={handleDeleteGroup} className="bg-danger-bg hover:bg-danger-bg-hover text-on-danger text-sm px-4 py-1.5 rounded font-medium transition focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Delete group</button>
+          <button onClick={() => { void handleDeleteGroup(); }} className="bg-danger-bg hover:bg-danger-bg-hover text-on-danger text-sm px-4 py-1.5 rounded font-medium transition focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Delete group</button>
         </div>
       </ModalWrapper>
     </div>

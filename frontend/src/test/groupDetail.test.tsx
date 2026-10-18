@@ -111,7 +111,7 @@ vi.mock('../api/auth', () => ({
   }),
 }))
 
-import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup, removeGroupMember, updateGroupMemberRole } from '../api/groups'
+import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup, removeGroupMember, updateGroupMemberRole, deleteGroupLabel } from '../api/groups'
 import { importBoard } from '../api/boards'
 import { getSiteConfig } from '../api/auth'
 
@@ -128,6 +128,7 @@ const mockUpdateGroupBoardDefaults = updateGroupBoardDefaults as ReturnType<type
 const mockCreateGroupBoard = createGroupBoard as ReturnType<typeof vi.fn>
 const mockRemoveGroupMember = removeGroupMember as ReturnType<typeof vi.fn>
 const mockUpdateGroupMemberRole = updateGroupMemberRole as ReturnType<typeof vi.fn>
+const mockDeleteGroupLabel = deleteGroupLabel as ReturnType<typeof vi.fn>
 const mockDeleteGroup = deleteGroup as ReturnType<typeof vi.fn>
 const mockImportBoard = importBoard as ReturnType<typeof vi.fn>
 
@@ -436,11 +437,64 @@ describe('GroupDetail', () => {
     fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
     await screen.findByText('Alice Smith')
     const user = userEvent.setup()
-    // The first combobox on the Settings tab is Alice's role selector (members render first)
-    await user.click(screen.getAllByRole('combobox')[0])
+    const aliceRow = screen.getByText('Alice Smith').closest('div.rounded-lg') as HTMLElement
+    await user.click(within(aliceRow).getByRole('combobox'))
     await user.click(await screen.findByRole('option', { name: 'Viewer' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to change member role. Please try again.')
+    // The selector still shows the stored role, not the attempted one
+    const row = screen.getByText('Alice Smith').closest('div.rounded-lg') as HTMLElement
+    expect(within(row).getByRole('combobox')).toHaveTextContent('Member')
     expect(mockUpdateGroupMemberRole).toHaveBeenCalledWith(1, 2, 'viewer')
+  })
+
+  it('surfaces an error and keeps the label when label removal fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, shared_labels: [{ id: 1, name: 'Design', color: '#f59e0b' }] })
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockDeleteGroupLabel.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Design')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Design from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to remove label. Please try again.')
+    expect(screen.getByText('Design')).toBeInTheDocument()
+  })
+
+  it('surfaces an error and leaves the toggle unchanged when a priority toggle fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, allowed_priorities: ['low', 'medium', 'high', 'urgent'] })
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockUpdateGroupBoardDefaults.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Board defaults')
+    const low = screen.getByRole('button', { name: 'low' })
+    fireEvent.click(low)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to save allowed priorities.')
+    expect(low).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('surfaces an error and stays on the page when group deletion fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockDeleteGroup.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Delete group' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Delete group' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete group. Please try again.')
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 
   it('hides admin controls for non-admin member', async () => {

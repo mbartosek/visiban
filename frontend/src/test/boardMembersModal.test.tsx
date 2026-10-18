@@ -146,6 +146,31 @@ describe('BoardMembersModal', () => {
     expect(onMembersChanged).toHaveBeenCalled()
   })
 
+  it('role change failure: shows an alert and keeps the previous role (#1386)', async () => {
+    mockSetBoardMember.mockRejectedValue(new Error('boom'))
+    const onMembersChanged = vi.fn()
+    const user = userEvent.setup()
+    render(<BoardMembersModal board={fakeBoard} onClose={vi.fn()} onMembersChanged={onMembersChanged} />)
+    const bobCombo = screen.getAllByRole('combobox').find((c) => c.textContent?.includes('Member'))!
+    await user.click(bobCombo)
+    await user.click(screen.getByRole('option', { name: 'Viewer' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to update member role. Please try again.')
+    expect(onMembersChanged).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('combobox').some((c) => c.textContent?.includes('Member'))).toBe(true)
+  })
+
+  it('remove failure: shows an alert and keeps the member listed (#1386)', async () => {
+    mockRemoveBoardMember.mockRejectedValue(new Error('boom'))
+    const onMembersChanged = vi.fn()
+    const user = userEvent.setup()
+    render(<BoardMembersModal board={fakeBoard} onClose={vi.fn()} onMembersChanged={onMembersChanged} />)
+    await user.click(screen.getAllByTitle('Remove direct board role')[0])
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to remove member. Please try again.')
+    expect(onMembersChanged).not.toHaveBeenCalled()
+    expect(screen.getByText('Bob Smith')).toBeInTheDocument()
+  })
+
   // #1290 — the lock keys on the member's real is_site_admin flag (what the
   // server enforces) plus the caller's own, not on the resolved role.
   it('site admin member shows static role text instead of role dropdown', () => {

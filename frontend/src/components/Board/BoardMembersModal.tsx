@@ -32,10 +32,12 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
   const [members, setMembers] = useState<EffectiveBoardMember[]>(board.members);
   const [saving, setSaving] = useState<number | null>(null);
   const [confirmRemoveUserId, setConfirmRemoveUserId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const removeTriggerRef = useConfirmFocusReturn(confirmRemoveUserId);
 
   const handleRoleChange = async (userId: number, role: BoardRole) => {
     setSaving(userId);
+    setActionError(null);
     try {
       const updated = await setBoardMember(board.id, userId, role);
       const next = members.map((m) =>
@@ -46,6 +48,10 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
       }
       setMembers(next);
       onMembersChanged(next);
+    } catch {
+      // Members state only changes after the server confirms, so the selector
+      // keeps showing the previous role; just surface the failure (#1386).
+      setActionError("Failed to update member role. Please try again.");
     } finally {
       setSaving(null);
     }
@@ -54,11 +60,14 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
   const handleRemove = async (userId: number) => {
     setConfirmRemoveUserId(null);
     setSaving(userId);
+    setActionError(null);
     try {
       await removeBoardMember(board.id, userId);
       const next = members.filter((m) => m.user.id !== userId);
       setMembers(next);
       onMembersChanged(next);
+    } catch {
+      setActionError("Failed to remove member. Please try again.");
     } finally {
       setSaving(null);
     }
@@ -73,6 +82,8 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
           </div>
         ))}
       </div>
+
+      {actionError && <p role="alert" className="text-danger text-xs mb-2">{actionError}</p>}
 
       <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto">
         {members.map((m) => {
@@ -96,7 +107,7 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
                 <SelectDropdown
                   value={m.role as BoardRole}
                   disabled={isDisabled}
-                  onChange={(v) => handleRoleChange(m.user.id, v)}
+                  onChange={(v) => { void handleRoleChange(m.user.id, v); }}
                   options={ROLE_OPTIONS}
                   placeholder={m.role === "site_admin" ? "Site admin" : undefined}
                   size="xs"
@@ -122,7 +133,7 @@ export default function BoardMembersModal({ board, onClose, onMembersChanged, cu
                     Remove <span className="text-fg font-medium">{userDisplayName(m.user)}</span> from this board?
                   </span>
                   <button
-                    onClick={() => handleRemove(m.user.id)}
+                    onClick={() => { void handleRemove(m.user.id); }}
                     className="text-danger hover:text-danger font-medium transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis"
                   >
                     Confirm
