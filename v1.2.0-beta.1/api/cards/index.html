@@ -5013,7 +5013,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <tbody>
 <tr>
 <td><code>offset</code></td>
-<td>Pagination offset (default: <code>0</code>)</td>
+<td>Pagination offset (default: <code>0</code>). A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": [...]}</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -5254,13 +5254,13 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <td><code>limit</code></td>
 <td>integer</td>
 <td><code>50</code></td>
-<td>Page size. Capped at <code>200</code>.</td>
+<td>Page size. Capped at <code>200</code>; a negative value is treated as <code>0</code>.</td>
 </tr>
 <tr>
 <td><code>offset</code></td>
 <td>integer</td>
 <td><code>0</code></td>
-<td>Zero-based page offset.</td>
+<td>Zero-based page offset. A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": [...]}</code>.</td>
 </tr>
 <tr>
 <td><code>event_types</code></td>
