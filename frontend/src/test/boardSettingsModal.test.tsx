@@ -428,6 +428,21 @@ describe('BoardSettingsModal — site-admin member lock (#1290)', () => {
     })
   })
 
+  // #1300 — a synthesized row (id: null) must pick up the created membership's
+  // id so the Remove button appears without a refetch.
+  it('shows the Remove button on a synthesized row right after a role is assigned (#1300)', async () => {
+    const user = userEvent.setup()
+    mockSetBoardMember.mockResolvedValue({ ...allContentMember, id: 13, role: 'viewer' })
+    render(<BoardSettingsModal board={lockBoard} isAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getAllByTitle('Remove direct board role')).toHaveLength(1)
+    await user.click(screen.getByText('Site admin').closest('button') as HTMLButtonElement)
+    await user.click(screen.getByRole('option', { name: 'Viewer' }))
+    await waitFor(() => {
+      expect(screen.getAllByTitle('Remove direct board role')).toHaveLength(2)
+    })
+    expect(mockSetBoardMember).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back to the role and stays locked when a row has no is_site_admin key', () => {
     const board: BoardFull = {
       ...fakeBoard,
