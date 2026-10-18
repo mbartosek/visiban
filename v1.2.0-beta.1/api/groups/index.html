@@ -4432,6 +4432,7 @@
 </div>
 <h3 id="post-apiv1groups"><code>POST /api/v1/groups/</code><a class="headerlink" href="#post-apiv1groups" title="Permanent link">&para;</a></h3>
 <p>Create a group. Any authenticated user may create a top-level group. Creating a subgroup requires admin of the parent (directly or through an ancestor group). The endpoint returns the same <code>400 Bad Request</code> for an unknown <code>parent</code> id and for a parent the caller does not administer: <code>{"parent": ["Select a parent group you administer."]}</code>, the same body <code>PATCH</code> uses. <em>(1.2+)</em> A subgroup that would sit more than 6 levels deep is refused with <code>400 Bad Request</code>: <code>{"parent": ["Groups can be nested at most 6 levels deep."]}</code>, the same limit and message a <code>PATCH</code> parent change uses. A parent exactly 5 levels deep accepts a new subgroup (level 6); a parent 6 levels deep does not. Existing deeper trees are not changed.</p>
+<p><em>(1.2+)</em> A subgroup create that arrives while its parent (or an ancestor of it) is being deleted waits for the delete to finish and then answers the same <code>400</code> as for an unknown <code>parent</code>, with nothing created; a delete that arrives while the create is in flight waits for it and then deletes the new subgroup with the rest of the tree (#1719).</p>
 <p><strong>Request</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="p">,</span><span class="w"> </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Backend and frontend teams."</span><span class="p">,</span><span class="w"> </span><span class="nt">"parent"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
@@ -4631,9 +4632,10 @@
 </tr>
 </tbody>
 </table>
+<p><em>(1.2+)</em> An update that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). A <code>parent</code> that is deleted meanwhile answers the unknown-parent <code>400</code>.</p>
 <h3 id="delete-apiv1groupsid"><code>DELETE /api/v1/groups/{id}/</code><a class="headerlink" href="#delete-apiv1groupsid" title="Permanent link">&para;</a></h3>
 <p>Delete a group. Requires group owner or site admin. A group member who is not the owner gets <code>403 Forbidden</code> with <code>{"detail": "Only the group owner can delete this group."}</code>; a caller who cannot see the group at all gets <code>404</code>.</p>
-<p><em>(1.2+)</em> A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers <code>404</code>, and a delete that waited behind an ownership transfer away from the caller answers <code>403</code> (#1638).</p>
+<p><em>(1.2+)</em> A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers <code>404</code>, and a delete that waited behind an ownership transfer away from the caller answers <code>403</code> (#1638). It also waits for an in-flight write to the group or its subgroups — a subgroup create, an update, a board-defaults or member role change, an invite link create, send or revoke, a label create or update, a star, an ownership transfer, or a board import into the group — and then proceeds against what that write left: it deletes the new or changed rows with the group, detaches an imported board from it (the board itself is kept), and answers <code>403</code> if the write was an ownership transfer away from the caller (#1719).</p>
 <hr />
 <h2 id="members">Members<a class="headerlink" href="#members" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1groupsidmembers"><code>GET /api/v1/groups/{id}/members/</code><a class="headerlink" href="#get-apiv1groupsidmembers" title="Permanent link">&para;</a></h3>
@@ -4686,6 +4688,7 @@
 <p>Valid roles: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). A non-numeric <code>{user_id}</code> in the path is <code>404</code>, as before.</p>
 <p><em>(1.2+)</em> Changing a member's role away from <code>admin</code> revokes their unused <a href="#invite-links">invite links</a> in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits <code>invite_link.revoked</code> on its group's channel. This frees their slots under the 5-active-link cap.</p>
+<p><em>(1.2+)</em> A role change that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). The same <code>404</code> answers a role change whose membership was removed while it waited.</p>
 <h3 id="delete-apiv1groupsidmembersuser_id"><code>DELETE /api/v1/groups/{id}/members/{user_id}/</code><a class="headerlink" href="#delete-apiv1groupsidmembersuser_id" title="Permanent link">&para;</a></h3>
 <p>Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. Returns <code>204</code> when the membership is removed; with no membership the response is the same <code>404 Not Found</code> as for <code>PATCH</code>, and an inactive member can be removed. <em>(1.2+)</em> The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an <code>invite_link.revoked</code> event per link.</p>
 <hr />
@@ -4751,6 +4754,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p>All fields are optional. <code>role</code> defaults to <code>member</code>; <code>expiry_days</code> accepts any positive integer (<code>≥ 1</code>) or <code>null</code> (never expires) — common values <code>7</code>, <code>30</code>, <code>90</code>. <code>single_use</code> (boolean, default <code>false</code>) creates a link that expires automatically after one person joins.</p>
+<p><em>(1.2+)</em> A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.</p>
 <p>Valid roles: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></p>
 <p><strong>Response (create only)</strong> — the raw secret is returned once and never again, in a field named <code>token</code>:</p>
 <div class="admonition note">
@@ -4959,6 +4963,7 @@
 </tbody>
 </table>
 <p>A successful send emits <code>invite_link.created</code> (payload <code>{ "id" }</code> only) on the group's WebSocket channel; a failed send emits <code>invite_link.revoked</code> for the auto-revoked link. See <a href="../websockets/">WebSockets</a>.</p>
+<p><em>(1.2+)</em> A send that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). No email is sent.</p>
 <h3 id="delete-apiv1groupsidinvite-linkslink_id"><code>DELETE /api/v1/groups/{id}/invite-links/{link_id}/</code><a class="headerlink" href="#delete-apiv1groupsidinvite-linkslink_id" title="Permanent link">&para;</a></h3>
 <p>Revoke a single invite link. Requires group admin. Works the same for shareable and emailed links.</p>
 <p><strong>Errors</strong></p>
@@ -4980,10 +4985,12 @@
 </tr>
 </tbody>
 </table>
+<p><em>(1.2+)</em> A revoke that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). A revoke waits for a join through the same link that is in flight, and then answers the consumed-link <code>400</code> if that join used it.</p>
 <hr />
 <h2 id="favorites">Favorites<a class="headerlink" href="#favorites" title="Permanent link">&para;</a></h2>
 <h3 id="post-apiv1groupsidstar"><code>POST /api/v1/groups/{id}/star/</code><a class="headerlink" href="#post-apiv1groupsidstar" title="Permanent link">&para;</a></h3>
 <p>Star (favorite) a group. Requires group membership (any role) — not just authentication.</p>
+<p><em>(1.2+)</em> A star that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719).</p>
 <h3 id="delete-apiv1groupsidstar"><code>DELETE /api/v1/groups/{id}/star/</code><a class="headerlink" href="#delete-apiv1groupsidstar" title="Permanent link">&para;</a></h3>
 <p>Unstar a group. Requires group membership (any role) — not just authentication.</p>
 <h3 id="get-apiv1groupsstarredtrue"><code>GET /api/v1/groups/?starred=true</code><a class="headerlink" href="#get-apiv1groupsstarredtrue" title="Permanent link">&para;</a></h3>
@@ -5007,7 +5014,8 @@
 - <code>400 Bad Request</code> — confirmation does not match group name
 - <code>400 Bad Request</code> — <code>new_owner_id</code> is not a member of this group
 - <code>400 Bad Request</code> — <code>new_owner_id</code> is a member but not an admin
-- <code>400 Bad Request</code> — the group's owner changed while the request was being processed (<code>Only the group owner can transfer ownership.</code>)</p>
+- <code>400 Bad Request</code> — the group's owner changed while the request was being processed (<code>Only the group owner can transfer ownership.</code>)
+- <code>404 Not Found</code> <em>(1.2+)</em> — the group was deleted while the request waited for it (#1719)</p>
 <hr />
 <h2 id="group-shared-labels">Group shared labels<a class="headerlink" href="#group-shared-labels" title="Permanent link">&para;</a></h2>
 <p>Group labels are a shared label library. When a new board is created inside the group, it inherits the group's labels automatically.</p>
@@ -5017,8 +5025,10 @@
 <h3 id="post-apiv1groupsidlabels"><code>POST /api/v1/groups/{id}/labels/</code><a class="headerlink" href="#post-apiv1groupsidlabels" title="Permanent link">&para;</a></h3>
 <p>Create a group shared label. Requires group admin.</p>
 <p><strong>Request</strong> <code>{ "name": "Feature", "color": "#3B82F6" }</code></p>
+<p><em>(1.2+)</em> A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719).</p>
 <h3 id="patch-apiv1groupsidlabelslabel_id"><code>PATCH /api/v1/groups/{id}/labels/{label_id}/</code><a class="headerlink" href="#patch-apiv1groupsidlabelslabel_id" title="Permanent link">&para;</a></h3>
 <p>Update a group shared label name or color. Requires group admin.</p>
+<p><em>(1.2+)</em> An update that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). The same <code>404</code> answers an update of a label deleted while it waited; before, the update re-created the deleted label.</p>
 <h3 id="delete-apiv1groupsidlabelslabel_id"><code>DELETE /api/v1/groups/{id}/labels/{label_id}/</code><a class="headerlink" href="#delete-apiv1groupsidlabelslabel_id" title="Permanent link">&para;</a></h3>
 <p>Delete a group shared label. Requires group admin. Does <strong>not</strong> remove the label from boards that already inherited it.</p>
 <hr />
@@ -5051,6 +5061,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"default_board_member_role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"allowed_priorities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="s2">"medium"</span><span class="p">,</span><span class="w"> </span><span class="s2">"high"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p>Returns the updated group object.</p>
+<p><em>(1.2+)</em> A <code>PATCH</code> that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719).</p>
 <hr />
 <h2 id="join-public">Join (public)<a class="headerlink" href="#join-public" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1groupsjointoken"><code>GET /api/v1/groups/join/{token}/</code><a class="headerlink" href="#get-apiv1groupsjointoken" title="Permanent link">&para;</a></h3>

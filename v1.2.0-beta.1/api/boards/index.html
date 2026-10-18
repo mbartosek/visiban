@@ -6500,7 +6500,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> does not match a group that exists and is visible to the caller.</td>
+<td><code>group_id</code> does not match a group that exists and is visible to the caller. <em>(1.2+)</em> Also returned, with nothing created, when the group is deleted while the import runs; a group delete that arrives while an import into it is in flight waits for it and then detaches the new board from the group (#1719).</td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code></td>
@@ -6943,7 +6943,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td><code>group_id</code> does not match a group that exists and is visible to the caller.</td>
+<td><code>group_id</code> does not match a group that exists and is visible to the caller. <em>(1.2+)</em> Also returned, with nothing created, when the group is deleted while the import runs; a group delete that arrives while an import into it is in flight waits for it and then detaches the new board from the group (#1719).</td>
 </tr>
 <tr>
 <td><code>413 Content Too Large</code></td>
