@@ -382,7 +382,8 @@ class BoardPlacementVsGroupDeleteTests(_GroupDeleteRaceBase):
     asked for the group only at COMMIT (the deferred foreign key) while the
     delete held the group and waited on the board at its ``SET_NULL``: a
     deadlock (a 500). A writer into a group being deleted failed its foreign
-    key at COMMIT (a 500) and now answers 404.
+    key at COMMIT (a 500) and now answers 404 (move-group, group board create) or
+    the serializer's unknown-group 400 (board create and PATCH).
     """
 
     # Inside the writer's transaction, after the board write.
@@ -417,6 +418,10 @@ class BoardPlacementVsGroupDeleteTests(_GroupDeleteRaceBase):
     def _group_create(self):
         return self._client().post(f"/api/v1/groups/{self.sub.pk}/boards/", {"name": "N1638b"}, format="json")
 
+    def _assert_unknown_group(self, response):
+        self.assertEqual(response.status_code, 400, response.content[:300])
+        self.assertEqual(response.json(), {"group": ["Unknown group, or you are not an admin of it."]})
+
     def _assert_board_ungrouped(self):
         self.assertFalse(Group.objects.filter(pk__in=[self.group_id, self.sub.pk]).exists())
         self.board.refresh_from_db()
@@ -444,7 +449,9 @@ class BoardPlacementVsGroupDeleteTests(_GroupDeleteRaceBase):
     def test_patch_group_behind_group_delete(self):
         deleted, patched = self._race(self.DELETE_HOLD, self._delete, self._patch_group)
         self.assertEqual(deleted.status_code, 204, deleted.content[:300])
-        self.assertEqual(patched.status_code, 404, patched.content[:300])
+        # The unknown-group 400 the serializer gives, not a 404 (which on a
+        # board PATCH means the board itself is gone).
+        self._assert_unknown_group(patched)
         self._assert_board_ungrouped()
 
     def test_group_delete_behind_board_create_into_group(self):
@@ -457,7 +464,7 @@ class BoardPlacementVsGroupDeleteTests(_GroupDeleteRaceBase):
     def test_board_create_into_group_behind_group_delete(self):
         deleted, created = self._race(self.DELETE_HOLD, self._delete, self._create)
         self.assertEqual(deleted.status_code, 204, deleted.content[:300])
-        self.assertEqual(created.status_code, 404, created.content[:300])
+        self._assert_unknown_group(created)
         self.assertFalse(Board.objects.filter(name="N1638b").exists())
         self._assert_board_ungrouped()
 

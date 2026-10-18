@@ -7,7 +7,7 @@ from django.db.models import Count, Exists, OuterRef, Q
 from django.urls import reverse
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import ErrorDetail, NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import (
@@ -124,6 +124,18 @@ def _parse_events_limit(raw):
     return limit
 
 
+
+def _group_gone_error():
+    """The ``400 {"group": [...]}`` the serializer gives an unknown group (#1638).
+
+    Board create and ``PATCH``/``PUT`` re-check the target group under its
+    lock; one deleted since validation is answered exactly as an unknown id
+    would have been, so a client sees one documented shape either way.
+    """
+    from ..serializers import _BOARD_GROUP_NOT_ALLOWED_MSG
+
+    return ValidationError({"group": [ErrorDetail(_BOARD_GROUP_NOT_ALLOWED_MSG, code="does_not_exist")]})
+
 class BoardViewSet(
     BoardAnalyticsMixin,
     BoardImportExportMixin,
@@ -229,10 +241,11 @@ class BoardViewSet(
         with transaction.atomic():
             # The target group row before the board insert (#1638): see
             # lock_group_for_board_placement. A create into a group being
-            # deleted answers 404 instead of a 500 at COMMIT.
+            # deleted answers the serializer's unknown-group 400 instead of a
+            # 500 at COMMIT.
             target_group = serializer.validated_data.get("group")
             if target_group is not None and not lock_group_for_board_placement(target_group.pk):
-                raise NotFound
+                raise _group_gone_error()
             board = serializer.save(owner=self.request.user)
             BoardMembership.objects.create(board=board, user=self.request.user, role=BoardMembership.Role.ADMIN)
 
@@ -298,10 +311,12 @@ class BoardViewSet(
             # A PATCH/PUT that names a group takes that group row before the
             # board row (#1638, lock_group_for_board_placement): group ->
             # board, the order a group delete takes, so a group change inside
-            # a subtree being deleted cannot deadlock with the delete.
+            # a subtree being deleted cannot deadlock with the delete. A group
+            # deleted meanwhile is the serializer's unknown-group 400, not a
+            # 404 (which here means the board itself is gone).
             target_group = serializer.validated_data.get("group")
             if target_group is not None and not lock_group_for_board_placement(target_group.pk):
-                raise NotFound
+                raise _group_gone_error()
             # Board row first (#1602): a board delete holds it from the start
             # of its cascade, and a PATCH queued behind one must answer 404,
             # not let save() fall back to an INSERT that resurrects the board.

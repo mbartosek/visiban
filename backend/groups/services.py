@@ -30,9 +30,13 @@ def lock_group_subtree_for_delete(group_id):
     now queue whole in either order.
 
     The subgroups are locked too because the delete cascades to them, and an
-    invite on a subgroup races a parent delete the same way. All rows are
-    locked in one pk-ordered statement, the order the parent-change writer
-    (``GroupSerializer``) locks a chain in, so the two cannot deadlock. The
+    invite on a subgroup races a parent delete the same way. The first lock
+    statement takes every row it found in pk order, the order the
+    parent-change writer (``GroupSerializer``) locks a chain in, so it cannot
+    deadlock against a single re-parent. A later re-walk round locks
+    subgroups found after higher-pk rows are already held, so in theory it
+    can still deadlock with a second re-parent of such a subgroup that is in
+    flight at that moment (PostgreSQL then aborts one of the two). The
     owner and parent are returned from the locked row: the caller re-checks
     ownership against it (a transfer may have committed while the delete
     queued) and broadcasts to the parent the group actually has.
