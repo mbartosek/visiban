@@ -96,8 +96,9 @@ def lock_group_for_board_placement(group_id) -> bool:
 
     Every writer that points a board at a group calls this before it locks
     or writes the board row: move-group, the board ``PATCH``/``PUT`` that
-    changes ``group``, board create with a group, and group board create
-    (#1638). Why: the board's ``group`` foreign key is deferred, so such a
+    changes ``group``, board create with a group, group board create
+    (#1638), the board imports into a group and the board admin save
+    (#1719). Why: the board's ``group`` foreign key is deferred, so such a
     writer takes ``FOR KEY SHARE`` on the group only at COMMIT. A group
     delete holds its subtree's group rows ``FOR UPDATE`` from the start
     (``lock_group_subtree_for_delete``) and reaches the boards at its
@@ -122,8 +123,53 @@ def lock_group_for_board_placement(group_id) -> bool:
         return cursor.fetchone() is not None
 
 
+def lock_group_for_child_write(group_id) -> bool:
+    """Hold a group ``FOR KEY SHARE`` before writing a row that points at it; False if it is gone.
+
+    The same lock as ``lock_group_for_board_placement``, for the group-owned
+    rows other than boards (#1719): group label create and ``PATCH``, group
+    star, and a member role change. Each inserts or updates a row whose
+    deferred ``group`` foreign key otherwise takes ``FOR KEY SHARE`` only at
+    COMMIT, so a writer that raced a group delete failed that check (a 500),
+    and an ``UPDATE`` that queued behind the delete's cascade matched no row
+    and ``save()`` fell back to an ``INSERT`` under the deleted group (the
+    same 500). Taking the group first puts the writer in the delete's
+    group -> child order: behind a delete it finds the group gone (the caller
+    answers 404), and a delete behind it waits and then cascades what it
+    wrote. Must run inside ``transaction.atomic()``.
+    """
+    return lock_group_for_board_placement(group_id)
+
+
+def lock_group_row(group_id, *, no_key=True) -> bool:
+    """Lock the group row itself (``FOR NO KEY UPDATE``, or ``FOR UPDATE``); False if it is gone.
+
+    For writers that ``UPDATE`` the group row or must serialize against each
+    other on it (#1719): the board-defaults ``PATCH``, invite revoke (before
+    the invite row, the order redemptions take), and invite link create
+    (``no_key=False``, so two creates serialize on the active-link cap, as
+    the emailed-invite send does). ``FOR NO KEY UPDATE`` is the mode an
+    ``UPDATE`` of a non-key column takes anyway, and it conflicts with the
+    group delete's ``FOR UPDATE``, so a writer behind a delete finds the row
+    gone instead of updating nothing (a ``save()`` with no ``update_fields``
+    would then re-insert the deleted group). Must run inside
+    ``transaction.atomic()``.
+    """
+    return (
+        Group.objects.select_for_update(no_key=no_key)
+        .filter(pk=group_id).values_list("pk", flat=True).first()
+    ) is not None
+
+
 class GroupTransferError(Exception):
     """A transfer was refused; ``str(exc)`` is the user-facing message."""
+
+
+class GroupGone(GroupTransferError):
+    """The group was deleted before the transfer could lock it (#1719)."""
+
+    def __init__(self):
+        super().__init__("This group no longer exists.")
 
 
 def transfer_group_ownership(
@@ -149,9 +195,14 @@ def transfer_group_ownership(
 
     Returns the updated group. Callers that broadcast must register their
     ``transaction.on_commit`` callback inside their own ``atomic`` block.
+    Raises ``GroupGone`` (a ``GroupTransferError``) when the group no longer
+    exists, e.g. a transfer that queued on the row lock behind a delete of
+    the group (#1719); the REST view answers it with 404.
     """
     with transaction.atomic():
-        group = Group.objects.select_for_update().get(pk=group_id)
+        group = Group.objects.select_for_update().filter(pk=group_id).first()
+        if group is None:
+            raise GroupGone()
         if expected_owner_id is not None and group.owner_id != expected_owner_id:
             raise GroupTransferError("Only the group owner can transfer ownership.")
 

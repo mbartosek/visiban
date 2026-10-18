@@ -678,7 +678,9 @@ class GroupSerializer(serializers.ModelSerializer):
         )
         fresh = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=parent.pk).first()
         if fresh is None:
-            raise _parent_not_allowed()
+            # Deleted while this create queued on the chain lock (#1719): the
+            # same {"parent": [...]} 400 validate_parent gives an unknown id.
+            raise serializers.ValidationError({"parent": _parent_not_allowed().detail})
         try:
             self._check_create_depth(fresh)
         except serializers.ValidationError as exc:
@@ -703,12 +705,18 @@ class GroupSerializer(serializers.ModelSerializer):
             current = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=value.pk).first()
             if current is not None:
                 lock_ids |= {g.pk for g in _ancestor_chain(current)[0]}
-        list(
+        locked = set(
             Group.objects.select_for_update()
             .filter(pk__in=lock_ids)
             .order_by("pk")
             .values_list("pk", flat=True)
         )
+        if group.pk not in locked:
+            # Deleted while this request queued on the lock (#1719): 404, not
+            # the DoesNotExist (a 500) refresh_from_db would raise.
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound
         group.refresh_from_db()
         if "parent" not in self.validated_data:
             return
