@@ -489,6 +489,19 @@ describe('BoardSettingsModal — site-admin member lock (#1290)', () => {
     expect(screen.getByTitle('Site administrator — role managed at the instance level')).toHaveTextContent('member')
   })
 
+  it('leaves an unflagged all-content row (id null, no is_site_admin, role "site_admin") editable (#1717)', () => {
+    const board: BoardFull = {
+      ...fakeBoard,
+      members: [
+        { id: 10, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
+        { id: null, user: { id: 7, username: 'auditor2', display_name: 'Auditor Two', avatar_url: '' }, role: 'site_admin', is_moderator: false, joined_at: '' },
+      ],
+    }
+    render(<BoardSettingsModal board={board} isAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
+  })
+
   it('shows neither site-admin row locked to a site-admin viewer (#1717)', () => {
     render(<BoardSettingsModal board={synthBoard} isAdmin={true} currentUserIsSiteAdmin={true} onClose={vi.fn()} />)
     expect(screen.getAllByRole('combobox')).toHaveLength(3)

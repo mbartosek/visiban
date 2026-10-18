@@ -268,6 +268,19 @@ describe('BoardMembersModal', () => {
     expect(screen.getAllByTitle('Site administrator — role managed at the instance level')).toHaveLength(1)
   })
 
+  it('leaves an unflagged all-content row (id null, no is_site_admin, role "site_admin") editable (#1717)', () => {
+    const board: BoardFull = {
+      ...fakeBoard,
+      members: [
+        { id: 1, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
+        { id: null, user: { id: 7, username: 'auditor2', display_name: 'Auditor Two', avatar_url: '' }, role: 'site_admin', is_moderator: false, joined_at: '' },
+      ],
+    }
+    render(<BoardMembersModal board={board} onClose={vi.fn()} onMembersChanged={vi.fn()} />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
+  })
+
   it('shows neither site-admin row locked to a site-admin caller (#1717)', () => {
     render(<BoardMembersModal board={unlockedBoard()} onClose={vi.fn()} onMembersChanged={vi.fn()} currentUserIsSiteAdmin />)
     expect(screen.getAllByRole('combobox')).toHaveLength(3)
