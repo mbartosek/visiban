@@ -22,6 +22,7 @@ from django.conf import settings as django_settings
 from accounts.models import User, get_uploads_enabled
 from accounts.permissions import TokenHasScope
 from visiban.exceptions import CodedValidationError
+from visiban.request_shape import parse_offset
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -630,10 +631,7 @@ class CardViewSet(viewsets.ModelViewSet):
         """
         board = self._board()
         qs = _card_queryset(Card.objects.filter(board=board, archived_at__isnull=False)).order_by("-archived_at")
-        try:
-            offset = max(0, int(request.query_params.get("offset", 0)))
-        except (ValueError, TypeError):
-            offset = 0
+        offset = parse_offset(request)
         # Annotate `_total` via window function so the page fetch returns the
         # total count alongside each row — saves a second `COUNT(*)` round-trip
         # on boards with long archived history.  Matches the pattern in
@@ -953,13 +951,11 @@ class CardViewSet(viewsets.ModelViewSet):
 
         # --- Parse pagination params ---
         try:
-            limit = min(int(request.query_params.get("limit", 50)), 200)
+            # Clamp below at 0: a negative limit makes fetch_cap negative -> slice AssertionError (500).
+            limit = max(0, min(int(request.query_params.get("limit", 50)), 200))
         except (TypeError, ValueError):
             limit = 50
-        try:
-            offset = max(int(request.query_params.get("offset", 0)), 0)
-        except (TypeError, ValueError):
-            offset = 0
+        offset = parse_offset(request)
 
         # --- Parse optional event_types filter ---
         raw_types = request.query_params.get("event_types", "")

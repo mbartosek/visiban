@@ -327,7 +327,7 @@ List all archived cards for the board, newest archived first. Available to all b
 
 | Parameter | Description |
 |---|---|
-| `offset` | Pagination offset (default: `0`) |
+| `offset` | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": [...]}`. |
 
 **Response** — paginated envelope, page size fixed at 50:
 
@@ -501,8 +501,8 @@ Use this endpoint when you need a single list combining moves, comments, field e
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `limit` | integer | `50` | Page size. Capped at `200`. |
-| `offset` | integer | `0` | Zero-based page offset. |
+| `limit` | integer | `50` | Page size. Capped at `200`; a negative value is treated as `0`. |
+| `offset` | integer | `0` | Zero-based page offset. A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": [...]}`. |
 | `event_types` | string | _(all)_ | Comma-separated filter groups. Valid values: `move`, `comment`, `field`, `checklist`, `attachment`, `system`. Omit to include all event types. |
 
 `event_types` group mapping:

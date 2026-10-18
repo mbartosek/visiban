@@ -362,7 +362,7 @@ Board-level movement history for all cards on the board, sorted newest first. Re
 | `moved_after` | ISO date | Include movements on or after this date (e.g. `2026-01-01`) |
 | `moved_before` | ISO date | Include movements on or before this date |
 | `exclude_type` | comma-separated string | Exclude movement types (e.g. `archived,unarchived` hides system events) |
-| `offset` | integer | Pagination offset (default: `0`) |
+| `offset` | integer | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": [...]}`. |
 
 `export_min_role` also applies to movement exports requested with `?export=<format>`: a caller below the threshold receives the same `403` with `code: "export_restricted"` as the board export, and each successful export is recorded in the [export history](#get-apiv1boardsidexport-history). Movement exports share the board export rate limit (20 exports/hour per authenticated user, scope `board_export`; `429 Too Many Requests` when exceeded). Ordinary movement reads are not rate limited by it.
 
