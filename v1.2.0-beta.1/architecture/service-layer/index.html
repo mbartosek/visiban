@@ -4145,6 +4145,10 @@
 <td>group row <code>FOR NO KEY UPDATE</code> (<code>lock_invite_group</code>; the group id is read unlocked first) -&gt; invite row <code>FOR UPDATE</code> (or the registration claim's conditional <code>used_at</code> <code>UPDATE</code>) -&gt; membership insert</td>
 </tr>
 <tr>
+<td>Group create under a parent and group parent change (<code>recheck_create_parent_under_lock</code>, <code>recheck_parent_under_lock</code>, #1690)</td>
+<td>the parent's ancestor chain rows <code>FOR UPDATE</code> in one pk-ordered statement (a parent change includes the moved group's own row in that statement) -&gt; reload and re-check the depth cap (and, for a parent change, the cycle rules) -&gt; the <code>INSERT</code>/<code>UPDATE</code>. Only the ancestors read before the lock are locked</td>
+</tr>
+<tr>
 <td>Board, column, swimlane, label and custom-field-definition UPDATE/DELETE writers (custom-field definition update and delete included, <code>FOR NO KEY UPDATE</code> through <code>lock_board_and_row_or_404</code>, not <code>FOR UPDATE</code>): board <code>PATCH</code>/<code>PUT</code>, share link enable/revoke, move-group, member add/role change/removal, label create, saved-filter create and star (board row only), column <code>PATCH</code>/<code>PUT</code>, swimlane <code>PATCH</code>/<code>PUT</code> and set-collapsed, label <code>PATCH</code>/<code>DELETE</code>, card and swimlane custom-field definition <code>PATCH</code>/<code>DELETE</code>; <code>BoardAdmin</code>, <code>ColumnAdmin</code>, <code>SwimlaneAdmin</code> (and the label and membership admins) saves</td>
 <td>board row <code>FOR NO KEY UPDATE</code> -&gt; (column, swimlane, label or definition writers) that row <code>FOR NO KEY UPDATE</code> -&gt; the <code>UPDATE</code>/<code>DELETE</code></td>
 </tr>
