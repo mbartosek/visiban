@@ -14,6 +14,7 @@ from rest_framework import serializers, status
 from ..models import BoardExportLog, CardMovement
 from ..serializers import CardMovementSerializer
 from .. import hooks
+from visiban.request_shape import parse_offset
 from ._helpers import get_board_for_user
 
 _logger = logging.getLogger(__name__)
@@ -566,10 +567,7 @@ class BoardAnalyticsMixin:
             exclude_types = [t.strip() for t in exclude_type.split(",") if t.strip()]
             qs = qs.exclude(movement_type__in=exclude_types)
 
-        try:
-            offset = int(request.query_params.get("offset", 0))
-        except (ValueError, TypeError):
-            offset = 0
+        offset = parse_offset(request)
 
         # Enterprise delivery-report export hook — dispatched when a registered
         # backend is present AND the request includes ?export=<format> (e.g.

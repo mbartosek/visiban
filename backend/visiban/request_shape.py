@@ -14,6 +14,11 @@ from rest_framework.exceptions import ParseError, ValidationError
 MAX_DB_INT = 2**63 - 1
 
 
+# Offsets are added to a page size before slicing (``qs[o:o + n]``), so they get
+# headroom below MAX_DB_INT; 2**62 is far beyond any real row count.
+MAX_OFFSET = 2**62
+
+
 def id_in_db_range(value):
     """True if ``value`` is a non-negative int a database id column can hold."""
     return 0 <= value <= MAX_DB_INT
@@ -65,3 +70,24 @@ def coerce_int_id(value, field="id"):
     if parsed is not None and id_in_db_range(parsed):
         return parsed
     raise ValidationError({field: "A valid integer is required."})
+
+
+def parse_offset(request, param="offset"):
+    """Return the ``offset`` query param as a non-negative int, or raise a 400.
+
+    Long-standing leniency is kept for compatibility: an absent, blank, or
+    non-numeric value is 0 and a negative value clamps to 0 (a negative slice
+    bound is an AssertionError -> 500 on a queryset). A value past ``MAX_OFFSET``
+    cannot be a real row position and overflows in the database driver
+    (#1696), so it is rejected with the same field-keyed 400 as #1669.
+    """
+    raw = request.query_params.get(param, 0)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 0
+    if value < 0:
+        return 0
+    if value > MAX_OFFSET:
+        raise ValidationError({param: "Must be a valid integer offset."})
+    return value
