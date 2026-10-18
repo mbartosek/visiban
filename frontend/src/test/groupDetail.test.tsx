@@ -111,7 +111,7 @@ vi.mock('../api/auth', () => ({
   }),
 }))
 
-import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup } from '../api/groups'
+import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup, removeGroupMember, updateGroupMemberRole, deleteGroupLabel } from '../api/groups'
 import { importBoard } from '../api/boards'
 import { getSiteConfig } from '../api/auth'
 
@@ -126,6 +126,9 @@ const mockUnstarGroup = unstarGroup as ReturnType<typeof vi.fn>
 const mockCreateGroupLabel = createGroupLabel as ReturnType<typeof vi.fn>
 const mockUpdateGroupBoardDefaults = updateGroupBoardDefaults as ReturnType<typeof vi.fn>
 const mockCreateGroupBoard = createGroupBoard as ReturnType<typeof vi.fn>
+const mockRemoveGroupMember = removeGroupMember as ReturnType<typeof vi.fn>
+const mockUpdateGroupMemberRole = updateGroupMemberRole as ReturnType<typeof vi.fn>
+const mockDeleteGroupLabel = deleteGroupLabel as ReturnType<typeof vi.fn>
 const mockDeleteGroup = deleteGroup as ReturnType<typeof vi.fn>
 const mockImportBoard = importBoard as ReturnType<typeof vi.fn>
 
@@ -375,6 +378,123 @@ describe('GroupDetail', () => {
     await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByRole('button', { name: 'Remove Alice Smith from group' })).toHaveFocus()
+  })
+
+  it('surfaces an error and keeps the member listed when removal fails (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockRemoveGroupMember.mockRejectedValue(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to remove member. Please try again.')
+    expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+  })
+
+  it('removes the member and shows no error when removal succeeds (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockRemoveGroupMember.mockResolvedValue(undefined)
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(screen.queryByText('Alice Smith')).not.toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('surfaces an error and keeps the old role when a role change fails (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockUpdateGroupMemberRole.mockRejectedValue(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    const aliceRow = screen.getByText('Alice Smith').closest('div.rounded-lg') as HTMLElement
+    await user.click(within(aliceRow).getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: 'Viewer' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to change member role. Please try again.')
+    // The selector still shows the stored role, not the attempted one
+    const row = screen.getByText('Alice Smith').closest('div.rounded-lg') as HTMLElement
+    expect(within(row).getByRole('combobox')).toHaveTextContent('Member')
+    expect(mockUpdateGroupMemberRole).toHaveBeenCalledWith(1, 2, 'viewer')
+  })
+
+  it('surfaces an error and keeps the label when label removal fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, shared_labels: [{ id: 1, name: 'Design', color: '#f59e0b' }] })
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockDeleteGroupLabel.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Design')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Design from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to remove label. Please try again.')
+    expect(screen.getByText('Design')).toBeInTheDocument()
+  })
+
+  it('surfaces an error and leaves the toggle unchanged when a priority toggle fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue({ ...fakeGroup, allowed_priorities: ['low', 'medium', 'high', 'urgent'] })
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockUpdateGroupBoardDefaults.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Board defaults')
+    const low = screen.getByRole('button', { name: 'low' })
+    fireEvent.click(low)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to save allowed priorities.')
+    expect(low).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('surfaces an error and stays on the page when group deletion fails (#1386)', async () => {
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([{ id: 1, user: fakeUser, role: 'admin', joined_at: '' }])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockDeleteGroup.mockRejectedValueOnce(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Delete group' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Delete group' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete group. Please try again.')
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 
   it('hides admin controls for non-admin member', async () => {
