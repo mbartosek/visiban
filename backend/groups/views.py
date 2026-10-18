@@ -869,6 +869,12 @@ class GroupViewSet(viewsets.ModelViewSet):
         # save) rolls back the board and membership — preventing orphaned rows.
         # Mirrors BoardViewSet.perform_create() in boards/views/boards.py.
         with transaction.atomic():
+            # The group row before the board insert (#1638): a create into a
+            # group being deleted answers 404 instead of failing the board's
+            # deferred group foreign key at COMMIT (a 500).
+            from .services import lock_group_for_board_placement
+            if not lock_group_for_board_placement(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             board = serializer.save(owner=request.user, group=group)
             # Create an explicit BoardMembership for the owner so they appear in the
             # board's member list. BoardViewSet.perform_create() does this too; without

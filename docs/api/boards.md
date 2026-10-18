@@ -131,6 +131,8 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 **Minimum role:** Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
 
+*(1.2+)* A request that places a board in a group (move-group, a board `PATCH`/`PUT` that sets `group`, board create with a `group`, or [`POST /api/v1/groups/{id}/boards/`](groups.md)) while that group is being deleted waits for the delete to finish and then answers `404`, with nothing written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).
+
 **Request** `{ "group_id": 5 }` or `{ "group_id": null }`
 
 **Errors**

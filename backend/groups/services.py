@@ -36,19 +36,85 @@ def lock_group_subtree_for_delete(group_id):
     owner and parent are returned from the locked row: the caller re-checks
     ownership against it (a transfer may have committed while the delete
     queued) and broadcasts to the parent the group actually has.
+
+    Writers that point a board at a group take that group row
+    ``FOR KEY SHARE`` before the board row (``lock_group_for_board_placement``),
+    the same group -> board order as this delete, whose collector reaches
+    the boards (``SET_NULL``) only after these group locks.
     """
+    ids = _subtree_ids(group_id)
+    for _ in range(_SUBTREE_LOCK_ROUNDS):
+        rows = {
+            pk: (owner_id, parent_id)
+            for pk, owner_id, parent_id in Group.objects.select_for_update()
+            .filter(pk__in=ids).order_by("pk").values_list("pk", "owner_id", "parent_id")
+        }
+        # Walk again under the locks. The first walk is an unlocked read, so a
+        # re-parent or subgroup create that committed between it and the lock
+        # statement left a subgroup outside ``ids`` that the collector would
+        # still cascade, with nothing held on it. Once a group row is locked
+        # nothing new can attach under it (a re-parent locks the new parent's
+        # chain FOR UPDATE, a subgroup insert takes FOR KEY SHARE on its
+        # parent at commit, and both conflict with this lock), so the set
+        # grows at most once per level and the loop settles.
+        # A group that moved out meanwhile stays locked, which is harmless.
+        walked = _subtree_ids(group_id)
+        if walked <= ids:
+            break
+        ids |= walked
+    return rows.get(group_id)
+
+
+# Depth is capped well below this (_GROUP_TRAVERSAL_MAX_DEPTH); the bound only
+# guarantees termination.
+_SUBTREE_LOCK_ROUNDS = 16
+
+
+def _subtree_ids(group_id):
+    """``group_id`` and the pks of every group under it, one query per level."""
     ids, frontier = {group_id}, [group_id]
     while frontier:
         frontier = list(
             Group.objects.filter(parent_id__in=frontier).exclude(pk__in=ids).values_list("pk", flat=True)
         )
         ids.update(frontier)
-    rows = {
-        pk: (owner_id, parent_id)
-        for pk, owner_id, parent_id in Group.objects.select_for_update()
-        .filter(pk__in=ids).order_by("pk").values_list("pk", "owner_id", "parent_id")
-    }
-    return rows.get(group_id)
+    return ids
+
+
+_GROUP_KEY_SHARE_LOCK_SQL = {
+    "postgresql": 'SELECT 1 FROM "groups" WHERE "id" = %s FOR KEY SHARE',
+    None: 'SELECT 1 FROM "groups" WHERE "id" = %s',
+}
+
+
+def lock_group_for_board_placement(group_id) -> bool:
+    """Hold the group a board is being placed in ``FOR KEY SHARE``; False if it is gone.
+
+    Every writer that points a board at a group calls this before it locks
+    or writes the board row: move-group, the board ``PATCH``/``PUT`` that
+    changes ``group``, board create with a group, and group board create
+    (#1638). Why: the board's ``group`` foreign key is deferred, so such a
+    writer takes ``FOR KEY SHARE`` on the group only at COMMIT. A group
+    delete holds its subtree's group rows ``FOR UPDATE`` from the start
+    (``lock_group_subtree_for_delete``) and reaches the boards at its
+    collector's ``SET_NULL``; a move inside the subtree that held the board
+    row and only asked for the group at COMMIT deadlocked against it (a 500),
+    and a move into a group being deleted failed its foreign key at COMMIT (a
+    500). Taking the group first puts both in the delete's group -> board
+    order: a writer behind a delete finds the group gone and answers 404, and
+    a delete behind a writer waits for it to commit and then clears the
+    board's group. ``FOR KEY SHARE`` is the mode the foreign key check takes
+    anyway, so it conflicts only with the delete (and other ``FOR UPDATE``
+    holders of the group row), not with invite redemptions or other moves.
+    On SQLite there is no row lock and only the existence check remains.
+    Must run inside ``transaction.atomic()``.
+    """
+    from django.db import connection
+
+    sql = _GROUP_KEY_SHARE_LOCK_SQL.get(connection.vendor, _GROUP_KEY_SHARE_LOCK_SQL[None])
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [group_id])
+        return cursor.fetchone() is not None
 
 
 class GroupTransferError(Exception):

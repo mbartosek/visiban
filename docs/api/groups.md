@@ -122,7 +122,7 @@ Changing `parent` revokes unused invite links in the moved subtree whose creator
 ### `DELETE /api/v1/groups/{id}/`
 Delete a group. Requires group owner or site admin. A group member who is not the owner gets `403 Forbidden` with `{"detail": "Only the group owner can delete this group."}`; a caller who cannot see the group at all gets `404`.
 
-*(1.2+)* A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed, waits for that request to finish. A second delete of the same group then answers `404`, and a delete that waited behind an ownership transfer away from the caller answers `403` (#1638).
+*(1.2+)* A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers `404`, and a delete that waited behind an ownership transfer away from the caller answers `403` (#1638).
 
 ---
 
@@ -175,6 +175,8 @@ List boards in this group. Requires group membership.
 ### `POST /api/v1/groups/{id}/boards/`
 
 Create a board in this group. Requires group admin. Boards created here inherit the group's `shared_labels` and `allowed_priorities` automatically. The seeded `allowed_priorities` value is not enforced on cards (see [Field Enforcement](../architecture/field-enforcement.md)).
+
+*(1.2+)* A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).
 
 **Request**
 

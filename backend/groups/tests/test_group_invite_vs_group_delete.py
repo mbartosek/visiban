@@ -41,6 +41,8 @@ from rest_framework.test import APIClient
 
 from accounts.invite_utils import InviteTokenError
 from accounts.models import SiteSetting, User
+from boards import broadcast as _bb
+from boards.models import Board, BoardMembership
 from boards.tests.invite_fixtures import generate_invite
 from boards.tests.lock_wait import wait_until_blocked_on_lock
 from groups import invite_registration as _reg
@@ -369,3 +371,168 @@ class ConfirmationGrantVsGroupDeleteTests(_GroupDeleteRaceBase):
         self.assertFalse(GroupMembership.objects.filter(user=self.pending).exists())
         self._assert_group_gone_cleanly()
         self._assert_no_member_added()
+
+
+class BoardPlacementVsGroupDeleteTests(_GroupDeleteRaceBase):
+    """Writers that point a board at a group vs a delete of that group's subtree.
+
+    Each writer takes the target group row ``FOR KEY SHARE`` before the board
+    row (``lock_group_for_board_placement``), the delete's group -> board
+    order. Before that, a move-group inside the subtree held the board row and
+    asked for the group only at COMMIT (the deferred foreign key) while the
+    delete held the group and waited on the board at its ``SET_NULL``: a
+    deadlock (a 500). A writer into a group being deleted failed its foreign
+    key at COMMIT (a 500) and now answers 404.
+    """
+
+    # Inside the writer's transaction, after the board write.
+    WRITE_HOLD = (_bb, "persist_board_event", False)
+
+    def setUp(self):
+        super().setUp()
+        self.sub = Group.objects.create(name="S1638b", owner=self.sender, parent=self.group)
+        GroupMembership.objects.create(group=self.sub, user=self.sender, role=GroupMembership.Role.ADMIN)
+        self.board = Board.objects.create(name="B1638b", owner=self.sender, group=self.group)
+        BoardMembership.objects.create(board=self.board, user=self.sender, role=BoardMembership.Role.ADMIN)
+        patcher = patch("boards.broadcast.broadcast_board_event")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _client(self):
+        client = APIClient()
+        client.force_authenticate(User.objects.get(pk=self.sender.pk))
+        return client
+
+    def _move(self):
+        return self._client().post(
+            f"/api/v1/boards/{self.board.pk}/move-group/", {"group_id": self.sub.pk}, format="json",
+        )
+
+    def _patch_group(self):
+        return self._client().patch(f"/api/v1/boards/{self.board.pk}/", {"group": self.sub.pk}, format="json")
+
+    def _create(self):
+        return self._client().post("/api/v1/boards/", {"name": "N1638b", "group": self.sub.pk}, format="json")
+
+    def _group_create(self):
+        return self._client().post(f"/api/v1/groups/{self.sub.pk}/boards/", {"name": "N1638b"}, format="json")
+
+    def _assert_board_ungrouped(self):
+        self.assertFalse(Group.objects.filter(pk__in=[self.group_id, self.sub.pk]).exists())
+        self.board.refresh_from_db()
+        self.assertIsNone(self.board.group_id)
+        self.assertEqual([r.getMessage() for r in self.errors.records], [])
+
+    def test_group_delete_behind_move_within_subtree(self):
+        moved, deleted = self._race(self.WRITE_HOLD, self._move, self._delete)
+        self.assertEqual(moved.status_code, 200, moved.content[:300])
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", deleted))
+        self._assert_board_ungrouped()
+
+    def test_move_behind_group_delete(self):
+        deleted, moved = self._race(self.DELETE_HOLD, self._delete, self._move)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(moved.status_code, 404, moved.content[:300])
+        self._assert_board_ungrouped()
+
+    def test_group_delete_behind_patch_group_within_subtree(self):
+        patched, deleted = self._race(self.WRITE_HOLD, self._patch_group, self._delete)
+        self.assertEqual(patched.status_code, 200, patched.content[:300])
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", deleted))
+        self._assert_board_ungrouped()
+
+    def test_patch_group_behind_group_delete(self):
+        deleted, patched = self._race(self.DELETE_HOLD, self._delete, self._patch_group)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(patched.status_code, 404, patched.content[:300])
+        self._assert_board_ungrouped()
+
+    def test_group_delete_behind_board_create_into_group(self):
+        created, deleted = self._race(self.WRITE_HOLD, self._create, self._delete)
+        self.assertEqual(created.status_code, 201, created.content[:300])
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", deleted))
+        self.assertIsNone(Board.objects.get(name="N1638b").group_id)
+        self._assert_board_ungrouped()
+
+    def test_board_create_into_group_behind_group_delete(self):
+        deleted, created = self._race(self.DELETE_HOLD, self._delete, self._create)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(created.status_code, 404, created.content[:300])
+        self.assertFalse(Board.objects.filter(name="N1638b").exists())
+        self._assert_board_ungrouped()
+
+    def test_group_delete_behind_group_board_create(self):
+        created, deleted = self._race(self.WRITE_HOLD, self._group_create, self._delete)
+        self.assertEqual(created.status_code, 201, created.content[:300])
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "content", deleted))
+        self.assertIsNone(Board.objects.get(name="N1638b").group_id)
+        self._assert_board_ungrouped()
+
+    def test_group_board_create_behind_group_delete(self):
+        deleted, created = self._race(self.DELETE_HOLD, self._delete, self._group_create)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        self.assertEqual(created.status_code, 404, created.content[:300])
+        self.assertFalse(Board.objects.filter(name="N1638b").exists())
+        self._assert_board_ungrouped()
+
+
+@skipUnless(connection.vendor == "postgresql", "row locks are only observable on PostgreSQL")
+class SubtreeLockRewalkTests(TransactionTestCase):
+    """A subgroup attached between the delete's subtree walk and its lock is still locked.
+
+    The first walk is an unlocked read, so a re-parent that commits right
+    after it moves a group under the deleted root that the lock statement
+    did not name; the collector would still cascade it with nothing held on
+    it. ``lock_group_subtree_for_delete`` walks again under its locks until
+    the set stops growing.
+    """
+
+    def setUp(self):
+        owner = User.objects.create_user(username="r1638", password="p")
+        self.root = Group.objects.create(name="R1638", owner=owner)
+        self.stray = Group.objects.create(name="X1638", owner=owner)
+
+    def _in_thread(self, fn):
+        out = {}
+
+        def run():
+            try:
+                out["value"] = fn()
+            except Exception as exc:  # surfaced by the assertions
+                out["value"] = exc
+            finally:
+                connections.close_all()
+
+        t = threading.Thread(target=run)
+        t.start()
+        t.join(HOLD_TIMEOUT)
+        return out.get("value")
+
+    def test_group_reparented_after_the_first_walk_is_locked(self):
+        import groups.services as _services
+
+        real_walk = _services._subtree_ids
+        calls = {"n": 0}
+
+        def walk(group_id):
+            ids = real_walk(group_id)
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Commits before the lock statement runs.
+                self._in_thread(lambda: Group.objects.filter(pk=self.stray.pk).update(parent=self.root))
+            return ids
+
+        def probe():
+            from django.db import OperationalError
+
+            with transaction.atomic():
+                try:
+                    list(Group.objects.select_for_update(nowait=True).filter(pk=self.stray.pk))
+                except OperationalError:
+                    return "locked"
+            return "free"
+
+        with patch.object(_services, "_subtree_ids", side_effect=walk):
+            with transaction.atomic():
+                self.assertIsNotNone(lock_group_subtree_for_delete(self.root.pk))
+                self.assertEqual(self._in_thread(probe), "locked")
