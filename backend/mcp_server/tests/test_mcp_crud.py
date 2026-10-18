@@ -640,6 +640,27 @@ class UpdateCardTests(CrudToolsTestCase):
         card.refresh_from_db()
         self.assertIsNone(card.assignee_id)
 
+    def test_assignee_by_username_all_content_user_without_membership(self):
+        # Intended assignable set (#1716): instance-wide content access keeps
+        # a user assignable on any board; a plain non-member is refused.
+        all_content = _make_user("update-all-content", email="update-all@example.com")
+        all_content.can_access_all_content = True
+        all_content.save(update_fields=["can_access_all_content"])
+        _make_user("update-outsider", email="update-outsider@example.com")
+        card = _make_card(self.column, self.swimlane, title="Scope pin")
+        result = self._call(
+            "update_card", self.write_token, card_id=card.id, assignee="update-all-content",
+        )
+        self.assertEqual(result["assignee"]["username"], "update-all-content")
+        card.refresh_from_db()
+        self.assertEqual(card.assignee_id, all_content.id)
+        result = self._call(
+            "update_card", self.write_token, card_id=card.id, assignee="update-outsider",
+        )
+        self.assertEqual(result["error"]["code"], "validation_error")
+        card.refresh_from_db()
+        self.assertEqual(card.assignee_id, all_content.id)
+
     def test_assignee_by_username(self):
         member = _make_user("update-assignee", email="update-assignee@example.com")
         _make_membership(self.board, member, role=BoardMembership.Role.MEMBER)

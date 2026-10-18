@@ -103,6 +103,27 @@ class ViewerAssigneeRejectionTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertEqual(r.json()["assignee"]["id"], self.collaborator_user.id)
 
+    @patch(PATCH_BROADCAST)
+    def test_all_content_user_without_membership_can_be_assigned(self, _):
+        """Intended assignable set (#1716): instance-wide content access keeps a
+        user assignable on any board."""
+        all_content = User.objects.create_user(
+            username="all_content_user", password="pass", can_access_all_content=True
+        )
+        self.assertFalse(
+            BoardMembership.objects.filter(board=self.board, user=all_content).exists()
+        )
+        r = self._patch_card({"assignee_id": all_content.id})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.json()["assignee"]["id"], all_content.id)
+
+    @patch(PATCH_BROADCAST)
+    def test_plain_non_member_cannot_be_assigned(self, _):
+        """A user with no membership and no instance-wide access is rejected."""
+        outsider = User.objects.create_user(username="outsider_user", password="pass")
+        r = self._patch_card({"assignee_id": outsider.id})
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class AssigneeFailClosedTests(TestCase):
     """assignee_id is declared with queryset=User.objects.none() and re-scoped in
