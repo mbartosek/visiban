@@ -241,9 +241,11 @@ importer and keeps the file's name as text in `imported_from_username` (#1675),
 which the timeline, History view and exports display. A new import path that
 writes history rows applies the same rule rather than linking them to accounts.
 
-Scope of this rule: the surfaces in the table below. Card `assignee_id` and
-comment mentions are validated against board membership by their own checks
-(`boards/utils.py`, `boards/serializers.py`) and are not covered here.
+Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, direct and group-inherited members whose role is not viewer, and users with `can_access_all_content`. Viewers are never assignable. REST card create and update and the MCP `create_card` and `update_card` username lookup all use this set (`_get_assignable_member_ids`).
+
+Scope of this rule: the surfaces in the table below. Comment mentions are
+validated against board membership by their own check (`boards/utils.py`,
+`extract_mentions`) and are not covered here.
 
 **Why.** The uploader controls an import file, so it resolves against the
 narrower pool and drops what it cannot match. The directory lookups are open on
@@ -259,6 +261,8 @@ the status filter and the uniform response, not scope.
 | Board member add or role change | `boards/views/boards.py` `BoardViewSet.members` | An existing membership is updated as is (the site-admin refusal applies to it); a new one requires an active user, whatever the user's site role. Unknown and inactive ids answer the same `404`. Also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404`; the site-admin refusal is evaluated after the membership lookup |
 | Board and group member removal | `boards/views/boards.py` `BoardViewSet.remove_member`; `groups/views.py` `GroupViewSet.update_member` (DELETE) | Resolved through the membership row: no membership answers the same `404` whatever the id is, and the site-admin refusal is evaluated after that lookup; an inactive user with a membership can be removed |
+| Card assignee (REST) | `boards/serializers.py` `CardSerializer.__init__` (`assignee_id` queryset), `boards/views/cards.py`, `boards/views/_helpers.py` | `boards/utils.py` `_get_assignable_member_ids`: owner, non-viewer direct and group-inherited members, and users with `can_access_all_content` (#1716). Pinned by `boards/tests/test_viewer_assignee.py` |
+| Card assignee (MCP) | `mcp_server/tools.py` `create_card`, `update_card` | Username matched case-insensitively within `_get_assignable_member_ids`; anything outside it gets the uniform assignee error. Pinned by `mcp_server/tests/test_mcp_crud.py` |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 | Board member list | `boards/serializers.py` `BoardFullSerializer.get_members` | `site_admin_roster_visible` (all-content rows, and `is_site_admin` on rows with no membership, for site-admin readers only), then `site_admin_field_visible`. The other member-row surfaces (members POST response, `member.*` events, change feed) only ever carry a real membership row |
 
