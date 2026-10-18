@@ -120,7 +120,7 @@ Run in parallel:
 ### `contracts`
 Run in parallel:
 1. **architect** — Full codebase architecture audit in "public contract" mode. Review the REST API shape, WebSocket event schema, TypeScript interfaces, settings/env vars, and OSS/enterprise extension boundary. Flag any API shape, field name, event type, or extension point that is inconsistent or fragile and would be painful to change in $WORKING_RELEASE or later. **Account for what already shipped** in prior releases — the architect must not flag already-shipped contracts as "fix now" if they can only be changed in a major bump; instead flag them as "track for next major".
-2. **migration-check** — Full migration history audit. Check for destructive operations, missing migrations, NOT NULL columns without defaults, and any pattern that would break a zero-downtime deploy.
+2. **migration-check** — Full migration history audit. Check for destructive operations, missing migrations, NOT NULL columns without a database default (`db_default`), and any pattern that would break a zero-downtime deploy.
 
 ### `deps`
 1. **dependency** — Full dependency audit across all pip and npm packages. Check licenses (block GPL-2.0/3.0), known CVEs, and whether any dependency has been superseded by a safer or lighter alternative.
