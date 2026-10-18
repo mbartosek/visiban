@@ -1492,6 +1492,26 @@ describe('BoardSettingsModal — Moderator toggle', () => {
     expect(mockSetBoardMember).toHaveBeenCalledWith(1, 2, 'member', true)
   })
 
+  // #1300 — a synthesized row (id: null) must pick up the created membership's
+  // id after a moderator toggle.
+  it('shows the Remove button on a synthesized row after toggling moderator (#1300)', async () => {
+    const user = userEvent.setup()
+    mockSetBoardMember.mockResolvedValue({ id: 21, user: fakeMember2, role: 'member', is_moderator: true, joined_at: '' })
+    const board: BoardFull = {
+      ...fakeBoard,
+      members: [
+        { id: 10, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
+        { id: null, user: fakeMember2, role: 'member', is_moderator: false, is_site_admin: false, joined_at: '' },
+      ],
+    }
+    render(<BoardSettingsModal board={board} isAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getAllByTitle('Remove direct board role')).toHaveLength(1)
+    await user.click(screen.getAllByRole('checkbox')[1])
+    await waitFor(() => {
+      expect(screen.getAllByTitle('Remove direct board role')).toHaveLength(2)
+    })
+  })
+
   // #1373 — handleModeratorToggle had no catch at all (a genuine unhandled
   // promise rejection, not just an unsurfaced error), found while fixing the
   // sibling floating-promise sites in this same component.
