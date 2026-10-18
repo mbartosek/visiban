@@ -290,8 +290,10 @@ each surface that delivers them:
   user's own value and is shown only to that user (`without_actor_scoped_fields`).
   The actor comes from the `actor_id` the broadcast helpers put on the
   channel-layer message beside the envelope (never on the wire), or from the feed
-  row's `actor_id`; writers of these events pass it. A frame or row without an
-  actor omits the field for everyone;
+  row's `actor_id`; writers of these events pass it, the Django-admin board
+  writes and group ownership transfer included (there the value is a constant
+  `false`, since no request context exists). A frame or row without an actor
+  omits the field for everyone;
 - admin-only board fields (`ADMIN_ONLY_BOARD_FIELDS`) are dropped for every
   recipient (`without_admin_only_board_fields`);
 - admin-only swimlane custom field values are never in a broadcast payload, and

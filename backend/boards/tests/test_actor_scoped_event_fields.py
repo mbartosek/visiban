@@ -20,10 +20,14 @@ Consumer tests run with the access re-check served from its cache, as in
 ``test_event_payload_scoping``, so they need no DB from the consumer thread.
 """
 import asyncio
+import io
 import json
 from unittest.mock import patch
 
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+from django.core.cache import cache
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from boards.broadcast import broadcast_board_event, persist_board_event, record_board_event
@@ -189,7 +193,7 @@ class ConsumerActorScopedFieldTests(TestCase):
         self.assertEqual(own, star["payload"])
 
 
-class WritePathActorTests(TestCase):
+class WritePathBase(TestCase):
     """Every write path that publishes a scoped event names its actor.
 
     Each action runs against a recording channel layer; every scoped frame it
@@ -248,6 +252,9 @@ class WritePathActorTests(TestCase):
                     expected_data = {k: v for k, v in own["data"].items() if k != "is_starred"}
                     self.assertEqual(theirs["data"], expected_data)
 
+
+
+class WritePathActorTests(WritePathBase):
     def test_board_create(self):
         sent = self._run(lambda: self.client.post("/api/v1/boards/", {"name": "New", "group": self.group.id}))
         self._assert_scoped(sent, [("board", "board.created"), ("group", "board.created")], starred=False)
@@ -275,8 +282,7 @@ class WritePathActorTests(TestCase):
         self._assert_scoped(sent, [("group", "group.created"), ("group", "group.created")], starred=False)
 
     def test_group_update(self):
-        # PUT: GroupViewSet.partial_update re-enters update() through DRF and
-        # publishes group.updated twice, which is not what this test is about.
+        # PUT is used because PATCH publishes group.updated twice (#1713).
         sent = self._run(lambda: self.client.put(f"/api/v1/groups/{self.group.id}/", {"name": "G renamed"}))
         self._assert_scoped(sent, [("group", "group.updated")], starred=True)
 
@@ -294,6 +300,84 @@ class WritePathActorTests(TestCase):
             {"new_owner_id": heir.id, "confirmation": self.group.name}, format="json",
         ))
         self._assert_scoped(sent, [("group", "group.updated")], starred=True)
+
+
+def _upload(raw, name):
+    f = io.BytesIO(raw if isinstance(raw, bytes) else raw.encode("utf-8"))
+    f.name = name
+    return f
+
+
+class ImportWritePathActorTests(WritePathBase):
+    """The three import emitters: JSON import, CSV import, and the Trello
+    import (``_broadcast_imported_board``). An imported board is new, so the
+    importer's own value is ``False``."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()  # Trello import is throttled
+
+    def test_json_import(self):
+        data = json.dumps({
+            "name": "Imported JSON",
+            "columns": [{"name": "To Do", "position": 0}],
+            "swimlanes": [{"name": "General", "position": 0}],
+            "labels": [], "cards": [],
+        })
+        sent = self._run(lambda: self.client.post(
+            "/api/v1/boards/import/",
+            {"file": _upload(data, "board.json"), "group_id": self.group.id}, format="multipart",
+        ))
+        self._assert_scoped(sent, [("board", "board.created"), ("group", "board.created")], starred=False)
+
+    def test_csv_import(self):
+        sent = self._run(lambda: self.client.post(
+            "/api/v1/boards/import/",
+            {"file": _upload("Title,Column,Swimlane\nFix login,To Do,General\n", "plan.csv"),
+             "group_id": self.group.id},
+            format="multipart",
+        ))
+        self._assert_scoped(sent, [("board", "board.created"), ("group", "board.created")], starred=False)
+
+    def test_trello_import(self):
+        from boards.tests.test_trello_import import load_fixture
+
+        sent = self._run(lambda: self.client.post(
+            "/api/v1/boards/import/trello/?confirm=true",
+            {"file": _upload(json.dumps(load_fixture()), "trello.json"), "group_id": self.group.id},
+            format="multipart",
+        ))
+        self._assert_scoped(sent, [("board", "board.created"), ("group", "board.created")], starred=False)
+
+
+class AdminGroupTransferActorTests(TestCase):
+    """The Django-admin group transfer names the admin user as actor, so only
+    that user's sockets receive ``is_starred`` (a constant ``False`` there)."""
+
+    def test_admin_transfer_is_scoped_to_the_admin(self):
+        root = _make_user("asf_root", is_staff=True, is_superuser=True)
+        owner = _make_user("asf_adm_owner")
+        heir = _make_user("asf_adm_heir")
+        other = _make_user("asf_adm_other")
+        group = Group.objects.create(name="Adm transfer", owner=owner)
+        for u, role in ((owner, "admin"), (heir, "admin"), (other, "member")):
+            GroupMembership.objects.create(group=group, user=u, role=role)
+        self.client.force_login(root)
+        layer = _RecordingLayer()
+        with patch("groups.broadcast.get_channel_layer", return_value=layer):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(reverse("admin:groups_group_changelist"), {
+                    "action": "transfer_ownership", ACTION_CHECKBOX_NAME: [group.pk],
+                    "step": "confirm", "expected_owner": owner.pk, "new_owner": heir.pk,
+                })
+        group.refresh_from_db()
+        self.assertEqual(group.owner_id, heir.id)
+        (message,) = [m for _, m in layer.sent if m["payload"]["event"] == "group.updated"]
+        self.assertEqual(message["actor_id"], root.id)
+        own = _deliver(_group_consumer(group.id, root), "group_event", message)
+        self.assertIs(own["data"]["is_starred"], False)
+        theirs = _deliver(_group_consumer(group.id, other), "group_event", message)
+        self.assertNotIn("is_starred", theirs["data"])
 
 
 class FeedActorScopedFieldTests(TestCase):
