@@ -282,8 +282,7 @@ class WritePathActorTests(WritePathBase):
         self._assert_scoped(sent, [("group", "group.created"), ("group", "group.created")], starred=False)
 
     def test_group_update(self):
-        # PUT is used because PATCH publishes group.updated twice (#1713).
-        sent = self._run(lambda: self.client.put(f"/api/v1/groups/{self.group.id}/", {"name": "G renamed"}))
+        sent = self._run(lambda: self.client.patch(f"/api/v1/groups/{self.group.id}/", {"name": "G renamed"}))
         self._assert_scoped(sent, [("group", "group.updated")], starred=True)
 
     def test_group_board_defaults(self):
