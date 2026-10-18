@@ -19,6 +19,8 @@ Usage:
 import json
 import sys
 
+from _paths import cli_roots, resolve_within
+
 
 def render(report, baseline):
     """Return the lines to print for a parsed report and parsed baseline."""
@@ -41,6 +43,16 @@ def render(report, baseline):
     return lines
 
 
+def _run_main(argv):
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert main(argv) == 0  # log-only: never fails the fuzz job
+    return buf.getvalue()
+
+
 def _self_test():
     baseline = {"entries": [
         {"id": "aaa111", "operation": "GET /x/", "check": "c1", "failure": "F1"},
@@ -54,6 +66,7 @@ def _self_test():
     assert len(render({"seed": 1, "baseline": {"unobserved_ids": []}}, baseline)) == 1
     assert "no baseline section" in render({}, baseline)[0]
     assert "no baseline section" in render(None, None)[0]
+    assert "skipped (PathEscapeError" in _run_main(["x", "/etc/hostname", "/etc/hostname"]), "escape not rejected"
     print("fuzz_baseline_unobserved --self-test: OK")
 
 
@@ -65,9 +78,11 @@ def main(argv):
         print(__doc__)
         return 0
     try:
-        with open(argv[1], encoding="utf-8") as f:
+        # PathEscapeError is a ValueError, so a path outside the allowed roots
+        # takes the same log-only skip as a missing or malformed file.
+        with open(resolve_within(cli_roots(), argv[1]), encoding="utf-8") as f:
             report = json.load(f)
-        with open(argv[2], encoding="utf-8") as f:
+        with open(resolve_within(cli_roots(), argv[2]), encoding="utf-8") as f:
             baseline = json.load(f)
     except (OSError, ValueError) as exc:
         print("fuzz-baseline-unobserved: skipped (%s: %s)" % (type(exc).__name__, exc))

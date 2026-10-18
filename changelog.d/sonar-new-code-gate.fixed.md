@@ -1,0 +1,1 @@
+Clear the SonarCloud new-code security and reliability findings: confine the fuzz-baseline and pip-audit gate paths with `resolve_within`, and document the remaining taint-engine and aliased-`BaseCommand` false positives as narrow per-file criteria.

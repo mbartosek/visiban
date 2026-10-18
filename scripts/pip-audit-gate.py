@@ -26,6 +26,8 @@ import json
 import sys
 import tomllib
 
+from _paths import cli_roots, resolve_within
+
 
 def accepted_ids(toml_text, today):
     """Return the set of advisory ids still inside their ignoreUntil window."""
@@ -91,6 +93,7 @@ def self_test():
         ("expired ignore is flagged", len(blocking_vulns(report("GHSA-accepted", []), expired)) == 1),
         ("undated ignore is indefinite", len(blocking_vulns(report("GHSA-forever", []), undated)) == 0),
         ("report without dependencies fails safe", unparseable()),
+        ("report path outside the allowed roots blocks", main(["/etc/hostname"]) == 1),
     ]
     print("=== pip-audit-gate.py --self-test ===")
     failed = [name for name, ok in cases if not ok]
@@ -113,7 +116,7 @@ def main(argv):
     toml_path = argv[1] if len(argv) > 1 else "backend/osv-scanner.toml"
     today = argv[2] if len(argv) > 2 else datetime.date.today().isoformat()
     try:
-        with open(audit_path, encoding="utf-8") as fh:
+        with open(resolve_within(cli_roots(), audit_path), encoding="utf-8") as fh:
             report = json.load(fh)
         # Validate the shape before touching the TOML so a bad report always blocks.
         blocking_vulns(report, set())
@@ -121,7 +124,7 @@ def main(argv):
         print(f"pip-audit-gate: cannot parse {audit_path}: {exc}", file=sys.stderr)
         return 1  # fail safe: an incomplete scan must block, not pass
     try:
-        with open(toml_path, encoding="utf-8") as fh:
+        with open(resolve_within(cli_roots(), toml_path), encoding="utf-8") as fh:
             accepted = accepted_ids(fh.read(), today)
     except FileNotFoundError:
         accepted = set()  # no accepted risks
