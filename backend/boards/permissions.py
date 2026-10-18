@@ -5,13 +5,19 @@ from django.conf import settings
 from rest_framework.permissions import BasePermission
 
 from .broadcast import (
+    EVT_BOARD_CREATED,
     EVT_BOARD_STAR_CHANGED,
+    EVT_BOARD_UPDATED,
     EVT_MEMBER_ADDED,
     EVT_MEMBER_UPDATED,
     EVT_SAVED_FILTER_CREATED,
     EVT_SAVED_FILTER_DELETED,
 )
 from .models import BoardMembership
+
+# groups.broadcast imports only this app's broadcast registry (already loaded
+# above), so this import cannot cycle.
+from groups.broadcast import EVT_GROUP_CREATED, EVT_GROUP_UPDATED
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +145,53 @@ def per_user_event_visible(viewer_user_id, data):
         return False
     owner_id = data.get("user_id")
     return owner_id is not None and owner_id == viewer_user_id
+
+
+# Event types whose payload is built by a serializer running in the ACTING
+# user's request context, so ``is_starred`` in it is the actor's own star state
+# (#1705, after #1559). The field stays in the payload (1.x WebSocket contract:
+# no field is removed) but is sent only to the user it belongs to: the board and
+# group consumers omit it for every other subscriber, and the change feed omits
+# it for every other reader, the same per-recipient omission ``is_moderator``
+# gets on ``member.*`` events. Matched against the actor recorded beside the
+# frame (``actor_id`` on the channel-layer message, never on the wire) or on the
+# feed row (``BoardEvent.actor_id``).
+ACTOR_SCOPED_FIELD_EVENTS = frozenset({
+    EVT_BOARD_CREATED, EVT_BOARD_UPDATED, EVT_GROUP_CREATED, EVT_GROUP_UPDATED,
+})
+
+# The per-user fields those payloads carry. Add the next one here.
+ACTOR_SCOPED_FIELDS = frozenset({"is_starred"})
+
+
+def actor_scoped_fields_visible(viewer_user_id, actor_id):
+    """Return True if the actor's per-user fields may be shown to this viewer.
+
+    True only when the viewer is the acting user. An unknown actor (a frame
+    published without one, a feed row whose ``actor_id`` is null) or an
+    unknown viewer fails closed: the fields are omitted.
+    """
+    return viewer_user_id is not None and actor_id is not None and viewer_user_id == actor_id
+
+
+def without_actor_scoped_fields(event_type, data, viewer_user_id, actor_id):
+    """Return *data* with ``ACTOR_SCOPED_FIELDS`` omitted unless the viewer is the actor.
+
+    The single rule for ``ACTOR_SCOPED_FIELD_EVENTS`` (#1705). Called by both
+    consumers (per subscriber) and ``BoardEventSerializer`` (per feed reader),
+    so the socket and the feed cannot disagree. Any other event type, a
+    non-dict payload, or a payload without those keys is returned unchanged.
+    Only top-level keys are dropped. The keys are omitted rather than nulled:
+    a client merging the payload keeps the value it already holds.
+    """
+    if (
+        event_type not in ACTOR_SCOPED_FIELD_EVENTS
+        or not isinstance(data, dict)
+        or ACTOR_SCOPED_FIELDS.isdisjoint(data)
+        or actor_scoped_fields_visible(viewer_user_id, actor_id)
+    ):
+        return data
+    return {k: v for k, v in data.items() if k not in ACTOR_SCOPED_FIELDS}
 
 # Maximum number of ancestor levels walked during group-based permission checks.
 # The cap exists to prevent unbounded query chains on deeply nested group trees

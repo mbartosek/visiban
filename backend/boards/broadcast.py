@@ -27,10 +27,13 @@ logger = logging.getLogger(__name__)
 # ``INTENTIONALLY_UNHANDLED_BOARD_EVENTS`` below giving the reason there is
 # none). That three-way match is the whole point: a name that exists in only
 # two of the three places is an alert that can never fire.
-# DEPRECATED PAYLOAD FIELD (#1559): ``is_starred`` in board.created /
-# board.updated is computed for the ACTING user, not the subscriber. It stays on
-# the wire (1.x contract, no field removal) but clients must ignore it and use
-# board.star_changed for per-user star state.
+# PER-RECIPIENT PAYLOAD FIELD (#1559, #1705): ``is_starred`` in board.created /
+# board.updated (and group.created / group.updated) is computed for the ACTING
+# user. It stays in the payload (1.x contract, no field removal) but only the
+# acting user's sockets and feed reads carry it; every other recipient gets the
+# payload without the key (boards.permissions.without_actor_scoped_fields).
+# Callers pass ``actor_id`` to the broadcast helpers for that reason. Clients
+# read per-user star state from board.star_changed.
 EVT_BOARD_CREATED = "board.created"
 EVT_BOARD_UPDATED = "board.updated"
 EVT_BOARD_DELETED = "board.deleted"
@@ -203,8 +206,21 @@ def _json_safe(payload: dict) -> dict:
     return json.loads(JSONRenderer().render(payload))
 
 
-def broadcast_board_event(board_id: int, event_type: str, payload: dict, *, event_id: int | None = None) -> None:
+def broadcast_board_event(
+    board_id: int,
+    event_type: str,
+    payload: dict,
+    *,
+    event_id: int | None = None,
+    actor_id: int | None = None,
+) -> None:
     """Broadcast a board mutation event to all connected WebSocket clients.
+
+    ``actor_id`` is the acting user (#1705). It rides on the channel-layer
+    message beside the envelope, never inside it, so nothing on the wire
+    changes; ``BoardConsumer`` uses it to send the actor's per-user fields
+    (``ACTOR_SCOPED_FIELDS``) to the actor only. Omitted, those fields are
+    omitted for every subscriber (fail closed).
 
     ``event_id`` is the id of the ``BoardEvent`` row this frame publishes (#1114).
     It is **additive**: the frozen ``{event, data}`` envelope is unchanged, and
@@ -255,14 +271,11 @@ def broadcast_board_event(board_id: int, event_type: str, payload: dict, *, even
     envelope = {"event": event_type, "data": safe_payload}
     if event_id is not None:
         envelope["event_id"] = event_id
+    message = {"type": "board_event", "payload": envelope}
+    if actor_id is not None:
+        message["actor_id"] = actor_id
     try:
-        async_to_sync(channel_layer.group_send)(
-            f"board_{board_id}",
-            {
-                "type": "board_event",
-                "payload": envelope,
-            },
-        )
+        async_to_sync(channel_layer.group_send)(f"board_{board_id}", message)
     except Exception as exc:  # noqa: BLE001 — best-effort publish, see docstring
         logger.warning(
             "board broadcast dropped: board_id=%s event=%s error=%s",
@@ -331,6 +344,8 @@ def record_board_event(
     """
     event_id = persist_board_event(board_id, event_type, payload, actor_id=actor_id)
     transaction.on_commit(
-        lambda: broadcast_board_event(board_id, event_type, payload, event_id=event_id)
+        lambda: broadcast_board_event(
+            board_id, event_type, payload, event_id=event_id, actor_id=actor_id
+        )
     )
     return event_id

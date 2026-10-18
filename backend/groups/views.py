@@ -409,14 +409,15 @@ class GroupViewSet(viewsets.ModelViewSet):
             ).data
             parent_id = group.parent_id
 
-            def _broadcast_created(gid=group.pk, pid=parent_id, data=group_data):
+            def _broadcast_created(gid=group.pk, pid=parent_id, data=group_data, aid=self.request.user.id):
                 from .broadcast import broadcast_group_event
                 # Fanout: the new group's own channel (so anyone subscribed
                 # by id refreshes), and the parent's channel (so the parent's
-                # subgroup list updates).
-                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_CREATED, data)
+                # subgroup list updates). actor_id: is_starred is the
+                # creator's own value, sent to the creator only (#1705).
+                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_CREATED, data, actor_id=aid)
                 if pid is not None:
-                    broadcast_group_event(pid, _group_broadcast.EVT_GROUP_CREATED, data)
+                    broadcast_group_event(pid, _group_broadcast.EVT_GROUP_CREATED, data, actor_id=aid)
 
             transaction.on_commit(_broadcast_created)
 
@@ -468,9 +469,9 @@ class GroupViewSet(viewsets.ModelViewSet):
                 annotated, context={"request": request, "group_access": full_group_access},
             ).data
 
-            def _broadcast_updated(gid=group.pk, data=group_data):
+            def _broadcast_updated(gid=group.pk, data=group_data, aid=request.user.id):
                 from .broadcast import broadcast_group_event
-                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, data)
+                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, data, actor_id=aid)
 
             transaction.on_commit(_broadcast_updated)
         return response
@@ -925,10 +926,13 @@ class GroupViewSet(viewsets.ModelViewSet):
             )
             def _broadcast_created(
                 bid=_board_id, bd=_board_event_payload, gid=_group_id, eid=_event_id,
+                aid=request.user.id,
             ):
-                _broadcast_board_event(bid, _group_broadcast.EVT_BOARD_CREATED, bd, event_id=eid)
+                _broadcast_board_event(
+                    bid, _group_broadcast.EVT_BOARD_CREATED, bd, event_id=eid, actor_id=aid,
+                )
                 # Powers live refresh of GroupDetail's boards list (#753).
-                _broadcast_group_event(gid, _group_broadcast.EVT_BOARD_CREATED, bd)
+                _broadcast_group_event(gid, _group_broadcast.EVT_BOARD_CREATED, bd, actor_id=aid)
             transaction.on_commit(_broadcast_created)
 
         return Response(BoardSerializer(board, context={"request": request}).data, status=status.HTTP_201_CREATED)
@@ -1090,9 +1094,9 @@ class GroupViewSet(viewsets.ModelViewSet):
                 annotated, context={"request": request, "group_access": full_group_access},
             ).data
 
-            def _broadcast_transfer(gid=group.pk, data=group_data):
+            def _broadcast_transfer(gid=group.pk, data=group_data, aid=request.user.id):
                 from .broadcast import broadcast_group_event
-                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, data)
+                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, data, actor_id=aid)
 
             transaction.on_commit(_broadcast_transfer)
 
@@ -1457,9 +1461,9 @@ class GroupViewSet(viewsets.ModelViewSet):
                 annotated, context={"request": request, "group_access": full_group_access},
             ).data
 
-            def _broadcast_defaults(gid=group.pk, gd=group_data):
+            def _broadcast_defaults(gid=group.pk, gd=group_data, aid=request.user.id):
                 from .broadcast import broadcast_group_event
-                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, gd)
+                broadcast_group_event(gid, _group_broadcast.EVT_GROUP_UPDATED, gd, actor_id=aid)
 
             transaction.on_commit(_broadcast_defaults)
         return Response(group_data)

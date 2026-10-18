@@ -50,10 +50,10 @@ def _record_board_and_group_event(board_id, group_id, event_type, payload, *, ac
     """
     event_id = _broadcast.persist_board_event(board_id, event_type, payload, actor_id=actor_id)
 
-    def _send(bid=board_id, evt=event_type, pl=payload, gid=group_id, eid=event_id):
-        _broadcast.broadcast_board_event(bid, evt, pl, event_id=eid)
+    def _send(bid=board_id, evt=event_type, pl=payload, gid=group_id, eid=event_id, aid=actor_id):
+        _broadcast.broadcast_board_event(bid, evt, pl, event_id=eid, actor_id=aid)
         if gid is not None:
-            _broadcast_group_event(gid, evt, pl)
+            _broadcast_group_event(gid, evt, pl, actor_id=aid)
 
     transaction.on_commit(_send)
 
@@ -73,9 +73,9 @@ def _record_board_update_event(board_id, old_group_id, new_group_id, payload, *,
         board_id, _broadcast.EVT_BOARD_UPDATED, payload, actor_id=actor_id,
     )
 
-    def _send(bid=board_id, pl=payload, og=old_group_id, ng=new_group_id, eid=event_id):
-        _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, pl, event_id=eid)
-        _broadcast_board_group_change(bid, pl, og, ng)
+    def _send(bid=board_id, pl=payload, og=old_group_id, ng=new_group_id, eid=event_id, aid=actor_id):
+        _broadcast.broadcast_board_event(bid, _broadcast.EVT_BOARD_UPDATED, pl, event_id=eid, actor_id=aid)
+        _broadcast_board_group_change(bid, pl, og, ng, actor_id=aid)
 
     transaction.on_commit(_send)
 

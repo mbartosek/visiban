@@ -161,6 +161,7 @@ class LensConnectionRBACTests(TestCase):
             "lens_connection.removed",
             {"board_id": self.board.id},
             event_id=mock_bcast.call_args[1]["event_id"],
+            actor_id=self.owner.id,
         )
 
 

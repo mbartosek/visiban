@@ -121,6 +121,7 @@ class CardAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 self.board.id, "card.deleted", {"card_uid": card_uid},
                 event_id=BoardEvent.objects.get(event="card.deleted").pk,
+                actor_id=BoardEvent.objects.get(event="card.deleted").actor_id,
             )
 
     def test_delete_queryset_broadcasts_once_per_card(self):
@@ -187,6 +188,7 @@ class ColumnAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 self.board.id, "column.deleted", {"column_uid": col_uid},
                 event_id=BoardEvent.objects.get(event="column.deleted").pk,
+                actor_id=BoardEvent.objects.get(event="column.deleted").actor_id,
             )
 
     def test_delete_queryset_broadcasts_once_per_column(self):
@@ -256,6 +258,7 @@ class SwimlaneAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 self.board.id, "swimlane.deleted", {"swimlane_uid": lane_uid},
                 event_id=BoardEvent.objects.get(event="swimlane.deleted").pk,
+                actor_id=BoardEvent.objects.get(event="swimlane.deleted").actor_id,
             )
 
     def test_delete_queryset_broadcasts_once_per_swimlane(self):
@@ -320,6 +323,7 @@ class LabelAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 self.board.id, "label.deleted", {"label_uid": label_uid},
                 event_id=BoardEvent.objects.get(event="label.deleted").pk,
+                actor_id=BoardEvent.objects.get(event="label.deleted").actor_id,
             )
 
     def test_delete_queryset_broadcasts_once_per_label(self):
@@ -367,7 +371,10 @@ class BoardAdminBroadcastTests(TestCase):
             self.assertEqual(board_id, board.id)
             self.assertEqual(event_type, "board.created")
             self.assertEqual(payload["uid"], board.uid)
-            mock_group.assert_called_once_with(self.group.id, "board.created", payload)
+            mock_group.assert_called_once_with(
+                self.group.id, "board.created", payload, actor_id=self.admin_user.pk,
+            )
+            self.assertEqual(mock_broadcast.call_args.kwargs["actor_id"], self.admin_user.pk)
 
     def test_save_model_on_update_broadcasts_board_updated(self):
         board = Board.objects.create(name="Admin Board", owner=self.admin_user, group=self.group)
@@ -384,7 +391,10 @@ class BoardAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once()
             _, event_type, payload = mock_broadcast.call_args[0]
             self.assertEqual(event_type, "board.updated")
-            mock_group.assert_called_once_with(self.group.id, "board.updated", payload)
+            mock_group.assert_called_once_with(
+                self.group.id, "board.updated", payload, actor_id=self.admin_user.pk,
+            )
+            self.assertEqual(mock_broadcast.call_args.kwargs["actor_id"], self.admin_user.pk)
         # The merge ran: the changed form field was saved and the rest of the
         # row is the locked row's.
         board.refresh_from_db()
@@ -407,9 +417,10 @@ class BoardAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 board_id, "board.deleted", {"board_uid": board_uid},
                 event_id=BoardEvent.objects.get(event="board.deleted").pk,
+                actor_id=BoardEvent.objects.get(event="board.deleted").actor_id,
             )
             mock_group.assert_called_once_with(
-                self.group.id, "board.deleted", {"board_uid": board_uid}
+                self.group.id, "board.deleted", {"board_uid": board_uid}, actor_id=self.admin_user.pk,
             )
 
     def test_save_model_without_group_does_not_broadcast_group_event(self):
@@ -555,6 +566,7 @@ class BoardMembershipAdminBroadcastTests(TestCase):
             mock_broadcast.assert_called_once_with(
                 self.board.id, "member.removed", {"user_id": self.member_user.id},
                 event_id=BoardEvent.objects.get(event="member.removed").pk,
+                actor_id=BoardEvent.objects.get(event="member.removed").actor_id,
             )
 
     def test_delete_queryset_broadcasts_once_per_membership(self):

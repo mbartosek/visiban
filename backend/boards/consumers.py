@@ -19,6 +19,7 @@ from .permissions import (
     moderator_field_visible,
     per_user_event_visible,
     site_admin_field_visible,
+    without_actor_scoped_fields,
 )
 
 # How often (in seconds) the server sends a keepalive ping to each client.
@@ -285,6 +286,15 @@ class BoardConsumer(AsyncWebsocketConsumer):
                 hidden.add("invite")
             if hidden:
                 payload = {**payload, "data": {k: v for k, v in data.items() if k not in hidden}}
+        # The acting user's own per-user fields (``is_starred`` on board.created
+        # / board.updated) go to the actor's sockets only (#1705). The actor id
+        # rides beside the envelope on the channel-layer message; a frame
+        # without one omits the fields for everyone.
+        scoped = without_actor_scoped_fields(
+            payload.get("event"), payload.get("data"), self.scope["user"].id, event.get("actor_id"),
+        )
+        if scoped is not payload.get("data"):
+            payload = {**payload, "data": scoped}
         await self.send(text_data=json.dumps(payload))
 
     async def _verify_access(self, *, force=False):

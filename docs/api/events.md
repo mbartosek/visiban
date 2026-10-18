@@ -150,12 +150,14 @@ Two consequences worth knowing:
 - `is_site_admin` is stripped from the same payloads for readers below
   `admin`, with no self-row exception, matching the WebSocket consumer (since
   1.2). An unknown reader role strips it.
-- `is_starred`, on `board.*` payloads, reflects the **actor's** state at the time
-  of the event, not the reader's. This matches the WebSocket surface, where the
-  same payload is fanned out to every subscriber. Read a board's own
-  `GET /api/v1/boards/{id}/` for the caller's star state. `is_starred` is deprecated in
-  `board.created` / `board.updated` payloads (#1559): clients must ignore it and use
-  `board.star_changed` for per-user star state.
+- `is_starred` on `board.created` and `board.updated` rows is the **actor's**
+  star state at the time of the event. Since 1.2 it is returned only to the
+  reader who is that row's `actor_id`; every other reader gets the row without
+  the `is_starred` key, and a row with a null `actor_id` omits it for everyone
+  (#1705). This matches the WebSocket, which sends the field only to the acting
+  user's own sockets. Clients should not rely on it for star state: use
+  `board.star_changed`, or read `GET /api/v1/boards/{id}/` for the caller's own
+  value (#1559).
 - `share_token` and `share_token_expires_at` are dropped from every payload for
   every reader, whatever their role. Board admins read them over REST only
   (`GET /api/v1/boards/{id}/full/` and the share action response).

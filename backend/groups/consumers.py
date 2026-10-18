@@ -10,7 +10,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from accounts.ws_auth import WS_CREDENTIAL_SCOPE_KEY, load_live_ws_user
 from visiban.authorization import authorize_account
 
-from boards.permissions import PER_USER_EVENTS, per_user_event_visible
+from boards.permissions import PER_USER_EVENTS, per_user_event_visible, without_actor_scoped_fields
 
 from .broadcast import EVT_GROUP_STAR_CHANGED, EVT_MEMBER_REMOVED, EVT_PING
 from .models import Group, user_has_group_access
@@ -194,6 +194,13 @@ class GroupConsumer(AsyncWebsocketConsumer):
             # rather than reconnecting into a 4003 anyway.
             await self.close(code=4003)
             return
+        # The acting user's own per-user fields (``is_starred`` on board.* and
+        # group.created / group.updated) go to the actor's sockets only (#1705).
+        scoped = without_actor_scoped_fields(
+            payload.get("event"), payload.get("data"), self.scope["user"].id, event.get("actor_id"),
+        )
+        if scoped is not payload.get("data"):
+            payload = {**payload, "data": scoped}
         await self.send(text_data=json.dumps(payload))
 
     async def _verify_access(self):

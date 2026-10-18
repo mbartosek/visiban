@@ -320,7 +320,7 @@ class AdminTransferParityTests(TestCase):
         payloads = {}
 
         def capture(key):
-            return lambda gid, event, data: payloads.__setitem__(key, data)
+            return lambda gid, event, data, **_kw: payloads.__setitem__(key, data)
 
         api = APIClient()
         api.force_authenticate(owner)

@@ -20,6 +20,13 @@ describe('boardEventPayload (#1559)', () => {
     expect(merged).toEqual({ id: 1, name: 'New', is_starred: false })
   })
 
+  it('a payload without is_starred (non-actor recipient, #1705) keeps the local star state', () => {
+    const local = { id: 1, name: 'Old', is_starred: true }
+    const merged = { ...local, ...stripPerUserBoardFields({ id: 1, name: 'New' }) }
+    expect(merged).toEqual({ id: 1, name: 'New', is_starred: true })
+    expect(neutralizePerUserBoardFields({ id: 2, name: 'B' })).toEqual({ id: 2, name: 'B', is_starred: false })
+  })
+
   it('neutralizePerUserBoardFields defaults the creator star to false', () => {
     expect(neutralizePerUserBoardFields({ id: 2, name: 'B', is_starred: true })).toEqual({ id: 2, name: 'B', is_starred: false })
   })
