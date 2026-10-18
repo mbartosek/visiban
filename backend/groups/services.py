@@ -10,6 +10,47 @@ from django.db import transaction
 from .models import Group, GroupMembership
 
 
+def lock_group_subtree_for_delete(group_id):
+    """Lock ``group_id`` and every subgroup under it ``FOR UPDATE``; return ``(owner_id, parent_id)``.
+
+    Returns ``None`` when the group is already gone (a delete that queued
+    behind another delete of the same group). Must run inside
+    ``transaction.atomic()``, before ``group.delete()``.
+
+    Why (#1638): the delete collector reads the group's memberships, then
+    reaches the invite rows at its ``DELETE``, and removes the group row last.
+    Without the group row locked first, an invite redemption (join,
+    invite-only registration, the confirmation grant) holding an invite row
+    made the delete wait there and then commit a membership the collector had
+    already read past, so the delete failed its deferred foreign key at COMMIT
+    (a 500), or deadlocked against a grant that holds the group row and waits
+    on the invite. Every redemption takes the group row ``FOR NO KEY UPDATE``
+    (``groups.invite_registration.lock_invite_group``) before the invite row,
+    which conflicts with this ``FOR UPDATE``, so a redemption and a delete
+    now queue whole in either order.
+
+    The subgroups are locked too because the delete cascades to them, and an
+    invite on a subgroup races a parent delete the same way. All rows are
+    locked in one pk-ordered statement, the order the parent-change writer
+    (``GroupSerializer``) locks a chain in, so the two cannot deadlock. The
+    owner and parent are returned from the locked row: the caller re-checks
+    ownership against it (a transfer may have committed while the delete
+    queued) and broadcasts to the parent the group actually has.
+    """
+    ids, frontier = {group_id}, [group_id]
+    while frontier:
+        frontier = list(
+            Group.objects.filter(parent_id__in=frontier).exclude(pk__in=ids).values_list("pk", flat=True)
+        )
+        ids.update(frontier)
+    rows = {
+        pk: (owner_id, parent_id)
+        for pk, owner_id, parent_id in Group.objects.select_for_update()
+        .filter(pk__in=ids).order_by("pk").values_list("pk", "owner_id", "parent_id")
+    }
+    return rows.get(group_id)
+
+
 class GroupTransferError(Exception):
     """A transfer was refused; ``str(exc)`` is the user-facing message."""
 

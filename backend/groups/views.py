@@ -27,7 +27,7 @@ from visiban.invite_recipient import (
     recipient_admits,
 )
 from . import broadcast as _group_broadcast
-from .invite_registration import link_can_register
+from .invite_registration import link_can_register, lock_invite_group
 from .models import (
     GROUP_PARENT_CHAIN, Group, GroupFavorite, GroupLabel, GroupMembership, GroupInviteLink,
     group_access_resolver, group_admin_resolver,
@@ -483,9 +483,26 @@ class GroupViewSet(viewsets.ModelViewSet):
                 {"detail": "Only the group owner can delete this group."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        from .services import lock_group_subtree_for_delete
+
         gid = group.pk
-        parent_id = group.parent_id
         with transaction.atomic():
+            # The group row (and its subgroups) first, before the collector
+            # touches a membership or invite row (#1638): an invite redemption
+            # locks the group row before the invite row, so the two queue
+            # whole instead of the delete failing its deferred foreign key at
+            # COMMIT (a 500). See lock_group_subtree_for_delete.
+            locked = lock_group_subtree_for_delete(gid)
+            if locked is None:
+                # Deleted by a request this one queued behind.
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            owner_id, parent_id = locked
+            if owner_id != request.user.pk and not getattr(request.user, "can_access_all_content", False):
+                # Ownership moved while this delete queued on the lock.
+                return Response(
+                    {"detail": "Only the group owner can delete this group."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             group.delete()
             payload = {"id": gid}
 
@@ -1654,13 +1671,29 @@ class JoinGroupView(APIView):
         # and this future-proofs the view against max_uses or other counters.
         hashed = GroupInviteLink._hash_token(str(token))
         with transaction.atomic():
+            # Group row first, then the invite row (#1638, the group side of
+            # #1631). A group delete reaches this invite only at its collector
+            # DELETE; a join that locked the invite first and inserted the
+            # membership under it made the delete fail its deferred foreign
+            # key at COMMIT (a 500), and locking the group after the invite
+            # would deadlock against it. The delete now locks the group row
+            # first too, so the two queue whole. The group id is read
+            # unlocked (an invite never changes group) and re-checked by the
+            # invite lock below; a join queued behind a group delete finds the
+            # group gone and answers 404 with nothing written.
+            group_id = (
+                GroupInviteLink.objects.filter(token_hash=hashed, is_active=True)
+                .values_list("group_id", flat=True).first()
+            )
+            if group_id is None or not lock_invite_group(group_id):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             try:
                 # of=("self",): created_by is a nullable FK, and Postgres cannot
                 # lock the nullable side of the outer join select_related adds.
                 link = GroupInviteLink.objects.select_related(
                     "created_by", GROUP_PARENT_CHAIN,
                 ).select_for_update(of=("self",)).get(
-                    token_hash=hashed, is_active=True
+                    token_hash=hashed, is_active=True, group_id=group_id,
                 )
             except GroupInviteLink.DoesNotExist:
                 return Response(

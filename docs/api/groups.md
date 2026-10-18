@@ -122,6 +122,8 @@ Changing `parent` revokes unused invite links in the moved subtree whose creator
 ### `DELETE /api/v1/groups/{id}/`
 Delete a group. Requires group owner or site admin. A group member who is not the owner gets `403 Forbidden` with `{"detail": "Only the group owner can delete this group."}`; a caller who cannot see the group at all gets `404`.
 
+*(1.2+)* A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed, waits for that request to finish. A second delete of the same group then answers `404`, and a delete that waited behind an ownership transfer away from the caller answers `403` (#1638).
+
 ---
 
 ## Members
@@ -468,3 +470,5 @@ Join the group with the role configured on the invite link. Requires authenticat
 **Errors:** `401 Unauthorized` (not authenticated), `404 Not Found` (invalid or revoked token, or, *(1.2+)* the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is `404` even if it is also expired or consumed. A link with a live creator still answers `410` for expired or consumed, so the two cases remain distinguishable to a token holder), `410 Gone` — `{"detail": "This invite link has expired."}` (past its expiry) or `{"detail": "This invite link has already been used."}` (single-use link already consumed by someone who is not a member)
 
 *(1.2+)* If the caller is already a member of the link's group, a consumed single-use link returns `200` with the group, the same as any repeat join; the link is not re-stamped and the caller's role is unchanged.
+
+*(1.2+)* A join that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).

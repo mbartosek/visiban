@@ -148,12 +148,21 @@ def validate_group_registration_token(raw_token: str) -> GroupInviteLink:
     if not raw_token:
         raise InviteTokenError("invite_missing", "An invite link is required to register.")
 
-    try:
-        link = GroupInviteLink.objects.select_for_update().get(
-            token_hash=GroupInviteLink._hash_token(raw_token),
-            is_active=True,
-        )
-    except GroupInviteLink.DoesNotExist:
+    token_hash = GroupInviteLink._hash_token(raw_token)
+    # Group row first, then the invite row — the order the join view and a
+    # group delete take (#1638, see ``lock_invite_group``). The group id is
+    # read unlocked; an invite never changes group, and the invite lock below
+    # re-checks it.
+    group_id = (
+        GroupInviteLink.objects.filter(token_hash=token_hash, is_active=True)
+        .values_list("group_id", flat=True).first()
+    )
+    if group_id is None or not lock_invite_group(group_id):
+        raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
+    link = GroupInviteLink.objects.select_for_update().filter(
+        token_hash=token_hash, group_id=group_id, is_active=True,
+    ).first()
+    if link is None:
         raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
 
     refusal = group_link_registration_refusal(link)
@@ -223,6 +232,12 @@ def redeem_group_registration_token(link: GroupInviteLink, user) -> None:
     nothing at its confirmation, because the invite is used.
     """
     with transaction.atomic():
+        # Group row before the claim (#1638). Both callers validated in this
+        # same transaction and already hold it, so this is a no-op re-lock
+        # there; it keeps the group -> invite order for any caller that did
+        # not, and refuses a group deleted since validation.
+        if not lock_invite_group(link.group_id):
+            raise InviteTokenError("invite_invalid", "Invalid or expired invite link.")
         # Bound to the invited address (#1678): the new account's signup
         # address must match, checked before the stamp so a refusal consumes
         # nothing (the caller rolls the account back).
@@ -320,17 +335,23 @@ def redeem_reserved_group_invites(user, email_address) -> int:
     return granted
 
 
-def _lock_invite_group(group_id) -> bool:
+def lock_invite_group(group_id) -> bool:
     """Lock the invite's group row ``FOR NO KEY UPDATE``; False if it is gone.
 
-    Group row before the invite row: the order group writers that also touch
-    invites take (ownership transfer, admin changes that revoke lapsed
-    invites). ``GroupViewSet.destroy`` does not lock the group row first: the
-    delete collector removes the group's invite rows before the group row, so
-    a grant and a group delete running at the same moment can deadlock, and
-    PostgreSQL aborts one of them. The grant's side is caught and logged by
-    ``redeem_reserved_group_invites``. Making the delete lock the group row
-    first is tracked in #1638.
+    Every group invite redemption takes this before the invite row: the join
+    view, invite-only registration (REST and OAuth) and the grant at address
+    confirmation (#1638). Group row before the invite row is the order group
+    writers that also touch invites take (ownership transfer, admin changes
+    that revoke lapsed invites) and the order ``GroupViewSet.destroy`` takes
+    (``groups.services.lock_group_subtree_for_delete``): the delete collector
+    reaches the invite rows before the group row, so a redemption that held
+    the invite row and inserted a membership under it made the delete fail
+    its deferred foreign key at COMMIT (a 500), and one that held the group
+    row while the delete held the invite deadlocked. ``FOR NO KEY UPDATE``
+    conflicts with the delete's ``FOR UPDATE`` but not with the
+    ``FOR KEY SHARE`` a membership or invite insert takes on the group, so a
+    redemption queued behind a delete finds the group gone and grants
+    nothing. Must run inside ``transaction.atomic()``.
     """
     return (
         Group.objects.select_for_update(no_key=True).filter(pk=group_id).values_list("pk", flat=True).first()
@@ -340,7 +361,7 @@ def _lock_invite_group(group_id) -> bool:
 def _grant_reserved_group_invite(link_id, group_id, user, email_address) -> bool:
     """One invite of ``redeem_reserved_group_invites``; True when it granted."""
     with transaction.atomic():
-        if not _lock_invite_group(group_id):
+        if not lock_invite_group(group_id):
             return False
         link = GroupInviteLink.objects.select_for_update().filter(pk=link_id, reserved_for=user).first()
         if link is None:
