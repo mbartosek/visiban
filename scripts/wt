@@ -418,6 +418,7 @@ resolve_e2e_port_offset() {
 # makes a clean branch fail with a bare ModuleNotFoundError that reads like a
 # regression. Only exact `==` pins are checked; lines with environment markers
 # and `-r`/`-c` includes are skipped (a marker can't be evaluated here).
+# Continuation lines, `--hash=` lines, and `==` pins with a trailing range or `.*` are skipped or compared literally.
 # WT_VENV_PYTHON overrides the interpreter queried (used by the self-test).
 # Prints one "package: requires X, installed Y" line per drift; always returns 0.
 pinned_drift() {
