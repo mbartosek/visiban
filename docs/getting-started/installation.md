@@ -186,6 +186,11 @@ pip install -r requirements.txt
 # Docker images install the hash-pinned backend/requirements.lock instead. If
 # you edit requirements.txt, run scripts/lock-backend-requirements.sh and commit
 # the regenerated lock (see docs/development/dependency-lock.md).
+# Re-run `pip install -r requirements.txt` after every pull that changes
+# requirements.txt: a stale venv shows up as a bare ModuleNotFoundError (e.g.
+# mcp 1.x vs the 2.x pin), not as a clear "out of date" message. From a
+# checkout, `scripts/wt doctor` warns about any `==` pin that differs from
+# what is installed, naming the package and both versions.
 
 cp ../.env.example .env
 # Set DATABASE_URL=sqlite:///db.sqlite3 for local SQLite
