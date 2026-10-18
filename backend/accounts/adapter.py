@@ -186,8 +186,7 @@ def account_mail_deferred_to_commit():
 
     Invite-only registration (``InviteRegisterView.create``) creates the account
     and redeems the invite (site, group or board) in one transaction, holding
-    the board, group or invite row locks registration takes for that kind until
-    it commits. allauth's ``complete_signup`` sent the signup confirmation mail
+    the row locks registration takes until it commits. allauth's ``complete_signup`` sent the signup confirmation mail
     synchronously, inside that transaction, and with ``EMAIL_TIMEOUT`` unset an
     SMTP round trip has no bound, so every writer queued on those rows waited
     on the mail server. The rule already applied
@@ -225,8 +224,12 @@ def _send_after_commit(message, template_prefix):
             # The account has committed by now, so a mail failure must not turn
             # into an error response for an account that exists (the caller
             # would retry and be told the username is taken). The user can ask
-            # for the confirmation again, once allauth's confirm_email cooldown
-            # (which the failed send may already have spent) has passed. Only the exception class is logged:
+            # for the confirmation again through
+            # POST /api/v1/auth/registration/resend-email/ (ResendEmailThrottle,
+            # 10/hour per IP; API only, the SPA has no control for it). Known
+            # limitation: under EMAIL_VERIFICATION=mandatory the 201 body has
+            # already said "Verification e-mail sent." and is left as is (it is
+            # dj-rest-auth's response contract). Only the exception class is logged:
             # some MTAs echo protocol lines (which can carry credentials) in
             # smtplib's error text — see visiban/mail.py — and the address is PII.
             try:
