@@ -2915,6 +2915,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#stale-dev-venv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale dev venv
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4666,6 +4677,15 @@ the real check: it builds a synthetic git repo and coverage fixtures in a temp d
 (no network, no database, no changes to the real working tree) and asserts detection fires
 on a known-bad fixture and stays clean on a known-good one. This is the house pattern for
 bespoke gate scripts described in #1093.</p>
+<h3 id="stale-dev-venv">Stale dev venv<a class="headerlink" href="#stale-dev-venv" title="Permanent link">&para;</a></h3>
+<p>Backend tests run against the venv in <code>backend/.venv</code>, which every <code>scripts/wt</code>
+worktree shares by symlink. If <code>backend/requirements.txt</code> moved since the venv was
+last synced, a clean branch can fail with a bare <code>ModuleNotFoundError</code> that reads like
+a regression (#1715: <code>mcp</code> 1.x installed against the <code>mcp==2.3.0</code> pin). Run
+<code>scripts/wt doctor</code> (also run by <code>scripts/wt new</code>): it warns, per drifted <code>==</code> pin,
+<code>&lt;package&gt;: requires X, installed Y</code>. Fix with
+<code>backend/.venv/bin/pip install -r backend/requirements.txt</code>. The check is covered by
+<code>scripts/tests/wt-doctor-drift.test.sh</code>.</p>
 <h2 id="git-hooks">Git hooks<a class="headerlink" href="#git-hooks" title="Permanent link">&para;</a></h2>
 <p><code>scripts/wt</code> (see its <code>--help</code>) applies a <code>status::wip</code> GitLab label when you create a
 worktree with <code>wt new</code>/<code>wt claim</code>, so a parallel agent or teammate doesn't grab the same

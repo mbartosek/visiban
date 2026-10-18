@@ -4398,13 +4398,18 @@ root-owned <code>node_modules</code> volume; see <a href="../../administration/u
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># Docker images install the hash-pinned backend/requirements.lock instead. If</span>
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># you edit requirements.txt, run scripts/lock-backend-requirements.sh and commit</span>
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># the regenerated lock (see docs/development/dependency-lock.md).</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>cp<span class="w"> </span>../.env.example<span class="w"> </span>.env
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># Set DATABASE_URL=sqlite:///db.sqlite3 for local SQLite</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>python<span class="w"> </span>manage.py<span class="w"> </span>migrate
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>python<span class="w"> </span>manage.py<span class="w"> </span>ensure_site_admin<span class="w">   </span><span class="c1"># prints one-time password</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>python<span class="w"> </span>manage.py<span class="w"> </span>runserver
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="c1"># Re-run `pip install -r requirements.txt` after every pull that changes</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># requirements.txt: a stale venv shows up as a bare ModuleNotFoundError (e.g.</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># mcp 1.x vs the 2.x pin), not as a clear "out of date" message. From a</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="c1"># checkout, `scripts/wt doctor` warns about any `==` pin that differs from</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="c1"># what is installed, naming the package and both versions.</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>cp<span class="w"> </span>../.env.example<span class="w"> </span>.env
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="c1"># Set DATABASE_URL=sqlite:///db.sqlite3 for local SQLite</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>python<span class="w"> </span>manage.py<span class="w"> </span>ensure_site_admin<span class="w">   </span><span class="c1"># prints one-time password</span>
+<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>python<span class="w"> </span>manage.py<span class="w"> </span>runserver
 </code></pre></div>
 <h3 id="frontend">Frontend<a class="headerlink" href="#frontend" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>frontend
