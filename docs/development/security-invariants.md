@@ -218,6 +218,17 @@ Members tab locks. Group-inherited and owner rows carry no flag for them, since
 a change to such a row is an ordinary add. A site-admin reader gets the full
 roster and the flag on every row. `site_admin_roster_visible` holds this rule.
 
+`site_admin_roster_visible(role, viewer_is_site_admin)` returns true when the
+reader's board role is `site_admin` (which is what `can_access_all_content`
+resolves to) or the reader has `User.is_site_admin`, so a reader with
+instance-wide content access who is not `is_site_admin` already gets the full
+roster; the function is deliberately unchanged (#1717). The Members-tab lock
+keys on the row being membership-backed (`id` not null) plus the flag, not on
+which readers receive the flag. Pinned by
+`test_all_content_reader_gets_full_roster` and
+`SiteAdminRosterVisibleUnitTests.test_rule` in
+`backend/boards/tests/test_member_site_admin_flag.py`.
+
 Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
 importer, co-members of their boards and groups, and the target group (a site

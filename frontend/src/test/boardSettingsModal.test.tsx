@@ -448,12 +448,64 @@ describe('BoardSettingsModal — site-admin member lock (#1290)', () => {
       ...fakeBoard,
       members: [
         { id: 10, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
-        { id: null, user: { id: 5, username: 'legacy', display_name: 'Legacy Admin', avatar_url: '' }, role: 'site_admin', is_moderator: false, joined_at: '' },
+        { id: 11, user: { id: 5, username: 'legacy', display_name: 'Legacy Admin', avatar_url: '' }, role: 'site_admin', is_moderator: false, joined_at: '' },
       ],
     }
     render(<BoardSettingsModal board={board} isAdmin={true} onClose={vi.fn()} />)
     expect(screen.getAllByRole('combobox')).toHaveLength(1)
     expect(screen.getByText('site admin')).toBeInTheDocument()
+  })
+
+  // #1717 — a row with no membership here (group-inherited, owner, instance-wide
+  // access) can carry is_site_admin: true; the server accepts a role change for
+  // it and creates the membership, so it must not be locked.
+  const synthesizedSiteAdmin = {
+    id: null,
+    user: { id: 6, username: 'groupadmin', display_name: 'Group Admin', avatar_url: '' },
+    role: 'member' as const,
+    is_moderator: false,
+    is_site_admin: true,
+    joined_at: '',
+  }
+  const synthBoard: BoardFull = {
+    ...fakeBoard,
+    members: [
+      { id: 10, user: fakeUser, role: 'admin', is_moderator: false, is_site_admin: false, joined_at: '' },
+      synthesizedSiteAdmin,
+      siteAdminMember,
+    ],
+  }
+
+  it('leaves a site-admin row without a membership (id null) editable for a non-site-admin admin (#1717)', () => {
+    render(<BoardSettingsModal board={synthBoard} isAdmin={true} onClose={vi.fn()} />)
+    // Caller's own row + the synthesized row are editable; only the
+    // membership-backed site-admin row (id 12) is static text.
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getAllByTitle('Site administrator — role managed at the instance level')).toHaveLength(1)
+  })
+
+  it('locks a membership-backed site-admin row (numeric id) for a non-site-admin admin (#1717)', () => {
+    render(<BoardSettingsModal board={synthBoard} isAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getByTitle('Site administrator — role managed at the instance level')).toHaveTextContent('member')
+  })
+
+  it('leaves an unflagged all-content row (id null, no is_site_admin, role "site_admin") editable (#1717)', () => {
+    const board: BoardFull = {
+      ...fakeBoard,
+      members: [
+        { id: 10, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
+        { id: null, user: { id: 7, username: 'auditor2', display_name: 'Auditor Two', avatar_url: '' }, role: 'site_admin', is_moderator: false, joined_at: '' },
+      ],
+    }
+    render(<BoardSettingsModal board={board} isAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
+  })
+
+  it('shows neither site-admin row locked to a site-admin viewer (#1717)', () => {
+    render(<BoardSettingsModal board={synthBoard} isAdmin={true} currentUserIsSiteAdmin={true} onClose={vi.fn()} />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(3)
+    expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
   })
 
   it('unlocks a site-admin member when the caller is a site admin', () => {
