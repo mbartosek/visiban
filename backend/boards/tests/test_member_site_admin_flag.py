@@ -287,6 +287,35 @@ class FullMembersRosterByReaderTests(MemberSiteAdminFlagTestBase):
         for row in rows.values():
             self.assertNotIn("is_site_admin", row)
 
+    def test_cold_cache_get_members_loads_and_caches_site_admin_users(self):
+        """Called without get_cards() having run, a site-admin reader's
+        ``get_members`` loads the all-content users itself and caches them in
+        the serializer context, so a repeat call does not query again."""
+        from rest_framework.test import APIRequestFactory
+
+        from boards.serializers import BoardFullSerializer
+
+        request = APIRequestFactory().get("/")
+        request.user = self.full_site_admin
+        context = {"request": request}
+        serializer = BoardFullSerializer(self.board, context=context)
+
+        rows = {row["user"]["id"]: row for row in serializer.get_members(self.board)}
+        self.assertEqual(
+            set(rows), self.board_member_ids | self.instance_only_ids
+        )
+        for pk in self.instance_only_ids:
+            self.assertEqual(rows[pk]["role"], "site_admin")
+        cached = serializer.context["_site_admin_users"]
+        self.assertEqual(
+            {u.pk for u in cached}, self.instance_only_ids | {
+                self.all_content_member.pk
+            }
+        )
+
+        serializer.get_members(self.board)
+        self.assertIs(serializer.context["_site_admin_users"], cached)
+
     def test_query_count_does_not_grow_with_all_content_users(self):
         """For a reader who gets the roster rows and one who does not, the
         ``/full/`` query count stays the same when another all-content user is
