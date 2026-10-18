@@ -75,6 +75,11 @@ interface Props {
    *  and on a member.added that came from an invite, so the Members tab's
    *  invite list refetches. */
   inviteReloadSignal?: number;
+  /** #1706 — called after members were added. The add response no longer
+   *  carries the member's site-admin flag for a caller who is not a site
+   *  admin, so BoardView re-reads the board and the Members tab picks the
+   *  flag up from it. */
+  onMembersAdded?: () => void;
 }
 
 const DEMO_SETTINGS_NOTICE_ID = "board-settings-demo-notice";
@@ -108,7 +113,7 @@ function RoleTooltip() {
   );
 }
 
-export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal }: Props) {
+export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal, onMembersAdded }: Props) {
   const settingsInert = demoMode && isAdmin;
   const [tab, setTab] = useState<Tab>(initialTab ?? "members");
   // Focus the selected tab button only when a caller deep-linked a tab (#1458);
@@ -137,7 +142,20 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
     setMembers((prev) => {
       const known = new Set(prev.map((m) => m.user.id));
       const added = board.members.filter((m) => !known.has(m.user.id));
-      return added.length > 0 ? [...prev, ...added] : prev;
+      // Fill in a site-admin flag a row lacks (#1706): the add response and
+      // the member events omit it, the re-read board has it. Only that field
+      // is copied, so a role edit in flight is still not clobbered.
+      const flags = new Map(
+        board.members.filter((m) => m.is_site_admin !== undefined).map((m) => [m.user.id, m.is_site_admin]),
+      );
+      let changed = added.length > 0;
+      const patched = prev.map((m) => {
+        const flag = flags.get(m.user.id);
+        if (flag === undefined || m.is_site_admin === flag) return m;
+        changed = true;
+        return { ...m, is_site_admin: flag };
+      });
+      return changed ? [...patched, ...added] : prev;
     });
   }, [board.members]);
   const [saving, setSaving] = useState<number | null>(null);
@@ -410,6 +428,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
         return next;
       });
       setStaged([]);
+      onMembersAdded?.();
       setInviteSuccess(`Added ${results.length} member${results.length !== 1 ? "s" : ""} to the board.`);
     } catch {
       setInviteError("Failed to add some members. Please try again.");

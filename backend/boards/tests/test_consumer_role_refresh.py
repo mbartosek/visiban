@@ -243,7 +243,10 @@ class ConsumerRoleRefreshEndToEndTests(TransactionTestCase):
 
     def setUp(self):
         cache.clear()
-        self.admin_b = User.objects.create_user(username="rr_e2e_b", password="pass")
+        # A site-admin caller: the admin-only columns ride the event only then (#1706).
+        self.admin_b = User.objects.create_user(
+            username="rr_e2e_b", password="pass", is_site_admin=True
+        )
         self.board = Board.objects.create(name="RR e2e", owner=self.admin_b)
         BoardMembership.objects.create(board=self.board, user=self.admin_b, role=ADMIN)
         self.admin_a = User.objects.create_user(username="rr_e2e_a", password="pass")

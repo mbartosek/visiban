@@ -394,8 +394,45 @@ describe('BoardView socket event routing — new event types', () => {
     render(<BoardView currentUser={fakeUser} />)
     await act(async () => {})
     const otherUser: User = { ...fakeUser, id: 99, username: 'bob', display_name: 'Bob' }
-    const membership: BoardMembership = { id: 2, user: otherUser, role: 'viewer', is_moderator: false, joined_at: '' }
+    const membership: BoardMembership = { id: 2, user: otherUser, role: 'viewer', is_moderator: false, is_site_admin: false, joined_at: '' }
     act(() => { getOnEvent.dispatch({ event: 'member.updated', data: membership as unknown as Record<string, unknown> }) })
+    expect(ctx.silentReload).not.toHaveBeenCalled()
+  })
+
+  const flaglessMembership = (): BoardMembership => {
+    const otherUser: User = { ...fakeUser, id: 99, username: 'bob', display_name: 'Bob' }
+    return { id: 2, user: otherUser, role: 'viewer', is_moderator: false, joined_at: '' }
+  }
+
+  it('member.updated does not refetch for a viewer below admin when a different user role changes (flagless payload)', async () => {
+    const ctx = makeContext({ board: makeBoard({ current_user_role: 'member' }) })
+    mockBoardContextValue = ctx
+    render(<BoardView currentUser={fakeUser} />)
+    await act(async () => {})
+    act(() => { getOnEvent.dispatch({ event: 'member.updated', data: flaglessMembership() as unknown as Record<string, unknown> }) })
+    act(() => { getOnEvent.dispatch({ event: 'member.added', data: flaglessMembership() as unknown as Record<string, unknown> }) })
+    expect(ctx.silentReload).not.toHaveBeenCalled()
+  })
+
+  it('a flagless member.added / member.updated makes a board admin re-read the board once (#1706)', async () => {
+    const ctx = makeContext({ board: makeBoard({ current_user_role: 'admin' }) })
+    mockBoardContextValue = ctx
+    render(<BoardView currentUser={fakeUser} />)
+    await act(async () => {})
+    act(() => { getOnEvent.dispatch({ event: 'member.added', data: flaglessMembership() as unknown as Record<string, unknown> }) })
+    expect(ctx.silentReload).toHaveBeenCalledTimes(1)
+    // A second event inside the echo window does not re-read again.
+    act(() => { getOnEvent.dispatch({ event: 'member.updated', data: flaglessMembership() as unknown as Record<string, unknown> }) })
+    expect(ctx.silentReload).toHaveBeenCalledTimes(1)
+  })
+
+  it('a member event that carries the flag does not re-read the board', async () => {
+    const ctx = makeContext({ board: makeBoard({ current_user_role: 'site_admin' }) })
+    mockBoardContextValue = ctx
+    render(<BoardView currentUser={fakeUser} />)
+    await act(async () => {})
+    const withFlag = { ...flaglessMembership(), is_site_admin: false }
+    act(() => { getOnEvent.dispatch({ event: 'member.added', data: withFlag as unknown as Record<string, unknown> }) })
     expect(ctx.silentReload).not.toHaveBeenCalled()
   })
 

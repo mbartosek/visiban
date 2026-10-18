@@ -91,9 +91,11 @@ def site_admin_field_visible(role):
     self-row exception: a user's own site-admin status comes from
     ``/auth/me/``.
 
-    Called by the same four surfaces as ``moderator_field_visible()`` (the
-    ``/full/`` members array, the members POST response, the WS consumer, and
-    the change feed), which is why it lives beside it. An unknown role
+    Called by the same surfaces as ``moderator_field_visible()`` (the
+    ``/full/`` members array, the WS consumer, and the change feed), which is
+    why it lives beside it. The members POST response and the ``member.*``
+    event payload additionally omit the flag whenever the caller is not a site
+    admin (``BoardViewSet.members``, #1706), whatever the reader's role. An unknown role
     (``None``) fails closed.
     """
     return role in ROLES_WITH_SITE_ADMIN_FLAG_VISIBILITY

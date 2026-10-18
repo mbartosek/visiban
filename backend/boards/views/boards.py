@@ -975,8 +975,15 @@ class BoardViewSet(
             if target_user is None:
                 raise NotFound
         # Site-admin protection keys on the caller's own site-admin status,
-        # matching groups/views.py's update_member.
-        if target_user.is_site_admin and not request.user.is_site_admin:
+        # matching groups/views.py's update_member. It applies only to a
+        # membership that already exists: a target with no membership here is
+        # answered as any other active user would be, whatever their site
+        # role (#1706).
+        if (
+            existing is not None
+            and target_user.is_site_admin
+            and not request.user.is_site_admin
+        ):
             raise PermissionDenied("Cannot modify a site admin's board membership.")
         raw_mod = body.get("is_moderator")
         # Normalize: None means "not provided", else coerce to bool.
@@ -995,6 +1002,24 @@ class BoardViewSet(
                 {"detail": "Moderator entitlement can only be granted to members or admins."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # A direct row outranks a group-inherited role, so adding a site admin
+        # who has none must not lower what they can already do on this board.
+        # The stored role is the higher of the requested and the current
+        # effective one; the response is otherwise the ordinary add (#1706).
+        if (
+            existing is None
+            and target_user.is_site_admin
+            and not request.user.is_site_admin
+        ):
+            current = get_board_role(target_user, board)
+            order = [
+                BoardMembership.Role.VIEWER,
+                BoardMembership.Role.COLLABORATOR,
+                BoardMembership.Role.MEMBER,
+                BoardMembership.Role.ADMIN,
+            ]
+            if current in order and order.index(current) > order.index(member_role):
+                member_role = current
         defaults = {"role": member_role}
         if is_moderator is not None:
             defaults["is_moderator"] = is_moderator
@@ -1007,6 +1032,12 @@ class BoardViewSet(
                 board=board, user=target_user, defaults=defaults
             )
             if not created:
+                # `existing` was read before the board lock, so a row created
+                # while this request waited is judged here, on the locked row:
+                # the refusal for a site admin's membership, and the role
+                # floor, must hold on this path too (#1706).
+                if target_user.is_site_admin and not request.user.is_site_admin:
+                    raise PermissionDenied("Cannot modify a site admin's board membership.")
                 membership.role = member_role
                 if is_moderator is not None:
                     membership.is_moderator = is_moderator
@@ -1025,6 +1056,14 @@ class BoardViewSet(
                 membership,
                 context={"role": role, "board": board, "request": request},
             ).data
+            # A caller who is not a site admin gets no site-admin flag in the
+            # response or the stored event payload, so a site-admin target and
+            # an ordinary one produce the same shape (#1706). The flag is read
+            # from the user, so it is dropped here rather than by role alone.
+            if not request.user.is_site_admin:
+                membership_data = {
+                    k: v for k, v in membership_data.items() if k != "is_site_admin"
+                }
             board_id = board.id
             ws_event = _broadcast.EVT_MEMBER_ADDED if created else _broadcast.EVT_MEMBER_UPDATED
             # The stored payload still carries is_moderator; the feed strips it per
@@ -1058,13 +1097,6 @@ class BoardViewSet(
         # Beyond the 64-bit range no row can exist: same 404, not a DB overflow.
         if int(user_id) > 2**63 - 1:
             raise NotFound
-        # See the same check in `members()` above for why this uses
-        # request.user.is_site_admin rather than the resolved `role`.
-        if (
-            User.objects.filter(pk=user_id, is_site_admin=True).exists()
-            and not request.user.is_site_admin
-        ):
-            raise PermissionDenied("Cannot remove a site admin from a board.")
         # Resolve through the membership row: an unknown id, an inactive user
         # and an active user with no membership all get the same 404. An
         # inactive user who has a membership can still be removed.
@@ -1075,6 +1107,11 @@ class BoardViewSet(
         )
         if membership is None:
             raise NotFound
+        # See the same check in `members()` above for why this uses
+        # request.user.is_site_admin rather than the resolved `role`, and why
+        # it follows the membership lookup (#1706).
+        if membership.user.is_site_admin and not request.user.is_site_admin:
+            raise PermissionDenied("Cannot remove a site admin from a board.")
         target_user = membership.user
         board_id = board.id
         removed_user_id = target_user.id

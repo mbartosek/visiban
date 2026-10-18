@@ -253,6 +253,10 @@ const ReplayTourIcon = (
   </svg>
 );
 
+// Window in which an event echoing the actor's own member add does not
+// trigger a second re-read (#1706).
+const MEMBER_ECHO_MS = 2000;
+
 export default function BoardView({ onBoardDeleted, userTimezone = "", userDateFormat = "MM/DD/YYYY", userTimeFormat = "12h", closeEditorOnEnter = false, currentUser = null, onUserUpdated }: Props) {
   const {
     board: boardOrNull,
@@ -302,6 +306,20 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
   // Re-fetch board state when the user returns to a backgrounded tab.
   useBoardResync(silentReload);
+
+  // The member add/update response and events omit the site-admin flag unless
+  // a site admin made the change (#1706), so a viewer who sees the lock (board
+  // admin or site admin) re-reads the board to get it. The actor's own add
+  // re-reads once; its echo event within MEMBER_ECHO_MS does not repeat it.
+  const memberReloadAtRef = useRef(0);
+  const reloadForMemberFlag = useCallback(() => {
+    const role = boardRef.current?.current_user_role;
+    if (role !== "admin" && role !== "site_admin") return;
+    const now = Date.now();
+    if (now - memberReloadAtRef.current < MEMBER_ECHO_MS) return;
+    memberReloadAtRef.current = now;
+    silentReload();
+  }, [silentReload]);
 
   // #1444 — bumped on invite socket events so the Members tab's pending
   // invite list (Board Settings) refetches while it is open.
@@ -501,6 +519,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
       );
     } else if (event.event === "member.added") {
       onMemberAdded(d as unknown as BoardMembership);
+      if (!("is_site_admin" in d)) reloadForMemberFlag();
       // Joined through an invite (#1444): that invite is now used.
       if ((d as { invite?: unknown }).invite) setInviteReloadSignal((n) => n + 1);
     } else if (event.event === "invite_link.created" || event.event === "invite_link.revoked") {
@@ -510,6 +529,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     } else if (event.event === "member.updated") {
       const updatedMembership = d as unknown as BoardMembership;
       onMemberUpdated(updatedMembership);
+      if (!("is_site_admin" in updatedMembership)) reloadForMemberFlag();
       // If the role change affects the current user, sync current_user_role
       // immediately. Without this, canEdit/isAdmin are computed from the stale
       // value set during the last /full/ fetch and the user retains the wrong
@@ -565,7 +585,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     } else if (event.event === "lens_connection.removed") {
       setLensConnection(null);
     }
-  }, [onCardAdded, onCardUpdated, onCardUnarchived, evictCardByUid, archiveCardByUid, onColumnAdded, onColumnUpdated, evictColumn, onColumnOrderApplied, onSwimlaneAdded, onSwimlaneUpdated, evictSwimlane, onSwimlaneOrderApplied, onLabelAdded, onLabelUpdated, onLabelDeleted, onCustomFieldDefinitionsApplied, board.custom_field_definitions, silentReload, onSwimlaneFieldDefinitionsApplied, board.swimlane_custom_field_definitions, board.swimlanes, onMemberAdded, onMemberUpdated, onMemberRemoved, mergeBoardState, onBoardDeleted, currentUser, refreshFilters, onSavedFilterEvicted]);
+  }, [onCardAdded, onCardUpdated, onCardUnarchived, evictCardByUid, archiveCardByUid, onColumnAdded, onColumnUpdated, evictColumn, onColumnOrderApplied, onSwimlaneAdded, onSwimlaneUpdated, evictSwimlane, onSwimlaneOrderApplied, onLabelAdded, onLabelUpdated, onLabelDeleted, onCustomFieldDefinitionsApplied, board.custom_field_definitions, silentReload, reloadForMemberFlag, onSwimlaneFieldDefinitionsApplied, board.swimlane_custom_field_definitions, board.swimlanes, onMemberAdded, onMemberUpdated, onMemberRemoved, mergeBoardState, onBoardDeleted, currentUser, refreshFilters, onSavedFilterEvicted]);
 
   // Collect a subset of WS events into the activity feed for the drawer.
   // Runs alongside handleSocketEvent — does not interfere with board state updates.
@@ -2633,6 +2653,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           demoMode={currentUser?.demo_mode === true}
           currentUserIsSiteAdmin={currentUser?.is_site_admin === true}
           inviteReloadSignal={inviteReloadSignal}
+          onMembersAdded={reloadForMemberFlag}
         />
       )}
 

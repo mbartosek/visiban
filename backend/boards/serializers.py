@@ -77,10 +77,15 @@ class BoardMembershipSerializer(serializers.ModelSerializer):
     # comment authors, ...) and must stay limited to its public fields.
     # Stripped below for viewers below admin — see site_admin_field_visible().
     # Reading it costs no query: ``user`` is already loaded for BoardUserSerializer.
+    # Not read_only, for the same reason as the roster serializer below:
+    # drf-spectacular marks every read-only field required, and this one is
+    # omitted for callers who are not site admins (#1706) and for viewers
+    # below admin. The serializer is only used to render output.
     is_site_admin = serializers.BooleanField(
-        source="user.is_site_admin", read_only=True,
+        source="user.is_site_admin", required=False,
         help_text="Whether the member is a site administrator. Present only "
-                  "when the requesting user is a board admin or site admin.",
+                  "when the requesting user is a site admin; omitted from the "
+                  "add and update response for every other caller.",
     )
 
     class Meta:

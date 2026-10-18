@@ -292,11 +292,21 @@ class BoardMembersTests(TestCase):
 
     def test_cannot_modify_site_admin_membership(self):
         site_admin = User.objects.create_user(username="sa", password="pass", is_site_admin=True)
+        # The refusal applies to an existing membership only (#1706).
+        BoardMembership.objects.create(board=self.board, user=site_admin, role="member")
         r = self.client.post(
             f"/api/v1/boards/{self.board.id}/members/",
             {"user_id": site_admin.id, "role": "viewer"},
         )
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_site_admin_without_membership_is_added_like_any_user(self):
+        site_admin = User.objects.create_user(username="sa2", password="pass", is_site_admin=True)
+        r = self.client.post(
+            f"/api/v1/boards/{self.board.id}/members/",
+            {"user_id": site_admin.id, "role": "viewer"},
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
 
     @patch(PATCH_BROADCAST)
     def test_board_invite_notification_created_on_add(self, _):

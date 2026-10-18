@@ -708,6 +708,42 @@ describe('BoardSettingsModal — add-member flow (Members tab)', () => {
     await waitFor(() => { expect(screen.getByText(/added 1 member to the board/i)).toBeInTheDocument() })
   })
 
+  describe('site-admin lock after an add (#1706)', () => {
+    // The add response carries no site-admin flag for a caller who is not a
+    // site admin, so the lock must come from the re-read board.
+    const addedRow = { id: 99, user: aliceUser, role: 'member' as const, is_moderator: false, joined_at: '' }
+
+    async function addAlice(onMembersAdded: () => void) {
+      mockSearchUsers.mockResolvedValue([aliceUser])
+      mockSetBoardMember.mockResolvedValue(addedRow)
+      const view = render(
+        <BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} onMembersAdded={onMembersAdded} />,
+      )
+      await stageAlice()
+      const submitBtn = screen.getByRole('button', { name: /add 1 member to board/i })
+      await act(async () => { submitBtn.click() })
+      await waitFor(() => { expect(onMembersAdded).toHaveBeenCalledTimes(1) })
+      return view
+    }
+
+    it('locks an added site admin once the re-read board carries the flag', async () => {
+      const view = await addAlice(vi.fn())
+      const reread: BoardFull = { ...fakeBoard, members: [...fakeBoard.members, { ...addedRow, is_site_admin: true }] }
+      view.rerender(<BoardSettingsModal board={reread} isAdmin={true} onClose={vi.fn()} />)
+      await waitFor(() => {
+        expect(screen.getByTitle('Site administrator — role managed at the instance level')).toBeInTheDocument()
+      })
+    })
+
+    it('leaves an added ordinary user editable', async () => {
+      const view = await addAlice(vi.fn())
+      const reread: BoardFull = { ...fakeBoard, members: [...fakeBoard.members, { ...addedRow, is_site_admin: false }] }
+      view.rerender(<BoardSettingsModal board={reread} isAdmin={true} onClose={vi.fn()} />)
+      await waitFor(() => { expect(screen.getByText('Alice Wonder')).toBeInTheDocument() })
+      expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
+    })
+  })
+
   it('submit shows error message on failure', async () => {
     mockSearchUsers.mockResolvedValue([aliceUser])
     mockSetBoardMember.mockRejectedValue(new Error('Server error'))

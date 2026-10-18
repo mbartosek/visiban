@@ -108,7 +108,7 @@ See [Board Permissions — Moderator entitlement](../permissions.md#moderator-en
 
 ## Site admin protection
 
-Site admins can't be demoted or removed by anyone but another site admin. A role-change or remove-member call on a group or board that **targets a user with `is_site_admin=True`** returns `403 Forbidden` unless the caller is also a site admin.
+Site admins can't be demoted or removed by anyone but another site admin. A role-change or remove-member call on a group or board that **targets a user with `is_site_admin=True`** returns `403 Forbidden` unless the caller is also a site admin. The refusal applies to a user who already has a membership in that group or board; a user with no membership gets the same response as any other user with no membership.
 
 The board **Members** settings follow the same rule: for a board admin who is not a site admin, a member with `is_site_admin=True` shows their role as plain text, with no role dropdown and no remove button. A member who has only `can_access_all_content` (listed with the **Site admin** board role) can still be assigned a board role, but their effective access stays full for as long as they have `can_access_all_content`. *(Since 1.2.)*
 

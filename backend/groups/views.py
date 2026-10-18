@@ -569,7 +569,6 @@ class GroupViewSet(viewsets.ModelViewSet):
     @extend_schema(summary="Remove a member", methods=["DELETE"], responses={204: None})
     @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
     def update_member(self, request, pk=None, user_id=None):
-        from accounts.models import User
         from rest_framework.exceptions import NotFound
         group = self.get_object()
         _require_group_admin(request.user, group)
@@ -580,14 +579,6 @@ class GroupViewSet(viewsets.ModelViewSet):
         # user and an active user with no membership here all get the same
         # 404 (status and body). An inactive user who has a membership can
         # still be edited or removed.
-        if (
-            User.objects.filter(pk=user_id, is_site_admin=True).exists()
-            and not request.user.is_site_admin
-        ):
-            return Response(
-                {"detail": "Cannot modify a site admin's group membership."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         membership = (
             GroupMembership.objects.filter(group=group, user_id=user_id)
             .select_related("user")
@@ -595,6 +586,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         )
         if membership is None:
             raise NotFound
+        # The site-admin refusal applies only to an existing membership, so a
+        # target with no membership here is answered the same whatever their
+        # site role (#1706).
+        if membership.user.is_site_admin and not request.user.is_site_admin:
+            return Response(
+                {"detail": "Cannot modify a site admin's group membership."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         target_user = membership.user
         if request.method == "DELETE":
             # Before deleting, snapshot board IDs in this group's subtree where
