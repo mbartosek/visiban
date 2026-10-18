@@ -241,6 +241,40 @@ class BoardFullQueryCountTests(TestCase):
             f"full/ used {len(ctx)} queries — budget is {self.BUDGET}.",
         )
 
+    # Measured for a site-admin reader on this fixture (#1714). Pinned at the
+    # measured count, not 2x: the regression it guards is one constant extra
+    # query, get_members() re-reading the all-content user list that
+    # get_cards() already loaded.
+    SITE_ADMIN_READER_QUERIES = 17
+
+    def test_full_site_admin_reader_reuses_all_content_list(self):
+        reader = User.objects.create_user(
+            username="qc_site_admin", password="x", is_site_admin=True, can_access_all_content=True,
+        )
+        other = User.objects.create_user(
+            username="qc_all_content", password="x", can_access_all_content=True,
+        )
+        client = APIClient()
+        client.force_authenticate(reader)
+        with CaptureQueriesContext(connection) as ctx:
+            r = client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.status_code, 200)
+        # The site-admin reader is listed the all-content rows...
+        listed = {m["user"]["id"]: m["role"] for m in r.data["members"]}
+        self.assertEqual(listed[other.pk], "site_admin")
+        self.assertEqual(listed[reader.pk], "site_admin")
+        # ...from the single all-content query get_cards() issues.
+        all_content_queries = [
+            q["sql"] for q in ctx.captured_queries
+            if 'WHERE "users"."can_access_all_content"' in q["sql"]
+        ]
+        self.assertEqual(len(all_content_queries), 1, all_content_queries)
+        self.assertLessEqual(
+            len(ctx), self.SITE_ADMIN_READER_QUERIES,
+            f"full/ (site-admin reader) used {len(ctx)} queries — pinned at "
+            f"{self.SITE_ADMIN_READER_QUERIES}.",
+        )
+
     def test_full_budget_scales_with_cards(self):
         """Adding more cards must not increase the query count."""
         baseline = _query_count(self._get_full)

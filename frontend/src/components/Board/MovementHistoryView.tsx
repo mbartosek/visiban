@@ -195,6 +195,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
   });
   const [page, setPage] = useState(1);
   const [data, setData] = useState<{ results: CardMovement[]; count: number } | null>(null);
+  const [seenMovers, setSeenMovers] = useState<Map<number, NonNullable<CardMovement["moved_by"]>>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<CardMovement | null>(null);
@@ -258,10 +259,28 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     .slice().sort((a, b) => a.position - b.position)
     .map((c) => ({ value: c.id, label: c.name }));
 
-  const userOptions = board.members.map((m) => ({
-    value: m.user.id,
-    label: userDisplayName(m.user),
-  }));
+  // The board's members, then anyone who moved a card on a loaded page but is
+  // not in the member list (it omits users with all-content access for readers
+  // who are not site admins, #1714). Users seen on earlier pages are kept so
+  // the selected option still has a label after the results narrow.
+  useEffect(() => {
+    const movers = (data?.results ?? []).map((m) => m.moved_by).filter((u): u is NonNullable<typeof u> => u != null);
+    if (movers.length === 0) return;
+    setSeenMovers((prev) => {
+      const unseen = movers.filter((u) => !prev.has(u.id));
+      if (unseen.length === 0) return prev;
+      const next = new Map(prev);
+      for (const u of unseen) next.set(u.id, u);
+      return next;
+    });
+  }, [data]);
+  const memberIds = new Set(board.members.map((m) => m.user.id));
+  const userOptions = [
+    ...board.members.map((m) => ({ value: m.user.id, label: userDisplayName(m.user) })),
+    ...[...seenMovers.values()]
+      .filter((u) => !memberIds.has(u.id))
+      .map((u) => ({ value: u.id, label: userDisplayName(u) })),
+  ];
 
   // Collect all movements for the selected card on this page (for the panel).
   const relatedMovements = selectedMovement

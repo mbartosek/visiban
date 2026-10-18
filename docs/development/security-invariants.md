@@ -204,10 +204,19 @@ never lowers a site admin's effective role (when the caller is not a site admin
 and the target is a site admin with no direct row, the stored role is the higher
 of the requested role and the role the user already holds on the board; for any
 other target a direct row keeps its ordinary precedence over a group-inherited
-role). The member list (`/full/`) keeps its documented flag behavior for board
-admins, and the add itself is visible to board admins and notifies the target.
+role). The add itself is visible to board admins and notifies the target.
 The add endpoint re-checks the refusal on the locked membership row, so a
 membership created while a request waited for the board lock is judged too.
+
+The board member list (`/full/` `members`) follows the same line (#1714). For a
+reader who is not a site admin (neither board role `site_admin` nor
+`User.is_site_admin`), it lists the board's own members only (direct,
+group-inherited and the owner), not every all-content user on the instance, and
+a board admin among those readers gets `is_site_admin` only on rows backed by a
+membership on this board: the rows the refusal above applies to, which the
+Members tab locks. Group-inherited and owner rows carry no flag for them, since
+a change to such a row is an ordinary add. A site-admin reader gets the full
+roster and the flag on every row. `site_admin_roster_visible` holds this rule.
 
 Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
@@ -240,6 +249,7 @@ the status filter and the uniform response, not scope.
 | Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404`; the site-admin refusal is evaluated after the membership lookup |
 | Board and group member removal | `boards/views/boards.py` `BoardViewSet.remove_member`; `groups/views.py` `GroupViewSet.update_member` (DELETE) | Resolved through the membership row: no membership answers the same `404` whatever the id is, and the site-admin refusal is evaluated after that lookup; an inactive user with a membership can be removed |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
+| Board member list | `boards/serializers.py` `BoardFullSerializer.get_members` | `site_admin_roster_visible` (all-content rows, and `is_site_admin` on rows with no membership, for site-admin readers only), then `site_admin_field_visible`. The other member-row surfaces (members POST response, `member.*` events, change feed) only ever carry a real membership row |
 
 ## Rule 6: Placing a board in a group needs group admin
 
@@ -330,7 +340,7 @@ one surface only leaves the same field readable through another.
 | Group WebSocket | `groups/consumers.py` `GroupConsumer.group_event` | Per-user drop over `GROUP_PER_USER_EVENTS` (derived from `PER_USER_EVENTS`), then `without_actor_scoped_fields` against the message's `actor_id`. There is no `is_moderator`, `is_site_admin` or `invite` strip on this surface: the group channel's `member.added` carries a `GroupMembershipSerializer` row, which has none of those fields |
 | Change feed | `boards/views/boards.py` `BoardViewSet.events`; `boards/serializers.py` `BoardEventSerializer.to_representation` | The view excludes other users' `PER_USER_EVENTS` rows in the page query; the serializer applies the three member-field helpers with the reader's role, `without_admin_only_board_fields`, `without_actor_scoped_fields` against the row's `actor_id`, and the swimlane re-filter (`shareable_swimlane_field_ids`). `group.created` / `group.updated` are not persisted, so the feed has no group rows |
 | Broadcast and persist (write time) | `boards/broadcast.py` `broadcast_board_event`, `record_board_event`, `persist_board_event`; `groups/broadcast.py` `broadcast_group_event` | `without_admin_only_board_fields`; `without_viewer_specific_group_fields` on every group event (drops `can_place_boards`, #1692); swimlane payloads built from the public `SwimlaneSerializer`; `actor_id` carried on the channel-layer message for the consumers' `without_actor_scoped_fields` |
-| REST board and members | `boards/serializers.py` `BoardFullSerializer.get_members`, `get_swimlanes`; `BoardMembershipSerializer.to_representation` | `moderator_field_visible`, `site_admin_field_visible`; `SwimlaneAdminSerializer` for admin and site_admin only |
+| REST board and members | `boards/serializers.py` `BoardFullSerializer.get_members`, `get_swimlanes`; `BoardMembershipSerializer.to_representation` | `moderator_field_visible`, `site_admin_field_visible` (on `/full/`, also `site_admin_roster_visible`, Rule 5); `SwimlaneAdminSerializer` for admin and site_admin only |
 | Board export | `boards/views/import_export.py` `BoardImportExportMixin.export` | Admin-only swimlane definitions and their values are included for admin exporters only |
 
 Coverage: `boards/tests/test_event_payload_scoping.py` (per-user events on both

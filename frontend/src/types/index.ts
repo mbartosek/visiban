@@ -225,9 +225,10 @@ export interface BoardMembership {
 
 /**
  * One row of `BoardFull.members` — the board's *effective* roster, not its
- * membership rows (#1137). Group-inherited members, the board owner and site
- * admins are included with no membership row behind them, so `id` is `null`
- * for those and site admins carry `role: "site_admin"`. Every `BoardMembership`
+ * membership rows (#1137). Group-inherited members and the board owner are
+ * included with no membership row behind them, so `id` is `null` for those.
+ * For a site-admin reader only, users with all-content access who hold no
+ * other role are listed too, with `id: null` and `role: "site_admin"` (#1714). Every `BoardMembership`
  * is a valid `EffectiveBoardMember`, which is what lets a `/members/` response
  * be merged straight into `board.members`.
  */
@@ -241,7 +242,8 @@ export interface EffectiveBoardMember {
    * The member's instance-level site-admin flag (#1290) — the signal the
    * member endpoints use to lock a row. Not the same as `role: "site_admin"`,
    * which reflects all-content access. Omitted for a requester below
-   * admin/site_admin, with no self-row exception.
+   * admin/site_admin, with no self-row exception, and for a board admin who
+   * is not a site admin on rows with `id: null` (#1714).
    */
   is_site_admin?: boolean;
   joined_at: string;

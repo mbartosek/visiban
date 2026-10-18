@@ -74,6 +74,44 @@ describe('FilterBar', () => {
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
   })
 
+  describe('assignee who is not in the member list (#1714)', () => {
+    const outsider = { id: 42, username: 'auditor', display_name: 'Audit Reader', avatar_url: '' }
+    function boardWithOutsiderCards(): BoardFull {
+      const board = makeBoard()
+      // Two cards for the outsider and one for a member: each user is listed once.
+      board.cards = [
+        { id: 1, assignee: outsider },
+        { id: 2, assignee: outsider },
+        { id: 3, assignee: { id: 1, username: 'jdoe', display_name: 'Jane Doe', avatar_url: '' } },
+        { id: 4, assignee: null },
+      ] as unknown as BoardFull['cards']
+      return board
+    }
+
+    it('offers the card assignee as an option after the members', async () => {
+      const onChange = vi.fn()
+      render(<FilterBar board={boardWithOutsiderCards()} filters={EMPTY_FILTER} onChange={onChange} />)
+      const user = userEvent.setup()
+      await user.click(screen.getByText('+ Filter'))
+      await user.click(screen.getByRole('checkbox', { name: 'Assignee' }))
+      await user.click(screen.getByRole('button', { name: /^Assignee/ }))
+      expect(screen.getAllByText('Jane Doe')).toHaveLength(1)
+      expect(screen.getAllByText('Audit Reader')).toHaveLength(1)
+      await user.click(screen.getByText('Audit Reader'))
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ assigneeIds: [42] }))
+    })
+
+    it('shows a chip for that assignee when the filter is active', () => {
+      render(<FilterBar board={boardWithOutsiderCards()} filters={{ ...EMPTY_FILTER, assigneeIds: [42] }} onChange={vi.fn()} />)
+      expect(screen.getByText('Audit Reader')).toBeInTheDocument()
+    })
+
+    it('still omits a chip for an id that matches no member and no card', () => {
+      render(<FilterBar board={makeBoard()} filters={{ ...EMPTY_FILTER, assigneeIds: [42] }} onChange={vi.fn()} />)
+      expect(screen.queryByText('Audit Reader')).not.toBeInTheDocument()
+    })
+  })
+
   it('picking Due date from "+ Filter" reveals the Due date control and its options open on click', async () => {
     render(<FilterBar board={makeBoard()} filters={EMPTY_FILTER} onChange={vi.fn()} />)
     const user = userEvent.setup()

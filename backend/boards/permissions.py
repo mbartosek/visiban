@@ -95,10 +95,35 @@ def site_admin_field_visible(role):
     ``/full/`` members array, the WS consumer, and the change feed), which is
     why it lives beside it. The members POST response and the ``member.*``
     event payload additionally omit the flag whenever the caller is not a site
-    admin (``BoardViewSet.members``, #1706), whatever the reader's role. An unknown role
-    (``None``) fails closed.
+    admin (``BoardViewSet.members``, #1706), whatever the reader's role, and
+    ``/full/`` further limits it with ``site_admin_roster_visible()`` (#1714).
+    An unknown role (``None``) fails closed.
     """
     return role in ROLES_WITH_SITE_ADMIN_FLAG_VISIBILITY
+
+
+def site_admin_roster_visible(role, viewer_is_site_admin):
+    """Return True if the reader gets the instance-wide rows of ``/full/`` members (#1714).
+
+    "Instance-wide" means two things in ``BoardFullSerializer.get_members()``:
+
+    - the synthesized rows for ``can_access_all_content`` users who hold no
+      role on the board (``role: "site_admin"``, ``id: null``), and
+    - ``is_site_admin`` on a row that has no membership row on this board
+      (group-inherited, or an owner without a row).
+
+    Both describe the instance rather than the board, so only a reader who is
+    a site admin in either sense gets them: a board role of ``site_admin``
+    (``can_access_all_content``) or ``User.is_site_admin``. Every other reader
+    gets the board's own members, and a board admin keeps ``is_site_admin``
+    on rows backed by a membership, the only rows the member endpoints refuse
+    to change for a caller who is not a site admin (#1706) and so the only
+    rows the Members tab locks.
+
+    ``viewer_is_site_admin`` is the reader's own ``User.is_site_admin``; pass
+    ``False`` when it is unknown, so the rule fails closed.
+    """
+    return role == SITE_ADMIN or viewer_is_site_admin is True
 
 
 # Roles that may see the ``invite`` object on a ``member.added`` payload (#1677).

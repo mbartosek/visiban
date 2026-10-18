@@ -319,7 +319,9 @@ class BoardFullMembersSchemaTests(TestCase):
     # ── live response vs schema ──────────────────────────────────────────────
 
     def test_synthesized_rows_validate_against_full_schema(self):
-        body = self._full(self.direct)  # admin requester: is_moderator present
+        # Site-admin requester: the only reader that gets the all-content row
+        # (#1714); is_moderator is present on every row.
+        body = self._full(self.site_admin)
         by_user = {m["user"]["username"]: m for m in body["members"]}
         self.assertIsNone(by_user["owner"]["id"])
         self.assertIsNone(by_user["inherited"]["id"])
@@ -342,7 +344,7 @@ class BoardFullMembersSchemaTests(TestCase):
 
     def test_synthesized_rows_do_not_fit_the_strict_membership_schema(self):
         """The reason `/full/` needs its own component, pinned as a test."""
-        body = self._full(self.direct)
+        body = self._full(self.site_admin)
         site_admin_row = next(m for m in body["members"] if m["role"] == "site_admin")
         with self.assertRaises(jsonschema.ValidationError):
             self._validate(site_admin_row, {"$ref": "#/components/schemas/BoardMembership"})
@@ -394,8 +396,27 @@ class BoardFullMembersSchemaTests(TestCase):
         self.assertIsInstance(body["allowed_priorities"], list)
         self.assertEqual(body["current_user_role"], "admin")
         by_user = {m["user"]["username"]: m for m in body["members"]}
-        # `is_site_admin` is an additive row field (#1290), present for an
-        # admin requester like this one.
+        # `is_site_admin` is an additive row field (#1290). For a board admin
+        # who is not a site admin it is on rows backed by a membership only,
+        # and all-content users with no role on the board are not listed (#1714).
+        row_keys = ["id", "is_moderator", "is_site_admin", "joined_at", "role", "user"]
+        rowless_keys = ["id", "is_moderator", "joined_at", "role", "user"]
+        self.assertEqual(
+            {name: (row["id"] is None, row["role"], sorted(row)) for name, row in by_user.items()},
+            {
+                "direct": (False, "admin", row_keys),
+                "viewer": (False, "viewer", row_keys),
+                "inherited": (True, "member", rowless_keys),
+                "owner": (True, "admin", rowless_keys),
+            },
+        )
+        self.assertIs(by_user["direct"]["is_moderator"], True)
+
+    def test_response_body_unchanged_for_site_admin_requester(self):
+        """A site-admin reader keeps the full roster and every row's flag (#1714)."""
+        body = self._full(self.site_admin)
+        self.assertEqual(body["current_user_role"], "site_admin")
+        by_user = {m["user"]["username"]: m for m in body["members"]}
         row_keys = ["id", "is_moderator", "is_site_admin", "joined_at", "role", "user"]
         self.assertEqual(
             {name: (row["id"] is None, row["role"], sorted(row)) for name, row in by_user.items()},
@@ -407,7 +428,6 @@ class BoardFullMembersSchemaTests(TestCase):
                 "siteadmin": (True, "site_admin", row_keys),
             },
         )
-        self.assertIs(by_user["direct"]["is_moderator"], True)
         self.assertIs(by_user["siteadmin"]["is_moderator"], False)
 
     def _response_schema(self):

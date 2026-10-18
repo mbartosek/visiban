@@ -69,11 +69,15 @@ class FullMembersFlagTests(MemberSiteAdminFlagTestBase):
         # Explicit membership with role "member" — flag says site admin.
         self.assertEqual(rows[self.site_admin_member.pk]["role"], "member")
         self.assertIs(rows[self.site_admin_member.pk]["is_site_admin"], True)
-        # Resolved role "site_admin" from all-content access — flag says not.
-        self.assertEqual(rows[self.all_content_user.pk]["role"], "site_admin")
-        self.assertIs(rows[self.all_content_user.pk]["is_site_admin"], False)
         self.assertIs(rows[self.member.pk]["is_site_admin"], False)
         self.assertIs(rows[self.owner.pk]["is_site_admin"], False)
+        # An all-content user with no role on the board is listed for
+        # site-admin readers only (#1714) — see the roster tests below.
+        self.assertNotIn(self.all_content_user.pk, rows)
+        # Resolved role "site_admin" from all-content access — flag says not.
+        rows = self.full_rows(self.all_content_user)
+        self.assertEqual(rows[self.all_content_user.pk]["role"], "site_admin")
+        self.assertIs(rows[self.all_content_user.pk]["is_site_admin"], False)
 
     def test_site_admin_viewer_sees_flag(self):
         rows = self.full_rows(self.all_content_user)
@@ -118,7 +122,7 @@ class FlagMatchesServerEnforcementTests(MemberSiteAdminFlagTestBase):
         self.assertEqual(response.status_code, 403)
 
     def test_flag_false_row_with_site_admin_role_is_editable(self):
-        rows = self.full_rows(self.owner)
+        rows = self.full_rows(self.all_content_user)
         self.assertIs(rows[self.all_content_user.pk]["is_site_admin"], False)
         response = self.client_for(self.owner).post(
             f"/api/v1/boards/{self.board.pk}/members/",
@@ -139,6 +143,213 @@ class FlagMatchesServerEnforcementTests(MemberSiteAdminFlagTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertIs(response.data["is_site_admin"], True)
         self.assertNotIn("is_site_admin", response.data["user"])
+
+
+class FullMembersRosterByReaderTests(MemberSiteAdminFlagTestBase):
+    """Which rows ``/full/`` lists, and where ``is_site_admin`` appears, per reader (#1714).
+
+    The member list holds the board's own members (direct, group-inherited,
+    owner). All-content users with no role on the board are added for a
+    site-admin reader only (board role ``site_admin`` or ``User.is_site_admin``).
+    A board admin who is not a site admin gets the flag on rows backed by a
+    membership only — the rows the members endpoints refuse to change for them.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from groups.models import Group, GroupMembership
+
+        # A board owned by a site admin with no membership row, inside a group
+        # whose member is a site admin: two rows with no membership on the
+        # board, each of whose flag would be True.
+        self.site_admin_owner = _user("ro_site_admin_owner", is_site_admin=True)
+        group = Group.objects.create(name="Roster Group", owner=self.site_admin_owner)
+        self.site_admin_group_member = _user("ro_site_admin_group", is_site_admin=True)
+        GroupMembership.objects.get_or_create(
+            group=group, user=self.site_admin_group_member,
+            defaults={"role": GroupMembership.Role.MEMBER},
+        )
+        self.board.owner = self.site_admin_owner
+        self.board.group = group
+        self.board.save(update_fields=["owner", "group"])
+        # The previous owner keeps their explicit admin row: a board admin who
+        # is not a site admin.
+        self.board_admin = self.owner
+        self.viewer = _user("ro_viewer")
+        BoardMembership.objects.create(
+            board=self.board, user=self.viewer, role=BoardMembership.Role.VIEWER
+        )
+        self.collaborator = _user("ro_collaborator")
+        BoardMembership.objects.create(
+            board=self.board, user=self.collaborator, role=BoardMembership.Role.COLLABORATOR
+        )
+        # A full site admin (both flags), not a member of the board.
+        self.full_site_admin = _user(
+            "ro_full_site_admin", is_site_admin=True, can_access_all_content=True
+        )
+        # An all-content user who also has a direct membership: listed for
+        # everyone, with the membership role.
+        self.all_content_member = _user("ro_all_content_member", can_access_all_content=True)
+        BoardMembership.objects.create(
+            board=self.board, user=self.all_content_member, role=BoardMembership.Role.MEMBER
+        )
+        # Board members, as every reader sees them.
+        self.board_member_ids = {
+            self.board_admin.pk, self.member.pk, self.site_admin_member.pk,
+            self.viewer.pk, self.collaborator.pk, self.all_content_member.pk,
+            self.site_admin_owner.pk, self.site_admin_group_member.pk,
+        }
+        # All-content users with no role on the board.
+        self.instance_only_ids = {self.all_content_user.pk, self.full_site_admin.pk}
+
+    def assert_board_members_only(self, rows):
+        self.assertEqual(set(rows), self.board_member_ids)
+        self.assertNotIn("site_admin", {row["role"] for row in rows.values()})
+        self.assertEqual(rows[self.all_content_member.pk]["role"], "member")
+
+    def assert_full_roster_with_flags(self, rows):
+        self.assertEqual(set(rows), self.board_member_ids | self.instance_only_ids)
+        for pk in self.instance_only_ids:
+            self.assertEqual(rows[pk]["role"], "site_admin")
+            self.assertIsNone(rows[pk]["id"])
+        for row in rows.values():
+            self.assertIn("is_site_admin", row)
+        self.assertIs(rows[self.site_admin_owner.pk]["is_site_admin"], True)
+        self.assertIs(rows[self.site_admin_group_member.pk]["is_site_admin"], True)
+        self.assertIs(rows[self.full_site_admin.pk]["is_site_admin"], True)
+        self.assertIs(rows[self.all_content_user.pk]["is_site_admin"], False)
+
+    def test_member_reader_sees_board_members_without_flag(self):
+        rows = self.full_rows(self.member)
+        self.assert_board_members_only(rows)
+        for row in rows.values():
+            self.assertNotIn("is_site_admin", row)
+
+    def test_viewer_and_collaborator_readers_see_board_members_without_flag(self):
+        for reader in (self.viewer, self.collaborator):
+            with self.subTest(reader=reader.username):
+                rows = self.full_rows(reader)
+                self.assert_board_members_only(rows)
+                for row in rows.values():
+                    self.assertNotIn("is_site_admin", row)
+
+    def test_board_admin_reader_gets_flag_on_membership_rows_only(self):
+        rows = self.full_rows(self.board_admin)
+        self.assert_board_members_only(rows)
+        for row in rows.values():
+            if row["id"] is None:
+                self.assertNotIn("is_site_admin", row)
+            else:
+                self.assertIn("is_site_admin", row)
+        # The rows the endpoints refuse to change still carry the lock signal.
+        self.assertIs(rows[self.site_admin_member.pk]["is_site_admin"], True)
+        self.assertIs(rows[self.all_content_member.pk]["is_site_admin"], False)
+        # Owner and group rows have no membership row: no flag.
+        self.assertIsNone(rows[self.site_admin_owner.pk]["id"])
+        self.assertIsNone(rows[self.site_admin_group_member.pk]["id"])
+
+    def test_board_admin_flagless_rows_are_ordinary_targets(self):
+        """A group row without the flag is one the endpoint does not refuse."""
+        response = self.client_for(self.board_admin).post(
+            f"/api/v1/boards/{self.board.pk}/members/",
+            {"user_id": self.site_admin_group_member.pk, "role": "admin"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_site_admin_reader_not_a_member_gets_full_roster(self):
+        rows = self.full_rows(self.full_site_admin)
+        self.assert_full_roster_with_flags(rows)
+
+    def test_all_content_reader_gets_full_roster(self):
+        rows = self.full_rows(self.all_content_user)
+        self.assert_full_roster_with_flags(rows)
+
+    def test_all_content_reader_who_is_a_member_gets_full_roster(self):
+        rows = self.full_rows(self.all_content_member)
+        self.assert_full_roster_with_flags(rows)
+        self.assertEqual(rows[self.all_content_member.pk]["role"], "member")
+
+    def test_site_admin_board_admin_without_all_content_gets_full_roster(self):
+        reader = _user("ro_site_admin_board_admin", is_site_admin=True)
+        BoardMembership.objects.create(
+            board=self.board, user=reader, role=BoardMembership.Role.ADMIN
+        )
+        self.board_member_ids.add(reader.pk)
+        rows = self.full_rows(reader)
+        self.assert_full_roster_with_flags(rows)
+
+    def test_site_admin_member_reader_gets_roster_rows_but_no_flag(self):
+        # The site admin with a member row: the roster follows the reader's
+        # site role, the flag follows the board role (member: never shown).
+        rows = self.full_rows(self.site_admin_member)
+        self.assertEqual(set(rows), self.board_member_ids | self.instance_only_ids)
+        for row in rows.values():
+            self.assertNotIn("is_site_admin", row)
+
+    def test_cold_cache_get_members_loads_and_caches_site_admin_users(self):
+        """Called without get_cards() having run, a site-admin reader's
+        ``get_members`` loads the all-content users itself and caches them in
+        the serializer context, so a repeat call does not query again."""
+        from rest_framework.test import APIRequestFactory
+
+        from boards.serializers import BoardFullSerializer
+
+        request = APIRequestFactory().get("/")
+        request.user = self.full_site_admin
+        context = {"request": request}
+        serializer = BoardFullSerializer(self.board, context=context)
+
+        rows = {row["user"]["id"]: row for row in serializer.get_members(self.board)}
+        self.assertEqual(
+            set(rows), self.board_member_ids | self.instance_only_ids
+        )
+        for pk in self.instance_only_ids:
+            self.assertEqual(rows[pk]["role"], "site_admin")
+        cached = serializer.context["_site_admin_users"]
+        self.assertEqual(
+            {u.pk for u in cached}, self.instance_only_ids | {
+                self.all_content_member.pk
+            }
+        )
+
+        serializer.get_members(self.board)
+        self.assertIs(serializer.context["_site_admin_users"], cached)
+
+    def test_query_count_does_not_grow_with_all_content_users(self):
+        """For a reader who gets the roster rows and one who does not, the
+        ``/full/`` query count stays the same when another all-content user is
+        added: both reuse the site-admin list get_cards() already loads."""
+        url = f"/api/v1/boards/{self.board.pk}/full/"
+        readers = (self.board_admin, self.full_site_admin)
+
+        def counts():
+            result = {}
+            for reader in readers:
+                client = self.client_for(reader)
+                client.get(url)  # warm any one-time caches
+                with CaptureQueriesContext(connection) as ctx:
+                    client.get(url)
+                result[reader.username] = len(ctx)
+            return result
+
+        before = counts()
+        _user("ro_extra_all_content", can_access_all_content=True)
+        self.assertEqual(counts(), before)
+
+
+class SiteAdminRosterVisibleUnitTests(SimpleTestCase):
+    def test_rule(self):
+        from boards.permissions import SITE_ADMIN, site_admin_roster_visible
+
+        self.assertTrue(site_admin_roster_visible(SITE_ADMIN, False))
+        self.assertTrue(site_admin_roster_visible("admin", True))
+        self.assertTrue(site_admin_roster_visible("member", True))
+        for role in ("admin", "member", "collaborator", "viewer", None):
+            self.assertFalse(site_admin_roster_visible(role, False))
+        # Anything but a real True fails closed.
+        self.assertFalse(site_admin_roster_visible("admin", None))
+        self.assertFalse(site_admin_roster_visible("admin", 1))
 
 
 class ChangeFeedFlagTests(MemberSiteAdminFlagTestBase):
