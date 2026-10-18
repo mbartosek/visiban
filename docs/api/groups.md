@@ -32,7 +32,7 @@ List all groups accessible to the current user: groups they belong to, their sub
     The list endpoint uses a leaner `GroupSerializer` that **does not** include the `ancestors` field — only the single-object retrieve endpoint (`GET /api/v1/groups/{id}/`) returns `ancestors`. Clients iterating the list and reading `entry.ancestors` will get `undefined`. Fetch the single group if you need the ancestor chain.
 
 ### `POST /api/v1/groups/`
-Create a group. Any authenticated user may create a top-level group. Creating a subgroup requires admin of the parent (directly or through an ancestor group). The endpoint returns the same `400 Bad Request` for an unknown `parent` id and for a parent the caller does not administer: `{"parent": ["Select a parent group you administer."]}`, the same body `PATCH` uses.
+Create a group. Any authenticated user may create a top-level group. Creating a subgroup requires admin of the parent (directly or through an ancestor group). The endpoint returns the same `400 Bad Request` for an unknown `parent` id and for a parent the caller does not administer: `{"parent": ["Select a parent group you administer."]}`, the same body `PATCH` uses. *(1.2+)* A subgroup that would sit more than 6 levels deep is refused with `400 Bad Request`: `{"parent": ["Groups can be nested at most 6 levels deep."]}`, the same limit and message a `PATCH` parent change uses. A parent exactly 5 levels deep accepts a new subgroup (level 6); a parent 6 levels deep does not. Existing deeper trees are not changed.
 
 **Request**
 ```json

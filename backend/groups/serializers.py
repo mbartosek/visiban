@@ -549,7 +549,9 @@ class GroupSerializer(serializers.ModelSerializer):
         ancestor); an unknown id and a parent the caller may not use get the
         same 400 body, matching update and the board ``group`` field (#1691).
         ``GroupViewSet.perform_create`` still enforces the admin check as a
-        backstop. On update this applies the rules in
+        backstop. A new subgroup may not sit deeper than
+        ``_GROUP_TRAVERSAL_MAX_DEPTH`` levels (400), the same bound a parent
+        change enforces (#1690). On update this applies the rules in
         ``_check_parent_change`` to the instance the serializer was bound to.
         ``GroupViewSet.perform_update`` applies them
         again to the row re-read under its lock (``recheck_parent_under_lock``)
@@ -566,6 +568,15 @@ class GroupSerializer(serializers.ModelSerializer):
             )
             if parent is None or user is None or not user_is_group_admin(user, parent):
                 raise _parent_not_allowed()
+            # The same bound a parent change enforces (#1690): the new leaf
+            # sits at level len(chain) + 1, so a parent already
+            # _GROUP_TRAVERSAL_MAX_DEPTH levels deep (or deeper than the walk
+            # reaches) leaves no room. Reuses the chain loaded above.
+            chain, reached_root = _ancestor_chain(parent)
+            if not reached_root or len(chain) + 1 > _GROUP_TRAVERSAL_MAX_DEPTH:
+                raise serializers.ValidationError(
+                    f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
+                )
             return value
         self._check_parent_change(value, self.instance)
         return value

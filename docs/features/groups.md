@@ -51,7 +51,7 @@ Boards belonging to a group are visible to all group members. Group admins can c
 
 ## Subgroups
 
-Group admins can create subgroups. Access is inherited through up to 6 levels of nesting; moving a group under a new parent is refused when the resulting tree would be deeper than 6 levels. The group detail page shows subgroups and optionally lists all boards across subgroups via the "Show subgroup boards" toggle.
+Group admins can create subgroups. Access is inherited through up to 6 levels of nesting; creating a subgroup, or moving a group under a new parent, is refused when the resulting tree would be deeper than 6 levels. Trees that were already deeper before this limit applied to creation are left as they are. The group detail page shows subgroups and optionally lists all boards across subgroups via the "Show subgroup boards" toggle.
 
 ## Invite links
 

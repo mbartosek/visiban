@@ -335,13 +335,64 @@ class GroupParentDepthTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
 
     def test_parent_chain_beyond_traversal_depth_is_rejected(self):
-        # Built directly: a chain deeper than the cap (no API path enforces it on create).
+        # Built directly: a chain deeper than the cap (a pre-#1690 tree; create now refuses it).
         deeper = Group.objects.create(name="Deeper", owner=self.user, parent=self.chain[-1])
         # Direct admin, so the parent admin check passes on its own.
         GroupMembership.objects.create(group=deeper, user=self.user, role=ADMIN)
         r = self._patch(deeper)
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(r.json(), {"parent": [DEPTH_MSG]})
+
+
+class GroupCreateDepthTests(TestCase):
+    """Creating a subgroup enforces the same bound as a parent change (#1690)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="u", password="pw")
+        self.chain = []
+        parent = None
+        for i in range(_GROUP_TRAVERSAL_MAX_DEPTH):
+            parent = Group.objects.create(name=f"L{i + 1}", owner=self.user, parent=parent)
+            self.chain.append(parent)
+        GroupMembership.objects.create(group=self.chain[0], user=self.user, role=ADMIN)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def _create(self, parent):
+        return self.client.post(
+            "/api/v1/groups/", {"name": "New", "parent": parent.pk}, format="json"
+        )
+
+    def test_subgroup_at_deepest_allowed_level_succeeds(self):
+        # Parent is level N-1, so the new group is level N: allowed.
+        r = self._create(self.chain[-2])
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
+
+    def test_subgroup_one_level_too_deep_is_rejected(self):
+        before = Group.objects.count()
+        r = self._create(self.chain[-1])
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"parent": [DEPTH_MSG]})
+        self.assertEqual(Group.objects.count(), before)
+
+    def test_parent_beyond_traversal_depth_is_rejected(self):
+        deeper = Group.objects.create(name="Deeper", owner=self.user, parent=self.chain[-1])
+        # Direct admin: ancestor admin is not honored past the traversal depth.
+        GroupMembership.objects.create(group=deeper, user=self.user, role=ADMIN)
+        r = self._create(deeper)
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"parent": [DEPTH_MSG]})
+
+    def test_non_admin_gets_permission_error_not_depth_error(self):
+        outsider = User.objects.create_user(username="out", password="pw")
+        self.client.force_authenticate(outsider)
+        r = self._create(self.chain[-1])
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"parent": ["Select a parent group you administer."]})
+
+    def test_top_level_create_unaffected(self):
+        r = self.client.post("/api/v1/groups/", {"name": "Top"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
 
 
 class GroupParentConcurrentMoveTests(TransactionTestCase):

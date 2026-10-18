@@ -793,9 +793,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         )
         # The resolver, not full_group_access, even though the caller passed
         # _require_group_member on ``group``: both walks are capped at
-        # _GROUP_TRAVERSAL_MAX_DEPTH, and creating a subgroup does not enforce
-        # that depth (only a parent change does), so a subgroup at the edge of
-        # a deep tree can be listed here while the membership predicate, which
+        # _GROUP_TRAVERSAL_MAX_DEPTH, and trees created deeper before #1690
+        # enforced that depth on create still exist, so a subgroup at the edge
+        # of a deep tree can be listed here while the membership predicate, which
         # the subgroup's own nested routes use, does not cover it. The
         # resolver keeps this list consistent with those routes at one query.
         context = {
