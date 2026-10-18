@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
@@ -168,8 +170,97 @@ def _validate_signup_token(raw_token: str):
     return registration_token_kind(raw_token).validate(raw_token)
 
 
+# Set only while an invite-only registration runs (#1639); see
+# ``account_mail_deferred_to_commit``. A ContextVar rather than an attribute on
+# the adapter: allauth builds a fresh adapter per ``get_adapter()`` call, and a
+# ContextVar is per-thread and per-task, so concurrent requests never see each
+# other's flag.
+_mail_deferred_to_commit: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "visiban_account_mail_deferred_to_commit", default=False
+)
+
+
+@contextlib.contextmanager
+def account_mail_deferred_to_commit():
+    """Send allauth mail rendered in this block only after the transaction commits (#1639).
+
+    Invite-only registration (``InviteRegisterView.create``) creates the account
+    and redeems the invite (site, group or board) in one transaction, holding
+    the row locks registration takes until it commits. allauth's ``complete_signup`` sent the signup confirmation mail
+    synchronously, inside that transaction, and with ``EMAIL_TIMEOUT`` unset an
+    SMTP round trip has no bound, so every writer queued on those rows waited
+    on the mail server. The rule already applied
+    to the invite-send view (``boards/views/invites.py``): an SMTP session never
+    runs under a row lock. That view sends after its ``atomic`` block; here the
+    transaction belongs to the view decorator around dj-rest-auth's flow, so the
+    send is queued with ``transaction.on_commit`` instead, which is the same
+    "after the locks are released" point, and the mechanism the email-change
+    flow already uses (``accounts/email_change.py``). The lock order is untouched.
+    Scoped to that view by this context manager rather than applied to every
+    allauth mail, so no other flow's send timing or error handling changes.
+
+    A rolled-back registration (a refused redemption, any error) now sends no
+    mail at all, where before the mail for an account that was never created
+    had already left. A send that fails after the commit is logged and the
+    registration still answers 201 (see ``_send_after_commit``); open-mode
+    registration does not use this and still sends inline.
+
+    The message is rendered here, where allauth's request context is still
+    set; only the SMTP send moves.
+    """
+    token = _mail_deferred_to_commit.set(True)
+    try:
+        yield
+    finally:
+        _mail_deferred_to_commit.reset(token)
+
+
+def _send_after_commit(message, template_prefix):
+    """``message.send`` replacement that queues the real send for after commit (#1639)."""
+    send_now = message.send
+
+    def send(fail_silently=False):
+        def _deliver():
+            # The account has committed by now, so a mail failure must not turn
+            # into an error response for an account that exists (the caller
+            # would retry and be told the username is taken). The user can ask
+            # for the confirmation again through
+            # POST /api/v1/auth/registration/resend-email/ (ResendEmailThrottle,
+            # 10/hour per IP; API only, the SPA has no control for it). Known
+            # limitation: under EMAIL_VERIFICATION=mandatory the 201 body has
+            # already said "Verification e-mail sent." and is left as is (it is
+            # dj-rest-auth's response contract). Only the exception class is logged:
+            # some MTAs echo protocol lines (which can carry credentials) in
+            # smtplib's error text — see visiban/mail.py — and the address is PII.
+            try:
+                send_now(fail_silently=fail_silently)
+            except Exception as exc:  # noqa: BLE001 - see comment above
+                logger.warning(
+                    "Account email %s could not be sent after registration committed (%s).",
+                    template_prefix,
+                    type(exc).__name__,
+                )
+
+        transaction.on_commit(_deliver)
+        return 0
+
+    return send
+
+
 class RegistrationAdapter(DefaultAccountAdapter):
     """Allauth account adapter that honours the site-wide registration_mode setting."""
+
+    def render_mail(self, template_prefix, email, context, headers=None):
+        """allauth's rendering, with the send deferred to commit when asked (#1639).
+
+        allauth's ``send_mail`` is ``render_mail(...).send()``; hooking the
+        rendered message rather than reimplementing ``send_mail`` keeps
+        allauth's own context building. See ``account_mail_deferred_to_commit``.
+        """
+        message = super().render_mail(template_prefix, email, context, headers=headers)
+        if _mail_deferred_to_commit.get():
+            message.send = _send_after_commit(message, template_prefix)
+        return message
 
     def is_open_for_signup(self, request):
         mode = get_registration_mode()
