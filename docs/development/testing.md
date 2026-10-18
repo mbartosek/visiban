@@ -466,6 +466,17 @@ the real check: it builds a synthetic git repo and coverage fixtures in a temp d
 on a known-bad fixture and stays clean on a known-good one. This is the house pattern for
 bespoke gate scripts described in #1093.
 
+### Stale dev venv
+
+Backend tests run against the venv in `backend/.venv`, which every `scripts/wt`
+worktree shares by symlink. If `backend/requirements.txt` moved since the venv was
+last synced, a clean branch can fail with a bare `ModuleNotFoundError` that reads like
+a regression (#1715: `mcp` 1.x installed against the `mcp==2.3.0` pin). Run
+`scripts/wt doctor` (also run by `scripts/wt new`): it warns, per drifted `==` pin,
+`<package>: requires X, installed Y`. Fix with
+`backend/.venv/bin/pip install -r backend/requirements.txt`. The check is covered by
+`scripts/tests/wt-doctor-drift.test.sh`.
+
 ## Git hooks
 
 `scripts/wt` (see its `--help`) applies a `status::wip` GitLab label when you create a

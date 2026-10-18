@@ -32,7 +32,10 @@
 #                                        whole repo) — this uses a private ref per
 #                                        worktree so parallel worktrees never collide on
 #                                        the same stash slot. Defaults to `push`.
-#   scripts/wt doctor                    Verify symlinks and shared docker-stack reuse.
+#   scripts/wt doctor                    Verify symlinks, shared docker-stack reuse, and that the
+#                                        backend venv matches the `==` pins in
+#                                        backend/requirements.txt (warns per drifted
+#                                        package; `wt new` runs the same check).
 #   scripts/wt help                      Show this help.
 #
 # Worktrees live at $WT_BASE (default: ../<repo>-wt, a sibling of the main checkout).
@@ -409,6 +412,61 @@ resolve_e2e_port_offset() {
   printf '%s' "$start"
 }
 
+# Compare the dev venv's installed versions against the `name==version` pins in
+# backend/requirements.txt and warn (never fail) on drift (#1715). The venv is
+# shared by every worktree, so one stale package (mcp 1.x vs the 2.x pin, psycopg)
+# makes a clean branch fail with a bare ModuleNotFoundError that reads like a
+# regression. Only exact `==` pins are checked; lines with environment markers
+# and `-r`/`-c` includes are skipped (a marker can't be evaluated here).
+# WT_VENV_PYTHON overrides the interpreter queried (used by the self-test).
+# Prints one "package: requires X, installed Y" line per drift; always returns 0.
+pinned_drift() {
+  local backend="$1"
+  local req="$backend/requirements.txt"
+  local py="${WT_VENV_PYTHON:-$backend/.venv/bin/python}"
+  [[ -f "$req" && -x "$py" ]] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  local installed
+  installed="$("$py" -m pip list --format=json --disable-pip-version-check 2>/dev/null)" || return 0
+  [[ -n "$installed" ]] || return 0
+  WT_INSTALLED_JSON="$installed" python3 -I - "$req" <<'PY'
+import json, os, re, sys
+
+def norm(n):  # PEP 503
+    return re.sub(r"[-_.]+", "-", n).lower()
+
+installed = {norm(p["name"]): p["version"] for p in json.loads(os.environ["WT_INSTALLED_JSON"])}
+pin = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*==\s*([^\s;#,]+)\s*(?:#.*)?$")
+for raw in open(sys.argv[1]):
+    line = raw.strip()
+    if not line or line.startswith(("#", "-")) or ";" in line:
+        continue
+    m = pin.match(line)
+    if not m:
+        continue
+    name, want = m.group(1), m.group(2)
+    have = installed.get(norm(name))
+    if have != want:
+        print(f"{name}: requires {want}, installed {have or 'NOT INSTALLED'}")
+PY
+}
+
+# Warn about pinned-package drift for one checkout's backend/; prints a fix hint.
+report_pinned_drift() {
+  local backend="$1" indent="${2:-  }" out line n=0
+  out="$(pinned_drift "$backend" 2>/dev/null || true)"
+  if [[ -z "$out" ]]; then
+    [[ -f "$backend/requirements.txt" && -x "${WT_VENV_PYTHON:-$backend/.venv/bin/python}" ]] \
+      && ok "${indent}backend venv matches requirements.txt pins"
+    return 0
+  fi
+  while IFS= read -r line; do
+    warn "${indent}venv drift — $line"
+    n=$((n + 1))
+  done <<< "$out"
+  warn "${indent}${n} pinned package(s) out of date; backend tests may fail with ModuleNotFoundError. Run: backend/.venv/bin/pip install -r backend/requirements.txt"
+}
+
 # ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
@@ -484,6 +542,9 @@ cmd_new() {
   if (( linked == 0 )); then
     warn "no dev-dep dirs found in main checkout to symlink (checked: ${WT_SYMLINK_CANDIDATES[*]})"
   fi
+
+  # Make shared-venv drift visible up front (warn only).
+  [[ -d "$target_path/backend" ]] && report_pinned_drift "$target_path/backend" ""
 
   # Backend test isolation: seed backend/.env with an isolated SQLite database
   # instead of the shared Postgres stack, so tests in this worktree can never
@@ -854,6 +915,10 @@ cmd_doctor() {
         warn "  no WT_E2E_PORT in .envrc — Playwright will default to 5173 and may collide with a sibling worktree"
       fi
     fi
+  fi
+
+  if [[ -d "$here/backend" ]]; then
+    report_pinned_drift "$here/backend"
   fi
 
   if command -v docker >/dev/null 2>&1; then
