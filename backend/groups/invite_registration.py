@@ -320,15 +320,27 @@ def redeem_reserved_group_invites(user, email_address) -> int:
     return granted
 
 
+def _lock_invite_group(group_id) -> bool:
+    """Lock the invite's group row ``FOR NO KEY UPDATE``; False if it is gone.
+
+    Group row before the invite row: the order group writers that also touch
+    invites take (ownership transfer, admin changes that revoke lapsed
+    invites). ``GroupViewSet.destroy`` does not lock the group row first: the
+    delete collector removes the group's invite rows before the group row, so
+    a grant and a group delete running at the same moment can deadlock, and
+    PostgreSQL aborts one of them. The grant's side is caught and logged by
+    ``redeem_reserved_group_invites``. Making the delete lock the group row
+    first is tracked in #1638.
+    """
+    return (
+        Group.objects.select_for_update(no_key=True).filter(pk=group_id).values_list("pk", flat=True).first()
+    ) is not None
+
+
 def _grant_reserved_group_invite(link_id, group_id, user, email_address) -> bool:
     """One invite of ``redeem_reserved_group_invites``; True when it granted."""
     with transaction.atomic():
-        # Group row first, then the invite row: the order a group delete
-        # takes (it locks the group, then cascades to its invites).
-        group_alive = (
-            Group.objects.select_for_update(no_key=True).filter(pk=group_id).values_list("pk", flat=True).first()
-        ) is not None
-        if not group_alive:
+        if not _lock_invite_group(group_id):
             return False
         link = GroupInviteLink.objects.select_for_update().filter(pk=link_id, reserved_for=user).first()
         if link is None:

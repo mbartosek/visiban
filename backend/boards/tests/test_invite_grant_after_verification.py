@@ -10,6 +10,8 @@ invites are granted at registration, as before.
 Every scenario runs for both kinds through the ``_BoardKind`` / ``_GroupKind``
 mixins. The concurrent cases need PostgreSQL (``SELECT ... FOR UPDATE``).
 """
+import importlib
+import logging
 import threading
 from datetime import timedelta
 from unittest import mock
@@ -27,6 +29,7 @@ from accounts.adapter import PENDING_INVITE_SESSION_KEY, SocialRegistrationAdapt
 from accounts.models import SiteSetting, User
 from boards.models import Board, BoardEvent, BoardInviteLink, BoardInviteRedemption, BoardMembership
 from boards.tests.invite_fixtures import generate_invite
+from boards.tests.lock_wait import assert_blocked_on_lock
 from groups.models import Group, GroupInviteLink, GroupMembership
 from visiban.invite_recipient import grant_reserved_invites
 
@@ -285,6 +288,95 @@ class _RestRegistrationTests:
         link.refresh_from_db()
         self.assertIsNotNone(link.used_at)
         self.assertIsNone(link.reserved_for_id)
+
+    @MANDATORY
+    def test_inactive_account_is_not_granted_and_keeps_the_reservation(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        address = self._invited_address(user)
+        EmailAddress.objects.filter(pk=address.pk).update(verified=True)
+        User.objects.filter(pk=user.pk).update(is_active=False)
+        address.refresh_from_db()
+        grant_reserved_invites(sender=EmailAddress, request=None, email_address=address)
+        self.assertFalse(self.is_member(user))
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, user.pk)
+        self.assertIsNone(link.used_at)
+
+    @MANDATORY
+    def test_deleting_the_reserving_account_frees_the_invite(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        self._registered().delete()
+        link.refresh_from_db()
+        self.assertIsNone(link.reserved_for_id)
+        # The invited address can register from it again.
+        self.assertEqual(self._register(INVITED, raw).status_code, status.HTTP_201_CREATED)
+        link.refresh_from_db()
+        self.assertEqual(link.reserved_for_id, self._registered().pk)
+
+    def _assert_released_at_confirmation(self, link, user):
+        self.assertEqual(_confirm(self._invited_address(user)).status_code, status.HTTP_200_OK)
+        self.assertFalse(self.is_member(user))
+        link.refresh_from_db()
+        self.assertIsNone(link.used_at)
+        self.assertIsNone(link.reserved_for_id)
+
+    @MANDATORY
+    def test_sender_losing_site_admin_before_confirmation_releases(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        User.objects.filter(pk=self.sender.pk).update(is_site_admin=False)
+        self._assert_released_at_confirmation(link, self._registered())
+
+    @MANDATORY
+    def test_email_invites_turned_off_before_confirmation_releases(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        with override_settings(INVITE_EMAIL_ENABLED=False):
+            self._assert_released_at_confirmation(link, self._registered())
+
+    @MANDATORY
+    def test_closed_mode_still_grants_a_reservation_at_confirmation(self):
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        set_mode(SiteSetting.RegistrationMode.CLOSED)
+        self.assertEqual(_confirm(self._invited_address(user)).status_code, status.HTTP_200_OK)
+        self.assertTrue(self.is_member(user))
+
+    @MANDATORY
+    def test_allauth_admin_mark_verified_grants(self):
+        from allauth.account.admin import EmailAddressAdmin
+        from django.contrib.admin.sites import site
+
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        address = self._invited_address(user)
+        admin = EmailAddressAdmin(EmailAddress, site)
+        with mock.patch.object(EmailAddressAdmin, "message_user"):
+            admin.make_verified(RequestFactory().post("/"), EmailAddress.objects.filter(pk=address.pk))
+        self.assertTrue(self.is_member(user))
+        link.refresh_from_db()
+        self.assertIsNotNone(link.used_at)
+
+    @MANDATORY
+    def test_failing_email_change_receiver_does_not_strand_the_reservation(self):
+        # The grant receiver runs before the email-change receiver, so an error
+        # there (which fails the request) leaves the grant already made.
+        link, raw = self.make_invite()
+        self._register(INVITED, raw)
+        user = self._registered()
+        address = self._invited_address(user)
+        User.objects.filter(pk=user.pk).update(pending_email_address=address)
+        with mock.patch("accounts.email_change._set_pending_pointer", side_effect=RuntimeError("boom")), \
+                self.assertRaises(RuntimeError):
+            _confirm(address)
+        self.assertTrue(self.is_member(user))
+        link.refresh_from_db()
+        self.assertIsNotNone(link.used_at)
 
     def _assert_granted_at_registration(self):
         link, raw = self.make_invite()
@@ -579,8 +671,30 @@ class SiteInviteUnchangedTests(TestCase):
         self.assertIsNotNone(link.used_at)
 
 
+HOLD_TIMEOUT = 10
+
+
+class _ErrorRecords(logging.Handler):
+    """Collects ERROR records from every thread (handlers are process-wide)."""
+
+    def __init__(self):
+        super().__init__(level=logging.ERROR)
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+
 class _ConcurrentConfirmationTests:
-    """Two simultaneous grants for one reserved invite yield exactly one membership."""
+    """Concurrent grants at confirmation, interleaved deterministically (PostgreSQL).
+
+    Each test pauses the first caller at a fixed point inside its transaction,
+    proves the second one waits on a database lock there
+    (``assert_blocked_on_lock``), then releases the first. Grants are counted
+    from the functions' return values, and any ERROR record (a swallowed
+    failure) fails the test, so a duplicate grant cannot hide behind the
+    per-invite exception handler or a unique constraint.
+    """
 
     def setUp(self):
         if connection.vendor == "sqlite":
@@ -593,81 +707,179 @@ class _ConcurrentConfirmationTests:
             user=self.pending, email=INVITED.lower(), verified=True, primary=True,
         )
         self.model.objects.filter(pk=self.link.pk).update(reserved_for=self.pending)
+        self.errors = _ErrorRecords()
+        logging.getLogger().addHandler(self.errors)
 
     def tearDown(self):
+        logging.getLogger().removeHandler(self.errors)
         cache.clear()
 
-    def _run_concurrently(self, *targets):
-        errors = []
-        barrier = threading.Barrier(len(targets))
+    def _hold_first_caller_after(self, attr):
+        """Patch ``attr`` of the kind's module so its first caller pauses right after it returns."""
+        module = importlib.import_module(self.grant_module)
+        real = getattr(module, attr)
+        reached, release = threading.Event(), threading.Event()
+        state = {"first": True}
+        guard = threading.Lock()
 
-        def run(target):
+        def wrapper(*args, **kwargs):
+            result = real(*args, **kwargs)
+            with guard:
+                first, state["first"] = state["first"], False
+            if first:
+                reached.set()
+                release.wait(HOLD_TIMEOUT)
+            return result
+
+        return mock.patch.object(module, attr, side_effect=wrapper), reached, release
+
+    def _start(self, target, results, name):
+        def run():
             from django.db import connections as _conns
 
             try:
-                barrier.wait()
-                target()
-            except Exception as exc:  # noqa: BLE001 - surfaced by the assertion below
-                errors.append(exc)
+                results.append((name, target()))
+            except Exception as exc:  # noqa: BLE001 - surfaced by the assertions
+                results.append((name, exc))
             finally:
                 _conns.close_all()
 
-        threads = [threading.Thread(target=run, args=(t,)) for t in targets]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        self.assertEqual(errors, [])
+        thread = threading.Thread(target=run, name=name)
+        thread.start()
+        return thread
 
-    def _confirm_in_thread(self):
+    def _grant(self):
         address = EmailAddress.objects.get(pk=self.address.pk)
-        grant_reserved_invites(sender=EmailAddress, request=None, email_address=address)
+        return self.redeem_reserved(User.objects.get(pk=self.pending.pk), address)
 
-    def test_two_concurrent_confirmations_grant_once(self):
-        with mock.patch("boards.broadcast.broadcast_board_event"), \
+    def _no_errors(self):
+        self.assertEqual([r.getMessage() for r in self.errors.records], [])
+
+    def test_second_confirmation_waits_on_the_container_row_lock(self):
+        patcher, reached, release = self._hold_first_caller_after(self.row_lock_attr)
+        results = []
+        with patcher, mock.patch("boards.broadcast.broadcast_board_event"), \
                 mock.patch("groups.broadcast.broadcast_group_event"):
-            self._run_concurrently(self._confirm_in_thread, self._confirm_in_thread)
+            first = self._start(self._grant, results, "first")
+            self.assertTrue(reached.wait(HOLD_TIMEOUT))
+            second = self._start(self._grant, results, "second")
+            try:
+                assert_blocked_on_lock(self, second, "second confirmation must wait on the row lock")
+            finally:
+                release.set()
+                first.join()
+                second.join()
+        self.assertEqual(sorted(name for name, _ in results), ["first", "second"])
+        self.assertTrue(all(isinstance(v, int) for _, v in results), results)
+        self.assertEqual(sum(v for _, v in results), 1, results)
+        self.assertEqual(dict(results)["first"], 1, results)
+        self.assertEqual(self.member_count(), 1)
+        self.assertTrue(self.is_member(self.pending))
+        self._no_errors()
+
+    def test_invite_row_lock_holds_off_another_writer(self):
+        # Paused after the invite row lock: a writer that takes only the invite
+        # row (``other_invite_writer``) must wait for the grant to commit.
+        patcher, reached, release = self._hold_first_caller_after("confirmed_address_admits")
+        results = []
+        with patcher, mock.patch("boards.broadcast.broadcast_board_event"), \
+                mock.patch("groups.broadcast.broadcast_group_event"):
+            first = self._start(self._grant, results, "grant")
+            self.assertTrue(reached.wait(HOLD_TIMEOUT))
+            second = self._start(self.other_invite_writer, results, "writer")
+            try:
+                assert_blocked_on_lock(self, second, "a writer of the invite row must wait on the grant's row lock")
+            finally:
+                release.set()
+                first.join()
+                second.join()
+        outcome = dict(results)
+        self.assertEqual(outcome["grant"], 1, results)
         self.assertTrue(self.is_member(self.pending))
         self.assertEqual(self.member_count(), 1)
         self.link.refresh_from_db()
         self.assertIsNotNone(self.link.used_at)
-        self.assertIsNone(self.link.reserved_for_id)
+        self._no_errors()
 
-    def test_confirmation_racing_a_join_grants_once(self):
+    def test_claim_is_conditional_even_after_a_usable_read(self):
+        # The locked read is made to report a usable invite that is in fact
+        # used; the conditional claim (used_at IS NULL, checked by row count)
+        # must still refuse it.
+        self.model.objects.filter(pk=self.link.pk).update(used_at=timezone.now())
+        with mock.patch(f"{self.grant_module}.{self.refusal_attr}", return_value=None):
+            granted = self._grant()
+        self.assertEqual(granted, 0)
+        self.assertFalse(self.is_member(self.pending))
+        self._no_errors()
+
+
+class BoardConcurrentConfirmationTests(_BoardKind, _ConcurrentConfirmationTests, TransactionTestCase):
+    grant_module = "boards.invites"
+    row_lock_attr = "lock_invite_board"
+    refusal_attr = "board_link_registration_refusal"
+
+    @staticmethod
+    def redeem_reserved(user, address):
+        from boards.invites import redeem_reserved_board_invites
+
+        return redeem_reserved_board_invites(user, address)
+
+    def other_invite_writer(self):
+        # An invite revoke takes only the invite row, no board lock.
+        return BoardInviteLink.objects.filter(pk=self.link.pk).update(revoked_at=timezone.now())
+
+    def test_join_racing_a_confirmation_grants_once(self):
         existing = User.objects.create_user(username="existing", password="p", email="existing@example.org")
         EmailAddress.objects.create(user=existing, email=INVITED, verified=True, primary=False)
 
         def join():
             client = APIClient()
             client.force_authenticate(User.objects.get(pk=existing.pk))
-            client.post(self.join_url(self.raw))
+            return client.post(self.join_url(self.raw)).status_code
 
-        with mock.patch("boards.broadcast.broadcast_board_event"), \
-                mock.patch("groups.broadcast.broadcast_group_event"):
-            self._run_concurrently(self._confirm_in_thread, join)
-        # Exactly one of the two accounts holds the invite's membership.
-        self.assertEqual(self.member_count(), 1)
-        self.assertNotEqual(self.is_member(self.pending), self.is_member(existing))
-        self.link.refresh_from_db()
-        self.assertIsNotNone(self.link.used_at)
-
-
-class BoardConcurrentConfirmationTests(_BoardKind, _ConcurrentConfirmationTests, TransactionTestCase):
-
-    def test_two_concurrent_confirmations_write_one_redemption(self):
-        with mock.patch("boards.broadcast.broadcast_board_event"):
-            self._run_concurrently(self._confirm_in_thread, self._confirm_in_thread)
+        patcher, reached, release = self._hold_first_caller_after("confirmed_address_admits")
+        results = []
+        with patcher, mock.patch("boards.broadcast.broadcast_board_event"):
+            first = self._start(self._grant, results, "grant")
+            self.assertTrue(reached.wait(HOLD_TIMEOUT))
+            second = self._start(join, results, "join")
+            try:
+                assert_blocked_on_lock(self, second, "the join must wait on the grant's locks")
+            finally:
+                release.set()
+                first.join()
+                second.join()
+        outcome = dict(results)
+        self.assertEqual(outcome["grant"], 1, results)
+        self.assertEqual(outcome["join"], 410, results)
         self.assertEqual(BoardInviteRedemption.objects.filter(invite=self.link).count(), 1)
         self.link.refresh_from_db()
         self.assertEqual(self.link.use_count, 1)
+        self._no_errors()
 
 
 class GroupConcurrentConfirmationTests(_GroupKind, _ConcurrentConfirmationTests, TransactionTestCase):
-    pass
+    grant_module = "groups.invite_registration"
+    row_lock_attr = "_lock_invite_group"
+    refusal_attr = "group_link_registration_refusal"
+
+    @staticmethod
+    def redeem_reserved(user, address):
+        from groups.invite_registration import redeem_reserved_group_invites
+
+        return redeem_reserved_group_invites(user, address)
+
+    def other_invite_writer(self):
+        # The group join path locks only the invite row.
+        existing = User.objects.create_user(username="existing", password="p", email="existing@example.org")
+        EmailAddress.objects.create(user=existing, email=INVITED, verified=True, primary=False)
+        client = APIClient()
+        client.force_authenticate(existing)
+        return client.post(self.join_url(self.raw)).status_code
 
 
-class _ConcurrentTakeoverTests:
-    """Two simultaneous sign-ups taking over one reserved invite: exactly one grant."""
+class _ConcurrentSignupTests:
+    """Simultaneous OAuth sign-ups on one invite (PostgreSQL)."""
 
     def setUp(self):
         if connection.vendor == "sqlite":
@@ -676,17 +888,14 @@ class _ConcurrentTakeoverTests:
         set_mode(SiteSetting.RegistrationMode.INVITE_ONLY)
         self.make_target()
         self.link, self.raw = self.make_invite()
-        holder = User.objects.create_user(username="holder", password="p", email=INVITED.lower())
-        self.model.objects.filter(pk=self.link.pk).update(reserved_for=holder)
 
     def tearDown(self):
         set_mode(SiteSetting.RegistrationMode.OPEN)
         cache.clear()
 
-    @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
-    def test_two_concurrent_takeovers_grant_once(self):
+    def _race_oauth_signups(self, usernames):
         results = []
-        barrier = threading.Barrier(2)
+        barrier = threading.Barrier(len(usernames))
         local = threading.local()
 
         def create(*args, **kwargs):
@@ -715,24 +924,43 @@ class _ConcurrentTakeoverTests:
         with mock.patch("boards.broadcast.broadcast_board_event"), \
                 mock.patch("groups.broadcast.broadcast_group_event"), \
                 mock.patch.object(SocialRegistrationAdapter.__bases__[0], "save_user", side_effect=create):
-            threads = [threading.Thread(target=signup, args=(name,)) for name in ("taker_a", "taker_b")]
+            threads = [threading.Thread(target=signup, args=(name,)) for name in usernames]
             for t in threads:
                 t.start()
             for t in threads:
                 t.join()
+        return results
+
+    @override_settings(ACCOUNT_EMAIL_VERIFICATION="optional")
+    def test_two_concurrent_takeovers_grant_once(self):
+        holder = User.objects.create_user(username="holder", password="p", email=INVITED.lower())
+        self.model.objects.filter(pk=self.link.pk).update(reserved_for=holder)
+        results = self._race_oauth_signups(["taker_a", "taker_b"])
         self.assertEqual(sorted(results), ["ok", "refused"], results)
         self.assertEqual(self.member_count(), 1)
+        self.assertFalse(self.is_member(holder))
         self.assertEqual(User.objects.filter(username__in=["taker_a", "taker_b"]).count(), 1)
         self.link.refresh_from_db()
         self.assertIsNotNone(self.link.used_at)
         self.assertIsNone(self.link.reserved_for_id)
 
+    @MANDATORY
+    def test_two_concurrent_reservations_reserve_once(self):
+        results = self._race_oauth_signups(["waiter_a", "waiter_b"])
+        self.assertEqual(sorted(results), ["ok", "refused"], results)
+        survivors = list(User.objects.filter(username__in=["waiter_a", "waiter_b"]))
+        self.assertEqual(len(survivors), 1)
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.reserved_for_id, survivors[0].pk)
+        self.assertIsNone(self.link.used_at)
+        self.assertEqual(self.member_count(), 0)
 
-class BoardConcurrentTakeoverTests(_BoardKind, _ConcurrentTakeoverTests, TransactionTestCase):
+
+class BoardConcurrentSignupTests(_BoardKind, _ConcurrentSignupTests, TransactionTestCase):
     pass
 
 
-class GroupConcurrentTakeoverTests(_GroupKind, _ConcurrentTakeoverTests, TransactionTestCase):
+class GroupConcurrentSignupTests(_GroupKind, _ConcurrentSignupTests, TransactionTestCase):
     pass
 
 

@@ -28,19 +28,22 @@ class AccountsConfig(AppConfig):
             dispatch_uid="accounts.clear_pending_connect_on_logout",
         )
 
-        email_confirmed.connect(
-            apply_confirmed_email_change,
-            dispatch_uid="accounts.apply_confirmed_email_change",
-        )
-
         # Under EMAIL_VERIFICATION=mandatory, a group or board invite used to
         # register with a not-yet-verified invited address grants its
-        # membership when that address is confirmed (#1704).
+        # membership when that address is confirmed (#1704). Connected first:
+        # allauth sends email_confirmed with a plain send(), so a receiver that
+        # raises stops the ones after it. This one never raises, and running it
+        # first means a failure in the email-change receiver cannot leave an
+        # invite waiting on an address that is already verified.
         from visiban.invite_recipient import grant_reserved_invites
 
         email_confirmed.connect(
             grant_reserved_invites,
             dispatch_uid="visiban.invite_recipient.grant_reserved_invites",
+        )
+        email_confirmed.connect(
+            apply_confirmed_email_change,
+            dispatch_uid="accounts.apply_confirmed_email_change",
         )
 
         # allauth's HTML password views finalize through the same helpers as
