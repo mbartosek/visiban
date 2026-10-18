@@ -495,10 +495,12 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
           forced password or username change pending, judged on a fresh read
           of the user (registry Rule 1; the forced-change
           middleware lets the SSO callback through for sign-in, so the
-          connect decision is made here), then refuse an identity that already
-          belongs to a different account with ``provider_already_connected``.
-          allauth itself would only add an invisible Django message and
-          redirect.
+          connect decision is made here), then, for an account with a usable
+          password, require a recent authentication before a new identity is
+          added (``_require_recent_authentication``), then refuse an identity
+          that already belongs to a different account with
+          ``provider_already_connected``. allauth itself would only add an
+          invisible Django message and redirect.
         - ``login`` for an identity no account has yet, whose IdP email already
           belongs to one: see ``_handle_email_collision``.
         """
@@ -522,6 +524,20 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
                 # forced-change middleware: back to the SPA, without saying
                 # which state applies. Nothing is linked.
                 raise ImmediateHttpResponse(HttpResponseRedirect(django_settings.FRONTEND_URL))
+            if sociallogin.account.pk is None and fresh.has_usable_password():
+                # Adding a sign-in method gives the account a second way in, so
+                # it gets the same recent-password rule as changing the account
+                # email (#1641). Judged on the SocialAccount row, not on
+                # ``is_existing``: ``SocialLogin.lookup`` replaces the account
+                # with its stored row only when the identity is already linked,
+                # while email authentication (``SOCIALACCOUNT_EMAIL_AUTHENTICATION``
+                # or a provider's ``EMAIL_AUTHENTICATION``) can set the user and
+                # leave the row unsaved, which is still a new link. An identity
+                # already linked to this account adds nothing; one linked
+                # elsewhere is refused below. Decided before the pending prompt
+                # is consumed so the retry is still bound to the identity that
+                # tried (see below).
+                self._require_recent_authentication(request, sociallogin)
             request.user = _connect_target(request.user)
             pending = get_pending_connect_data(request, request.user)
             if pending and pending.get("provider") == provider:
@@ -655,6 +671,37 @@ class SocialRegistrationAdapter(DefaultSocialAccountAdapter):
         query = urlencode({"auth_error": error_code, **params})
         redirect_url = f"{frontend_url}{separator}{query}"
         raise ImmediateHttpResponse(HttpResponseRedirect(redirect_url))
+
+    @staticmethod
+    def _require_recent_authentication(request, sociallogin):
+        """Send a connect without a recent authentication to allauth's reauthenticate page (#1710).
+
+        "Recent" is allauth's ``did_recently_authenticate``: an authentication
+        recorded in this session within ``ACCOUNT_REAUTHENTICATION_TIMEOUT``
+        (a provider sign-in, or the reauthenticate page; a REST API login
+        records none). Only called for accounts with a usable password: an
+        account without one has no password to confirm, and gets a notice
+        instead (``social_connect.notify_provider_connected``).
+
+        The redirect carries ``next`` back to the provider's connect start,
+        not a stash of this callback: after the password is confirmed the
+        browser starts a fresh connect round trip, which passes this check
+        because the confirmation is now recent. No connect state is stored for
+        allauth to resume, so an abandoned reauthentication leaves nothing that
+        a later one (for example on ``/accounts/email/``) could complete. Raises
+        ``ImmediateHttpResponse``; nothing is linked.
+        """
+        from urllib.parse import urlencode
+
+        from allauth.account.internal.flows.reauthentication import did_recently_authenticate
+        from django.urls import reverse
+
+        if did_recently_authenticate(request):
+            return
+        retry = sociallogin.provider.get_login_url(request, process="connect")
+        raise ImmediateHttpResponse(HttpResponseRedirect(
+            f"{reverse('account_reauthenticate')}?{urlencode({'next': retry})}"
+        ))
 
     @staticmethod
     def _settings_url(**params) -> str:

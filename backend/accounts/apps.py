@@ -28,6 +28,17 @@ class AccountsConfig(AppConfig):
             dispatch_uid="accounts.clear_pending_connect_on_logout",
         )
 
+        # A provider connected to an account without a usable password is
+        # announced to its primary address (#1710).
+        from allauth.socialaccount.signals import social_account_added
+
+        from .social_connect import notify_provider_connected
+
+        social_account_added.connect(
+            notify_provider_connected,
+            dispatch_uid="accounts.notify_provider_connected",
+        )
+
         # Under EMAIL_VERIFICATION=mandatory, a group or board invite used to
         # register with a not-yet-verified invited address grants its
         # membership when that address is confirmed (#1704). Connected first:
