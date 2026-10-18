@@ -2,7 +2,7 @@
 
 > **Added in 1.0**
 
-Groups organize boards and users into a hierarchy. A board can belong to one group; a group can have one parent group. Group trees are walked up to 6 levels deep, and moving a group to a new parent is refused when the result would be deeper than that.
+Groups organize boards and users into a hierarchy. A board can belong to one group; a group can have one parent group. Group trees are walked up to 6 levels deep, and creating a subgroup, or moving a group to a new parent, is refused when the result would be deeper than that.
 
 **Why it matters:** membership and shared settings inherit down the tree, so a manager can onboard a whole team by adding one group instead of every board.
 
@@ -51,7 +51,7 @@ Boards belonging to a group are visible to all group members. Group admins can c
 
 ## Subgroups
 
-Group admins can create subgroups. Access is inherited through up to 6 levels of nesting; moving a group under a new parent is refused when the resulting tree would be deeper than 6 levels. The group detail page shows subgroups and optionally lists all boards across subgroups via the "Show subgroup boards" toggle.
+Group admins can create subgroups. Access is inherited through up to 6 levels of nesting; creating a subgroup, or moving a group under a new parent, is refused when the resulting tree would be deeper than 6 levels. Trees that were already deeper before this limit applied to creation are left as they are. The group detail page shows subgroups and optionally lists all boards across subgroups via the "Show subgroup boards" toggle.
 
 ## Invite links
 

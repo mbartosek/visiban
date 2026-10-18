@@ -386,6 +386,11 @@ class GroupViewSet(viewsets.ModelViewSet):
             parent = Group.objects.select_related(*_ancestor_related).get(pk=parent.pk)
             _require_group_admin(self.request.user, parent)
         with transaction.atomic():
+            if parent is not None:
+                # Lock the parent's chain and re-judge the depth cap on the
+                # reloaded state: a concurrent move could deepen it between
+                # validation and save (#1690).
+                parent = serializer.recheck_create_parent_under_lock(parent)
             group = serializer.save(owner=self.request.user)
             if parent is not None:
                 # The chain-loaded parent, so the response's can_place_boards
@@ -793,9 +798,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         )
         # The resolver, not full_group_access, even though the caller passed
         # _require_group_member on ``group``: both walks are capped at
-        # _GROUP_TRAVERSAL_MAX_DEPTH, and creating a subgroup does not enforce
-        # that depth (only a parent change does), so a subgroup at the edge of
-        # a deep tree can be listed here while the membership predicate, which
+        # _GROUP_TRAVERSAL_MAX_DEPTH, and trees created deeper before #1690
+        # enforced that depth on create still exist, so a subgroup at the edge
+        # of a deep tree can be listed here while the membership predicate, which
         # the subgroup's own nested routes use, does not cover it. The
         # resolver keeps this list consistent with those routes at one query.
         context = {

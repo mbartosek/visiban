@@ -549,7 +549,9 @@ class GroupSerializer(serializers.ModelSerializer):
         ancestor); an unknown id and a parent the caller may not use get the
         same 400 body, matching update and the board ``group`` field (#1691).
         ``GroupViewSet.perform_create`` still enforces the admin check as a
-        backstop. On update this applies the rules in
+        backstop. A new subgroup may not sit deeper than
+        ``_GROUP_TRAVERSAL_MAX_DEPTH`` levels (400), the same bound a parent
+        change enforces (#1690). On update this applies the rules in
         ``_check_parent_change`` to the instance the serializer was bound to.
         ``GroupViewSet.perform_update`` applies them
         again to the row re-read under its lock (``recheck_parent_under_lock``)
@@ -566,6 +568,11 @@ class GroupSerializer(serializers.ModelSerializer):
             )
             if parent is None or user is None or not user_is_group_admin(user, parent):
                 raise _parent_not_allowed()
+            # The same bound a parent change enforces (#1690): the new leaf
+            # sits at level len(chain) + 1, so a parent already
+            # _GROUP_TRAVERSAL_MAX_DEPTH levels deep (or deeper than the walk
+            # reaches) leaves no room. Reuses the chain loaded above.
+            self._check_create_depth(parent)
             return value
         self._check_parent_change(value, self.instance)
         return value
@@ -632,6 +639,51 @@ class GroupSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
             )
+
+    @staticmethod
+    def _check_create_depth(parent):
+        """Refuse a new subgroup under ``parent`` when it would exceed the depth cap (#1690)."""
+        chain, reached_root = _ancestor_chain(parent)
+        # `not reached_root` is a defensive guard in case the walk cap and
+        # the depth cap ever diverge; today `len(chain) + 1 > cap` covers it.
+        if not reached_root or len(chain) + 1 > _GROUP_TRAVERSAL_MAX_DEPTH:
+            raise serializers.ValidationError(
+                f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
+            )
+
+    def recheck_create_parent_under_lock(self, parent):
+        """Lock a new subgroup's parent chain, reload the parent, re-check the depth.
+
+        Call inside ``transaction.atomic()`` before ``save()``. validate_parent
+        judged a snapshot read before the lock; a concurrent move of the
+        parent or one of its ancestors (which holds the moved group's row)
+        could deepen the chain after that. The chain is locked in one
+        pk-ordered statement, the same shape ``recheck_parent_under_lock``
+        uses, so a create and a move serialize without lock-order inversion,
+        then the depth is judged again on the reloaded parent. Returns the
+        reloaded, chain-loaded parent.
+
+        Limitation: only the ancestors read before the lock are locked. If one
+        of them is moved while this request waits, the new ancestors above it
+        are not locked, so a move that lands entirely in that gap can still
+        deepen the chain after the re-check. The re-check closes the common
+        window (a move committing between validation and save), not this one.
+        """
+        chain, _ = _ancestor_chain(parent)
+        list(
+            Group.objects.select_for_update()
+            .filter(pk__in={g.pk for g in chain})
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+        fresh = Group.objects.select_related(*_PARENT_CHAIN_RELATED).filter(pk=parent.pk).first()
+        if fresh is None:
+            raise _parent_not_allowed()
+        try:
+            self._check_create_depth(fresh)
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"parent": exc.detail})
+        return fresh
 
     def recheck_parent_under_lock(self, group):
         """Lock ``group`` (and a requested new parent's chain), reload it, re-check.
