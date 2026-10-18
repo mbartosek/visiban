@@ -4834,12 +4834,12 @@ sees it appear or disappear without a reload.</p>
 <tr>
 <td><code>group.created</code></td>
 <td>Subgroup created under this group, or this group itself created (fired on both the new group's channel and the parent's channel)</td>
-<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). The Visiban web client is unaffected because it refetches the group on these events.</td>
+<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client is unaffected because it refetches the group on these events.</td>
 </tr>
 <tr>
 <td><code>group.updated</code></td>
 <td>Group renamed, board defaults changed, or ownership transferred</td>
-<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). The Visiban web client is unaffected because it refetches the group on these events.</td>
+<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client is unaffected because it refetches the group on these events.</td>
 </tr>
 <tr>
 <td><code>group.deleted</code></td>
