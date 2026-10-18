@@ -797,6 +797,12 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                           value: String(m.user.id),
                           label: userDisplayName(m.user),
                         })),
+                      // The member list omits users with all-content access for
+                      // readers who are not site admins (#1714); a card already
+                      // assigned to one still shows that assignee by name.
+                      ...(localCard.assignee && !board.members.some((m) => m.user.id === localCard.assignee?.id)
+                        ? [{ value: String(localCard.assignee.id), label: userDisplayName(localCard.assignee) }]
+                        : []),
                     ]}
                     disabled={!canAssign}
                     // Never shown to the demo visitor: canAssign is widened for

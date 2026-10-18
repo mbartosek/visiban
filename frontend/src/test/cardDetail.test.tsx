@@ -228,6 +228,23 @@ describe('CardDetail', () => {
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
   })
 
+  it('shows an assignee who is not in the member list by name (#1714)', async () => {
+    const outsider = { id: 42, username: 'auditor', display_name: 'Audit Reader', avatar_url: '' }
+    render(<CardDetail {...defaultProps()} card={makeCard({ assignee: outsider })} />)
+    // The trigger names the assignee rather than showing the raw id.
+    expect(screen.getByRole('combobox')).toHaveTextContent('Audit Reader')
+    expect(screen.queryByText('42')).toBeNull()
+    await userEvent.setup().click(screen.getByRole('combobox'))
+    expect(screen.getByRole('option', { name: 'Audit Reader' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Jane Doe' })).toBeInTheDocument()
+  })
+
+  it('does not list a member assignee twice', async () => {
+    render(<CardDetail {...defaultProps()} card={makeCard({ assignee: { id: 1, username: 'jdoe', display_name: 'Jane Doe', avatar_url: '' } })} />)
+    await userEvent.setup().click(screen.getByRole('combobox'))
+    expect(screen.getAllByRole('option', { name: 'Jane Doe' })).toHaveLength(1)
+  })
+
   it('renders priority buttons', () => {
     render(<CardDetail {...defaultProps()} />)
     expect(screen.getByText('Low')).toBeInTheDocument()

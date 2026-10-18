@@ -503,6 +503,9 @@ class BoardFullTypeContractTests(TestCase):
             )
 
     def test_board_full_members_type_contract_exercises_nullable_id(self):
+        # Read as the all-content user: only a site-admin reader is listed the
+        # all-content rows that carry a null id and role "site_admin" (#1714).
+        self.client.force_authenticate(self.site_admin)
         body = self._get_full()
         by_role = {}
         for member in body["members"]:
@@ -513,8 +516,8 @@ class BoardFullTypeContractTests(TestCase):
         self.assertIsNotNone(by_role["admin"]["id"])
         # A can_access_all_content user with no membership row -> id null (#1137).
         self.assertIsNone(by_role["site_admin"]["id"])
-        # The requester is an admin, so both visibility-gated flags are present
-        # on every row (#920/#1290) — type-checked explicitly since the spec
+        # The requester is a site admin, so both visibility-gated flags are
+        # present on every row (#920/#1290/#1714) — type-checked explicitly since the spec
         # table above does not mark them required.
         for member in body["members"]:
             self.assertIsInstance(member["is_moderator"], bool)

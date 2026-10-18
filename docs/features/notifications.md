@@ -52,6 +52,7 @@ Typing `@username` in a card comment **or description** notifies the mentioned u
 - Mentions are rendered as **bold blue** text in saved comments and descriptions
 - The author is never notified for their own mention
 - Only users who are members of the board (directly, via group inheritance, or site admins) can be mentioned
+- The autocomplete suggests the board's members. Users who can open every board without being a member (all-content access) are suggested only to site admins; anyone else can still mention them by typing their full `@username`
 - **Description re-save guard** — Visiban tracks which users have already been notified for mentions on a given card's description. If you edit and re-save a description that still contains an existing `@username`, that user is not notified again. Only newly added mentions trigger a notification.
 
 ## Due date notifications

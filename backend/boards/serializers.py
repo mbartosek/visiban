@@ -33,6 +33,7 @@ from .permissions import (
     invite_field_visible,
     moderator_field_visible,
     site_admin_field_visible,
+    site_admin_roster_visible,
     without_actor_scoped_fields,
 )
 
@@ -3157,11 +3158,13 @@ class EffectiveBoardMemberSerializer(serializers.Serializer):
                   "or on the row belonging to the requesting user themselves.",
     )
     # Same reason as is_moderator for not being read_only: get_members() omits
-    # it for viewers below admin (#1290). No self-row exception.
+    # it for viewers below admin (#1290), and for a board admin who is not a
+    # site admin on rows with no membership row (#1714). No self-row exception.
     is_site_admin = serializers.BooleanField(
         required=False,
-        help_text="Whether the member is a site administrator. Present only "
-                  "when the requesting user is a board admin or site admin.",
+        help_text="Whether the member is a site administrator. Present when "
+                  "the requesting user is a site admin, and for a board admin "
+                  "on rows backed by a membership on this board (id not null).",
     )
     joined_at = serializers.DateTimeField(read_only=True)
 
@@ -3374,7 +3377,9 @@ class BoardFullSerializer(serializers.ModelSerializer):
           2. Group-inherited memberships — walk the group ancestor chain (capped at
              6 levels) and include each user not already seen from step 1.
           3. Board owner — always included as admin even without an explicit row.
-          4. Site admins — included so they appear in @mention autocomplete on all boards.
+          4. Site admins (``can_access_all_content`` users with no role above) —
+             listed for site-admin readers only, see ``site_admin_roster_visible``
+             (#1714).
 
         The ``id`` field is None for inherited/implicit members (they have no
         BoardMembership row on this board).
@@ -3444,26 +3449,9 @@ class BoardFullSerializer(serializers.ModelSerializer):
         if obj.owner_id and obj.owner_id not in seen:
             seen[obj.owner_id] = {"id": None, "user": obj.owner, "role": "admin", "is_moderator": False, "joined_at": obj.created_at}
 
-        # Include users with can_access_all_content so they appear in @mention autocomplete.
-        # Reuse the list pre-fetched by get_cards() when available (cached in context so
-        # the can_access_all_content query runs at most once per /full/ request — #651/#538).
-        # Write back to context on a cold-cache call so repeated get_members() calls
-        # (e.g. from tests or non-standard call order) also benefit from the cache.
-        site_admin_users = self.context.get("_site_admin_users")
-        if site_admin_users is None:
-            from accounts.models import User as _User
-            site_admin_users = list(
-                _User.objects.filter(can_access_all_content=True).only(
-                    "id", "username", "display_name", "avatar_url", "is_site_admin"
-                )
-            )
-            self.context["_site_admin_users"] = site_admin_users
-        for u in site_admin_users:
-            if u.pk not in seen:
-                seen[u.pk] = {"id": None, "user": u, "role": "site_admin", "is_moderator": False, "joined_at": obj.created_at}
-
-        # Hide is_moderator from non-admin viewers (#920).  Resolve the
-        # requesting user's role once here rather than in the per-row loop.
+        # Resolve the requesting user's role once here rather than per row: it
+        # decides which rows are listed below and which flags each row carries
+        # (#920, #1290, #1714).
         from .permissions import get_board_role
         viewer_role = self.context.get("role")
         request = self.context.get("request")
@@ -3471,6 +3459,35 @@ class BoardFullSerializer(serializers.ModelSerializer):
             viewer_role = get_board_role(request.user, obj)
 
         requesting_user_id = request.user.id if request and request.user.is_authenticated else None
+        roster_visible = site_admin_roster_visible(
+            viewer_role,
+            getattr(request.user, "is_site_admin", False) if request else False,
+        )
+
+        # Users with can_access_all_content can open every board, so for a
+        # site-admin reader they are listed (as role "site_admin") for @mention
+        # autocomplete and member management. Every other reader gets the
+        # board's own members only (#1714): who has instance-wide access is an
+        # instance fact, not a board one. Mentioning such a user by typing their
+        # @username still notifies them (notify_new_mentions resolves against
+        # _get_effective_member_ids, which still includes them).
+        # Reuse the list pre-fetched by get_cards() when available (cached in context so
+        # the can_access_all_content query runs at most once per /full/ request — #651/#538).
+        # Write back to context on a cold-cache call so repeated get_members() calls
+        # (e.g. from tests or non-standard call order) also benefit from the cache.
+        if roster_visible:
+            site_admin_users = self.context.get("_site_admin_users")
+            if site_admin_users is None:
+                from accounts.models import User as _User
+                site_admin_users = list(
+                    _User.objects.filter(can_access_all_content=True).only(
+                        "id", "username", "display_name", "avatar_url", "is_site_admin"
+                    )
+                )
+                self.context["_site_admin_users"] = site_admin_users
+            for u in site_admin_users:
+                if u.pk not in seen:
+                    seen[u.pk] = {"id": None, "user": u, "role": "site_admin", "is_moderator": False, "joined_at": obj.created_at}
 
         result = []
         for entry in seen.values():
@@ -3502,7 +3519,14 @@ class BoardFullSerializer(serializers.ModelSerializer):
             # ``site_admin`` for can_access_all_content, a different flag).
             # ``is_site_admin`` is in the .only() list of the site-admin query
             # above, so this never triggers a deferred-field load.
-            if site_admin_field_visible(viewer_role):
+            # A board admin who is not a site admin gets it only on rows with
+            # a membership row on this board (``id`` set): the endpoints refuse
+            # a change only to an existing membership (#1706), so those are the
+            # only rows the Members tab locks. A group-inherited or owner row is
+            # an ordinary target for them and carries no flag (#1714).
+            if site_admin_field_visible(viewer_role) and (
+                roster_visible or entry["id"] is not None
+            ):
                 row["is_site_admin"] = entry["user"].is_site_admin
             result.append(row)
         return result
