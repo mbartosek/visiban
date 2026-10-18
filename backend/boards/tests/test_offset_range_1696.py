@@ -85,7 +85,13 @@ class OtherPaginatedListProbe(TestCase):
         self.client.force_authenticate(self.admin)
 
     def test_huge_offset_and_limit_not_500(self):
-        for url in ("/api/v1/boards/", "/api/v1/admin/users/"):
+        for url in (
+            "/api/v1/boards/",
+            "/api/v1/admin/users/",
+            "/api/v1/admin/action-log/",
+            "/api/v1/admin/board-invite-links/",
+        ):
             for params in ({"offset": HUGE}, {"offset": -HUGE}, {"page_size": HUGE}):
                 r = self.client.get(url, params)
                 self.assertLess(r.status_code, 500, f"{url} {params}")
+                self.assertNotEqual(r.status_code, 404, f"{url}: route must exist")
