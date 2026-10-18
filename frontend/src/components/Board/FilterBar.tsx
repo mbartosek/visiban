@@ -235,6 +235,14 @@ export default function FilterBar({ board, filters, onChange, searchRef, isSearc
   // Derive chips from active filter state (search is excluded — the input already communicates state)
   const chips: { key: string; label: string; colorDot?: string; avatarUser?: BoardUser; onDismiss: () => void }[] = [];
 
+  // Assignee choices: the board's members, then any assignee on a card who is
+  // not in the member list. The list omits users with all-content access for
+  // readers who are not site admins (#1714), and their cards stay filterable.
+  const assigneeUsers = new Map<number, BoardUser>(board.members.map((m) => [m.user.id, m.user]));
+  for (const card of board.cards) {
+    if (card.assignee && !assigneeUsers.has(card.assignee.id)) assigneeUsers.set(card.assignee.id, card.assignee);
+  }
+
   for (const assigneeId of filters.assigneeIds) {
     if (assigneeId === -1) {
       chips.push({
@@ -243,12 +251,12 @@ export default function FilterBar({ board, filters, onChange, searchRef, isSearc
         onDismiss: () => onChange({ ...filters, assigneeIds: filters.assigneeIds.filter((id) => id !== -1) }),
       });
     } else {
-      const member = board.members.find((m) => m.user.id === assigneeId);
-      if (member) {
+      const assignee = assigneeUsers.get(assigneeId);
+      if (assignee) {
         chips.push({
           key: `assignee:${assigneeId}`,
-          label: userDisplayName(member.user),
-          avatarUser: member.user,
+          label: userDisplayName(assignee),
+          avatarUser: assignee,
           onDismiss: () => onChange({ ...filters, assigneeIds: filters.assigneeIds.filter((id) => id !== assigneeId) }),
         });
       }
@@ -414,7 +422,7 @@ export default function FilterBar({ board, filters, onChange, searchRef, isSearc
                   label="Assignee"
                   options={[
                     { value: -1, label: "Unassigned" },
-                    ...board.members.map((m) => ({ value: m.user.id, label: userDisplayName(m.user) })),
+                    ...[...assigneeUsers.values()].map((u) => ({ value: u.id, label: userDisplayName(u) })),
                   ]}
                   selected={filters.assigneeIds}
                   onChange={(assigneeIds) => onChange({ ...filters, assigneeIds })}

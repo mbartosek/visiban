@@ -287,22 +287,26 @@ class FullMembersRosterByReaderTests(MemberSiteAdminFlagTestBase):
         for row in rows.values():
             self.assertNotIn("is_site_admin", row)
 
-    def test_query_count_unchanged_by_reader(self):
-        """Omitting rows reuses the site-admin list get_cards() already loads."""
+    def test_query_count_does_not_grow_with_all_content_users(self):
+        """For a reader who gets the roster rows and one who does not, the
+        ``/full/`` query count stays the same when another all-content user is
+        added: both reuse the site-admin list get_cards() already loads."""
         url = f"/api/v1/boards/{self.board.pk}/full/"
-        counts = {}
-        for reader in (self.board_admin, self.full_site_admin):
-            client = self.client_for(reader)
-            client.get(url)
-            with CaptureQueriesContext(connection) as ctx:
-                client.get(url)
-            counts[reader.username] = len(ctx)
-        extra = _user("ro_extra_all_content", can_access_all_content=True)
-        self.assertIsNotNone(extra.pk)
-        client = self.client_for(self.board_admin)
-        with CaptureQueriesContext(connection) as ctx:
-            client.get(url)
-        self.assertEqual(len(ctx), counts[self.board_admin.username])
+        readers = (self.board_admin, self.full_site_admin)
+
+        def counts():
+            result = {}
+            for reader in readers:
+                client = self.client_for(reader)
+                client.get(url)  # warm any one-time caches
+                with CaptureQueriesContext(connection) as ctx:
+                    client.get(url)
+                result[reader.username] = len(ctx)
+            return result
+
+        before = counts()
+        _user("ro_extra_all_content", can_access_all_content=True)
+        self.assertEqual(counts(), before)
 
 
 class SiteAdminRosterVisibleUnitTests(SimpleTestCase):

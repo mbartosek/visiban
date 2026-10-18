@@ -361,3 +361,45 @@ describe('MovementHistoryView — pagination', () => {
     )
   })
 })
+
+describe('MovementHistoryView — mover who is not in the member list (#1714)', () => {
+  const outsider = { id: 42, username: 'auditor', display_name: 'Audit Reader', avatar_url: '' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetMovements.mockResolvedValue({
+      results: [
+        makeMovement({ id: 1, moved_by: outsider }),
+        makeMovement({ id: 2, moved_by: outsider }),
+        makeMovement({ id: 3 }),
+        makeMovement({ id: 4, moved_by: null }),
+      ],
+      count: 4,
+    })
+  })
+
+  it('offers the mover as a User option once, after the members, and filters by them', async () => {
+    renderView()
+    await waitFor(() => expect(screen.getAllByTestId('history-row')).toHaveLength(4))
+
+    fireEvent.click(screen.getByRole('button', { name: /^User/ }))
+    const options = screen.getAllByRole('menuitem').map((el) => el.textContent)
+    expect(options.filter((t) => t?.includes('Alice'))).toHaveLength(1)
+    expect(options.filter((t) => t?.includes('Audit Reader'))).toHaveLength(1)
+    expect(options.findIndex((t) => t?.includes('Alice'))).toBeLessThan(
+      options.findIndex((t) => t?.includes('Audit Reader')),
+    )
+
+    mockGetMovements.mockResolvedValue({ results: [], count: 0 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Audit Reader' }))
+    await waitFor(() =>
+      expect(mockGetMovements).toHaveBeenCalledWith(
+        fakeBoard.id,
+        expect.objectContaining({ moved_by_id: '42' })
+      )
+    )
+    // The option stays available after the results narrow to nothing.
+    await waitFor(() => expect(screen.getByText('No movements match the current filters.')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Audit Reader/ })).toBeInTheDocument()
+  })
+})
