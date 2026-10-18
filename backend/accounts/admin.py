@@ -5,6 +5,7 @@ from django.contrib import admin, messages
 from django.contrib.admin.actions import delete_selected
 from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
+from django.contrib.auth.hashers import is_password_usable
 from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import Group as AuthGroup
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -335,7 +336,14 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
             if _stored_password_hash(target.pk) != before:
                 target.refresh_from_db()
                 if request.user.pk == target.pk:
-                    finalize_password_change(target)
+                    # The hash captured under the lock before the form ran
+                    # tells whether this is the account's first password.
+                    finalize_password_change(
+                        target,
+                        first_password=(
+                            not is_password_usable(before) and target.has_usable_password()
+                        ),
+                    )
                 else:
                     require_password_change_after_admin_set(target)
                     # Recorded in the same transaction as the password write,

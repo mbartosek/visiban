@@ -337,6 +337,8 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
                 raise DRFValidationError({"token": ["Invalid value"]}) from None
             if not reset_link_still_valid(locked, self._reset_token):
                 raise DRFValidationError({"token": ["Invalid value"]})
+            # Read before the save: a first password gets its own notice.
+            first_password = not locked.has_usable_password()
             original = self.user
             self.user = locked
             self.set_password_form.user = locked
@@ -345,7 +347,7 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
             result = self.set_password_form.save(commit=False)
             self.user.save(update_fields=["password"])
             original.password = locked.password
-            finalize_password_reset(self.user)
+            finalize_password_reset(self.user, first_password=first_password)
         clear_login_lockout(self.context["request"], self.user)
         return result
 

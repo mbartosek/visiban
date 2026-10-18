@@ -150,12 +150,14 @@ class VisibanResetPasswordKeyForm(ResetPasswordKeyForm):
                 raise PermissionDenied("This password reset link is no longer valid.") from None
             if not reset_link_still_valid(locked, self.temp_key):
                 raise PermissionDenied("This password reset link is no longer valid.")
+            # Read before the save: a first password gets its own notice.
+            first_password = not locked.has_usable_password()
             original = self.user
             self.user = locked
             super().save()
             # Keep the view's own instance consistent with the stored row.
             original.password = locked.password
-            credentials.finalize_password_reset(self.user)
+            credentials.finalize_password_reset(self.user, first_password=first_password)
 
 
 class VisibanChangePasswordForm(ChangePasswordForm):
@@ -184,8 +186,11 @@ class VisibanSetPasswordForm(SetPasswordForm):
 
     def save(self):
         with transaction.atomic():
+            # Read from the locked row before the save: a first password gets
+            # its own notice, sent after commit.
+            first_password = not credentials.lock_user_row(self.user).has_usable_password()
             super().save()
-            credentials.finalize_password_change(self.user)
+            credentials.finalize_password_change(self.user, first_password=first_password)
 
 
 class _ResetLinkGateMixin:

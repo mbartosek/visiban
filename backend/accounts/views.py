@@ -727,6 +727,8 @@ class ChangePasswordView(APIView):
             # against instead of being silently replaced, and only the
             # password column is written.
             user = credentials.lock_user_row(request.user)
+            # Read before the save: a first password gets its own notice.
+            first_password = not user.has_usable_password()
             # #1609: that first password may only be set from an interactive
             # session; a request carrying any token credential is refused
             # before anything is written.
@@ -747,7 +749,7 @@ class ChangePasswordView(APIView):
                 password_attempts.current_password_accepted(attempt)
             user.set_password(new_password)
             user.save(update_fields=["password"])
-            finalize_password_change(user)
+            finalize_password_change(user, first_password=first_password)
             body = {"detail": "Password changed successfully."}
             body.update(_reissued_auth_token(request))
         # Keep the current session alive after the password rotation so the
@@ -1147,9 +1149,11 @@ class TokenRevokingPasswordChangeView(DjRestAuthPasswordChangeView):
         # this one started is neither checked past nor written back.
         with transaction.atomic():
             self._locked_user = credentials.lock_user_row(request.user)
+            # Read before the serializer saves: a first password gets its own notice.
+            first_password = not self._locked_user.has_usable_password()
             response = super().post(request, *args, **kwargs)
             if response.status_code == status.HTTP_200_OK:
-                finalize_password_change(self._locked_user)
+                finalize_password_change(self._locked_user, first_password=first_password)
                 response.data.update(_reissued_auth_token(request))
         return response
 
