@@ -4597,9 +4597,10 @@ resolved at all, inside the pool or out of it: each row is recorded under the
 importer and keeps the file's name as text in <code>imported_from_username</code> (#1675),
 which the timeline, History view and exports display. A new import path that
 writes history rows applies the same rule rather than linking them to accounts.</p>
-<p>Scope of this rule: the surfaces in the table below. Card <code>assignee_id</code> and
-comment mentions are validated against board membership by their own checks
-(<code>boards/utils.py</code>, <code>boards/serializers.py</code>) and are not covered here.</p>
+<p>Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, direct and group-inherited members whose role is not viewer, and users with <code>can_access_all_content</code>. A viewer role alone never makes a user assignable. REST card create and update and the MCP <code>create_card</code> and <code>update_card</code> username lookup all use this set (<code>_get_assignable_member_ids</code>).</p>
+<p>Scope of this rule: the surfaces in the table below. Comment mentions are
+validated against board membership by their own check (<code>boards/utils.py</code>,
+<code>extract_mentions</code>) and are not covered here.</p>
 <p><strong>Why.</strong> The uploader controls an import file, so it resolves against the
 narrower pool and drops what it cannot match. The directory lookups are open on
 purpose (a board admin must be able to find anyone to add), so their invariant is
@@ -4647,6 +4648,16 @@ the status filter and the uniform response, not scope.</p>
 <td>Board and group member removal</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.remove_member</code>; <code>groups/views.py</code> <code>GroupViewSet.update_member</code> (DELETE)</td>
 <td>Resolved through the membership row: no membership answers the same <code>404</code> whatever the id is, and the site-admin refusal is evaluated after that lookup; an inactive user with a membership can be removed</td>
+</tr>
+<tr>
+<td>Card assignee (REST)</td>
+<td><code>boards/serializers.py</code> <code>CardSerializer.__init__</code> (<code>assignee_id</code> queryset), <code>boards/views/cards.py</code>, <code>boards/views/_helpers.py</code></td>
+<td><code>boards/utils.py</code> <code>_get_assignable_member_ids</code>: owner, non-viewer direct and group-inherited members, and users with <code>can_access_all_content</code> (#1716). Pinned by <code>boards/tests/test_viewer_assignee.py</code></td>
+</tr>
+<tr>
+<td>Card assignee (MCP)</td>
+<td><code>mcp_server/tools.py</code> <code>create_card</code>, <code>update_card</code></td>
+<td>One lookup shared by both tools: username matched case-insensitively within <code>_get_assignable_member_ids</code>; anything outside it gets the uniform assignee error. Pinned through <code>update_card</code> by <code>mcp_server/tests/test_mcp_crud.py</code></td>
 </tr>
 <tr>
 <td>MCP</td>
