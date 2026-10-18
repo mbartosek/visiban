@@ -4633,6 +4633,7 @@
 </table>
 <h3 id="delete-apiv1groupsid"><code>DELETE /api/v1/groups/{id}/</code><a class="headerlink" href="#delete-apiv1groupsid" title="Permanent link">&para;</a></h3>
 <p>Delete a group. Requires group owner or site admin. A group member who is not the owner gets <code>403 Forbidden</code> with <code>{"detail": "Only the group owner can delete this group."}</code>; a caller who cannot see the group at all gets <code>404</code>.</p>
+<p><em>(1.2+)</em> A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers <code>404</code>, and a delete that waited behind an ownership transfer away from the caller answers <code>403</code> (#1638).</p>
 <hr />
 <h2 id="members">Members<a class="headerlink" href="#members" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1groupsidmembers"><code>GET /api/v1/groups/{id}/members/</code><a class="headerlink" href="#get-apiv1groupsidmembers" title="Permanent link">&para;</a></h3>
@@ -4698,6 +4699,7 @@
 <p>List boards in this group. Requires group membership.</p>
 <h3 id="post-apiv1groupsidboards"><code>POST /api/v1/groups/{id}/boards/</code><a class="headerlink" href="#post-apiv1groupsidboards" title="Permanent link">&para;</a></h3>
 <p>Create a board in this group. Requires group admin. Boards created here inherit the group's <code>shared_labels</code> and <code>allowed_priorities</code> automatically. The seeded <code>allowed_priorities</code> value is not enforced on cards (see <a href="../../architecture/field-enforcement/">Field Enforcement</a>).</p>
+<p><em>(1.2+)</em> A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1638).</p>
 <p><strong>Request</strong></p>
 <table>
 <thead>
@@ -5114,6 +5116,7 @@
 <p><strong>Note:</strong> Existing memberships are not downgraded — if you already hold a higher role than the link's role, your current role is preserved.</p>
 <p><strong>Errors:</strong> <code>401 Unauthorized</code> (not authenticated), <code>404 Not Found</code> (invalid or revoked token, or, <em>(1.2+)</em> the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is <code>404</code> even if it is also expired or consumed. A link with a live creator still answers <code>410</code> for expired or consumed, so the two cases remain distinguishable to a token holder), <code>410 Gone</code> — <code>{"detail": "This invite link has expired."}</code> (past its expiry) or <code>{"detail": "This invite link has already been used."}</code> (single-use link already consumed by someone who is not a member)</p>
 <p><em>(1.2+)</em> If the caller is already a member of the link's group, a consumed single-use link returns <code>200</code> with the group, the same as any repeat join; the link is not re-stamped and the caller's role is unchanged.</p>
+<p><em>(1.2+)</em> A join that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1638).</p>
 
 
 
