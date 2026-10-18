@@ -80,6 +80,31 @@ class LockHelperUnitTests(TestCase):
         self.assertEqual(str(ctx.exception), "This group no longer exists.")
 
 
+class SubgroupCreateParentGoneTests(TestCase):
+    """The re-fetch guard in ``perform_create``: a parent deleted after validation answers 400."""
+
+    def test_parent_deleted_between_validation_and_refetch(self):
+        from groups.serializers import GroupSerializer
+
+        owner = User.objects.create_user(username="sp1719", password="p")
+        parent = Group.objects.create(name="SP1719", owner=owner)
+        GroupMembership.objects.create(group=parent, user=owner, role=GroupMembership.Role.ADMIN)
+        real = GroupSerializer.validate_parent
+
+        def validate_then_delete(serializer, value):
+            out = real(serializer, value)
+            Group.objects.filter(pk=parent.pk).delete()
+            return out
+
+        client = APIClient()
+        client.force_authenticate(owner)
+        with patch.object(GroupSerializer, "validate_parent", validate_then_delete):
+            resp = client.post("/api/v1/groups/", {"name": "N1719s", "parent": parent.pk}, format="json")
+        self.assertEqual(resp.status_code, 400, resp.content[:300])
+        self.assertEqual(resp.json(), {"parent": ["Select a parent group you administer."]})
+        self.assertFalse(Group.objects.filter(name="N1719s").exists())
+
+
 @override_settings(INVITE_EMAIL_ENABLED=True, DEMO_MODE=False)
 class GroupWriterVsGroupDeleteTests(_GroupDeleteRaceBase):
     """REST writers on the deleted group itself."""
@@ -314,8 +339,33 @@ class GroupWriterVsGroupDeleteTests(_GroupDeleteRaceBase):
         self._assert_writer_then_delete(*self._race(self.COMMIT_HOLD, self._member_role, self._delete))
 
     def test_member_role_change_behind_group_delete(self):
-        # Before: save() re-inserted the membership under the deleted group.
+        # Before: the role change took no group lock, so it did not wait at
+        # all: it answered 200, and the delete's cascade then removed the row.
         self._assert_delete_then_writer(*self._race(self.DELETE_HOLD, self._delete, self._member_role))
+
+    def test_member_role_change_behind_member_removal_answers_404(self):
+        def remove():
+            return self._client().delete(f"/api/v1/groups/{self.group_id}/members/{self.joiner.pk}/")
+
+        removed, changed = self._race(self.COMMIT_HOLD, remove, self._member_role)
+        self.assertEqual(removed.status_code, 204, removed.content[:300])
+        # Before: the UPDATE matched no row and save() re-inserted the
+        # membership, answering 200.
+        self.assertEqual(changed.status_code, 404, changed.content[:300])
+        self.assertFalse(GroupMembership.objects.filter(group=self.group, user=self.joiner).exists())
+        self.assertEqual([r.getMessage() for r in self.errors.records], [])
+
+    def test_label_patch_behind_label_delete_answers_404(self):
+        def delete_label():
+            return self._client().delete(f"/api/v1/groups/{self.group_id}/labels/{self.label.pk}/")
+
+        deleted, patched = self._race(self.COMMIT_HOLD, delete_label, self._label_patch)
+        self.assertEqual(deleted.status_code, 204, deleted.content[:300])
+        # Before: the UPDATE matched no row and save() re-created the label.
+        self.assertEqual(patched.status_code, 404, patched.content[:300])
+        self.assertFalse(GroupLabel.objects.filter(pk=self.label.pk).exists())
+        self.assertFalse(GroupLabel.objects.filter(group=self.group).exists())
+        self.assertEqual([r.getMessage() for r in self.errors.records], [])
 
 
 class InviteRevokeVsJoinTests(_GroupDeleteRaceBase):
