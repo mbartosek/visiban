@@ -111,7 +111,7 @@ vi.mock('../api/auth', () => ({
   }),
 }))
 
-import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup } from '../api/groups'
+import { getGroup, getGroupMembers, getSubgroups, getGroupBoards, getGroupDescendantBoards, updateGroup, starGroup, unstarGroup, createGroupLabel, updateGroupBoardDefaults, listInviteLinks, createGroupBoard, deleteGroup, removeGroupMember, updateGroupMemberRole } from '../api/groups'
 import { importBoard } from '../api/boards'
 import { getSiteConfig } from '../api/auth'
 
@@ -126,6 +126,8 @@ const mockUnstarGroup = unstarGroup as ReturnType<typeof vi.fn>
 const mockCreateGroupLabel = createGroupLabel as ReturnType<typeof vi.fn>
 const mockUpdateGroupBoardDefaults = updateGroupBoardDefaults as ReturnType<typeof vi.fn>
 const mockCreateGroupBoard = createGroupBoard as ReturnType<typeof vi.fn>
+const mockRemoveGroupMember = removeGroupMember as ReturnType<typeof vi.fn>
+const mockUpdateGroupMemberRole = updateGroupMemberRole as ReturnType<typeof vi.fn>
 const mockDeleteGroup = deleteGroup as ReturnType<typeof vi.fn>
 const mockImportBoard = importBoard as ReturnType<typeof vi.fn>
 
@@ -375,6 +377,70 @@ describe('GroupDetail', () => {
     await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByRole('button', { name: 'Remove Alice Smith from group' })).toHaveFocus()
+  })
+
+  it('surfaces an error and keeps the member listed when removal fails (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockRemoveGroupMember.mockRejectedValue(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to remove member. Please try again.')
+    expect(screen.getByText('Alice Smith')).toBeInTheDocument()
+  })
+
+  it('removes the member and shows no error when removal succeeds (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockRemoveGroupMember.mockResolvedValue(undefined)
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alice Smith from group' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(screen.queryByText('Alice Smith')).not.toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('surfaces an error and keeps the old role when a role change fails (#1386)', async () => {
+    const otherUser: User = { ...fakeUser, id: 2, username: 'alice', display_name: 'Alice Smith' }
+    mockGetGroup.mockResolvedValue(fakeGroup)
+    mockGetGroupMembers.mockResolvedValue([
+      { id: 1, user: fakeUser, role: 'admin', joined_at: '' },
+      { id: 2, user: otherUser, role: 'member', joined_at: '' },
+    ])
+    mockGetSubgroups.mockResolvedValue([])
+    mockGetGroupBoards.mockResolvedValue([])
+    mockUpdateGroupMemberRole.mockRejectedValue(new Error('boom'))
+    renderGroupDetail()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Settings' }))[0])
+    await screen.findByText('Alice Smith')
+    const user = userEvent.setup()
+    // The first combobox on the Settings tab is Alice's role selector (members render first)
+    await user.click(screen.getAllByRole('combobox')[0])
+    await user.click(await screen.findByRole('option', { name: 'Viewer' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to change member role. Please try again.')
+    expect(mockUpdateGroupMemberRole).toHaveBeenCalledWith(1, 2, 'viewer')
   })
 
   it('hides admin controls for non-admin member', async () => {

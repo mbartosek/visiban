@@ -121,6 +121,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
   const [newLabelColor, setNewLabelColor] = useState("#EAB308");
   const [addingLabel, setAddingLabel] = useState(false);
   const [labelError, setLabelError] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
   const [defaultsSaved, setDefaultsSaved] = useState(false);
@@ -476,13 +477,27 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
 
   const handleRemoveMember = async (userId: number) => {
     setConfirmRemoveMemberId(null);
-    await removeGroupMember(groupId, userId);
-    setMembers((prev) => prev.filter((m) => m.user.id !== userId));
+    setMemberError(null);
+    try {
+      await removeGroupMember(groupId, userId);
+      // Local state only changes after the server confirms, so a failure leaves
+      // the member listed and there is nothing to roll back.
+      setMembers((prev) => prev.filter((m) => m.user.id !== userId));
+    } catch {
+      setMemberError("Failed to remove member. Please try again.");
+    }
   };
 
   const handleRoleChange = async (userId: number, role: "admin" | "member" | "collaborator" | "viewer") => {
-    const updated = await updateGroupMemberRole(groupId, userId, role);
-    setMembers((prev) => prev.map((m) => m.user.id === userId ? { ...m, role: updated.role } : m));
+    setMemberError(null);
+    try {
+      const updated = await updateGroupMemberRole(groupId, userId, role);
+      setMembers((prev) => prev.map((m) => m.user.id === userId ? { ...m, role: updated.role } : m));
+    } catch {
+      // The role selector is driven by the stored role, so it snaps back to the
+      // previous value on its own; only the error needs surfacing.
+      setMemberError("Failed to change member role. Please try again.");
+    }
   };
 
   const handleDeleteGroup = async () => {
@@ -956,6 +971,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
             <section>
               <h2 className="text-fg font-semibold mb-1">Members</h2>
               <p className="text-fg-muted text-sm mb-4">Manage who has access to this group and their roles.</p>
+              {memberError && <p role="alert" className="text-danger text-xs mb-2">{memberError}</p>}
               <div className="flex flex-col gap-2">
                 {members.map((m) => (
                   <div key={m.user.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${m.is_inherited ? "bg-surface/50" : "bg-surface"}`}>
@@ -974,7 +990,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                       <div className="flex items-center gap-2 shrink-0">
                         <SelectDropdown
                           value={m.role}
-                          onChange={(v) => handleRoleChange(m.user.id, v as "admin" | "member" | "collaborator" | "viewer")}
+                          onChange={(v) => { void handleRoleChange(m.user.id, v as "admin" | "member" | "collaborator" | "viewer"); }}
                           options={[
                             { value: "admin", label: "Admin" },
                             { value: "member", label: "Member" },
@@ -994,7 +1010,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
                             <span className="text-fg-tertiary">
                               Remove <span className="text-fg font-medium">{m.user.display_name || m.user.username}</span> from this group?
                             </span>
-                            <button onClick={() => handleRemoveMember(m.user.id)} className="text-danger hover:text-danger font-medium transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Confirm</button>
+                            <button onClick={() => { void handleRemoveMember(m.user.id); }} className="text-danger hover:text-danger font-medium transition rounded focus:outline-none focus:ring-2 focus:ring-danger-emphasis">Confirm</button>
                             <button onClick={() => setConfirmRemoveMemberId(null)} className="text-fg-tertiary hover:text-fg transition rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis">Cancel</button>
                           </div>
                         ) : (
