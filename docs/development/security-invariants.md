@@ -205,6 +205,8 @@ and the target is a site admin with no direct row, the stored role is the higher
 of the requested role and the role the user already holds on the board; for any
 other target a direct row keeps its ordinary precedence over a group-inherited
 role). The add itself is visible to board admins and notifies the target.
+The add endpoint re-checks the refusal on the locked membership row, so a
+membership created while a request waited for the board lock is judged too.
 
 The board member list (`/full/` `members`) follows the same line (#1714). For a
 reader who is not a site admin (neither board role `site_admin` nor
@@ -215,8 +217,6 @@ membership on this board: the rows the refusal above applies to, which the
 Members tab locks. Group-inherited and owner rows carry no flag for them, since
 a change to such a row is an ordinary add. A site-admin reader gets the full
 roster and the flag on every row. `site_admin_roster_visible` holds this rule.
-The add endpoint re-checks the refusal on the locked membership row, so a
-membership created while a request waited for the board lock is judged too.
 
 Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
