@@ -439,3 +439,74 @@ class GroupParentConcurrentMoveTests(TransactionTestCase):
         self.x.refresh_from_db()
         self.y.refresh_from_db()
         self.assertEqual([self.x.parent_id is None, self.y.parent_id is None].count(True), 1)
+
+
+class GroupCreateDepthConcurrentTests(TransactionTestCase):
+    """A create racing a move cannot leave a tree over the depth cap (#1690).
+
+    PostgreSQL only: SQLite has no row locks.
+    """
+
+    def setUp(self):
+        if connection.vendor == "sqlite":
+            self.skipTest("Requires PostgreSQL row locks.")
+        self.user = User.objects.create_user(username="racer", password="pw")
+        # Chain of N-1 levels: a leaf one short of the cap.
+        self.chain = []
+        parent = None
+        for i in range(_GROUP_TRAVERSAL_MAX_DEPTH - 1):
+            parent = Group.objects.create(name=f"C{i + 1}", owner=self.user, parent=parent)
+            self.chain.append(parent)
+        GroupMembership.objects.create(group=self.chain[0], user=self.user, role=ADMIN)
+        # A childless top-level group: moving it under the leaf puts it at the
+        # cap, so a subgroup created under it meanwhile would be one too deep.
+        self.mover = Group.objects.create(name="Mover", owner=self.user)
+        GroupMembership.objects.create(group=self.mover, user=self.user, role=ADMIN)
+
+    def test_create_and_move_cannot_both_exceed_the_cap(self):
+        # Creating under `mover` (new group at level 2) is fine on its own,
+        # and so is moving the childless `mover` under the leaf (level N).
+        # Together the new group would be level N+1: exactly one must lose.
+        results = {}
+        barrier = threading.Barrier(2)
+
+        def create():
+            try:
+                client = APIClient()
+                client.force_authenticate(self.user)
+                barrier.wait()
+                r = client.post(
+                    "/api/v1/groups/", {"name": "New", "parent": self.mover.pk}, format="json"
+                )
+                results["create"] = r.status_code
+            finally:
+                connections.close_all()
+
+        def move():
+            try:
+                client = APIClient()
+                client.force_authenticate(self.user)
+                barrier.wait()
+                r = client.patch(
+                    f"/api/v1/groups/{self.mover.pk}/",
+                    {"parent": self.chain[-1].pk},
+                    format="json",
+                )
+                results["move"] = r.status_code
+            finally:
+                connections.close_all()
+
+        threads = [threading.Thread(target=create), threading.Thread(target=move)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        deepest = 0
+        for g in Group.objects.all():
+            depth, node = 1, g
+            while node.parent_id is not None:
+                depth, node = depth + 1, Group.objects.get(pk=node.parent_id)
+            deepest = max(deepest, depth)
+        self.assertLessEqual(deepest, _GROUP_TRAVERSAL_MAX_DEPTH, results)
+        self.assertEqual(sorted(results.values()).count(status.HTTP_400_BAD_REQUEST), 1, results)

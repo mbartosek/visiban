@@ -386,6 +386,11 @@ class GroupViewSet(viewsets.ModelViewSet):
             parent = Group.objects.select_related(*_ancestor_related).get(pk=parent.pk)
             _require_group_admin(self.request.user, parent)
         with transaction.atomic():
+            if parent is not None:
+                # Lock the parent's chain and re-judge the depth cap on the
+                # reloaded state: a concurrent move could deepen it between
+                # validation and save (#1690).
+                parent = serializer.recheck_create_parent_under_lock(parent)
             group = serializer.save(owner=self.request.user)
             if parent is not None:
                 # The chain-loaded parent, so the response's can_place_boards
