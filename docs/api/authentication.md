@@ -849,6 +849,8 @@ List the sign-in providers the caller has connected. One row per provider config
 
 Connecting is not an API call: the browser POSTs (with the CSRF token) to `/accounts/<provider>/login/?process=connect` — `/accounts/oidc/oidc/login/?process=connect` for generic OIDC — and returns to `/settings` as described under [Auth error redirects](#auth-error-redirects).
 
+For an account with a usable password, the callback first requires a recent authentication (a sign-in recorded by allauth's flows, or the `/accounts/reauthenticate/` page, within `ACCOUNT_REAUTHENTICATION_TIMEOUT`, default 300 seconds; a login through `POST /api/v1/auth/login/` does not count). Without one it redirects to `/accounts/reauthenticate/?next=/accounts/<provider>/login/?process=connect` (URL-encoded) and connects nothing; once the password is confirmed, the browser returns to the provider's connect start to begin again. An identity already connected to the caller's account is not asked. An account without a usable password is not asked; its primary email address is sent a notice after the provider is connected. Added in 1.2 (#1710).
+
 ### `DELETE /api/v1/auth/me/connected-accounts/<provider>/`
 
 Disconnect a provider from the caller's account. Added in 1.2 (#1314).

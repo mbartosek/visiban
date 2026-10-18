@@ -49,6 +49,16 @@ def _request(user=None):
     return request
 
 
+def _connect_request(user):
+    """A callback request whose session recorded a sign-in moments ago, so the
+    connect gate's recent-authentication rule (#1710) is already met."""
+    from allauth.account.internal.flows.login import record_authentication
+
+    request = _request(user)
+    record_authentication(request, user, method="password", reauthenticated=True)
+    return request
+
+
 def _sociallogin(request, email, *, verified=True, provider="github", uid="gh-1", process="login"):
     """An unsaved SocialLogin as allauth builds one mid-callback."""
     prov = get_adapter().get_provider(request, provider)
@@ -376,7 +386,7 @@ class ConnectProcessTests(TestCase):
 
     def test_identity_connected_elsewhere_is_refused(self):
         SocialAccount.objects.create(user=self.bob, provider="github", uid="gh-1", extra_data={})
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
             pre_social_login(request, _sociallogin(request, "bob@example.com", process="connect"))
@@ -387,7 +397,7 @@ class ConnectProcessTests(TestCase):
         self.assertFalse(SocialAccount.objects.filter(user=self.alice).exists())
 
     def test_new_identity_connects_and_redirects_to_settings(self):
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         from django.contrib.messages.storage.fallback import FallbackStorage
 
         request._messages = FallbackStorage(request)
@@ -400,7 +410,7 @@ class ConnectProcessTests(TestCase):
         self.assertTrue(SocialAccount.objects.filter(user=self.alice, provider="github").exists())
 
     def test_connect_attempt_clears_pending_prompt_for_that_provider(self):
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         stash_pending_connect(request, "github", [self.alice.pk])
         SocialAccount.objects.create(user=self.bob, provider="github", uid="gh-1", extra_data={})
 
@@ -412,7 +422,7 @@ class ConnectProcessTests(TestCase):
     def test_prompt_connect_must_return_the_account_that_tried(self):
         """Shared browser: the prompt was stashed for gh-attempt, but a different
         GitHub session is live when Connect is clicked — refuse, link nothing."""
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         stash_pending_connect(request, "github", [self.alice.pk], identity="alice-gh", uid="gh-attempt")
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
@@ -425,7 +435,7 @@ class ConnectProcessTests(TestCase):
         self.assertFalse(SocialAccount.objects.filter(user=self.alice).exists())
 
     def test_prompt_connect_with_the_same_account_proceeds(self):
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         stash_pending_connect(request, "github", [self.alice.pk], identity="alice-gh", uid="gh-attempt")
 
         self.assertIsNone(
@@ -433,7 +443,7 @@ class ConnectProcessTests(TestCase):
         )
 
     def test_mismatch_clears_the_prompt_so_a_settings_retry_works(self):
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         stash_pending_connect(request, "github", [self.alice.pk], uid="gh-attempt")
         with self.assertRaises(ImmediateHttpResponse):
             pre_social_login(request, _sociallogin(request, "x@example.com", uid="gh-other", process="connect"))
@@ -454,7 +464,7 @@ class ConnectProcessTests(TestCase):
     def test_connect_does_not_run_collision_routing(self):
         """Connecting a provider whose email matches the user's own account
         must connect, not bounce to account_exists."""
-        request = _request(self.alice)
+        request = _connect_request(self.alice)
         self.assertIsNone(
             pre_social_login(request, _sociallogin(request, "alice@example.com", process="connect"))
         )

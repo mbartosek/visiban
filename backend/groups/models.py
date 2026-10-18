@@ -284,7 +284,12 @@ def get_group_ids_for_board_access(user):
 
 
 class Group(models.Model):
-    """A workspace that groups boards and members; supports nested subgroups up to 6 levels deep."""
+    """A workspace that groups boards and members; supports nested subgroups up to 6 levels deep.
+
+    Creating a subgroup or moving a group under a new parent is refused when
+    the resulting tree would exceed ``_GROUP_TRAVERSAL_MAX_DEPTH`` levels;
+    trees created deeper before #1690 are left as they are.
+    """
 
     class DefaultMemberRole(models.TextChoices):
         ADMIN = "admin"

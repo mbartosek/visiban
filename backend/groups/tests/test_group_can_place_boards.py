@@ -160,10 +160,10 @@ class CanPlaceBoardsDepthTests(TestCase):
         client.force_authenticate(actor)
         return client, node, heir
 
-    def _measure(self, request):
+    def _measure(self, request, depths=(1, 5)):
         counts = []
         request(*self._chain(1))  # warm one-time caches
-        for depth in (1, 5):
+        for depth in depths:
             client, leaf, heir = self._chain(depth)
             with CaptureQueriesContext(connection) as ctx:
                 response = request(client, leaf, heir)
@@ -178,7 +178,11 @@ class CanPlaceBoardsDepthTests(TestCase):
     def test_create_subgroup(self):
         self._measure(lambda c, g, h: c.post(
             "/api/v1/groups/", {"name": "New", "parent": g.id}, format="json",
-        ))
+        ),
+            # The new group must stay within the depth limit (#1690): a
+            # depth-5 leaf is level 6, so it cannot take a child.
+            depths=(1, 4),
+        )
 
     def test_update(self):
         self._measure(lambda c, g, h: c.patch(

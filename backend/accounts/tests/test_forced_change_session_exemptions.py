@@ -677,6 +677,10 @@ class SsoRoundTripTests(TestCase):
     def test_clear_user_still_connects(self):
         user = self._pending("clear")
         request = _callback_request(user)
+        # A recent sign-in, so the connect is not sent to reauthenticate (#1710).
+        from allauth.account.internal.flows.login import record_authentication
+
+        record_authentication(request, user, method="password", reauthenticated=True)
         response = complete_login(request, _sociallogin(request, uid="gh-clear", process="connect"))
         self.assertEqual(urlsplit(response["Location"]).path, "/settings")
         self.assertTrue(SocialAccount.objects.filter(user=user, uid="gh-clear").exists())
