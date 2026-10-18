@@ -4385,12 +4385,12 @@ build. If you are adding an event, see
 <tr>
 <td><code>board.created</code></td>
 <td>New board created (only emitted to subscribers already connected to the board channel)</td>
-<td>Full <code>BoardSerializer</code> object (<code>is_starred</code> is the creator's value and deprecated here; use <code>board.star_changed</code>, #1559). On a Visiban JSON/CSV import (<a href="../boards/#post-apiv1boardsimport"><code>POST /api/v1/boards/import/</code></a>) it also carries <code>import_options</code> — all five resolved booleans (<code>labels</code>, <code>cards</code>, <code>comments</code>, <code>checklist</code>, <code>history</code>; added in 1.2), plus <code>shift_dates_from</code> (a <code>YYYY-MM-DD</code> string; added in 1.2) when the import sent it. The same payload goes to the group channel when the import sets <code>group_id</code>. <code>import_options</code> is absent on ordinary board creation, Trello imports, and group-move events.</td>
+<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change (creator or importer), with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). On a board created in the Django admin there is no request, so the value that user receives is a constant <code>false</code>. Use <code>board.star_changed</code> for per-user star state (#1559). On a Visiban JSON/CSV import (<a href="../boards/#post-apiv1boardsimport"><code>POST /api/v1/boards/import/</code></a>) it also carries <code>import_options</code> — all five resolved booleans (<code>labels</code>, <code>cards</code>, <code>comments</code>, <code>checklist</code>, <code>history</code>; added in 1.2), plus <code>shift_dates_from</code> (a <code>YYYY-MM-DD</code> string; added in 1.2) when the import sent it. The same payload goes to the group channel when the import sets <code>group_id</code>. <code>import_options</code> is absent on ordinary board creation, Trello imports, and group-move events.</td>
 </tr>
 <tr>
 <td><code>board.updated</code></td>
 <td>Board name, description, or settings changed</td>
-<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> in this payload reflects the user who made the change, not the receiving client, and is deprecated in <code>board.created</code> / <code>board.updated</code> payloads; clients must ignore it and use <code>board.star_changed</code> (#1559).</td>
+<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change, with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). On a board changed in the Django admin there is no request, so the value that user receives is a constant <code>false</code>. A client merging the payload keeps its own value. Use <code>board.star_changed</code> for per-user star state (#1559).</td>
 </tr>
 <tr>
 <td><code>board.deleted</code></td>
@@ -4814,12 +4814,12 @@ sees it appear or disappear without a reload.</p>
 <tr>
 <td><code>board.created</code></td>
 <td>Board created in this group, imported into it, or moved into it from elsewhere</td>
-<td>Full <code>BoardSerializer</code> object (<code>is_starred</code> is the creator's value and deprecated here; use <code>board.star_changed</code>, #1559). A Visiban JSON/CSV import into this group also carries <code>import_options</code> (all five resolved booleans, added in 1.2, plus <code>shift_dates_from</code> as a <code>YYYY-MM-DD</code> string when the import sent it, added in 1.2); it is absent on ordinary creation, Trello imports, and move-in events.</td>
+<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change (creator, importer or mover), with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). On a board created in, or moved into this group from, the Django admin there is no request, so the value that user receives is a constant <code>false</code>. Use <code>board.star_changed</code> for per-user star state (#1559). A Visiban JSON/CSV import into this group also carries <code>import_options</code> (all five resolved booleans, added in 1.2, plus <code>shift_dates_from</code> as a <code>YYYY-MM-DD</code> string when the import sent it, added in 1.2); it is absent on ordinary creation, Trello imports, and move-in events.</td>
 </tr>
 <tr>
 <td><code>board.updated</code></td>
 <td>Board in this group renamed or otherwise edited</td>
-<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> in this payload reflects the user who made the change, not the receiving client, and is deprecated in <code>board.created</code> / <code>board.updated</code> payloads; clients must ignore it and use <code>board.star_changed</code> (#1559).</td>
+<td>Full <code>BoardSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change, with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). On a board changed in the Django admin there is no request, so the value that user receives is a constant <code>false</code>. A client merging the payload keeps its own value. Use <code>board.star_changed</code> for per-user star state (#1559).</td>
 </tr>
 <tr>
 <td><code>board.deleted</code></td>
@@ -4834,12 +4834,12 @@ sees it appear or disappear without a reload.</p>
 <tr>
 <td><code>group.created</code></td>
 <td>Subgroup created under this group, or this group itself created (fired on both the new group's channel and the parent's channel)</td>
-<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client is unaffected because it refetches the group on these events.</td>
+<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change, with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). Use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client refetches the group on these events.</td>
 </tr>
 <tr>
 <td><code>group.updated</code></td>
 <td>Group renamed, board defaults changed, or ownership transferred</td>
-<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> in this payload is the acting user's value, not the receiving client's, and is deprecated in <code>group.created</code> / <code>group.updated</code> payloads; clients must ignore it and use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client is unaffected because it refetches the group on these events.</td>
+<td>Full <code>GroupSerializer</code> object. <code>is_starred</code> is sent only to the sockets of the user who made the change, with that user's value; every other subscriber gets the payload without the <code>is_starred</code> key (since 1.2, #1705). On a Django-admin ownership transfer there is no request, so the value the admin user receives is a constant <code>false</code>. Use <code>group.star_changed</code> for per-user star state (#1559). <code>can_place_boards</code> is not included: it is per-viewer and REST-only (#1692). The Visiban web client refetches the group on these events.</td>
 </tr>
 <tr>
 <td><code>group.deleted</code></td>

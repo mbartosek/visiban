@@ -4709,6 +4709,15 @@ each surface that delivers them:</p>
 <li><code>is_site_admin</code> on the same events, and <code>invite</code> on <code>member.added</code>, are shown
   to admin and site_admin recipients only (<code>site_admin_field_visible</code>,
   <code>invite_field_visible</code>);</li>
+<li><code>is_starred</code> (<code>ACTOR_SCOPED_FIELDS</code>) on <code>board.created</code>, <code>board.updated</code>,
+  <code>group.created</code> and <code>group.updated</code> (<code>ACTOR_SCOPED_FIELD_EVENTS</code>) is the acting
+  user's own value and is shown only to that user (<code>without_actor_scoped_fields</code>).
+  The actor comes from the <code>actor_id</code> the broadcast helpers put on the
+  channel-layer message beside the envelope (never on the wire), or from the feed
+  row's <code>actor_id</code>; writers of these events pass it, the Django-admin board
+  writes and group ownership transfer included (there the value is a constant
+  <code>false</code>, since no request context exists). A frame or row without an actor
+  omits the field for everyone;</li>
 <li>admin-only board fields (<code>ADMIN_ONLY_BOARD_FIELDS</code>) are dropped for every
   recipient (<code>without_admin_only_board_fields</code>);</li>
 <li>admin-only swimlane custom field values are never in a broadcast payload, and
@@ -4731,22 +4740,22 @@ one surface only leaves the same field readable through another.</p>
 <tr>
 <td>Board WebSocket</td>
 <td><code>boards/consumers.py</code> <code>BoardConsumer.board_event</code></td>
-<td>Per-user drop (<code>per_user_event_visible</code>), then <code>moderator_field_visible</code>, <code>site_admin_field_visible</code>, <code>invite_field_visible</code> on <code>MODERATOR_BEARING_EVENTS</code>, using the subscriber's re-resolved role</td>
+<td>Per-user drop (<code>per_user_event_visible</code>), then <code>moderator_field_visible</code>, <code>site_admin_field_visible</code>, <code>invite_field_visible</code> on <code>MODERATOR_BEARING_EVENTS</code>, using the subscriber's re-resolved role, then <code>without_actor_scoped_fields</code> against the message's <code>actor_id</code></td>
 </tr>
 <tr>
 <td>Group WebSocket</td>
 <td><code>groups/consumers.py</code> <code>GroupConsumer.group_event</code></td>
-<td>Per-user drop only, over <code>GROUP_PER_USER_EVENTS</code> (derived from <code>PER_USER_EVENTS</code>). There is no <code>is_moderator</code>, <code>is_site_admin</code> or <code>invite</code> strip on this surface: the group channel's <code>member.added</code> carries a <code>GroupMembershipSerializer</code> row, which has none of those fields</td>
+<td>Per-user drop over <code>GROUP_PER_USER_EVENTS</code> (derived from <code>PER_USER_EVENTS</code>), then <code>without_actor_scoped_fields</code> against the message's <code>actor_id</code>. There is no <code>is_moderator</code>, <code>is_site_admin</code> or <code>invite</code> strip on this surface: the group channel's <code>member.added</code> carries a <code>GroupMembershipSerializer</code> row, which has none of those fields</td>
 </tr>
 <tr>
 <td>Change feed</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.events</code>; <code>boards/serializers.py</code> <code>BoardEventSerializer.to_representation</code></td>
-<td>The view excludes other users' <code>PER_USER_EVENTS</code> rows in the page query; the serializer applies the three member-field helpers with the reader's role, <code>without_admin_only_board_fields</code>, and the swimlane re-filter (<code>shareable_swimlane_field_ids</code>)</td>
+<td>The view excludes other users' <code>PER_USER_EVENTS</code> rows in the page query; the serializer applies the three member-field helpers with the reader's role, <code>without_admin_only_board_fields</code>, <code>without_actor_scoped_fields</code> against the row's <code>actor_id</code>, and the swimlane re-filter (<code>shareable_swimlane_field_ids</code>). <code>group.created</code> / <code>group.updated</code> are not persisted, so the feed has no group rows</td>
 </tr>
 <tr>
 <td>Broadcast and persist (write time)</td>
-<td><code>boards/broadcast.py</code> <code>broadcast_board_event</code>, <code>persist_board_event</code>; <code>groups/broadcast.py</code> <code>broadcast_group_event</code></td>
-<td><code>without_admin_only_board_fields</code>; swimlane payloads built from the public <code>SwimlaneSerializer</code></td>
+<td><code>boards/broadcast.py</code> <code>broadcast_board_event</code>, <code>record_board_event</code>, <code>persist_board_event</code>; <code>groups/broadcast.py</code> <code>broadcast_group_event</code></td>
+<td><code>without_admin_only_board_fields</code>; <code>without_viewer_specific_group_fields</code> on every group event (drops <code>can_place_boards</code>, #1692); swimlane payloads built from the public <code>SwimlaneSerializer</code>; <code>actor_id</code> carried on the channel-layer message for the consumers' <code>without_actor_scoped_fields</code></td>
 </tr>
 <tr>
 <td>REST board and members</td>
@@ -4763,6 +4772,8 @@ one surface only leaves the same field readable through another.</p>
 <p>Coverage: <code>boards/tests/test_event_payload_scoping.py</code> (per-user events on both
 channels and the feed, <code>invite</code>, swimlane re-filtering, and a check that every
 <code>*star_changed</code> and <code>saved_filter.*</code> event is in the per-user sets),
+<code>boards/tests/test_actor_scoped_event_fields.py</code> (<code>is_starred</code> per recipient on
+both channels for each write path, and in the feed for every reader role),
 <code>boards/tests/test_board_events.py</code> <code>ReadSideStrippingTests</code> (including the
 shared-helper identity check), <code>boards/tests/test_consumer_role_refresh.py</code>, and
 <code>boards/tests/test_member_site_admin_flag.py</code>.</p>
