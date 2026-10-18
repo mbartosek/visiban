@@ -1322,7 +1322,12 @@ class InviteRegisterView(RegisterView):
         # failed registration (400) leaves the invite unconsumed and a refused
         # redemption rolls the new account back.
         self._registered_user = None
-        response = super().create(request, *args, **kwargs)
+        # The signup confirmation mail goes out after this transaction commits,
+        # not under the board/invite row locks taken above (#1639).
+        from .adapter import account_mail_deferred_to_commit
+
+        with account_mail_deferred_to_commit():
+            response = super().create(request, *args, **kwargs)
         if self._registered_user is not None:
             try:
                 kind.redeem(invite, self._registered_user)
