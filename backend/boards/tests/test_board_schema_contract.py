@@ -348,6 +348,8 @@ class BoardFullMembersSchemaTests(TestCase):
             self._validate(site_admin_row, {"$ref": "#/components/schemas/BoardMembership"})
 
     def test_members_endpoint_response_validates_against_strict_schema(self):
+        ref = {"$ref": "#/components/schemas/BoardMembership"}
+        # A non-site-admin board admin: the row has no site-admin flag (#1706).
         self.client.force_authenticate(self.direct)
         newcomer = User.objects.create_user(username="newcomer", password="pass")
         resp = self.client.post(
@@ -356,7 +358,22 @@ class BoardFullMembersSchemaTests(TestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertIsNotNone(resp.json()["id"])
-        self._validate(resp.json(), {"$ref": "#/components/schemas/BoardMembership"})
+        self.assertNotIn("is_site_admin", resp.json())
+        self._validate(resp.json(), ref)
+        self.assertNotIn("is_site_admin", self.components["BoardMembership"]["required"])
+        # A site-admin caller receives the flag, which validates too.
+        caller = User.objects.create_user(
+            username="schema_sa", password="pass", is_site_admin=True, can_access_all_content=True
+        )
+        self.client.force_authenticate(caller)
+        other = User.objects.create_user(username="newcomer2", password="pass")
+        resp = self.client.post(
+            f"/api/v1/boards/{self.board.pk}/members/",
+            {"user_id": other.pk, "role": "member"}, format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertIs(resp.json()["is_site_admin"], False)
+        self._validate(resp.json(), ref)
 
     # ── wire format unchanged ────────────────────────────────────────────────
 

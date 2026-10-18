@@ -126,7 +126,8 @@ class FlagMatchesServerEnforcementTests(MemberSiteAdminFlagTestBase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertIs(response.data["is_site_admin"], False)
+        # A caller who is not a site admin never gets the flag (#1706).
+        self.assertNotIn("is_site_admin", response.data)
 
     def test_site_admin_caller_may_edit_flagged_row_and_response_carries_flag(self):
         caller = _user("sa_caller", is_site_admin=True, can_access_all_content=True)
@@ -144,7 +145,9 @@ class ChangeFeedFlagTests(MemberSiteAdminFlagTestBase):
     def setUp(self):
         super().setUp()
         self.target = _user("sa_feed_target")
-        response = self.client_for(self.owner).post(
+        # Posted by a site admin: events from other callers omit the flag (#1706).
+        poster = _user("sa_feed_poster", is_site_admin=True, can_access_all_content=True)
+        response = self.client_for(poster).post(
             f"/api/v1/boards/{self.board.pk}/members/",
             {"user_id": self.target.pk, "role": "member"},
             format="json",

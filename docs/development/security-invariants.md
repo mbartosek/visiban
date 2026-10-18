@@ -189,7 +189,24 @@ routes listed below, an id that matches no user, an inactive user, or (for
 removal) an active user with no membership on the target gets the same
 response, status and body. Existing memberships of inactive users stay
 listed and editable; the active-user filter applies when a membership is
-created.
+created. The refusal to modify or remove a site admin's membership (for a
+caller who is not a site admin) applies only to a membership that already
+exists on that board or group; a target with no membership gets the response
+any other target gets, whatever the target's site role (#1706). Adding a site
+admin to a board is therefore an ordinary add: for a caller who is not a site
+admin, the add and update response and the `member.added` and `member.updated`
+events it produces (live and in the change feed) omit `is_site_admin` for every
+target; `member.added` events from invite redemption keep their documented
+payload, which each subscriber receives according to their role, so a
+site-admin target and an ordinary one have the same shape, and a new direct row
+never lowers a site admin's effective role (when the caller is not a site admin
+and the target is a site admin with no direct row, the stored role is the higher
+of the requested role and the role the user already holds on the board; for any
+other target a direct row keeps its ordinary precedence over a group-inherited
+role). The member list (`/full/`) keeps its documented flag behavior for board
+admins, and the add itself is visible to board admins and notifies the target.
+The add endpoint re-checks the refusal on the locked membership row, so a
+membership created while a request waited for the board lock is judged too.
 
 Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
@@ -218,9 +235,9 @@ the status filter and the uniform response, not scope.
 | CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` (assignee; CSV import writes no history rows) |
 | Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` (card members and comment authors; Trello import writes no movement or activity rows) |
 | User search | `accounts/views.py` `UserSearchView` | Filters `is_active=True`; matches `username` and `display_name` only |
-| Board member add or role change | `boards/views/boards.py` `BoardViewSet.members` | An existing membership is updated as is; a new one requires an active user. Unknown and inactive ids answer the same `404`. Also checks the submitted `role` is a string within `BoardMembership.Role.values` |
-| Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404` |
-| Board and group member removal | `boards/views/boards.py` `BoardViewSet.remove_member`; `groups/views.py` `GroupViewSet.update_member` (DELETE) | Resolved through the membership row: no membership answers the same `404` whatever the id is; an inactive user with a membership can be removed |
+| Board member add or role change | `boards/views/boards.py` `BoardViewSet.members` | An existing membership is updated as is (the site-admin refusal applies to it); a new one requires an active user, whatever the user's site role. Unknown and inactive ids answer the same `404`. Also checks the submitted `role` is a string within `BoardMembership.Role.values` |
+| Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404`; the site-admin refusal is evaluated after the membership lookup |
+| Board and group member removal | `boards/views/boards.py` `BoardViewSet.remove_member`; `groups/views.py` `GroupViewSet.update_member` (DELETE) | Resolved through the membership row: no membership answers the same `404` whatever the id is, and the site-admin refusal is evaluated after that lookup; an inactive user with a membership can be removed |
 | MCP | `mcp_server/tools.py` | No import tool; user references resolve through the caller's accessible boards |
 
 ## Rule 6: Placing a board in a group needs group admin
