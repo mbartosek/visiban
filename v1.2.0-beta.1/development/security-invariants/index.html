@@ -4577,6 +4577,16 @@ membership on this board: the rows the refusal above applies to, which the
 Members tab locks. Group-inherited and owner rows carry no flag for them, since
 a change to such a row is an ordinary add. A site-admin reader gets the full
 roster and the flag on every row. <code>site_admin_roster_visible</code> holds this rule.</p>
+<p><code>site_admin_roster_visible(role, viewer_is_site_admin)</code> returns true when the
+reader's board role is <code>site_admin</code> (which is what <code>can_access_all_content</code>
+resolves to) or the reader has <code>User.is_site_admin</code>, so a reader with
+instance-wide content access who is not <code>is_site_admin</code> already gets the full
+roster; the function is deliberately unchanged (#1717). The Members-tab lock
+keys on the row being membership-backed (<code>id</code> not null) plus the flag, not on
+which readers receive the flag. Pinned by
+<code>test_all_content_reader_gets_full_roster</code> and
+<code>SiteAdminRosterVisibleUnitTests.test_rule</code> in
+<code>backend/boards/tests/test_member_site_admin_flag.py</code>.</p>
 <p>Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
 importer, co-members of their boards and groups, and the target group (a site
