@@ -1000,7 +1000,7 @@ When `registration_mode` is `"invite_only"`, an additional `invite_token` field 
 | `400 Bad Request` (1.2+) | `invite_token` is a group or board invite that cannot create accounts — a shareable group or board link, or an emailed group or board invite whose sender is not a site admin. Only site invites and emailed single-use group or board invites sent by a site admin can create an account: `{"invite_token": ["This invite link can't be used to create an account on this site. Ask a site admin for an invite."]}`. The OAuth equivalent redirects with `auth_error=invite_not_for_registration` |
 | `400 Bad Request` | Email already registered, passwords do not match, or password too short |
 | `403 Forbidden` | Registration is `"closed"` — no new accounts can be created |
-| `409 Conflict` (`invite_already_redeemed`, 1.1+) | The same email previously redeemed this multi-use invite link | Use a different invite link or contact the link's creator |
+| `409 Conflict` (`invite_already_redeemed`, 1.1+) | The same email previously redeemed this multi-use invite link | Use a different invite link or contact the link's creator. The same status with `invite_invalid` is possible if a group or board invite is lost to a concurrent redemption (unreachable while the invite row lock is held); the account is rolled back either way |
 
 ### `POST /api/v1/auth/registration/verify-email/`
 

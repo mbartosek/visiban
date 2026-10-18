@@ -1349,7 +1349,10 @@ class InviteRegisterView(RegisterView):
                 # (#1718). Marking it unmodified makes the middleware skip the
                 # save and set no cookie: the client stays logged out, and a
                 # client that already had a session keeps it, since the
-                # rollback restores that row too.
+                # rollback restores that row too. Assumes Django's default
+                # DB-backed session engine (SESSION_ENGINE is not overridden):
+                # with cache/cached_db the login writes survive the rollback,
+                # though no cookie reaches the client and the key is unreachable.
                 request.session.modified = False
                 return Response({"invite_token": [exc.detail]}, status=status.HTTP_409_CONFLICT)
         return response
