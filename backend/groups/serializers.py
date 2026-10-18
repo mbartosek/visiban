@@ -662,6 +662,12 @@ class GroupSerializer(serializers.ModelSerializer):
         uses, so a create and a move serialize without lock-order inversion,
         then the depth is judged again on the reloaded parent. Returns the
         reloaded, chain-loaded parent.
+
+        Limitation: only the ancestors read before the lock are locked. If one
+        of them is moved while this request waits, the new ancestors above it
+        are not locked, so a move that lands entirely in that gap can still
+        deepen the chain after the re-check. The re-check closes the common
+        window (a move committing between validation and save), not this one.
         """
         chain, _ = _ancestor_chain(parent)
         list(

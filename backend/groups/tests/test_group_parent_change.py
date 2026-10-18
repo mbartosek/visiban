@@ -5,6 +5,7 @@ group's parent, admin on the new parent, no self or subgroup as parent, and the
 ``_GROUP_TRAVERSAL_MAX_DEPTH`` bound on the resulting tree.
 """
 
+import json
 import threading
 from unittest.mock import patch
 
@@ -14,6 +15,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from groups.serializers import GroupSerializer
 from groups.models import Group, GroupMembership, _GROUP_TRAVERSAL_MAX_DEPTH
 
 ADMIN = GroupMembership.Role.ADMIN
@@ -464,29 +466,42 @@ class GroupCreateDepthConcurrentTests(TransactionTestCase):
         GroupMembership.objects.create(group=self.mover, user=self.user, role=ADMIN)
 
     def test_create_and_move_cannot_both_exceed_the_cap(self):
-        # Creating under `mover` (new group at level 2) is fine on its own,
-        # and so is moving the childless `mover` under the leaf (level N).
-        # Together the new group would be level N+1: exactly one must lose.
+        # Deterministic interleaving: the create validates against the
+        # pre-move tree, then waits until the move has committed before it
+        # reaches the lock and save. Only the under-lock re-check can then
+        # refuse it. (A barrier only aligns thread start and cannot force
+        # this order, so a missing re-check would pass unnoticed.)
         results = {}
-        barrier = threading.Barrier(2)
+        validated = threading.Event()
+        moved = threading.Event()
+        real_check = GroupSerializer._check_create_depth
+        calls = []
+
+        def gated_check(parent):
+            real_check(parent)
+            calls.append(parent.pk)
+            if len(calls) == 1:  # the unlocked validate_parent pass
+                validated.set()
+                self.assertTrue(moved.wait(timeout=20), "move never committed")
 
         def create():
             try:
                 client = APIClient()
                 client.force_authenticate(self.user)
-                barrier.wait()
                 r = client.post(
                     "/api/v1/groups/", {"name": "New", "parent": self.mover.pk}, format="json"
                 )
                 results["create"] = r.status_code
+                results["create_body"] = r.content
             finally:
+                validated.set()  # never leave the mover waiting if create failed early
                 connections.close_all()
 
         def move():
             try:
+                self.assertTrue(validated.wait(timeout=20), "create never validated")
                 client = APIClient()
                 client.force_authenticate(self.user)
-                barrier.wait()
                 r = client.patch(
                     f"/api/v1/groups/{self.mover.pk}/",
                     {"parent": self.chain[-1].pk},
@@ -494,14 +509,22 @@ class GroupCreateDepthConcurrentTests(TransactionTestCase):
                 )
                 results["move"] = r.status_code
             finally:
+                moved.set()
                 connections.close_all()
 
-        threads = [threading.Thread(target=create), threading.Thread(target=move)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with patch.object(GroupSerializer, "_check_create_depth", staticmethod(gated_check)):
+            threads = [threading.Thread(target=create), threading.Thread(target=move)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
 
+        self.assertEqual(results["move"], status.HTTP_200_OK, results)
+        self.assertEqual(results["create"], status.HTTP_400_BAD_REQUEST, results)
+        self.assertEqual(
+            json.loads(results["create_body"]),
+            {"parent": [DEPTH_MSG]},
+        )
         deepest = 0
         for g in Group.objects.all():
             depth, node = 1, g
@@ -509,4 +532,3 @@ class GroupCreateDepthConcurrentTests(TransactionTestCase):
                 depth, node = depth + 1, Group.objects.get(pk=node.parent_id)
             deepest = max(deepest, depth)
         self.assertLessEqual(deepest, _GROUP_TRAVERSAL_MAX_DEPTH, results)
-        self.assertEqual(sorted(results.values()).count(status.HTTP_400_BAD_REQUEST), 1, results)
