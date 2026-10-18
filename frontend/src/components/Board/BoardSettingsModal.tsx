@@ -422,7 +422,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
         const next = [...prev];
         for (const updated of results) {
           const idx = next.findIndex((m) => m.user.id === updated.user.id);
-          if (idx >= 0) next[idx] = { ...next[idx], id: updated.id ?? next[idx].id, role: updated.role };
+          if (idx >= 0) next[idx] = { ...next[idx], role: updated.role };
           else next.push(updated);
         }
         return next;
