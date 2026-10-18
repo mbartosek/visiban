@@ -681,6 +681,16 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
 
     def save_model(self, request, obj, form, change):
         old_group_id = None
+        if obj.group_id is not None:
+            # The target group before the board row (#1719), the group ->
+            # board order every board placement takes (#1638): a save into a
+            # group deleted meanwhile raises Http404 instead of failing the
+            # deferred group foreign key at COMMIT, and a group change no
+            # longer holds the board row while asking for the group at COMMIT.
+            from groups.services import lock_group_for_board_placement
+
+            if not lock_group_for_board_placement(obj.group_id):
+                raise Http404("The selected group no longer exists.")
         if change:
             # Board row first (#1602; see _lock_board_for_admin_save).
             _lock_board_for_admin_save(obj.pk)

@@ -383,7 +383,14 @@ class GroupViewSet(viewsets.ModelViewSet):
             # depth used in get_queryset() so _require_group_admin() traverses
             # already-loaded objects instead of issuing one lazy query per level.
             _ancestor_related = ["__".join(["parent"] * d) for d in range(1, 7)]
-            parent = Group.objects.select_related(*_ancestor_related).get(pk=parent.pk)
+            parent = Group.objects.select_related(*_ancestor_related).filter(pk=parent.pk).first()
+            if parent is None:
+                # Deleted since validation (#1719): the unknown-parent 400,
+                # not a DoesNotExist 500. A delete that commits later is
+                # caught under the chain lock below, with the same 400.
+                from .serializers import _parent_not_allowed
+
+                raise drf_serializers.ValidationError({"parent": _parent_not_allowed().detail})
             _require_group_admin(self.request.user, parent)
         with transaction.atomic():
             if parent is not None:
@@ -736,9 +743,32 @@ class GroupViewSet(viewsets.ModelViewSet):
         role = require_json_object(request).get("role")
         if role not in GroupMembership.Role.values:
             return Response({"detail": f"Must be one of: {', '.join(GroupMembership.Role.values)}"}, status=status.HTTP_400_BAD_REQUEST)
+        from .services import lock_group_for_child_write
+
         with transaction.atomic():
+            # Group row, then the membership row (#1719). A role change that
+            # queued behind a group delete's cascade updated no row and save()
+            # inserted the membership again under the deleted group: a 500
+            # from the deferred foreign key at COMMIT. It now answers 404, as
+            # does a change whose membership was removed meanwhile. The row
+            # is re-read under its lock and only ``role`` is written, so the
+            # instance read before the lock cannot overwrite a concurrent
+            # change. Admin standing was checked before the lock; a demotion
+            # landing in between can let this one change through, accepted
+            # because invite senders' standing is re-checked at preview and
+            # redemption.
+            if not lock_group_for_child_write(group.pk):
+                raise NotFound
+            membership = (
+                GroupMembership.objects.select_for_update(no_key=True, of=("self",))
+                .select_related("user")
+                .filter(pk=membership.pk, group=group)
+                .first()
+            )
+            if membership is None:
+                raise NotFound
             membership.role = role
-            membership.save()
+            membership.save(update_fields=["role"])
             # A demoted admin's links must not linger as active (#1510).
             if role != GroupMembership.Role.ADMIN:
                 _revoke_lapsed_admin_invite_links(target_user, group)
@@ -1098,12 +1128,15 @@ class GroupViewSet(viewsets.ModelViewSet):
         # The rules live in ``transfer_group_ownership`` so the Django admin
         # action applies the same ones.
         from django.db import transaction
-        from .services import GroupTransferError, transfer_group_ownership
+        from .services import GroupGone, GroupTransferError, transfer_group_ownership
         with transaction.atomic():
             try:
                 group = transfer_group_ownership(
                     group.pk, new_owner_id, expected_owner_id=request.user.id,
                 )
+            except GroupGone:
+                # Queued on the row lock behind a delete of the group (#1719).
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             except GroupTransferError as exc:
                 return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             # Re-fetch through ``get_queryset`` so the ``_member_count``,
@@ -1163,39 +1196,53 @@ class GroupViewSet(viewsets.ModelViewSet):
             ).select_related("created_by").order_by("created_at")
             return Response(GroupInviteLinkSerializer(links, many=True).data)
 
-        # POST — create a new invite link (max 5 active per group)
-        # Active count excludes consumed single-use links — they are dead weight —
-        # and emailed links (#731), which have their own cap in
-        # invite_link_send so a round of emailed invites never blocks the admin
-        # from minting a shareable link.
-        active_count = GroupInviteLink.objects.filter(
-            group=group, is_active=True, used_at__isnull=True,
-            delivery=GroupInviteLink.Delivery.LINK,
-        ).count()
-        if active_count >= 5:
-            return Response(
-                {"detail": "Maximum of 5 active invite links per group."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        from .services import lock_group_row
 
+        # Validated before the lock: a malformed body needs no row lock.
         create_serializer = GroupInviteLinkCreateSerializer(data=request.data)
         if not create_serializer.is_valid():
             return Response(create_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
         validated = create_serializer.validated_data
         expires_at = None
         if validated["expiry_days"] is not None:
             expires_at = timezone.now() + datetime.timedelta(days=validated["expiry_days"])
 
-        link, raw_token = GroupInviteLink.generate(
-            group=group,
-            created_by=request.user,
-            name=validated["name"],
-            role=validated["role"],
-            expires_at=expires_at,
-            single_use=validated["single_use"],
-        )
-        data = GroupInviteLinkSerializer(link).data
+        with transaction.atomic():
+            # The group row first (#1719), FOR NO KEY UPDATE: a create behind
+            # a group delete answers 404 instead of failing the invite's
+            # deferred group foreign key at COMMIT (a 500), and two creates
+            # serialize on it, so they cannot both read a count of 4 below.
+            # It does not block the FOR KEY SHARE writers (labels, star, role
+            # change, board placement). Admin standing was checked before
+            # this lock; a demotion landing in between can let this one
+            # create through, which is accepted because the link's sender
+            # standing is re-checked at preview and redemption (#1490).
+            if not lock_group_row(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            # POST — create a new invite link (max 5 active per group)
+            # Active count excludes consumed single-use links — they are dead weight —
+            # and emailed links (#731), which have their own cap in
+            # invite_link_send so a round of emailed invites never blocks the admin
+            # from minting a shareable link.
+            active_count = GroupInviteLink.objects.filter(
+                group=group, is_active=True, used_at__isnull=True,
+                delivery=GroupInviteLink.Delivery.LINK,
+            ).count()
+            if active_count >= 5:
+                return Response(
+                    {"detail": "Maximum of 5 active invite links per group."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            link, raw_token = GroupInviteLink.generate(
+                group=group,
+                created_by=request.user,
+                name=validated["name"],
+                role=validated["role"],
+                expires_at=expires_at,
+                single_use=validated["single_use"],
+            )
+            data = GroupInviteLinkSerializer(link).data
         data["token"] = raw_token
         return Response(data, status=status.HTTP_201_CREATED)
 
@@ -1247,8 +1294,11 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # Lock the group row so two concurrent sends cannot both read a
-            # count of 49 and overshoot the emailed-link cap.
-            Group.objects.select_for_update().filter(pk=group.pk).first()
+            # count of 49 and overshoot the emailed-link cap. A send that
+            # queued behind a delete of the group finds it gone and answers
+            # 404, not a 500 from the invite's deferred foreign key (#1719).
+            if Group.objects.select_for_update().filter(pk=group.pk).first() is None:
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             pending_emailed = GroupInviteLink.objects.filter(
                 group=group,
                 delivery=GroupInviteLink.Delivery.EMAIL,
@@ -1333,19 +1383,30 @@ class GroupViewSet(viewsets.ModelViewSet):
     # send endpoint's POST with 405.
     @action(detail=True, methods=["delete"], url_path=r"invite-links/(?P<link_id>\d+)")
     def revoke_invite_link(self, request, pk=None, link_id=None):
+        from .services import lock_group_row
+
         group = self.get_object()
         _require_group_admin(request.user, group)
-        link = get_object_or_404(GroupInviteLink, pk=link_id, group=group, is_active=True)
-        # A consumed single-use link must not be revoked: doing so would flip
-        # is_active=False on a link that already has used_at set, producing an
-        # ambiguous state where status() returns "revoked" instead of "used",
-        # silently discarding the consumption history from the audit list.
-        if link.used_at is not None:
-            return Response(
-                {"detail": "This link has already been consumed and cannot be revoked."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         with transaction.atomic():
+            # Group row, then the invite row (#1719): the order redemptions
+            # and the group delete take. A revoke that queued behind a delete
+            # used to find its row gone at save(update_fields=...) and raise
+            # (a 500); it now answers 404. Reading the link under its lock
+            # also sees a redemption that consumed it meanwhile.
+            if not lock_group_row(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            link = get_object_or_404(
+                GroupInviteLink.objects.select_for_update(), pk=link_id, group=group, is_active=True,
+            )
+            # A consumed single-use link must not be revoked: doing so would flip
+            # is_active=False on a link that already has used_at set, producing an
+            # ambiguous state where status() returns "revoked" instead of "used",
+            # silently discarding the consumption history from the audit list.
+            if link.used_at is not None:
+                return Response(
+                    {"detail": "This link has already been consumed and cannot be revoked."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             link.is_active = False
             link.save(update_fields=["is_active"])
             # Additive: notify the group channel so other admins with the invite
@@ -1386,9 +1447,16 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         # POST — create a label (admin only)
         _require_group_admin(request.user, group)
+        from .services import lock_group_for_child_write
+
         serializer = GroupLabelSerializer(data=request.data, context={"group": group})
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
+            # The group row before the label insert (#1719): a create behind
+            # a group delete answers 404, not a 500 from the label's deferred
+            # group foreign key at COMMIT.
+            if not lock_group_for_child_write(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             label = serializer.save(group=group)
             label_data = GroupLabelSerializer(label).data
             gid = group.pk
@@ -1427,9 +1495,24 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH — update name/color
+        from .services import lock_group_for_child_write
+
         serializer = GroupLabelSerializer(label, data=request.data, partial=True, context={"group": group})
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
+            # Group row, then the label row, then save (#1719). A PATCH that
+            # queued behind a group delete (or a DELETE of this label)
+            # updated no row and save() inserted the label again: under a
+            # deleted group that failed its foreign key at COMMIT (a 500), and
+            # otherwise it re-created the deleted label. It now answers 404.
+            if not lock_group_for_child_write(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            locked = (
+                GroupLabel.objects.select_for_update(no_key=True)
+                .filter(pk=label.pk, group=group).values_list("pk", flat=True).first()
+            )
+            if locked is None:
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer.save()
             label_data = GroupLabelSerializer(label).data
             gid = group.pk
@@ -1475,7 +1558,16 @@ class GroupViewSet(viewsets.ModelViewSet):
             context={"request": request, "group_access": full_group_access},
         )
         serializer.is_valid(raise_exception=True)
+        from .services import lock_group_row
+
         with transaction.atomic():
+            # Lock and reload the row first (#1719): save() writes every
+            # column, so a PATCH that queued behind a group delete updated no
+            # row and re-inserted the deleted group, and one behind a rename
+            # wrote the old name back. Gone answers 404.
+            if not lock_group_row(group.pk):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            group.refresh_from_db()
             serializer.save()
             # Re-fetch through ``get_queryset`` so the count annotations are
             # populated — same pattern as ``transfer_ownership`` (#993).
@@ -1530,7 +1622,14 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupFavorite.objects.filter(user=request.user, group=group).delete()
                 transaction.on_commit(lambda: _broadcast_star(starred=False))
             return Response(status=status.HTTP_204_NO_CONTENT)
+        from .services import lock_group_for_child_write
+
         with transaction.atomic():
+            # The group row before the favorite insert (#1719): a star behind
+            # a group delete answers 404, not a 500 from the favorite's
+            # deferred group foreign key at COMMIT.
+            if not lock_group_for_child_write(gid):
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             _, created = GroupFavorite.objects.get_or_create(user=request.user, group=group)
             transaction.on_commit(lambda: _broadcast_star(starred=True))
         return Response({"starred": True}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
