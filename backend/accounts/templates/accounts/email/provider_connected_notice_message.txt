@@ -1,0 +1,11 @@
+{% autoescape off %}Hello,
+
+A sign-in provider was just connected to your {{ site_name }} account. It can
+now be used to sign in to the account.
+
+If you made this change, you don't need to do anything.
+
+If you didn't, open Settings, then Security, to review the connected accounts
+and disconnect the one you don't recognize, and contact your {{ site_name }}
+administrator right away.
+{% endautoescape %}

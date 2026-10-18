@@ -1619,8 +1619,10 @@ class VisibanEmailView(AllauthEmailView):
         recently authenticated, matching the API's exemption.
 
         Not enabled through ``ACCOUNT_REAUTHENTICATION_REQUIRED``, which would
-        also change other allauth flows (social-account connect); this gates
-        only the two actions on this page.
+        also change other allauth flows; this gates only the two actions on
+        this page. Connecting a sign-in provider has its own gate with the same
+        rule, in ``accounts.adapter.SocialRegistrationAdapter.pre_social_login``
+        (``_require_recent_authentication``).
         """
         if ("action_add" in request.POST or "action_primary" in request.POST) and (
             request.user.has_usable_password()

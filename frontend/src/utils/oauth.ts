@@ -29,6 +29,10 @@ export function providerLoginUrl(provider: string): string {
  * account, so it must not be triggerable by a cross-site link (the backend
  * never enables SOCIALACCOUNT_LOGIN_ON_GET). The backend returns the browser
  * to /settings with `?connected=` or `?connect_error=`.
+ *
+ * For an account with a password, the backend first sends the browser to
+ * allauth's password confirmation page, then its Continue page, and the user
+ * goes through the provider a second time (no second Connect click). Those pages are served by the backend and are unbranded.
  */
 export function startProviderConnect(provider: string): void {
   const form = document.createElement("form");

@@ -207,3 +207,91 @@ def connected_accounts_status(user) -> list[dict]:
             row["connected_at"] = account.date_joined
         rows.append(row)
     return rows
+
+
+def notify_provider_connected(sender, request, sociallogin, **kwargs) -> None:
+    """``social_account_added`` receiver: tell a no-password account that a provider was connected (#1710).
+
+    allauth sends ``social_account_added`` only from ``SocialLogin.connect``,
+    so this fires for a provider connected to an existing account and never
+    for a provider sign-in or a social signup. An account with a usable
+    password confirms it before connecting (``SocialRegistrationAdapter.
+    _require_recent_authentication``); an account without one has nothing to
+    confirm, so its primary address is told instead and its owner can act on
+    a connection they did not make.
+
+    Sent after commit, so a connect that rolls back sends nothing and a slow
+    mail server holds no transaction open. The callback captures the user id
+    only and re-reads everything it needs.
+    """
+    from django.db import transaction
+
+    user = getattr(sociallogin, "user", None)
+    user_id = getattr(user, "pk", None)
+    if user_id is None or user.has_usable_password():
+        return
+    transaction.on_commit(lambda: send_provider_connected_notice(user_id))
+
+
+def primary_notice_address(user) -> str | None:
+    """The account's primary address: the primary ``EmailAddress`` row, else ``User.email``."""
+    from allauth.account.models import EmailAddress
+
+    primary = (
+        EmailAddress.objects.filter(user_id=user.pk, primary=True)
+        .values_list("email", flat=True)
+        .first()
+    )
+    return primary or (user.email or None)
+
+
+def send_provider_connected_notice(user_id: int) -> None:
+    """Send the fixed-text "a sign-in provider was connected" notice to *user_id*'s primary address.
+
+    The content is fixed text: the site name and a neutral greeting, with no
+    provider account name, no user-controlled strings and no link. Skipped
+    when the account no longer exists, has since set a password, or has no
+    address. Never raises, so a mail failure cannot turn a committed connect
+    into an error; failures are logged by user id and exception type only,
+    never by address.
+    """
+    import logging
+
+    from django.core.mail import EmailMessage, get_connection
+    from django.template.loader import render_to_string
+
+    from boards.notifications_email import _flatten_subject
+    from visiban.invite_email import SITE_NAME
+
+    logger = logging.getLogger(__name__)
+    user = get_user_model().objects.filter(pk=user_id).first()
+    if user is None or user.has_usable_password():
+        return
+    address = primary_notice_address(user)
+    if not address:
+        return
+    context = {"site_name": SITE_NAME}
+    connection = None
+    try:
+        connection = get_connection(
+            fail_silently=False,
+            timeout=getattr(settings, "NOTIFICATION_EMAIL_TIMEOUT", 10),
+        )
+        EmailMessage(
+            subject=_flatten_subject(
+                render_to_string("accounts/email/provider_connected_notice_subject.txt", context)
+            ),
+            body=render_to_string("accounts/email/provider_connected_notice_message.txt", context),
+            to=[address],
+            connection=connection,
+        ).send(fail_silently=False)
+    except Exception as exc:  # noqa: BLE001 - a notice must never fail the connect
+        logger.warning(
+            "social_connect.notice_failed user_id=%s exc=%s", user_id, type(exc).__name__
+        )
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:  # noqa: BLE001 - closing is best-effort
+                pass

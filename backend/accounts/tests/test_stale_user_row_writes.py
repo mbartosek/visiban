@@ -264,6 +264,10 @@ class SocialConnectStaleRowTests(TestCase):
         request.session.save()
         request._messages = FallbackStorage(request)
         request.user = request_user
+        # A recent sign-in, so the connect is not sent to reauthenticate (#1710).
+        from allauth.account.internal.flows.login import record_authentication
+
+        record_authentication(request, request_user, method="password", reauthenticated=True)
         account = SocialAccount(provider="github", uid="gh-1619", extra_data={})
         sociallogin = SocialLogin(
             user=User(username="", email="idp@example.com"),

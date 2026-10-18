@@ -451,6 +451,13 @@ touched — so it is zero-downtime and requires no operator action.
     - **The previous address is notified of an email change.** Whenever an account's email
       changes to a different address, by any route, the previous address receives a short
       notice. Make sure outbound email is configured if you rely on it.
+    - **Connecting a sign-in provider asks for the password first.** When an account that
+      has a password connects a provider from Settings, it is asked to confirm that password
+      once, on allauth's `/accounts/reauthenticate/` page. In the Visiban app the user then
+      clicks **Continue** on the next page and goes through the provider a second time; no
+      second **Connect** click in Settings is needed. These pages are served by the backend and are unbranded. Accounts without a password are not asked; their primary address receives a
+      short fixed-text notice when a provider is connected. Signing in with a provider is
+      unaffected (see [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.
