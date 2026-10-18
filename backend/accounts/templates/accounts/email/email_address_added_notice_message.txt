@@ -1,0 +1,10 @@
+{% autoescape off %}Hello,
+
+An email address was just added to, or confirmed on, the {{ site_name }}
+account that uses this address. Once an address is confirmed, password reset
+links for the account can be sent to it.
+
+If you made this change, you don't need to do anything.
+
+If you didn't, contact your {{ site_name }} administrator right away.
+{% endautoescape %}

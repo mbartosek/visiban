@@ -451,6 +451,11 @@ touched — so it is zero-downtime and requires no operator action.
     - **The previous address is notified of an email change.** Whenever an account's email
       changes to a different address, by any route, the previous address receives a short
       notice. Make sure outbound email is configured if you rely on it.
+    - **Accounts without a password get address and first-password notices.** On an
+      account that signs in only through an identity provider, adding or confirming an
+      email address sends a short notice to the account's current email, and setting a
+      first password, from a reset link or by the signed-in user, sends one to the account's email address and every
+      verified address on the account.
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.

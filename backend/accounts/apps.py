@@ -11,7 +11,7 @@ class AccountsConfig(AppConfig):
         from .signals import _connect_user_signals
         _connect_user_signals()
 
-        from allauth.account.signals import email_confirmed
+        from allauth.account.signals import email_added, email_confirmed
 
         from .email_change import apply_confirmed_email_change
 
@@ -40,6 +40,20 @@ class AccountsConfig(AppConfig):
         email_confirmed.connect(
             grant_reserved_invites,
             dispatch_uid="visiban.invite_recipient.grant_reserved_invites",
+        )
+        # Accounts without a usable password: an added or confirmed address
+        # is reported to the account's current email. Connected ahead of the
+        # email-change receiver so the recipient is read before a confirmed
+        # change moves User.email; it never raises.
+        from .no_password_notices import notify_on_email_added, notify_on_email_confirmed
+
+        email_added.connect(
+            notify_on_email_added,
+            dispatch_uid="accounts.no_password_notices.notify_on_email_added",
+        )
+        email_confirmed.connect(
+            notify_on_email_confirmed,
+            dispatch_uid="accounts.no_password_notices.notify_on_email_confirmed",
         )
         email_confirmed.connect(
             apply_confirmed_email_change,

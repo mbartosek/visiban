@@ -35,7 +35,7 @@ def lock_user_row(user):
     return get_user_model().objects.select_for_update().get(pk=user.pk)
 
 
-def finalize_password_change(user):
+def finalize_password_change(user, *, first_password=False):
     """Side effects every successful user-initiated password change must have.
 
     Shared by the routes listed in the module docstring through which a user
@@ -57,6 +57,12 @@ def finalize_password_change(user):
 
     ``must_change_username`` is left alone: a password change does not answer
     a username request. Idempotent, so a second call is harmless.
+
+    *first_password* is true when the account had no usable password before
+    this write; the caller reads that from the row it locked before saving the
+    new password. The account email and every verified address (up to ten) are
+    then sent a notice after commit (``accounts.no_password_notices``), once
+    per *user* object however many finalize calls the route makes.
     """
     with transaction.atomic():
         lock_user_row(user)
@@ -64,6 +70,10 @@ def finalize_password_change(user):
         user.save(update_fields=["must_change_password"])
         user.personal_access_tokens.all().delete()
         revoke_auth_token(user)
+        if first_password:
+            from .no_password_notices import notify_verified_addresses_of_first_password
+
+            notify_verified_addresses_of_first_password(user)
 
 
 FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE = (
@@ -132,9 +142,13 @@ def email_change_requires_current_password(user, requested_email) -> bool:
     change routes do. A signed-in session alone is not enough.
 
     Accounts without a usable password (sign-in through an identity provider
-    only) are not asked: they have no password to confirm. That exemption is
-    a scoping choice for this change, not a claim that their email change
-    needs no further protection; tracked in #1709. The reset gate itself
+    only) are not asked: they have no password to confirm, and an owner who
+    has lost the primary mailbox must still be able to recover the account.
+    Their control is a notice instead: an address added to or confirmed on
+    such an account is reported to the account's current email, and a first
+    password set (from a reset link or by the signed-in user) is reported to the account email and every
+    verified address
+    (``accounts.no_password_notices``). The reset gate itself
     (``accounts.forms._ResetLinkGateMixin``) is deliberately left alone:
     tightening it would cut off password reset on ``EMAIL_VERIFICATION=none``
     installs, where no address is ever verified.
@@ -202,16 +216,19 @@ def reissue_auth_token(user) -> str:
         return Token.objects.create(user=user).key
 
 
-def finalize_password_reset(user):
+def finalize_password_reset(user, *, first_password=False):
     """Side effects of a completed password reset (REST and HTML).
 
     A reset is a password change by whoever holds the reset link, so it gets
     the full self-service finalization, which includes the DRF ``Token``
     revocation. No ``Token`` is reissued: the reset caller is not signed in.
+
+    *first_password* is as for ``finalize_password_change``, which sends the
+    notice.
     """
     with transaction.atomic():
         lock_user_row(user)
-        finalize_password_change(user)
+        finalize_password_change(user, first_password=first_password)
 
 
 def revoke_credentials_after_operator_reset(user):

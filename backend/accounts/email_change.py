@@ -198,6 +198,22 @@ def request_email_change(request, user, new_email: str) -> bool:
                 user=user, email=new_email, verified=False, primary=False
             )
         _set_pending_pointer(user, existing)
+        # The pending address is an address added to the account, so an
+        # account without a usable password reports it to its current email
+        # like allauth's "Add" action does (``accounts.no_password_notices``).
+        # Log-only: a notice problem must not roll back the pending change.
+        try:
+            import logging
+
+            from .no_password_notices import notify_primary_of_address_change
+
+            notify_primary_of_address_change(user, new_email)
+        except Exception as exc:  # noqa: BLE001 - a notice must never fail the change
+            logging.getLogger(__name__).warning(
+                "no_password_notice.schedule_failed user_id=%s exc=%s",
+                getattr(user, "pk", None),
+                type(exc).__name__,
+            )
     # Sent on commit, never while a transaction (the caller's may hold the
     # user-row lock) is open: the pending row must be committed before the
     # link in the email can be followed, a slow mail server must not hold a
@@ -274,9 +290,30 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
     cannot turn a committed change into an error; failures are logged by
     user id and exception type only, never by address.
     """
+    from django.contrib.auth import get_user_model
+
+    if not previous_email or not get_user_model().objects.filter(pk=user_id).exists():
+        return
+    send_fixed_text_notice(user_id, previous_email, "accounts/email/email_changed_notice")
+
+
+def send_fixed_text_notice(user_id: int, recipient: str, template: str, connection=None) -> None:
+    """Mail one fixed-text account notice to *recipient*.
+
+    *template* names a ``<template>_subject.txt`` / ``<template>_message.txt``
+    pair rendered with the site name as the only context value, so no name or
+    other user-chosen string reaches an address the account may have picked.
+    One recipient per message, so the account's addresses are never shown to
+    each other. Never raises: a notice is sent after the change it reports has
+    committed, and a mail failure must not turn that change into an error.
+    Failures are logged by user id and exception type only, never by address.
+    Shared by the previous-address notice above and by
+    ``accounts.no_password_notices``. A caller sending several notices passes
+    one open *connection* to reuse; it is then left open for the caller to
+    close.
+    """
     import logging
 
-    from django.contrib.auth import get_user_model
     from django.core.mail import EmailMessage, get_connection
     from django.template.loader import render_to_string
 
@@ -284,23 +321,20 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
     from visiban.invite_email import SITE_NAME
 
     logger = logging.getLogger(__name__)
-    if not previous_email or not get_user_model().objects.filter(pk=user_id).exists():
+    if not recipient:
         return
-    # Fixed text only: no name or other user-chosen string goes to an address
-    # the account may have picked (see the docstring).
     context = {"site_name": SITE_NAME}
-    connection = None
+    owns_connection = connection is None
     try:
-        connection = get_connection(
-            fail_silently=False,
-            timeout=getattr(settings, "NOTIFICATION_EMAIL_TIMEOUT", 10),
-        )
+        if owns_connection:
+            connection = get_connection(
+                fail_silently=False,
+                timeout=getattr(settings, "NOTIFICATION_EMAIL_TIMEOUT", 10),
+            )
         EmailMessage(
-            subject=_flatten_subject(
-                render_to_string("accounts/email/email_changed_notice_subject.txt", context)
-            ),
-            body=render_to_string("accounts/email/email_changed_notice_message.txt", context),
-            to=[previous_email],
+            subject=_flatten_subject(render_to_string(f"{template}_subject.txt", context)),
+            body=render_to_string(f"{template}_message.txt", context),
+            to=[recipient],
             connection=connection,
         ).send(fail_silently=False)
     except Exception as exc:  # noqa: BLE001 - a notice must never fail the change
@@ -308,7 +342,7 @@ def send_previous_address_notice(user_id: int, previous_email: str) -> None:
             "email_change.notice_failed user_id=%s exc=%s", user_id, type(exc).__name__
         )
     finally:
-        if connection is not None:
+        if owns_connection and connection is not None:
             try:
                 connection.close()
             except Exception:  # noqa: BLE001 - closing is best-effort

@@ -290,6 +290,7 @@ class RegistrationAdapter(DefaultAccountAdapter):
         runs for login-timing equalization and hasher upgrades, which must not
         touch stored tokens or flags); only callers of this hook finalize.
         """
+        from . import credentials
         from .credentials import finalize_password_change
 
         with transaction.atomic():
@@ -298,9 +299,12 @@ class RegistrationAdapter(DefaultAccountAdapter):
             # the flow loaded when the request started, and a full save would
             # write its other columns (``is_active``, the forced-change flags)
             # back over changes committed since.
+            # Read from the locked row before the save: a first password gets
+            # its own notice (sent once per user object, after commit).
+            first_password = not credentials.lock_user_row(user).has_usable_password()
             user.set_password(password)
             user.save(update_fields=["password"])
-            finalize_password_change(user)
+            finalize_password_change(user, first_password=first_password)
 
     def clean_username(self, username, shallow=False):
         """allauth's checks, plus: not another active account's email (#1221).

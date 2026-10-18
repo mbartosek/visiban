@@ -32,12 +32,27 @@ def finalize_on_password_changed(sender, request, user, **kwargs):
 
 
 def finalize_on_password_set(sender, request, user, **kwargs):
-    """allauth ``password_set``: a password-less (social-only) user set one."""
-    credentials.finalize_password_change(user)
+    """allauth ``password_set``: a password-less (social-only) user set one.
+
+    The signal is sent only for an account's first password, so the notice
+    applies; it is sent once per user object, whichever route finalized first.
+    """
+    credentials.finalize_password_change(user, first_password=True)
 
 
 def finalize_on_password_reset(sender, request, user, **kwargs):
-    """allauth ``password_reset``: a password was set from a reset link."""
+    """allauth ``password_reset``: a password was set from a reset link.
+
+    The password is already saved here, so whether it was the account's first
+    is no longer known; the project's reset form passes that to
+    ``finalize_password_reset`` itself, and this backstop does not repeat the
+    first-password notice. That holds because every reset in a default
+    install goes through the project's REST reset-confirm serializer
+    (``PASSWORD_RESET_CONFIRM_SERIALIZER``) or, where allauth's key page is
+    mounted, its form (``ACCOUNT_FORMS["reset_password_from_key"]``); the
+    project URLconf redirects allauth's key page to the SPA.
+    ``accounts/tests/test_no_password_account_notices.py`` pins all three.
+    """
     credentials.finalize_password_reset(user)
 
 
