@@ -1,1 +1,0 @@
-The admin users list (`GET /api/v1/admin/users/`) and the user update response now include a read-only `is_superuser` field. **Site Admin → Users** uses it to leave out **Demote admin** and **Revoke all-content** on superuser rows, since superuser status always implies site admin and all-content access; remove superuser status in the Django admin first.
