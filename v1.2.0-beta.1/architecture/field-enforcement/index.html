@@ -4185,7 +4185,7 @@
 </tr>
 <tr>
 <td><code>BoardInviteLink.single_use</code> / <code>used_at</code> <em>(1.2+)</em></td>
-<td>Row lock plus <code>used_at</code> stamp in <code>JoinBoardView.post</code> and <code>redeem_board_registration_token()</code>; database <code>CheckConstraint</code> that <code>used_at</code> is only set on a single-use invite</td>
+<td>Row lock plus <code>used_at</code> stamp in <code>JoinBoardView.post</code>, <code>redeem_board_registration_token()</code> and, at email confirmation, <code>redeem_reserved_board_invites()</code> (board row, then invite row, then the conditional claim, #1704; the group equivalent <code>redeem_reserved_group_invites()</code> takes the group row, then the invite row, with group delete tracked in #1638); database <code>CheckConstraint</code> that <code>used_at</code> is only set on a single-use invite</td>
 <td>—</td>
 </tr>
 <tr>

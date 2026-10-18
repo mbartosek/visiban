@@ -4129,6 +4129,10 @@
 <td>board row <code>FOR NO KEY UPDATE</code> (<code>lock_board_row_or_404</code> / <code>lock_invite_board</code>) -&gt; invite row <code>FOR UPDATE</code> (or the registration claim's conditional <code>used_at</code> <code>UPDATE</code>) -&gt; membership and redemption inserts</td>
 </tr>
 <tr>
+<td>Board invite grant at email confirmation (<code>redeem_reserved_board_invites</code>, #1704)</td>
+<td>board row <code>FOR NO KEY UPDATE</code> (<code>lock_invite_board</code>) -&gt; invite row <code>FOR UPDATE</code> -&gt; conditional <code>used_at</code> claim -&gt; membership and redemption inserts. The group equivalent (<code>redeem_reserved_group_invites</code>) takes the group row <code>FOR NO KEY UPDATE</code> -&gt; invite row <code>FOR UPDATE</code>; group delete does not lock the group row first (#1638)</td>
+</tr>
+<tr>
 <td>Board, column, swimlane, label and custom-field-definition UPDATE/DELETE writers (custom-field definition update and delete included, <code>FOR NO KEY UPDATE</code> through <code>lock_board_and_row_or_404</code>, not <code>FOR UPDATE</code>): board <code>PATCH</code>/<code>PUT</code>, share link enable/revoke, move-group, member add/role change/removal, label create, saved-filter create and star (board row only), column <code>PATCH</code>/<code>PUT</code>, swimlane <code>PATCH</code>/<code>PUT</code> and set-collapsed, label <code>PATCH</code>/<code>DELETE</code>, card and swimlane custom-field definition <code>PATCH</code>/<code>DELETE</code>; <code>BoardAdmin</code>, <code>ColumnAdmin</code>, <code>SwimlaneAdmin</code> (and the label and membership admins) saves</td>
 <td>board row <code>FOR NO KEY UPDATE</code> -&gt; (column, swimlane, label or definition writers) that row <code>FOR NO KEY UPDATE</code> -&gt; the <code>UPDATE</code>/<code>DELETE</code></td>
 </tr>
