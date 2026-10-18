@@ -89,7 +89,7 @@ def _parent_name_for_group(group) -> str | None:
     unconditionally whenever the root serializer is bound ``partial=True``,
     regardless of whether ``default`` is set. A dotted source through a nullable
     ``parent`` FK falls back to ``get_default()`` to resolve the ``None``
-    traversal, so on every ``PATCH`` (``GroupViewSet.partial_update`` and
+    traversal, so on every ``PATCH`` (``GroupViewSet.update`` with ``partial=True``, and
     ``board_defaults``, both of which bind ``GroupSerializer(..., partial=True)``)
     the field silently vanished from the response instead of serializing as
     ``null`` for a top-level group (#1225 — same mechanism as #1166's

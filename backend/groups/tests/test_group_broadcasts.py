@@ -134,6 +134,47 @@ class GroupBroadcastWiringTests(TestCase):
 
 
 
+class GroupUpdateSinglePublishTests(TestCase):
+    """PATCH and PUT on a group each publish group.updated exactly once (#1713).
+
+    DRF's partial_update re-enters update(); overriding both once ran the
+    update work and the broadcast twice for a PATCH.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="owner", password="pass")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.group = _make_group(self.user)
+
+    def _update_publishes(self, method):
+        with patch("groups.broadcast.broadcast_group_event") as mock_group, \
+             patch("groups.views.GroupViewSet.perform_update", autospec=True,
+                   side_effect=lambda view, ser: ser.save()) as mock_perform:
+            with self.captureOnCommitCallbacks(execute=True):
+                resp = getattr(self.client, method)(
+                    f"/api/v1/groups/{self.group.id}/", {"name": "Renamed"},
+                )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.name, "Renamed")
+        updated = [c for c in mock_group.call_args_list if c.args[1] == "group.updated"]
+        self.assertEqual(len(updated), 1)
+        self.assertEqual(mock_perform.call_count, 1)
+
+    def test_patch_publishes_group_updated_once(self):
+        self._update_publishes("patch")
+
+    def test_put_publishes_group_updated_once(self):
+        self._update_publishes("put")
+
+    def test_patch_is_partial(self):
+        resp = self.client.patch(f"/api/v1/groups/{self.group.id}/", {"description": "d"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.group.refresh_from_db()
+        self.assertEqual(self.group.name, "G")
+
+
 class BoardGroupChangeViaUpdateTests(TestCase):
     """A PATCH/PUT that changes ``group`` is a group move to group subscribers
     (#1684): board.deleted to the old group, board.created to the new one, the

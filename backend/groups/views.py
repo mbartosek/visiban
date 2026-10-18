@@ -424,14 +424,12 @@ class GroupViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         # Only group admins may rename or re-parent a group.
         # The default ModelViewSet inherits no admin guard here — add it explicitly.
+        # No partial_update override: DRF's partial_update sets kwargs["partial"]
+        # and re-enters this method, so overriding both ran the work (and the
+        # group.updated broadcast) twice for a PATCH (#1713).
         group = self.get_object()
         _require_group_admin(request.user, group)
-        return self._update_with_broadcast(request, group, partial=False, args=args, kwargs=kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        group = self.get_object()
-        _require_group_admin(request.user, group)
-        return self._update_with_broadcast(request, group, partial=True, args=args, kwargs=kwargs)
+        return self._update_with_broadcast(request, group, args=args, kwargs=kwargs)
 
     def perform_update(self, serializer):
         # Runs inside _update_with_broadcast's transaction: lock and reload the
@@ -446,7 +444,7 @@ class GroupViewSet(viewsets.ModelViewSet):
                 *["__".join(["parent"] * d) for d in range(1, 6)],
             ).get(pk=group.parent_id)
 
-    def _update_with_broadcast(self, request, group, *, partial, args, kwargs):
+    def _update_with_broadcast(self, request, group, *, args, kwargs):
         """Run the default DRF update path then broadcast group.updated (#998).
 
         Re-fetches with the count annotations so the broadcast payload resolves
@@ -456,7 +454,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         """
         old_parent_id = group.parent_id
         with transaction.atomic():
-            response = super().partial_update(request, *args, **kwargs) if partial else super().update(request, *args, **kwargs)
+            response = super().update(request, *args, **kwargs)
             group.refresh_from_db(fields=["parent"])
             if group.parent_id != old_parent_id:
                 # Inherited admin rights moved with the subtree (#1513).
