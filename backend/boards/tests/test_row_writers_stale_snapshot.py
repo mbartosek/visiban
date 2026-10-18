@@ -199,7 +199,7 @@ class MoveGroupOldGroupTests(_RaceBase):
         calls = []
         lock = threading.Lock()
 
-        def record(group_id, event, data):
+        def record(group_id, event, data, **kwargs):
             with lock:
                 calls.append((group_id, event))
 
@@ -230,7 +230,7 @@ class MoveGroupOldGroupTests(_RaceBase):
         calls = []
         lock = threading.Lock()
 
-        def record(group_id, event, data):
+        def record(group_id, event, data, **kwargs):
             with lock:
                 calls.append((group_id, event))
 
@@ -277,7 +277,7 @@ class AdminSaveOldGroupTests(_RaceBase):
         calls = []
         lock = threading.Lock()
 
-        def record(group_id, event, payload):
+        def record(group_id, event, payload, **kwargs):
             with lock:
                 calls.append((group_id, event))
 
@@ -315,7 +315,7 @@ class RestDeleteOldGroupTests(_RaceBase):
         calls = []
         lock = threading.Lock()
 
-        def record(group_id, event, payload):
+        def record(group_id, event, payload, **kwargs):
             with lock:
                 calls.append((group_id, event))
 
@@ -353,7 +353,7 @@ class AdminDeleteOldGroupTests(_RaceBase):
         calls = []
         lock = threading.Lock()
 
-        def record(group_id, event, payload):
+        def record(group_id, event, payload, **kwargs):
             with lock:
                 calls.append((group_id, event))
 
@@ -398,7 +398,7 @@ class AdminDeleteOldGroupTests(_RaceBase):
         request.user = root
         calls = []
 
-        def record(group_id, event, payload):
+        def record(group_id, event, payload, **kwargs):
             calls.append((group_id, event))
 
         # The group changes after the queryset was cached, before the delete.
