@@ -252,6 +252,28 @@ describe('BoardMembersModal', () => {
     expect(screen.queryAllByTitle('Remove direct board role')).toHaveLength(0)
   })
 
+  // #1717 — lock keys on a membership-backed row (id !== null) plus the flag.
+  const unlockedBoard = (): BoardFull => ({
+    ...fakeBoard,
+    members: [
+      { id: 1, user: fakeUser, role: 'admin', is_moderator: false, joined_at: '' },
+      { id: null, user: { id: 6, username: 'groupadmin', display_name: 'Group Admin', avatar_url: '' }, role: 'member', is_moderator: false, is_site_admin: true, joined_at: '' },
+      { id: 3, user: { id: 3, username: 'root', display_name: 'Root Admin', avatar_url: '' }, role: 'member', is_moderator: false, is_site_admin: true, joined_at: '' },
+    ],
+  })
+
+  it('leaves a site-admin row with no membership (id null) editable but locks the membership-backed one (#1717)', () => {
+    render(<BoardMembersModal board={unlockedBoard()} onClose={vi.fn()} onMembersChanged={vi.fn()} />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getAllByTitle('Site administrator — role managed at the instance level')).toHaveLength(1)
+  })
+
+  it('shows neither site-admin row locked to a site-admin caller (#1717)', () => {
+    render(<BoardMembersModal board={unlockedBoard()} onClose={vi.fn()} onMembersChanged={vi.fn()} currentUserIsSiteAdmin />)
+    expect(screen.getAllByRole('combobox')).toHaveLength(3)
+    expect(screen.queryByTitle('Site administrator — role managed at the instance level')).toBeNull()
+  })
+
   it('unlocks a site admin member when the caller is a site admin', () => {
     const board: BoardFull = {
       ...fakeBoard,

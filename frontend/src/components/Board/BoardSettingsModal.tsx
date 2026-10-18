@@ -590,13 +590,18 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
               {members.map((m) => {
                 const isRemoving = pendingRemove === m.user.id;
                 const isDisabled = saving === m.user.id;
-                // Lock on the member's real site-admin flag, the same signal
-                // the member endpoints enforce — not on `role`, whose
-                // "site_admin" value reflects all-content access (#1290). When
-                // a row lacks the field (e.g. a frame received before the
-                // viewer became an admin), fall back to the role so the lock
+                // Lock only a membership-backed row (id !== null) that carries the
+                // site-admin signal: the member endpoints refuse a change to an
+                // existing site-admin membership, but accept one for a row with
+                // no membership here (group-inherited, owner, or instance-wide
+                // access) and create the membership (#1717). The signal is the
+                // member's real flag, not `role`, whose "site_admin" value
+                // reflects all-content access (#1290). When a row lacks the
+                // field (e.g. a frame received before the viewer became an
+                // admin), fall back to the role so a membership-backed row
                 // fails closed rather than offering an edit that is refused.
-                const isLocked = (m.is_site_admin ?? m.role === "site_admin") && !currentUserIsSiteAdmin;
+                const isLocked =
+                  m.id !== null && (m.is_site_admin ?? m.role === "site_admin") && !currentUserIsSiteAdmin;
                 const canManage = isAdmin && !isLocked;
                 const canRemove = canManage && m.id !== null;
 
