@@ -4528,7 +4528,24 @@ routes listed below, an id that matches no user, an inactive user, or (for
 removal) an active user with no membership on the target gets the same
 response, status and body. Existing memberships of inactive users stay
 listed and editable; the active-user filter applies when a membership is
-created.</p>
+created. The refusal to modify or remove a site admin's membership (for a
+caller who is not a site admin) applies only to a membership that already
+exists on that board or group; a target with no membership gets the response
+any other target gets, whatever the target's site role (#1706). Adding a site
+admin to a board is therefore an ordinary add: for a caller who is not a site
+admin, the add and update response and the <code>member.added</code> and <code>member.updated</code>
+events it produces (live and in the change feed) omit <code>is_site_admin</code> for every
+target; <code>member.added</code> events from invite redemption keep their documented
+payload, which each subscriber receives according to their role, so a
+site-admin target and an ordinary one have the same shape, and a new direct row
+never lowers a site admin's effective role (when the caller is not a site admin
+and the target is a site admin with no direct row, the stored role is the higher
+of the requested role and the role the user already holds on the board; for any
+other target a direct row keeps its ordinary precedence over a group-inherited
+role). The member list (<code>/full/</code>) keeps its documented flag behavior for board
+admins, and the add itself is visible to board admins and notifies the target.
+The add endpoint re-checks the refusal on the locked membership row, so a
+membership created while a request waited for the board lock is judged too.</p>
 <p>Imports are narrower by design. When an import file names users as assignees,
 the names resolve only against active users the importer can already see: the
 importer, co-members of their boards and groups, and the target group (a site
@@ -4578,17 +4595,17 @@ the status filter and the uniform response, not scope.</p>
 <tr>
 <td>Board member add or role change</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.members</code></td>
-<td>An existing membership is updated as is; a new one requires an active user. Unknown and inactive ids answer the same <code>404</code>. Also checks the submitted <code>role</code> is a string within <code>BoardMembership.Role.values</code></td>
+<td>An existing membership is updated as is (the site-admin refusal applies to it); a new one requires an active user, whatever the user's site role. Unknown and inactive ids answer the same <code>404</code>. Also checks the submitted <code>role</code> is a string within <code>BoardMembership.Role.values</code></td>
 </tr>
 <tr>
 <td>Group member role change</td>
 <td><code>groups/views.py</code> <code>GroupViewSet.update_member</code> (PATCH)</td>
-<td>Same lookup and <code>404</code></td>
+<td>Same lookup and <code>404</code>; the site-admin refusal is evaluated after the membership lookup</td>
 </tr>
 <tr>
 <td>Board and group member removal</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.remove_member</code>; <code>groups/views.py</code> <code>GroupViewSet.update_member</code> (DELETE)</td>
-<td>Resolved through the membership row: no membership answers the same <code>404</code> whatever the id is; an inactive user with a membership can be removed</td>
+<td>Resolved through the membership row: no membership answers the same <code>404</code> whatever the id is, and the site-admin refusal is evaluated after that lookup; an inactive user with a membership can be removed</td>
 </tr>
 <tr>
 <td>MCP</td>
