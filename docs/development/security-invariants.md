@@ -354,7 +354,7 @@ to be a member of the enum.
 **Why.** Role comparisons treat an unknown string as meaningful (a ladder that
 ranks known roles can rank an unknown one anywhere). Validation at the writer
 keeps bad values out; the fail-closed reader bounds the damage of one that
-arrives by any other route, such as a shell write or an older release.
+arrives by any other route, any non-API write.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
@@ -364,7 +364,8 @@ arrives by any other route, such as a shell write or an older release.
 | Group invite links, link and email (REST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`, `GroupInviteLinkEmailSerializer` | A `ChoiceField` over `GroupInviteLink.Role.choices` |
 | Invite redemption at registration | `boards/invites.py` `role_is_grantable`, `_would_create_membership`; `groups/invite_registration.py` `group_link_registration_refusal` | The stored link role must be in the grantable set (`GRANTABLE_ROLES`) or `GroupMembership.Role.values`, else the invite is refused as invalid |
 | Board role resolution (all transports) | `boards/permissions.py` `get_board_role`, `get_board_roles` | A stored board membership role outside `BoardMembership.Role.values` resolves to no access; a stored group role outside `GroupMembership.Role.values` is skipped in the ancestor walk (`_nearest_ancestor_role`); the moderator flag is honored only for an in-enum role |
-| WebSocket (board and group) | `boards/consumers.py` `_lookup_role`; `groups/consumers.py` `_user_can_access_group_id` | Roles come from `get_board_role` and `user_has_group_access`; neither consumer accepts a role from a frame |
+| WebSocket (board) | `boards/consumers.py` `_lookup_role` | The role comes from `get_board_role`; the consumer accepts no role from a frame |
+| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Access is the membership predicate `user_has_group_access`, which reads no role; the consumer accepts no role from a frame |
 | MCP | `mcp_server/tools.py` `_resolve_board` | Roles come from `get_board_role` and `get_board_roles`; no tool writes a membership role |
 
 Coverage: `boards/tests/test_members_role_validation.py` (writer rejection,
@@ -391,7 +392,7 @@ fails closed.
 |---|---|---|
 | WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check |
 | WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
-| MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `get_board_role` and `get_board_roles`, with a missing board and an inaccessible board answered alike (Rule 7) |
+| MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` builds its own visibility queryset, a mirrored copy of `BoardViewSet.get_queryset`; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
 | MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
 | Change feed and board export | `boards/serializers.py` `BoardEventSerializer.to_representation`; `boards/views/import_export.py` `BoardImportExportMixin.export` | Rule 8 rows: per-reader field gating with the reader's role |
 
