@@ -434,9 +434,26 @@ class GroupInviteLink(models.Model):
     # account's addresses. NULL for shareable links and for emailed invites
     # minted before #1678, which redeem as they always have. Never serialized.
     recipient_hash = models.CharField(max_length=64, null=True, blank=True, editable=False)
+    # The account this emailed invite is waiting on (#1704); see
+    # ``BoardInviteLink.reserved_for``. The grant happens in
+    # ``groups.invite_registration.redeem_reserved_group_invites``. Never
+    # serialized.
+    reserved_for = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", db_index=False, editable=False,
+    )
 
     class Meta:
         db_table = "group_invite_links"
+        indexes = [
+            # Serves the confirmation lookup and the SET_NULL update on account
+            # delete. Partial: only invites awaiting a confirmation have a value.
+            models.Index(
+                fields=["reserved_for"],
+                name="group_invite_reserved_for_idx",
+                condition=Q(reserved_for__isnull=False),
+            ),
+        ]
         constraints = [
             # Enforce the invariant that used_at may only be non-null when
             # single_use=True. The application code already respects this,

@@ -1247,7 +1247,10 @@ class InviteRegisterView(RegisterView):
     (``vbnb_``, #1444) from a site admin is also accepted in INVITE_ONLY mode:
     the account is created, joined to the group or board with the invite's
     role, and the invite is consumed, in one transaction. Shareable links are
-    refused — see groups/invite_registration.py and boards/invites.py.
+    refused — see groups/invite_registration.py and boards/invites.py. Under
+    ``EMAIL_VERIFICATION=mandatory`` with the invited address not yet verified,
+    the invite is reserved for the new account instead, and the membership is
+    granted when that address is confirmed (#1704).
 
     In OPEN mode: delegates to the parent RegisterView unchanged.
     In CLOSED mode: adapter.save_user raises PermissionDenied before this runs,

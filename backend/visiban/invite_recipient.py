@@ -30,8 +30,22 @@ Which of the redeemer's addresses count
   an unconfirmed pending address change never does.
 - A new account at registration (``at_registration=True``): the signup
   address (``User.email``) and any verified row the signup created (an OAuth
-  provider may report a verified address). Under ``mandatory`` the new account
-  still has to confirm that address before it can sign in.
+  provider may report a verified address). This decides whether the sign-up
+  may use the invite at all.
+
+When a group or board membership is granted (#1704)
+---------------------------------------------------
+Under ``mandatory``, a group or board invite whose invited address is not yet
+verified on the new account does not grant its membership at registration.
+The invite is reserved for that account (``reserved_for``) and is neither
+consumed nor granted; the membership is granted, and the invite consumed, when
+the account confirms the invited address (``grant_reserved_invites``, an
+allauth ``email_confirmed`` receiver). A sign-up whose provider already
+reports the invited address as verified is granted at registration, as are
+all sign-ups under ``optional`` / ``none`` and unbound invites. A site invite
+admits the account itself and grants no membership; under ``mandatory`` that
+account cannot sign in until it confirms its address, so site invites are
+still consumed at registration.
 
 So the binding is as strong as the site's email verification setting: under
 ``mandatory`` it means "whoever controls the invited mailbox"; under
@@ -156,3 +170,54 @@ def require_recipient(link, user, *, at_registration: bool = False) -> None:
             getattr(link, "prefix", ""), getattr(user, "pk", None),
         )
         raise InviteTokenError(MISMATCH_CODE, MISMATCH_DETAIL)
+
+
+def grant_awaits_verification(link, user) -> bool:
+    """Whether registering ``user`` must reserve ``link`` instead of granting it (#1704).
+
+    True only under ``EMAIL_VERIFICATION=mandatory`` for a bound invite
+    (``recipient_hash`` set) when none of ``user``'s *verified* addresses
+    matches it, i.e. the sign-up address still has to be confirmed. The caller
+    has already checked the sign-up address with ``require_recipient``.
+    """
+    from accounts.email_change import email_verification_mandatory
+
+    if not getattr(link, "recipient_hash", None) or not email_verification_mandatory():
+        return False
+    return not recipient_admits(link, user)
+
+
+def confirmed_address_admits(link, email_address) -> bool:
+    """Whether a just-confirmed ``EmailAddress`` is the one ``link`` was sent to (#1704)."""
+    stored = getattr(link, "recipient_hash", None)
+    if not stored or not getattr(email_address, "verified", False):
+        return False
+    return address_matches(stored, [email_address.email])
+
+
+def grant_reserved_invites(sender, request, email_address, **kwargs):
+    """allauth ``email_confirmed`` receiver: grant the invites waiting on this address (#1704).
+
+    Every confirmation path in allauth (the verify-email endpoint, a
+    verification code, the allauth admin action) sends ``email_confirmed``.
+    Each kind grants under its own locks and claims the invite with a
+    conditional update, so a repeated or concurrent confirmation grants once.
+    A failed grant is logged and never fails the confirmation; the invite
+    stays reserved and its recipient can still use it through the join page.
+    """
+    from boards.invites import redeem_reserved_board_invites
+    from groups.invite_registration import redeem_reserved_group_invites
+
+    user = email_address.user
+    # allauth sends email_confirmed with a plain send(): an exception here
+    # would fail the confirmation request after the address is already
+    # verified, and a retry would not send the signal again. Each kind
+    # isolates its invites as well; this guards the two kinds from each other.
+    for grant in (redeem_reserved_group_invites, redeem_reserved_board_invites):
+        try:
+            grant(user, email_address)
+        except Exception:  # noqa: BLE001 - never fail the confirmation
+            logger.exception(
+                "Reserved invite grant failed at confirmation. kind=%s user_id=%s",
+                grant.__name__, getattr(user, "pk", None),
+            )

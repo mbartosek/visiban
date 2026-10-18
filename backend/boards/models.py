@@ -294,9 +294,30 @@ class BoardInviteLink(models.Model):
     # invites minted before #1678, which redeem as they always have. Never
     # serialized.
     recipient_hash = models.CharField(max_length=64, null=True, blank=True, editable=False)
+    # The account this emailed invite is waiting on (#1704). Under
+    # EMAIL_VERIFICATION=mandatory, registering with the invited address while
+    # it is still unverified records the new account here instead of granting
+    # the membership; the grant happens when that account confirms the invited
+    # address (``boards.invites.redeem_reserved_board_invites``). NULL in every
+    # other case. SET_NULL: deleting the account releases the invite.
+    # db_index=False because the index is declared in Meta.indexes (partial)
+    # and built concurrently in its own migration. Never serialized.
+    reserved_for = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", db_index=False, editable=False,
+    )
 
     class Meta:
         db_table = "board_invite_links"
+        indexes = [
+            # Serves the confirmation lookup and the SET_NULL update on account
+            # delete. Partial: only invites awaiting a confirmation have a value.
+            models.Index(
+                fields=["reserved_for"],
+                name="board_invite_reserved_for_idx",
+                condition=models.Q(reserved_for__isnull=False),
+            ),
+        ]
         constraints = [
             # Same invariant as GroupInviteLink: only a single-use invite can be
             # consumed, so a stamped used_at on a multi-use link (which would
