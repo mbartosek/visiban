@@ -105,8 +105,9 @@ def lock_group_for_board_placement(group_id) -> bool:
     row and only asked for the group at COMMIT deadlocked against it (a 500),
     and a move into a group being deleted failed its foreign key at COMMIT (a
     500). Taking the group first puts both in the delete's group -> board
-    order: a writer behind a delete finds the group gone and answers 404, and
-    a delete behind a writer waits for it to commit and then clears the
+    order: a writer behind a delete finds the group gone and answers 404
+    (move-group, group board create) or the serializer's unknown-group 400
+    (board create, ``PATCH``/``PUT``), and a delete behind a writer waits for it to commit and then clears the
     board's group. ``FOR KEY SHARE`` is the mode the foreign key check takes
     anyway, so it conflicts only with the delete (and other ``FOR UPDATE``
     holders of the group row), not with invite redemptions or other moves.
