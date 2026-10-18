@@ -1198,8 +1198,8 @@ backend-schema-fuzz:
   # DataError instead -- if CI shows a 500 there it is a real finding).
   # A new finding is a real defect, never a flake.
   # Unobserved schemathesis-baseline.json entries are now logged by id
-  # (scripts/fuzz_baseline_unobserved.py, after_script); the prune follows from
-  # the nightly deep run's output once it also lists them: #1582 (not pruned here).
+  # (scripts/fuzz_baseline_unobserved.py, after_script); entries are pruned only
+  # after a deep run also lists them as unobserved (#1582).
   services:
     - name: ${DOCKERHUB_MIRROR}/postgres:17-alpine
       alias: postgres
