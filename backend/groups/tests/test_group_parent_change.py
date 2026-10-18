@@ -376,6 +376,7 @@ class GroupCreateDepthTests(TestCase):
         self.assertEqual(Group.objects.count(), before)
 
     def test_parent_beyond_traversal_depth_is_rejected(self):
+        """A pre-#1690 tree deeper than the cap: refused via the level-count clause."""
         deeper = Group.objects.create(name="Deeper", owner=self.user, parent=self.chain[-1])
         # Direct admin: ancestor admin is not honored past the traversal depth.
         GroupMembership.objects.create(group=deeper, user=self.user, role=ADMIN)

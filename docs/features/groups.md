@@ -2,7 +2,7 @@
 
 > **Added in 1.0**
 
-Groups organize boards and users into a hierarchy. A board can belong to one group; a group can have one parent group. Group trees are walked up to 6 levels deep, and moving a group to a new parent is refused when the result would be deeper than that.
+Groups organize boards and users into a hierarchy. A board can belong to one group; a group can have one parent group. Group trees are walked up to 6 levels deep, and creating a subgroup, or moving a group to a new parent, is refused when the result would be deeper than that.
 
 **Why it matters:** membership and shared settings inherit down the tree, so a manager can onboard a whole team by adding one group instead of every board.
 

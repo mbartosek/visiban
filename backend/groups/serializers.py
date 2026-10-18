@@ -573,6 +573,8 @@ class GroupSerializer(serializers.ModelSerializer):
             # _GROUP_TRAVERSAL_MAX_DEPTH levels deep (or deeper than the walk
             # reaches) leaves no room. Reuses the chain loaded above.
             chain, reached_root = _ancestor_chain(parent)
+            # `not reached_root` is a defensive guard in case the walk cap and
+            # the depth cap ever diverge; today `len(chain) + 1 > cap` covers it.
             if not reached_root or len(chain) + 1 > _GROUP_TRAVERSAL_MAX_DEPTH:
                 raise serializers.ValidationError(
                     f"Groups can be nested at most {_GROUP_TRAVERSAL_MAX_DEPTH} levels deep."
