@@ -58,7 +58,7 @@ Holding the entry columns needs the board row taken first. Column create, swimla
 
 No path may lock a board row after it holds a board invite row in the same transaction: the board delete holds the board row and reaches the invite at its collector `DELETE`, so that order would deadlock against it. Invite revokes hold only the invite row and take no board lock (`BoardEvent.board_id` is a plain integer, not a foreign key).
 
-No SMTP session runs under any of these locks. A mail server with no `EMAIL_TIMEOUT` can hold a send open indefinitely, and every writer queued on the locked row waits with it. The invite-send view sends after its `atomic` block. Invite-only registration (`InviteRegisterView.create`) holds the board and invite rows (or a site or group invite row) across account creation, so allauth's signup confirmation mail is rendered there but sent from `transaction.on_commit` (`accounts/adapter.py` `account_mail_deferred_to_commit`, #1639). A registration that rolls back sends no mail.
+No SMTP session runs under any of these locks. A mail server with no `EMAIL_TIMEOUT` can hold a send open indefinitely, and every writer queued on the locked row waits with it. The invite-send view sends after its `atomic` block. Invite-only registration (`InviteRegisterView.create`) holds the board, group or invite row locks registration takes across account creation, so allauth's signup confirmation mail is rendered there but sent from `transaction.on_commit` (`accounts/adapter.py` `account_mail_deferred_to_commit`, #1639). A registration that rolls back sends no mail. Open-mode registration takes no such lock and still sends inline.
 
 The card admin delete takes no board or column lock: a card delete has no container a card can enter.
 

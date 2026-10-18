@@ -11,9 +11,10 @@ held every writer of that board. The mail is now queued with
 * ``MailNotSentUnderLockTests`` (PostgreSQL): a mail backend probes, from a
   second connection, whether the board and invite rows are still locked at the
   moment the mail is sent. Before the fix both probes found the rows locked.
-* ``InviteRegistrationMailTests`` (every backend): the mail still goes out once
-  on success, a rolled-back registration sends none, and a send failure after
-  the commit leaves the account in place instead of answering 500.
+* ``InviteRegistrationMailTests`` (every backend): for board, site and group
+  invites the mail is queued until the commit and then goes out once, a
+  rolled-back registration sends none, and a send failure after the commit
+  leaves the account in place instead of answering 500.
 """
 
 import threading
@@ -33,6 +34,7 @@ from accounts.invite_utils import InviteTokenError
 from accounts.models import InviteLink, SiteSetting, User
 from boards.models import Board, BoardInviteLink, BoardMembership
 from boards.tests.invite_fixtures import generate_invite
+from groups.models import Group, GroupInviteLink, GroupMembership
 
 PASSWORD = "Sup3rS3cr3t!xyz"
 REGISTER_URL = "/api/v1/auth/registration/"
@@ -163,11 +165,34 @@ class InviteRegistrationMailTests(_BoardInviteMixin, TestCase):
     def test_site_invite_registration_sends_confirmation_after_commit(self):
         creator = User.objects.create_user(username="c1639", password="p", is_site_admin=True)
         _link, raw = InviteLink.generate(created_by=creator)
-        with self.captureOnCommitCallbacks(execute=True):
-            resp = _register(raw, "site1639@example.com")
-        self.assertEqual(resp.status_code, 201, resp.content[:300])
+        self._assert_sent_only_on_commit(raw, "site1639@example.com")
+
+    def test_group_invite_registration_sends_confirmation_after_commit(self):
+        sender = User.objects.create_user(username="g1639", password="p", is_site_admin=True)
+        group = Group.objects.create(name="G1639", owner=sender)
+        GroupMembership.objects.create(group=group, user=sender, role=GroupMembership.Role.ADMIN)
+        _link, raw = generate_invite(
+            GroupInviteLink,
+            group=group,
+            created_by=sender,
+            role=GroupInviteLink.Role.VIEWER,
+            single_use=True,
+            delivery=GroupInviteLink.Delivery.EMAIL,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        self._assert_sent_only_on_commit(raw, "group1639@example.com")
+        self.assertTrue(GroupMembership.objects.filter(group=group, user__email="group1639@example.com").exists())
+
+    def _assert_sent_only_on_commit(self, raw, email):
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            resp = _register(raw, email)
+            self.assertEqual(resp.status_code, 201, resp.content[:300])
+            # Queued, not sent, while the registering transaction is open.
+            self.assertEqual(mail.outbox, [])
+        for callback in callbacks:
+            callback()
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["site1639@example.com"])
+        self.assertEqual(mail.outbox[0].to, [email])
 
     def test_rolled_back_registration_sends_no_mail(self):
         # A redemption refused after the account was created rolls the account

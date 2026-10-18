@@ -185,12 +185,12 @@ def account_mail_deferred_to_commit():
     """Send allauth mail rendered in this block only after the transaction commits (#1639).
 
     Invite-only registration (``InviteRegisterView.create``) creates the account
-    and redeems the invite in one transaction that holds row locks — for a board
-    invite the board row ``FOR NO KEY UPDATE`` then the invite row (#1631), for a
-    group or site invite the invite row. allauth's ``complete_signup`` sends the
-    signup confirmation mail synchronously, inside that transaction, and with
-    ``EMAIL_TIMEOUT`` unset an SMTP round trip has no bound, so every writer of
-    that board (or invite) waited on the mail server. The rule already applied
+    and redeems the invite (site, group or board) in one transaction, holding
+    the board, group or invite row locks registration takes for that kind until
+    it commits. allauth's ``complete_signup`` sent the signup confirmation mail
+    synchronously, inside that transaction, and with ``EMAIL_TIMEOUT`` unset an
+    SMTP round trip has no bound, so every writer queued on those rows waited
+    on the mail server. The rule already applied
     to the invite-send view (``boards/views/invites.py``): an SMTP session never
     runs under a row lock. That view sends after its ``atomic`` block; here the
     transaction belongs to the view decorator around dj-rest-auth's flow, so the
@@ -202,7 +202,9 @@ def account_mail_deferred_to_commit():
 
     A rolled-back registration (a refused redemption, any error) now sends no
     mail at all, where before the mail for an account that was never created
-    had already left.
+    had already left. A send that fails after the commit is logged and the
+    registration still answers 201 (see ``_send_after_commit``); open-mode
+    registration does not use this and still sends inline.
 
     The message is rendered here, where allauth's request context is still
     set; only the SMTP send moves.
@@ -223,7 +225,8 @@ def _send_after_commit(message, template_prefix):
             # The account has committed by now, so a mail failure must not turn
             # into an error response for an account that exists (the caller
             # would retry and be told the username is taken). The user can ask
-            # for the confirmation again. Only the exception class is logged:
+            # for the confirmation again, once allauth's confirm_email cooldown
+            # (which the failed send may already have spent) has passed. Only the exception class is logged:
             # some MTAs echo protocol lines (which can carry credentials) in
             # smtplib's error text — see visiban/mail.py — and the address is PII.
             try:
