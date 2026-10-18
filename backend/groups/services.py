@@ -137,6 +137,12 @@ def lock_group_for_child_write(group_id) -> bool:
     group -> child order: behind a delete it finds the group gone (the caller
     answers 404), and a delete behind it waits and then cascades what it
     wrote. Must run inside ``transaction.atomic()``.
+
+    Callers (and ``lock_group_row``'s) check the caller's admin standing
+    before taking this lock, so a demotion committing in between can still
+    let one write through. Accepted: an invite's sender standing is
+    re-checked at preview and redemption (#1490), so such a write cannot
+    admit anyone the demoted admin could no longer invite.
     """
     return lock_group_for_board_placement(group_id)
 
@@ -147,8 +153,9 @@ def lock_group_row(group_id, *, no_key=True) -> bool:
     For writers that ``UPDATE`` the group row or must serialize against each
     other on it (#1719): the board-defaults ``PATCH``, invite revoke (before
     the invite row, the order redemptions take), and invite link create
-    (``no_key=False``, so two creates serialize on the active-link cap, as
-    the emailed-invite send does). ``FOR NO KEY UPDATE`` is the mode an
+    (``FOR NO KEY UPDATE`` conflicts with itself, so two creates serialize
+    on the active-link cap without blocking ``FOR KEY SHARE`` writers).
+    ``FOR NO KEY UPDATE`` is the mode an
     ``UPDATE`` of a non-key column takes anyway, and it conflicts with the
     group delete's ``FOR UPDATE``, so a writer behind a delete finds the row
     gone instead of updating nothing (a ``save()`` with no ``update_fields``

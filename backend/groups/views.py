@@ -750,15 +750,25 @@ class GroupViewSet(viewsets.ModelViewSet):
             # queued behind a group delete's cascade updated no row and save()
             # inserted the membership again under the deleted group: a 500
             # from the deferred foreign key at COMMIT. It now answers 404, as
-            # does a change whose membership was removed meanwhile.
+            # does a change whose membership was removed meanwhile. The row
+            # is re-read under its lock and only ``role`` is written, so the
+            # instance read before the lock cannot overwrite a concurrent
+            # change. Admin standing was checked before the lock; a demotion
+            # landing in between can let this one change through, accepted
+            # because invite senders' standing is re-checked at preview and
+            # redemption.
             if not lock_group_for_child_write(group.pk):
                 raise NotFound
-            if GroupMembership.objects.select_for_update(no_key=True).filter(
-                pk=membership.pk, group=group,
-            ).values_list("pk", flat=True).first() is None:
+            membership = (
+                GroupMembership.objects.select_for_update(no_key=True, of=("self",))
+                .select_related("user")
+                .filter(pk=membership.pk, group=group)
+                .first()
+            )
+            if membership is None:
                 raise NotFound
             membership.role = role
-            membership.save()
+            membership.save(update_fields=["role"])
             # A demoted admin's links must not linger as active (#1510).
             if role != GroupMembership.Role.ADMIN:
                 _revoke_lapsed_admin_invite_links(target_user, group)
@@ -1188,12 +1198,26 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         from .services import lock_group_row
 
+        # Validated before the lock: a malformed body needs no row lock.
+        create_serializer = GroupInviteLinkCreateSerializer(data=request.data)
+        if not create_serializer.is_valid():
+            return Response(create_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        validated = create_serializer.validated_data
+        expires_at = None
+        if validated["expiry_days"] is not None:
+            expires_at = timezone.now() + datetime.timedelta(days=validated["expiry_days"])
+
         with transaction.atomic():
-            # The group row first (#1719), FOR UPDATE like the emailed-invite
-            # send: a create behind a group delete answers 404 instead of
-            # failing the invite's deferred group foreign key at COMMIT (a
-            # 500), and two creates cannot both read a count of 4 below.
-            if not lock_group_row(group.pk, no_key=False):
+            # The group row first (#1719), FOR NO KEY UPDATE: a create behind
+            # a group delete answers 404 instead of failing the invite's
+            # deferred group foreign key at COMMIT (a 500), and two creates
+            # serialize on it, so they cannot both read a count of 4 below.
+            # It does not block the FOR KEY SHARE writers (labels, star, role
+            # change, board placement). Admin standing was checked before
+            # this lock; a demotion landing in between can let this one
+            # create through, which is accepted because the link's sender
+            # standing is re-checked at preview and redemption (#1490).
+            if not lock_group_row(group.pk):
                 return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
             # POST — create a new invite link (max 5 active per group)
             # Active count excludes consumed single-use links — they are dead weight —
@@ -1209,15 +1233,6 @@ class GroupViewSet(viewsets.ModelViewSet):
                     {"detail": "Maximum of 5 active invite links per group."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-
-            create_serializer = GroupInviteLinkCreateSerializer(data=request.data)
-            if not create_serializer.is_valid():
-                return Response(create_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-            validated = create_serializer.validated_data
-            expires_at = None
-            if validated["expiry_days"] is not None:
-                expires_at = timezone.now() + datetime.timedelta(days=validated["expiry_days"])
 
             link, raw_token = GroupInviteLink.generate(
                 group=group,
