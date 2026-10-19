@@ -171,6 +171,7 @@ Endpoints that return a foreign key as an integer id may also support a nested c
 | `GET /boards/` | `group` | `?expand=group` | `group_detail: null` | `group_detail: { id, name, parent, parent_name, ancestors }` |
 | `GET /boards/<id>/` | `group` | `?expand=group` | `group_detail: null` | `group_detail: { id, name, parent, parent_name, ancestors }` |
 | `GET /boards/<id>/full/` | `group` | `?expand=group` | `group_detail: null` | `group_detail: { id, name, parent, parent_name, ancestors }` |
+| `GET /groups/<id>/boards/` | `group` | `?expand=group` | `group_detail: null` | `group_detail: { id, name, parent, parent_name, ancestors }` |
 
 Multiple expansions may be combined with a comma, e.g. `?expand=group,members`. Unknown values are silently ignored. The original FK id fields (`group`, `group_name`) always remain in the response for backward compatibility.
 

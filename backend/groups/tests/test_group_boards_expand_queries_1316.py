@@ -49,3 +49,28 @@ class GroupBoardsExpandQueryCountTests(TestCase):
         _, data = self._count()
         detail = data[0]["group_detail"]
         self.assertEqual([a["name"] for a in detail["ancestors"]], ["Root", "Mid"])
+        self.assertEqual(detail["parent_name"], "Mid")
+
+    def test_root_group_has_empty_ancestors_and_constant_queries(self):
+        root = Group.objects.get(name="Root")
+        GroupMembership.objects.create(
+            group=root, user=self.owner, role=GroupMembership.Role.MEMBER
+        )
+        url = f"/api/v1/groups/{root.id}/boards/?expand=group"
+
+        def fetch():
+            with CaptureQueriesContext(connection) as ctx:
+                r = self.client.get(url)
+            self.assertEqual(r.status_code, 200)
+            return len(ctx), r.json()
+
+        Board.objects.create(name="R0", owner=self.owner, group=root)
+        small, _ = fetch()
+        for i in range(1, 6):
+            Board.objects.create(name=f"R{i}", owner=self.owner, group=root)
+        large, data = fetch()
+        self.assertEqual(small, large)
+        self.assertEqual(len(data), 6)
+        detail = data[0]["group_detail"]
+        self.assertEqual(detail["ancestors"], [])
+        self.assertIsNone(detail["parent_name"])
