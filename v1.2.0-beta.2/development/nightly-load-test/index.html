@@ -4029,6 +4029,11 @@ postmortem.</p>
 </thead>
 <tbody>
 <tr>
+<td>Board list</td>
+<td><code>GET /api/v1/boards/</code></td>
+<td>Run as the board owner (<code>demo1</code>) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). <strong>No budget yet</strong> (<a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a>)</td>
+</tr>
+<tr>
 <td>Board fetch</td>
 <td><code>GET /api/v1/boards/{id}/full/</code></td>
 <td>Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product</td>
@@ -4071,6 +4076,18 @@ budget.</p>
   see its docstring). The board is named <strong>"Visiban Load Test Board"</strong>, distinct from
   <code>"Visiban Demo Board"</code>, so this job can never collide with or overwrite the
   manual <code>seed-demo-data</code> job's data, in CI or on the shared demo environment.</li>
+<li><strong>20 members</strong> on that board (the 5 demo users plus 15 <code>loadtest*</code> filler accounts with
+  unusable passwords, <code>--scale &gt; 1</code> only). Members x cards is the shape that made the board
+  list's count annotations expensive (two multi-valued joins multiplying, #1723), and a
+  5-member fixture could not expose it; with ~2,400 cards it now exercises that endpoint.
+  <code>GET /api/v1/boards/</code> computes <code>member_count</code> / <code>card_count</code> / <code>archived_card_count</code> as
+  independent correlated subqueries, and the access filter uses an <code>EXISTS</code> membership predicate
+  rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
+  the <code>board_list</code> scenario, as the board owner (<code>demo1</code>, via <code>--owner-token-file</code>) so the
+  20 memberships are on the measured path; every other scenario still runs as <code>demo2</code>. It has
+  <strong>no budget</strong> in <code>backend/nightly-load-test-baseline.json</code> until
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a> adds one, so it is recorded in the
+  results artifact but cannot fail the job (a scenario without a baseline entry is measure-only).</li>
 <li><code>--with-notifications</code> seeds 60 unread <code>Notification</code> rows for the <code>demo2</code> user — more than
   the 50-row cap <code>NotificationListView</code> / <code>NotificationUnreadCountView</code> apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.</li>

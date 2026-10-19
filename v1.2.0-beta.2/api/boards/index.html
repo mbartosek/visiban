@@ -5138,7 +5138,7 @@
 <tr>
 <td><code>member_count</code></td>
 <td>integer</td>
-<td>Number of direct board members</td>
+<td>Number of direct board members. Reported as the true total for every viewer, including non-owner members, on list, retrieve and the <code>board.created</code> / <code>board.updated</code> payloads (before 1.2 a direct member who was not the owner saw <code>1</code> on <code>GET /api/v1/boards/</code>). <code>card_count</code> and <code>archived_card_count</code> are likewise true totals for every viewer.</td>
 </tr>
 <tr>
 <td><code>card_count</code></td>
