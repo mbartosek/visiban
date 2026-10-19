@@ -411,6 +411,12 @@ class BoardViewSet(
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    # Schema only (#1783). Without this both methods inherited the viewset's
+    # serializer: POST documented a required BoardRequest body the view never
+    # reads, and DELETE documented a bodiless 204 although both branches have
+    # always answered 200 with the re-serialized board (so the client can
+    # resync is_starred). The response is unchanged.
+    @extend_schema(request=None, responses={200: BoardSerializer})
     @action(detail=True, methods=["post", "delete"], url_path="star")
     def star(self, request, pk=None):
         """Star or unstar a board for the requesting user."""
@@ -587,6 +593,20 @@ class BoardViewSet(
             )
         return Response(response_data)
 
+    # Schema only (#1783): the view reads `group_id` alone, not a BoardRequest.
+    # Optional because a missing key means the same as null (move to personal).
+    @extend_schema(
+        request=inline_serializer(
+            name="BoardMoveGroup",
+            fields={
+                "group_id": serializers.IntegerField(
+                    required=False, allow_null=True,
+                    help_text="Target group id, or null (or omitted) to make the board personal.",
+                ),
+            },
+        ),
+        responses={200: BoardSerializer},
+    )
     @action(detail=True, methods=["post"], url_path="move-group")
     def move_group(self, request, pk=None):
         """Move a board into a group the requesting user administers (or back to personal)."""
@@ -800,6 +820,10 @@ class BoardViewSet(
     @extend_schema(
         summary="Create a saved filter preset on a board",
         methods=["POST"],
+        # The request is the preset itself ({name, state_json, state_version?}),
+        # not the viewset's BoardRequest it used to inherit (#1783). Schema only:
+        # the view still validates the body by hand, below.
+        request=SavedFilterSerializer,
         responses={201: SavedFilterSerializer},
     )
     # pagination_class=None (#1359): GET returns the user's full preset list as

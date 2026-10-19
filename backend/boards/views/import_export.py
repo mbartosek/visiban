@@ -31,7 +31,7 @@ from rest_framework.exceptions import ParseError
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiTypes
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiParameter, OpenApiResponse, OpenApiTypes
 
 
 from ..models import (
@@ -2474,6 +2474,43 @@ class BoardImportExportMixin:
             status=status.HTTP_201_CREATED,
         )
 
+    # Schema only (#1783). The action is a file download (Content-Disposition:
+    # attachment): CSV by default, the JSON export with ?format=json. Without
+    # this the schema showed the viewset's Board serializer as a JSON body.
+    # The JSON variant is described by its top-level keys; the nested entries
+    # are documented in docs/api/boards.md and keyed by name, not id.
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="format", type=OpenApiTypes.STR, location=OpenApiParameter.QUERY,
+                required=False, enum=["json"],
+                description="`json` for the JSON export; omit for CSV (the default).",
+            ),
+        ],
+        responses={
+            (200, "text/csv"): OpenApiResponse(
+                response=OpenApiTypes.STR,
+                description="CSV export, one row per card (the default).",
+            ),
+            (200, "application/json"): OpenApiResponse(
+                response=inline_serializer(
+                    name="BoardExport",
+                    fields={
+                        "schema_version": drf_serializers.IntegerField(),
+                        "name": drf_serializers.CharField(),
+                        "description": drf_serializers.CharField(),
+                        "columns": drf_serializers.ListField(child=drf_serializers.DictField()),
+                        "swimlanes": drf_serializers.ListField(child=drf_serializers.DictField()),
+                        "labels": drf_serializers.ListField(child=drf_serializers.DictField()),
+                        "custom_fields": drf_serializers.ListField(child=drf_serializers.DictField()),
+                        "swimlane_custom_fields": drf_serializers.ListField(child=drf_serializers.DictField()),
+                        "cards": drf_serializers.ListField(child=drf_serializers.DictField()),
+                    },
+                ),
+                description="JSON export (`?format=json`).",
+            ),
+        },
+    )
     @action(detail=True, methods=["get"], throttle_classes=[BoardExportThrottle])
     def export(self, request, pk=None):
         """Export board data as CSV or JSON. Requires member or admin access."""

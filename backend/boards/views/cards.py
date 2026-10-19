@@ -664,6 +664,9 @@ class CardViewSet(viewsets.ModelViewSet):
         ).data
 
     @extend_schema(
+        # No request body (#1783): the action reads nothing from it. Without
+        # this the schema inherited a required CardRequest body.
+        request=None,
         responses={
             200: CardSerializer,
             404: OpenApiResponse(description="Card was deleted concurrently."),
@@ -699,6 +702,8 @@ class CardViewSet(viewsets.ModelViewSet):
             "the board-admin `?force=true` override all apply (#1428)."
         ),
         parameters=[_FORCE_PARAM],
+        # No request body (#1783): `force` is the query parameter above.
+        request=None,
         responses={
             200: CardSerializer,
             403: _force_denied_response("CardRestorePermissionDenied"),

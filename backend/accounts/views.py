@@ -388,9 +388,15 @@ class CurrentUserView(UsernameChangeThrottleMixin, APIView):
 
     permission_classes = [IsAuthenticated, TokenHasScope]
 
+    # Schema only (#1783): a plain APIView gives drf-spectacular nothing to
+    # infer, so both methods were published with no response body and PATCH
+    # with no request body at all. Both use CurrentUserSerializer, the same
+    # serializer as /auth/user/; PATCH is partial.
+    @extend_schema(responses={200: CurrentUserSerializer})
     def get(self, request):
         return Response(CurrentUserSerializer(request.user, context={"request": request}).data)
 
+    @extend_schema(request=CurrentUserSerializer, responses={200: CurrentUserSerializer})
     def patch(self, request):
         serializer = CurrentUserSerializer(request.user, data=request.data, partial=True,
                                            context={"request": request})
@@ -690,7 +696,24 @@ class ChangePasswordView(APIView):
     def get_throttles(self):
         return [*super().get_throttles(), PasswordChangeThrottle()]
 
-    @extend_schema(responses={200: _PASSWORD_CHANGE_RESPONSE})
+    @extend_schema(
+        # Schema only (#1783): the body was undocumented. The view reads these
+        # two keys by hand; a missing new_password is a 400.
+        request=inline_serializer(
+            name="ChangePassword",
+            fields={
+                "current_password": serializers.CharField(
+                    required=False,
+                    help_text=(
+                        "Required when the account already has a usable password; "
+                        "omitted when setting a first password on a social-only account."
+                    ),
+                ),
+                "new_password": serializers.CharField(),
+            },
+        ),
+        responses={200: _PASSWORD_CHANGE_RESPONSE},
+    )
     def post(self, request):
         body = require_json_object(request)
         current_password = body.get("current_password", "")
@@ -831,6 +854,16 @@ class ChooseUsernameView(APIView):
     permission_classes = [IsAuthenticated, TokenHasScope]
     throttle_classes = [ChooseUsernameThrottle]
 
+    # Schema only (#1783): the body and the response were undocumented. The
+    # view reads `username` by hand (a missing one is a 400) and answers with
+    # the updated user.
+    @extend_schema(
+        request=inline_serializer(
+            name="ChooseUsername",
+            fields={"username": serializers.CharField(max_length=150)},
+        ),
+        responses={200: UserSerializer},
+    )
     def post(self, request):
         username = require_json_object(request).get("username") or ""
         # A non-string username is treated as missing (same 400), not a 500.

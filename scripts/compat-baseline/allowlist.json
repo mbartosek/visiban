@@ -2844,6 +2844,81 @@
    "key": "NEW_REQUIRED_REQUEST_BODY PATCH /api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
    "issue": "#1788",
    "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/star/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "DELETE /api/v1/boards/{id}/star/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/star/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "PATCH /api/v1/groups/{id}/members/{user_id}/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/move-group/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/groups/{id}/transfer-ownership/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "PATCH /api/v1/groups/{id}/board-defaults/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/boards/{id}/saved-filters/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/archive/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/boards/{board_pk}/cards/{id}/unarchive/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/summary/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/analytics/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "GET /api/v1/boards/{id}/export/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/auth/change-password/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/auth/choose-username/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
   }
  ]
 }

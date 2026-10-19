@@ -158,9 +158,11 @@ List group members. Requires group membership.
 ### `PATCH /api/v1/groups/{id}/members/{user_id}/`
 Change a member's role. Requires group admin. Cannot modify the membership of a site admin who is a member of the group. The target must already have a membership in the group (the role of an inactive member can be changed); otherwise the response is the same `404 Not Found` whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member.
 
-**Request** `{ "role": "admin" }`
+**Request** `{ "role": "admin" }` (`role` is required and is the only key read)
 
 Valid roles: `admin`, `member`, `collaborator`, `viewer`
+
+**Response** `200 OK` with the membership `{ "id", "user", "role", "joined_at" }`. Unlike the rows of `GET .../members/`, it carries no `is_inherited` or `inherited_from`.
 
 Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). A non-numeric `{user_id}` in the path is `404`, as before.
 
@@ -399,12 +401,14 @@ Revoke a single invite link. Requires group admin. Works the same for shareable 
 ## Favorites
 
 ### `POST /api/v1/groups/{id}/star/`
-Star (favorite) a group. Requires group membership (any role) — not just authentication.
+Star (favorite) a group. Requires group membership (any role) — not just authentication. Takes no request body.
+
+**Response** `201 Created` with `{ "starred": true }` when the group was not starred yet, `200 OK` with the same body when it already was.
 
 *(1.2+)* A star that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
 
 ### `DELETE /api/v1/groups/{id}/star/`
-Unstar a group. Requires group membership (any role) — not just authentication.
+Unstar a group. Requires group membership (any role) — not just authentication. Returns `204 No Content`.
 
 ### `GET /api/v1/groups/?starred=true`
 List only starred groups for the current user.
@@ -468,7 +472,7 @@ Delete a group shared label. Requires group admin. Does **not** remove the label
 ## Board defaults
 
 ### `PATCH /api/v1/groups/{id}/board-defaults/`
-Update the board defaults for this group. `allowed_priorities` is copied onto boards created in the group; `default_board_member_role` is **deprecated (#1430)**: still accepted and stored, but it has no effect. Requires group admin.
+Update the board defaults for this group. `allowed_priorities` is copied onto boards created in the group; `default_board_member_role` is **deprecated (#1430)**: still accepted and stored, but it has no effect. Requires group admin. Only the two fields below are read; any other key in the body is ignored.
 
 **Patchable fields**
 
