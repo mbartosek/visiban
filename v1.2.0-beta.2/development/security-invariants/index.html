@@ -4227,6 +4227,11 @@ re-checks.</p>
 <td>Role resolved from current membership on every request; an ancestor group listed for navigation but not covered by the predicate is serialized navigation-only (<code>GroupSerializer._NAVIGATION_ONLY_EMPTY</code>); a <code>GroupSerializer</code> with no viewer in its context also renders navigation-only, and full-detail callers opt out with <code>full_group_access</code> (<code>groups/tests/test_group_serializer_context_guard.py</code> requires every construction to pass <code>context</code>)</td>
 </tr>
 <tr>
+<td>REST board list, detail, star, update/destroy and cross-board card query</td>
+<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code> (used by <code>boards/views/boards.py</code> <code>BoardViewSet.get_queryset</code> and <code>boards/views/card_query.py</code> <code>CardQueryViewSet</code>); <code>groups/models.py</code> <code>get_group_ids_for_board_access</code></td>
+<td>Group-derived board access is read from current <code>GroupMembership</code> rows only (the same source as <code>get_board_role</code>, with the same depth reach), so removing a membership ends access</td>
+</tr>
+<tr>
 <td>REST authentication</td>
 <td><code>PATAuthentication</code>; DRF <code>SessionAuthentication</code>, <code>TokenAuthentication</code></td>
 <td>Each checks <code>user.is_active</code> on every request</td>
@@ -4758,7 +4763,7 @@ depend on whether a board id exists.</p>
 <tr>
 <td>Board detail</td>
 <td><code>boards/views/boards.py</code> <code>BoardViewSet.get_queryset</code></td>
-<td>Queryset scoped to accessible boards, so <code>retrieve</code> answers <code>404</code></td>
+<td>Queryset scoped to accessible boards (<code>get_accessible_boards_queryset</code>; a board is in it exactly when <code>get_board_role</code> returns a role), so <code>retrieve</code>, update, destroy and <code>star</code> answer <code>404</code></td>
 </tr>
 <tr>
 <td>Media</td>
@@ -4907,6 +4912,16 @@ arrives by any other route, any non-API write.</p>
 <td>A stored board membership role outside <code>BoardMembership.Role.values</code> resolves to no access; a stored group role outside <code>GroupMembership.Role.values</code> is skipped in the ancestor walk (<code>_nearest_ancestor_role</code>); the moderator flag is honored only for an in-enum role</td>
 </tr>
 <tr>
+<td>Board list and card query scoping</td>
+<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code></td>
+<td>A stored board membership role outside <code>BoardMembership.Role.values</code> admits no board through that membership and, as in <code>get_board_role</code>, is not overridden by group membership; the board owner is admitted regardless</td>
+</tr>
+<tr>
+<td>Group-derived board scoping</td>
+<td><code>groups/models.py</code> <code>get_group_ids_for_board_access</code></td>
+<td>Only group memberships whose stored role is within <code>GroupMembership.Role.values</code> contribute groups</td>
+</tr>
+<tr>
 <td>WebSocket (board)</td>
 <td><code>boards/consumers.py</code> <code>_lookup_role</code></td>
 <td>The role comes from <code>get_board_role</code>; the consumer accepts no role from a frame</td>
@@ -4961,7 +4976,7 @@ fails closed.</p>
 <tr>
 <td>MCP (access)</td>
 <td><code>mcp_server/tools.py</code> <code>_resolve_board</code>, <code>list_boards</code></td>
-<td><code>_resolve_board</code> takes the role from <code>get_board_role</code>, and a missing board and an inaccessible board are answered alike (Rule 7). <code>list_boards</code> builds its own visibility queryset, a mirrored copy of <code>BoardViewSet.get_queryset</code>; the role comes from the shared <code>get_board_roles</code>, and a board with no resolved role is omitted. <code>mcp_server/tests/test_mcp.py</code> covers the listing</td>
+<td><code>_resolve_board</code> takes the role from <code>get_board_role</code>, and a missing board and an inaccessible board are answered alike (Rule 7). <code>list_boards</code> starts from <code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code>, the queryset <code>BoardViewSet.get_queryset</code> uses; the role comes from the shared <code>get_board_roles</code>, and a board with no resolved role is omitted. <code>mcp_server/tests/test_mcp.py</code> covers the listing</td>
 </tr>
 <tr>
 <td>MCP (output)</td>
