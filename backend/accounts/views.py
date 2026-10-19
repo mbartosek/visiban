@@ -1572,6 +1572,12 @@ class SocialSignupRedirectView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [SocialSignupRedirectThrottle]
 
+    # A server-rendered browser redirect, not an API operation: keep it out of
+    # the published OpenAPI schema so the baseline roll at GA doesn't freeze it
+    # as a public contract (#1736). EmailConfirmRedirectView is deliberately NOT
+    # excluded: it has been in the schema since the v1.1.0 baseline, and
+    # dropping it would be a REMOVED_OPERATION compat break.
+    @extend_schema(exclude=True)
     def get(self, request):
         request.session.pop("socialaccount_sociallogin", None)
         frontend_url = getattr(settings, "LOGIN_REDIRECT_URL", None) or "http://localhost:5173"
