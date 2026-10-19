@@ -192,3 +192,17 @@ class RedirectToSignupIntegrationTests(TestCase):
         followed = client.get(response.url)
         self.assertEqual(followed.status_code, 302)
         self.assertIn("auth_error=oauth_failed", followed["Location"])
+
+
+class SocialSignupRedirectSchemaTests(TestCase):
+    """The redirect is a browser flow, not an API operation (#1736)."""
+
+    def test_social_signup_redirect_absent_from_openapi_schema(self):
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+
+        self.assertNotIn("/accounts/3rdparty/signup/", schema["paths"])
+        # Guard: the schema was really generated, and the v1.1.0-baseline
+        # redirect sibling stays published.
+        self.assertIn("/accounts/confirm-email/{key}/", schema["paths"])
