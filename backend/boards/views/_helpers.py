@@ -23,7 +23,7 @@ import datetime
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db.models import Count, IntegerField, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, Exists, IntegerField, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django_filters import DateTimeFilter, NumberFilter
 from drf_spectacular.utils import OpenApiResponse, inline_serializer
@@ -220,6 +220,41 @@ class BoundedDateTimeFilter(DateTimeFilter):
         return built
 
 
+def _count_subquery(model, filt=None):
+    """Correlated ``COUNT(*)`` of ``model`` rows per outer board, 0 when none."""
+    rows = model.objects.filter(board=OuterRef("pk"))
+    if filt is not None:
+        rows = rows.filter(filt)
+    return Coalesce(
+        Subquery(
+            rows.order_by().values("board").annotate(c=Count("*")).values("c"),
+            output_field=IntegerField(),
+        ),
+        0,
+        output_field=IntegerField(),
+    )
+
+
+def annotate_board_counts(qs):
+    """Annotate ``_member_count`` / ``_card_count`` / ``_archived_card_count``.
+
+    Correlated subqueries, not ``Count("memberships") + Count("cards")``: two
+    multi-valued joins in one query multiply (members x cards rows per board
+    before DISTINCT collapses them), so latency scaled with the product on the
+    most-used list endpoint while the query count stayed flat (#1723). Each
+    count is now computed independently. Types are unchanged (non-negative
+    ints, 0 never null for an empty board). Values are now true totals: the old
+    ``Count("memberships")`` was annotated after the access filter on
+    ``memberships__user`` and reused that filtered join, so a user who reached
+    a board only via direct membership saw ``member_count`` 1.
+    """
+    return qs.annotate(
+        _member_count=_count_subquery(BoardMembership),
+        _card_count=_count_subquery(Card, Q(archived_at__isnull=True)),
+        _archived_card_count=_count_subquery(Card, Q(archived_at__isnull=False)),
+    )
+
+
 def get_accessible_boards_queryset(user):
     """Return the Board queryset `user` may access: owned, directly a member of,
     inherited via group ancestry, or — for `can_access_all_content` users — every
@@ -244,11 +279,17 @@ def get_accessible_boards_queryset(user):
 
     if user.can_access_all_content:
         return Board.objects.all()
+    # Direct membership is an Exists() predicate, not ``Q(memberships__user=...)``:
+    # the latter LEFT JOINs board_memberships, which multiplies each board by its
+    # member count (hence the old ``.distinct()``) and made every correlated
+    # count annotation run once per membership row (#1723). Every term here is
+    # now a row-preserving predicate (owner FK, Exists, group FK ``IN``), so a
+    # board can match more than one term without duplicating -- no DISTINCT.
     return Board.objects.filter(
         Q(owner=user) |
-        Q(memberships__user=user) |
+        Exists(BoardMembership.objects.filter(board=OuterRef("pk"), user=user)) |
         Q(group__in=get_group_ids_for_board_access(user))
-    ).distinct()
+    )
 
 
 def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=False):
@@ -359,7 +400,7 @@ def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=F
                     Card.objects.filter(board=OuterRef("pk"), archived_at__isnull=False)
                     .order_by()
                     .values("board")
-                    .annotate(c=Count("pk"))
+                    .annotate(c=Count("*"))
                     .values("c"),
                     output_field=IntegerField(),
                 ),

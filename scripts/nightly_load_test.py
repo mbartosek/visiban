@@ -13,6 +13,7 @@ show up before a customer notices it.
 Covers the endpoints boards/migrations 0030 (trigram GIN search indexes) and
 0045 (activity/comment composite indexes) exist to keep fast as data volume
 grows:
+  - board_list              GET  /api/v1/boards/                    (#1723, no budget yet: #1767)
   - board_full              GET  /api/v1/boards/{id}/full/
   - card_search             GET  /api/v1/cards/?search=...          (0030)
   - card_timeline           GET  /api/v1/boards/{id}/cards/{id}/timeline/  (0045)
@@ -125,6 +126,19 @@ def _self_test():
     if not _check_budget(1000, 1000):
         failures.append("boundary case failed: p95 == budget must be within budget (<=)")
 
+    # --- board_list (#1723) is measured, and a scenario with no baseline entry is
+    # measure-only (budgets.get(name, {}).get("budget_p95_ms") is None) ---
+    eps = _endpoints("http://x", 1, 2)
+    if eps.get("board_list") != "http://x/api/v1/boards/":
+        failures.append("board_list scenario missing from _endpoints()")
+    # run()'s budget branch: no baseline entry => measure-only, never a violation,
+    # even at an absurd p95; an entry over budget is still flagged.
+    if _evaluate_budget("board_list", 10**9, {"board_full": {"budget_p95_ms": 1}}) != (None, None, None):
+        failures.append("a scenario without a baseline entry must be measure-only")
+    _b, _w, _msg = _evaluate_budget("board_full", 2000, {"board_full": {"budget_p95_ms": 1000}})
+    if _w is not False or not _msg:
+        failures.append("_evaluate_budget did not flag an over-budget scenario")
+
     if failures:
         print("SELF-TEST FAILED:", file=sys.stderr)
         for f in failures:
@@ -132,6 +146,37 @@ def _self_test():
         return 1
     print("SELF-TEST OK: percentile calculation and budget comparison both fire correctly.")
     return 0
+
+
+def _evaluate_budget(name, p95, budgets):
+    """Return (budget_ms, within_budget, violation_msg) for one scenario.
+
+    A scenario with no baseline entry (e.g. ``board_list`` until #1767) is
+    measure-only: budget_ms is None and it can never produce a violation.
+    """
+    budget_ms = budgets.get(name, {}).get("budget_p95_ms")
+    if budget_ms is None:
+        return None, None, None
+    within = _check_budget(p95, budget_ms)
+    msg = None if within else f"{name}: p95={p95:.1f}ms exceeds budget {budget_ms}ms"
+    return budget_ms, within, msg
+
+
+def _endpoints(base_url, board_id, sample_card_id):
+    """The measured scenarios, name -> URL.
+
+    ``board_list`` (#1723) has no entry in the baseline file until it gets a
+    budget (#1767); run() treats a scenario with no budget as
+    measure-only (recorded, never a violation), so adding it cannot fail the job.
+    """
+    return {
+        "board_list": f"{base_url}/api/v1/boards/",
+        "board_full": f"{base_url}/api/v1/boards/{board_id}/full/",
+        "card_search": f"{base_url}/api/v1/cards/?search=the",
+        "card_timeline": f"{base_url}/api/v1/boards/{board_id}/cards/{sample_card_id}/timeline/",
+        "notifications_list": f"{base_url}/api/v1/notifications/",
+        "notifications_unread": f"{base_url}/api/v1/notifications/unread-count/",
+    }
 
 
 def _find_board(session, base_url, board_name):
@@ -175,6 +220,16 @@ def run(args):
 
     session = requests.Session()
     session.headers["Authorization"] = f"Token {token}"
+    # board_list measures the member-heavy path, which needs a viewer whose
+    # access query spans the board's many memberships. The default user is a
+    # plain member (only their own membership row is visible to the access
+    # filter), so an optional owner token is used for that scenario alone.
+    sessions = {}
+    if args.owner_token_file:
+        with open(resolve_within(cli_roots(), args.owner_token_file), encoding="utf-8") as fh:
+            owner_session = requests.Session()
+            owner_session.headers["Authorization"] = f"Token {fh.read().strip()}"
+        sessions["board_list"] = owner_session
 
     base_url = args.base_url.rstrip("/")
     _wait_for_url(f"{base_url}/api/health/liveness/", timeout=args.startup_timeout)
@@ -204,13 +259,7 @@ def run(args):
     }
     print(f"Fixture: {fixture}")
 
-    endpoints = {
-        "board_full": f"{base_url}/api/v1/boards/{board_id}/full/",
-        "card_search": f"{base_url}/api/v1/cards/?search=the",
-        "card_timeline": f"{base_url}/api/v1/boards/{board_id}/cards/{sample_card_id}/timeline/",
-        "notifications_list": f"{base_url}/api/v1/notifications/",
-        "notifications_unread": f"{base_url}/api/v1/notifications/unread-count/",
-    }
+    endpoints = _endpoints(base_url, board_id, sample_card_id)
 
     budgets = {}
     if args.budget_file and not args.measure_only:
@@ -221,7 +270,7 @@ def run(args):
     violations = []
     for name, url in endpoints.items():
         print(f"Measuring {name} ({args.iterations} requests, {args.warmup} warmup)...")
-        samples_ms = _time_requests(session, url, args.iterations, args.warmup)
+        samples_ms = _time_requests(sessions.get(name, session), url, args.iterations, args.warmup)
         p50 = _percentile(samples_ms, 50)
         p95 = _percentile(samples_ms, 95)
         p99 = _percentile(samples_ms, 99)
@@ -233,13 +282,12 @@ def run(args):
             "mean_ms": round(statistics.mean(samples_ms), 1),
             "max_ms": round(max(samples_ms), 1),
         }
-        budget_ms = budgets.get(name, {}).get("budget_p95_ms")
+        budget_ms, within_budget, violation = _evaluate_budget(name, p95, budgets)
         if budget_ms is not None:
-            within_budget = _check_budget(p95, budget_ms)
             entry["budget_p95_ms"] = budget_ms
             entry["within_budget"] = within_budget
-            if not within_budget:
-                violations.append(f"{name}: p95={p95:.1f}ms exceeds budget {budget_ms}ms")
+            if violation:
+                violations.append(violation)
         results[name] = entry
         print(f"  p50={entry['p50_ms']}ms p95={entry['p95_ms']}ms p99={entry['p99_ms']}ms"
               + (f" (budget {budget_ms}ms)" if budget_ms is not None else " (no budget — measure-only)"))
@@ -279,6 +327,10 @@ def main():
     # rule — see docs/development/ci-gates.md) can run standalone, with no
     # live server or token file. Presence is validated in run() instead.
     parser.add_argument("--token-file", default=None, help="Path to a raw PAT (see manage.py provision_fuzz_token).")
+    parser.add_argument(
+        "--owner-token-file", default=None,
+        help="Optional PAT for the board OWNER, used only for the board_list scenario (#1723).",
+    )
     parser.add_argument("--board-name", default="Visiban Load Test Board")
     parser.add_argument("--budget-file", default="backend/nightly-load-test-baseline.json")
     parser.add_argument("--output", default="nightly-load-test-results.json")
