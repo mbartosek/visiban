@@ -2177,6 +2177,9 @@ describe('CardDetail', () => {
         await user.keyboard('{Escape}')
         expect(screen.getByText('Move to')).toBeInTheDocument()
         expect(props.onClose).not.toHaveBeenCalled()
+        // The header Move trigger cannot toggle the popover closed either.
+        await user.click(screen.getByRole('button', { name: /Move card to different column or swimlane/ }))
+        expect(screen.getByRole('button', { name: 'Moving anyway…' })).toBeInTheDocument()
         await act(async () => { resolveForce({ ok: true }) })
       })
 

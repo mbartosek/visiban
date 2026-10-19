@@ -907,6 +907,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                   <button
                     ref={moveButtonRef}
                     onClick={() => {
+                      // Inert while the popover's admin override is in flight: toggling
+                      // would close the popover and hide the pending outcome (#1772).
+                      if (moveForcingRef.current) return;
                       setMoveToSeen(true);
                       // Calculate fixed position from the button's viewport rect so the
                       // popover isn't clipped by the panel's overflow-hidden container.
