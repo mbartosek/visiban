@@ -254,19 +254,22 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // changed without re-running when the popover opens or closes.
   const showMovePopoverRef = useRef(showMovePopover);
   showMovePopoverRef.current = showMovePopover;
+  const moveSubmittingRef = useRef(moveSubmitting);
+  moveSubmittingRef.current = moveSubmitting;
   const movePopoverErrorRef = useRef(movePopoverError);
   movePopoverErrorRef.current = movePopoverError;
   useEffect(() => {
     if (lastSeenVersionRef.current === card.version) return;
     lastSeenVersionRef.current = card.version;
     setLocalCard((c) => (c.column === card.column && c.swimlane === card.swimlane ? c : { ...c, column: card.column, swimlane: card.swimlane }));
-    // A failed move whose error is about to vanish with the popover: say so in
-    // the panel. A clean refresh (no error shown) stays silent; an in-flight
-    // own move is not announced either, since its success also bumps the version.
-    if (movePopoverErrorRef.current !== null) {
-      setMoveNotice("This card was changed elsewhere. Its current location is shown.");
-    }
+    // A popover that closes with an error or a half-made selection in it: say
+    // so in the panel. A refresh with the popover closed clears any older
+    // notice instead (its "current location" may be stale). Our own in-flight
+    // move is not announced: its success also bumps the version.
     const wasOpen = showMovePopoverRef.current;
+    const hadError = movePopoverErrorRef.current !== null;
+    const ownMoveInFlight = moveSubmittingRef.current;
+    setMoveNotice(hadError || (wasOpen && !ownMoveInFlight) ? "This card was changed elsewhere. Its current location is shown." : "");
     setShowMovePopover(false);
     setMovePopoverError(null);
     // Closing unmounts the focused control: hand focus back to the Move button,

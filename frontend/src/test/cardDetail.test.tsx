@@ -1543,8 +1543,8 @@ describe('CardDetail', () => {
         rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
 
         await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
-        // A clean refresh (no error was showing) stays silent.
-        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        // Open with a half-made selection and no error: the discarded selection is explained too.
+        expect(screen.getByTestId('move-notice')).toHaveTextContent('This card was changed elsewhere.')
         await openPopover(user)
         const reopened = container.querySelector('[class*="w-64"]')!
         expect(reopened.textContent).toContain('In Progress')
@@ -1587,6 +1587,19 @@ describe('CardDetail', () => {
         const reopened = container.querySelector('[class*="w-64"]')!
         expect(reopened.textContent).toContain('To Do')
         expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('stays silent on a refresh while the popover is closed and clears an older notice', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toHaveTextContent('changed elsewhere'))
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 3 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement())
       })
 
       it('does not move focus on a version bump while the popover is closed', async () => {
