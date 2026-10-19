@@ -4713,7 +4713,7 @@
 <p><strong>Arguments:</strong> <code>board_id</code> (integer, required).</p>
 <p><strong>Returns:</strong> an array of <code>{id, name, position, color, card_count, is_collapsed}</code>, plus <code>contact_email</code> for <code>admin</code>/<code>site_admin</code> callers only — a <code>collaborator</code>/<code>viewer</code> response simply omits that key, matching the same admin-only visibility the web UI already applies to swimlane contact info.</p>
 <h3 id="list_cards"><code>list_cards</code><a class="headerlink" href="#list_cards" title="Permanent link">&para;</a></h3>
-<p>Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Capped at 200 rows, like the REST card list endpoint.</p>
+<p>Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Returns at most 200 cards, with no signal when more match and no way to page past them (tracked in #1762). The REST <code>GET /api/v1/boards/{board_id}/cards/</code> has the same 200-row default but reports the total in <code>X-Total-Count</code> / <code>X-Truncated</code> and pages with <code>limit</code>/<code>offset</code>; use it, or <code>GET /api/v1/boards/{board_id}/full/</code>, when a board may hold more than 200 matching cards.</p>
 <p><strong>Arguments:</strong> <code>board_id</code> (integer, required); <code>column_id</code>, <code>swimlane_id</code> (integers), <code>assignee</code> (username, case-insensitive), <code>priority</code>, <code>label</code> (name) — all optional filters, ANDed together; <code>include_archived</code> (boolean, default <code>false</code>).</p>
 <p><strong>Returns:</strong> an array of <code>{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}</code>. <code>assignee</code> is a <code>{username, display_name}</code> object or <code>null</code> (see <a href="#user-fields">User fields</a>); <code>labels</code> is an array of names; <code>column</code>/<code>swimlane</code> are <code>{id, name}</code> objects so a result can be fed straight into <code>move_card</code>.</p>
 <h3 id="create_card"><code>create_card</code><a class="headerlink" href="#create_card" title="Permanent link">&para;</a></h3>
@@ -4791,7 +4791,7 @@
 <tr>
 <td><code>cards</code></td>
 <td>array</td>
-<td>Same shape as <code>list_cards</code>'s return above, unfiltered and excluding archived cards.</td>
+<td>Same shape as <code>list_cards</code>'s return above, unfiltered and excluding archived cards. Subject to the same 200-card cap as <code>list_cards</code>, with no truncation signal (#1762).</td>
 </tr>
 <tr>
 <td><code>labels</code></td>
