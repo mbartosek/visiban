@@ -684,7 +684,7 @@ When two related numeric inputs belong to the same conceptual setting (e.g. thre
 
 - **Every externally-sourced URL is gated by `isSafeHttpUrl()` (`utils/safeUrl.ts`) before it reaches an `href` or `window.open`.** "Externally sourced" means anything a third party influenced: lens/provider JSON, imports, integration payloads, other API-sourced links. `href` is an XSS sink, so `javascript:`, `data:`, `vbscript:`, relative and garbage values must never be bound; the helper allows `http:`/`https:` only and rejects surrounding whitespace and control characters.
 - **Fail closed, render text.** When the check fails, render the value as plain text (no `<a>`, no `href`) or make the handler a no-op. Never fall back to the raw value, and never show an error for it.
-- **Precedence:** use `isHttpUrl` (`externalRef.ts`: also a length cap, no credentials) where it already applies (card external refs, URL custom fields, extension panel links); `isSafeHttpUrl` is the minimum for everything else. `isHttpUrl` is the stricter check, so either satisfies this rule.
+- **Precedence:** use `isHttpUrl` (`externalRef.ts`: also a length cap, no credentials) where it already applies (card external refs, URL custom fields, extension panel links); `isSafeHttpUrl` is the minimum for everything else. Both enforce http(s) only and no embedded credentials; `isHttpUrl` adds a length cap. Either satisfies this rule.
 - **Exempt:** server-constructed same-origin URLs (attachments, export endpoints, `oauthUrl`) are not externally sourced.
 - A new `<a href={...}>` or `window.open(...)` bound to API data without one of these guards is a review finding.
 
