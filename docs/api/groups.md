@@ -187,6 +187,8 @@ List direct subgroups of this group that are visible to the requesting user. Req
 ### `GET /api/v1/groups/{id}/boards/`
 List boards in this group. Requires group membership.
 
+Pass `?expand=group` to populate `group_detail` on each board (see [Expanding foreign-key fields](index.md#expanding-foreign-key-fields)). *(1.2+)* The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).
+
 ### `POST /api/v1/groups/{id}/boards/`
 
 Create a board in this group. Requires group admin. Boards created here inherit the group's `shared_labels` and `allowed_priorities` automatically. The seeded `allowed_priorities` value is not enforced on cards (see [Field Enforcement](../architecture/field-enforcement.md)).

@@ -873,13 +873,23 @@ class GroupViewSet(viewsets.ModelViewSet):
             from boards.models import BoardFavorite
             from boards.views._helpers import annotate_board_counts
             boards = annotate_board_counts(
-                Board.objects.filter(group=group).select_related("owner")
+                Board.objects.filter(group=group).select_related("owner", "group", "group__parent")
             ).annotate(
                 _is_starred=Exists(
                     BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
                 ),
             )
-            return Response(BoardSerializer(boards, many=True, context={"request": request}).data)
+            # ``?expand=group`` makes BoardSerializer.get_group_detail render a
+            # GroupBriefSerializer per board; every board shares this one group,
+            # so a single bulk ancestor map (same pattern as descendant_boards)
+            # keeps get_ancestors from walking parent pointers per board (#1316).
+            map_ids = {g.pk for g in group.ancestors()} | {group.pk}
+            group_ancestor_map = {
+                g["id"]: {"name": g["name"], "parent_id": g["parent_id"]}
+                for g in Group.objects.filter(pk__in=map_ids).values("id", "name", "parent_id")
+            }
+            context = {"request": request, "group_ancestor_map": group_ancestor_map}
+            return Response(BoardSerializer(boards, many=True, context=context).data)
 
         # POST — create a new board inside this group
         _require_group_admin(request.user, group)
