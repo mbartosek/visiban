@@ -263,7 +263,7 @@ than a Django migration error, means it never got to your schema change at all â
 
 If the migration itself was mid-way through an irreversible operation when it failed (rare,
 since Visiban's rules keep every 1.x migration additive), see
-[Rollback guidance](upgrade.md#rollback-guidance) in the main upgrade page for which
+[Rollback guidance](upgrade.md#rollback-guidance) in the main upgrade page (and its [restore procedure](upgrade.md#restoring-from-backup)) for which
 operations can be reversed with `manage.py migrate <app> <previous_migration>` and which
 require restoring the backup taken in checklist step 4.
 
