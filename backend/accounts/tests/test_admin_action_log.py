@@ -425,10 +425,7 @@ class ActionLogEndpointTests(AuditBaseTest):
 
     def test_anonymous_is_rejected(self):
         r = APIClient().get(ACTION_LOG_URL)
-        self.assertIn(
-            r.status_code,
-            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
-        )
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_action_filter(self):
         self.client.force_authenticate(self.admin)

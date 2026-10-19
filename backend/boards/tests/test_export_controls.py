@@ -288,7 +288,7 @@ class ExportHistoryEndpointTests(TestCase):
 
     def test_unauthenticated_gets_401(self):
         r = APIClient().get(f"/api/v1/boards/{self.board.id}/export-history/")
-        self.assertIn(r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_history_ordered_newest_first(self):
         r = self._get(self.admin)

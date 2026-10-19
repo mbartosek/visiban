@@ -428,11 +428,9 @@ class CardRelationRbacTests(_RelationTestBase):
         r = self._link(self.card_a, self.card_b, client=client)
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_anonymous_gets_401_or_403(self):
+    def test_anonymous_gets_401(self):
         r = self._link(self.card_a, self.card_b, client=APIClient())
-        self.assertIn(
-            r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
-        )
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class CardRelationIdorTests(_RelationTestBase):
@@ -791,9 +789,7 @@ class CardRelationExposureTests(_RelationTestBase):
 
     def test_relations_endpoint_is_not_reachable_anonymously(self):
         r = self.anon.get(self._url(self.card_a))
-        self.assertIn(
-            r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
-        )
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class CardRelationPeerBroadcastQueryCountTests(_RelationTestBase):

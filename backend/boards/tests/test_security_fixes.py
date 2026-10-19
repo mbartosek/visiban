@@ -262,10 +262,10 @@ class ServeMediaContentDispositionTests(TestCase):
         self.assertEqual(r.get("Content-Disposition"), "inline")
         self.assertEqual(r.get("Content-Type"), "image/jpeg")
 
-    def test_unauthenticated_returns_401_or_403(self):
+    def test_unauthenticated_returns_401(self):
         anon = APIClient()
         r = anon.get(f"/media/{self.pdf_attachment.file.name}")
-        self.assertIn(r.status_code, [401, 403])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 # ---------------------------------------------------------------------------

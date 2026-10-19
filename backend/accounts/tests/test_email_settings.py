@@ -213,10 +213,7 @@ class AdminEmailSettingsAPITests(TestCase):
 
     def test_anonymous_cannot_read(self):
         self.client.force_authenticate(None)
-        self.assertIn(
-            self.client.get(SETTINGS_URL).status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(self.client.get(SETTINGS_URL).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_anonymous_cannot_patch(self):
         # IsSiteAdmin gates on is_authenticated for every method, so this is
@@ -225,10 +222,7 @@ class AdminEmailSettingsAPITests(TestCase):
         # failure, and a reader should not have to derive that it is safe.
         self.client.force_authenticate(None)
         response = self.client.patch(SETTINGS_URL, {"host": "evil.example.org"}, format="json")
-        self.assertIn(
-            response.status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(SiteEmailSetting.get().host, "")
 
     def test_non_admin_cannot_send_test(self):

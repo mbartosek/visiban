@@ -338,15 +338,15 @@ class GroupStarUnstarTests(TestCase):
         self.assertFalse(r.json()["is_starred"])
 
     def test_unauthenticated_star_is_rejected(self):
-        """An unauthenticated POST to star/ must return 401 or 403."""
+        """An unauthenticated POST to star/ must return 401."""
         # No force_authenticate — anonymous request.
         r = self.client.post(self._star_url())
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_unauthenticated_unstar_is_rejected(self):
-        """An unauthenticated DELETE to star/ must return 401 or 403."""
+        """An unauthenticated DELETE to star/ must return 401."""
         r = self.client.delete(self._star_url())
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_star_double_post_is_idempotent(self):
         """Two consecutive POST star/ requests must not raise and the second

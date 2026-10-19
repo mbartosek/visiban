@@ -83,7 +83,7 @@ class BoardCreationTests(TestCase):
     def test_unauthenticated_cannot_create_board(self):
         anon_client = APIClient()
         resp = anon_client.post("/api/v1/boards/", {"name": "Anon Board"})
-        self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_sales_pipeline_columns(self):
         """Sales Pipeline template creates the correct 6 columns."""
@@ -286,7 +286,7 @@ class BoardTemplateAPITests(TestCase):
     def test_unauthenticated_cannot_fetch_templates(self):
         anon = APIClient()
         resp = anon.get("/api/v1/boards/templates/")
-        self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_template_response_fields(self):
         resp = self.client.get("/api/v1/boards/templates/")

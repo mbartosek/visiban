@@ -71,7 +71,7 @@ class CardTimelineAccessTests(TestCase):
     def test_unauthenticated_gets_401(self):
         self.client.logout()
         r = self.client.get(self.url)
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class CardTimelineMergeTests(TestCase):

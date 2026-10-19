@@ -71,16 +71,16 @@ class EnableDisableShareTests(TestCase):
 
     def test_member_cannot_enable_sharing(self):
         r = self.member_client.post(self._enable_url())
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED])
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_viewer_cannot_enable_sharing(self):
         r = self.viewer_client.post(self._enable_url())
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED])
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_anonymous_cannot_enable_sharing(self):
         anon = APIClient()
         r = anon.post(self._enable_url())
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_regenerate_returns_new_token(self):
         r1 = self.admin_client.post(self._enable_url())
@@ -106,7 +106,7 @@ class EnableDisableShareTests(TestCase):
     def test_member_cannot_disable_sharing(self):
         self.admin_client.post(self._enable_url())
         r = self.member_client.delete(self._enable_url())
-        self.assertIn(r.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED])
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class PublicBoardEndpointTests(TestCase):

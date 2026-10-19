@@ -26,6 +26,7 @@ from django.core.management import call_command
 from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from boards.broadcast import record_board_event
@@ -642,7 +643,7 @@ class EventsEndpointTests(BoardEventTestBase):
         self.assertEqual(c.get(f"{self.url}?limit=x").status_code, 400)
 
     def test_anonymous_is_rejected(self):
-        self.assertIn(APIClient().get(self.url).status_code, (401, 403))
+        self.assertEqual(APIClient().get(self.url).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_non_member_cannot_read_the_feed(self):
         """404, the same answer /full/ gives — the feed invents no new access rule."""

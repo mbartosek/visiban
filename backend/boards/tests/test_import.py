@@ -340,7 +340,7 @@ class BoardImportJSONTests(TestCase):
             {"file": self._make_json_file(data)},
             format="multipart",
         )
-        self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class BoardImportCSVTests(TestCase):

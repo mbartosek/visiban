@@ -567,7 +567,7 @@ class TrelloImportPermissionTests(TrelloImportBase):
     def test_unauthenticated_rejected(self):
         self.client.force_authenticate(None)
         resp = self.post()
-        self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(Board.objects.count(), 0)
 
     def test_non_member_of_target_group_gets_404(self):

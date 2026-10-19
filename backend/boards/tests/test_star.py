@@ -90,7 +90,7 @@ class BoardStarTests(TestCase):
     def test_star_requires_auth(self):
         anon = APIClient()
         r = anon.post(f"/api/v1/boards/{self.board.id}/star/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     # --- broadcast ---
 

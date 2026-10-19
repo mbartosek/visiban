@@ -30,7 +30,7 @@ class CurrentUserViewTests(TestCase):
     def test_unauthenticated_returns_401(self):
         self.client.force_authenticate(user=None)
         r = self.client.get("/api/v1/auth/me/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_patch_has_completed_tour(self):
         """User can mark the onboarding tour as completed via PATCH /api/auth/me/."""
@@ -415,7 +415,7 @@ class UserSearchViewTests(TestCase):
     def test_unauthenticated_returns_401(self):
         self.client.force_authenticate(user=None)
         r = self.client.get("/api/v1/users/", {"search": "alice"})
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class CurrentUserSerializerWritableFieldsTests(TestCase):

@@ -198,7 +198,7 @@ class ExportPermissionTests(TestCase):
 
     def test_unauthenticated_cannot_export(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/export/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_non_member_cannot_export(self):
         stranger = User.objects.create_user(username="stranger", password="pass")

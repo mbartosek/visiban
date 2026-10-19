@@ -44,7 +44,7 @@ class ChangePasswordPATRevocationTests(APITestCase):
         # Try authenticating with the now-revoked token
         anon = APIClient()
         r = anon.get("/api/v1/auth/me/", HTTP_AUTHORIZATION=f"Token {raw_token}")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_other_users_pats_not_affected(self):
         """Changing one user's password must not revoke another user's PATs."""

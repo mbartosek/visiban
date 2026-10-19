@@ -54,10 +54,7 @@ class UsageEndpointRBACTests(TestCase):
         self.assertEqual(self._get(self.user).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_anonymous_is_denied(self):
-        self.assertIn(
-            self._get().status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(self._get().status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_admin_with_pending_password_change_is_forbidden(self):
         self.admin.must_change_password = True

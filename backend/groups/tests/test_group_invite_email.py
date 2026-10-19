@@ -152,7 +152,7 @@ class GroupInviteEmailTests(TestCase):
     def test_unauthenticated_rejected(self):
         self.client.force_authenticate(None)
         r = self._send()
-        self.assertIn(r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @override_settings(INVITE_EMAIL_ENABLED=False)
     def test_feature_disabled_returns_403_with_code(self):
