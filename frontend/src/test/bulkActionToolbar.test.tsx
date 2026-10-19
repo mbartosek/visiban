@@ -725,6 +725,10 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
     )
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
+})
+
+describe('BulkActionToolbar — partial failure reporting (#1733)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
 
   const renderToolbar = (over: object = {}) => {
     const props = { onCardsUpdated: vi.fn<(cards: Card[]) => void>(), onClearSelection: vi.fn<() => void>(), ...over }
@@ -852,4 +856,22 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
     await user.click(screen.getByText('Archive'))
     expect(await screen.findByText(/could not be archived — a network error occurred/)).toBeInTheDocument()
   })
+
+  it('delete partial failure keeps selection and uses the 403 ownership reason', async () => {
+    const user = userEvent.setup()
+    mockDeleteCard.mockResolvedValueOnce(undefined).mockRejectedValueOnce(axiosErr(403))
+    const onCardsDeleted = vi.fn()
+    const onClearSelection = vi.fn()
+    render(
+      <BulkActionToolbar board={makeBoard()} selectedCardIds={new Set([100, 101])} onCardsUpdated={vi.fn()}
+        onCardsDeleted={onCardsDeleted} onCardsArchived={vi.fn()} onClearSelection={onClearSelection} />
+    )
+    await user.click(screen.getByText('Delete'))
+    const deleteButtons = screen.getAllByText('Delete')
+    await user.click(deleteButtons[deleteButtons.length - 1])
+    expect(await screen.findByText(/1 of 2 cards could not be deleted — you can only delete cards you created\./)).toBeInTheDocument()
+    expect(onCardsDeleted).toHaveBeenCalledWith([100])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
 })
+
