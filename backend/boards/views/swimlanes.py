@@ -80,6 +80,22 @@ def _require_live_swimlane_definitions(field_pairs):
         })
 
 
+# _set_collapsed_impl reads only is_collapsed (#1788); without this the schema
+# documented the full swimlane body. Admin-only, so the response is always the
+# admin serializer. Schema-only: no runtime effect.
+_SET_COLLAPSED_SCHEMA = extend_schema(
+    request=inline_serializer(
+        name="SwimlaneSetCollapsedRequest",
+        fields={
+            "is_collapsed": serializers.BooleanField(
+                help_text="The default collapsed state for every board member. Must be a boolean."
+            ),
+        },
+    ),
+    responses=SwimlaneAdminSerializer,
+)
+
+
 @extend_schema_view(
     destroy=extend_schema(responses={204: None, 409: CONTAINER_CHANGED_409}),
 )
@@ -100,14 +116,14 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
     ]
 
     def get_serializer_class(self):
-        # Admin and site_admin members see contact_email and notes; all others get the
-        # public serializer which omits those fields to prevent viewer-role PII exposure.
         if getattr(self, "swagger_fake_view", False):
             # drf-spectacular has no request or board_pk (#1788). Without this
             # the lookup below raised KeyError and the schema lost every
             # swimlane request body. Writes are admin-only, so the admin
             # serializer is the one whose fields the write bodies document.
             return SwimlaneAdminSerializer
+        # Admin and site_admin members see contact_email and notes; all others get the
+        # public serializer which omits those fields to prevent viewer-role PII exposure.
         _, role = self._board_and_role()
         if role in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             return SwimlaneAdminSerializer
@@ -258,6 +274,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_SWIMLANE_DELETED, {"swimlane_uid": swimlane_uid}, actor_id=self.request.user.id)
 
+    @_SET_COLLAPSED_SCHEMA
     @action(detail=True, methods=["patch"], url_path="set-collapsed")
     def set_collapsed_kebab(self, request, board_pk=None, pk=None):
         """Canonical kebab-case alias for the swimlane is_collapsed toggle (#816).
@@ -269,6 +286,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         """
         return self._set_collapsed_impl(request, pk)
 
+    @_SET_COLLAPSED_SCHEMA
     @action(detail=True, methods=["patch"], url_path="set_collapsed")
     def set_collapsed(self, request, board_pk=None, pk=None):
         """Deprecated snake_case alias for ``set-collapsed`` (#816).
