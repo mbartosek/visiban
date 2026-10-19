@@ -1253,8 +1253,8 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
 
 !!! warning "Column and swimlane `reorder/` now require the board's full `order` list"
     In 1.1, `POST /api/v1/boards/{id}/columns/reorder/` and `.../swimlanes/reorder/` read
-    `order` with a default of an empty list, so a missing or partial `order` was a `200` no-op
-    or a partial apply. Since 1.2 (#1302), `order` must be exactly the board's current column
+    `order` with a default of an empty list, so a missing or partial `order` was a `200` no-op,
+    a partial apply, or (columns) a `500` from a `unique_together(board, position)` collision. Since 1.2 (#1302), `order` must be exactly the board's current column
     (or swimlane) IDs: every one once, no duplicates, and no ID from another board. A missing
     or partial `order`, a duplicate or foreign ID, a non-integer entry, or an empty list on a
     board that has columns (or swimlanes) returns `400` with a body such as
@@ -1265,6 +1265,19 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     already sends the full list and is unaffected. See
     [Columns API](../api/boards.md#post-apiv1boardsidcolumnsreorder) and
     [Swimlanes API](../api/boards.md#post-apiv1boardsidswimlanesreorder).
+
+!!! warning "`PATCH`/`PUT` can no longer change `position`"
+    Since 1.2, a `PATCH` or `PUT` on a card, column, or swimlane that changes `position`
+    returns `400` instead of silently applying it (#1275), and so does a `PATCH` on a checklist
+    item (#1292). The old behavior bypassed the WIP and weight limits, the card movement audit
+    trail, and the reorder broadcast, which only the dedicated endpoints evaluate. A request
+    that echoes the current `position` back unchanged (for example a full-object round-trip)
+    is still accepted. Scripts that reorder this way must switch to
+    `POST .../cards/{id}/move/` for cards, `POST .../columns/reorder/` or
+    `POST .../swimlanes/reorder/` for columns and swimlanes, and
+    `POST .../cards/{id}/checklist/reorder/` for checklist items. See the
+    [Columns API](../api/boards.md#columns), the [Swimlanes API](../api/boards.md#swimlanes),
+    and the [checklist item reference](../api/cards.md).
 
 ### Upgrading to 1.1.x
 
