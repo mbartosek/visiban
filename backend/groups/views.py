@@ -1109,7 +1109,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         This endpoint answers the question "what boards live anywhere inside this group
         subtree?" — including boards in deeply nested subgroups.  It powers the GroupDetail
-        page's board list and the sidebar's auto-expand logic for deeply nested boards.
+        page's subgroup-boards list (frontend/src/pages/GroupDetail.tsx via getGroupDescendantBoards).
         See ``_descendant_boards_queryset`` for how the visible set is computed.
         """
         from boards.serializers import BoardSerializer

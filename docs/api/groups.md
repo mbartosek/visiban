@@ -211,7 +211,7 @@ List all boards in this group and all of its descendant subgroups that the reque
 
 **Response** — array of board summary objects (same shape as `GET /api/v1/groups/{id}/boards/`). Each board's `group_detail` is always populated with a `GroupBrief` payload including the `ancestors` chain, so callers can render a full relative breadcrumb without an extra request (#845). `ancestors` is root-first and does **not** include the board's direct parent group — that name is in `group_name`.
 
-**Errors:** `403 Forbidden` if the caller is not a group member; `404 Not Found` if the group does not exist.
+**Errors:** `404 Not Found` if the group does not exist or the caller cannot see it; `403 Forbidden` if the caller sees the group only as [navigation-only](#ancestor-groups-navigation-only) (a member of a descendant subgroup, not of this group or an ancestor).
 
 This endpoint is never paginated: it returns the whole subtree in one array, and `offset` / `page_size` in the query string are ignored. For a root group in a large organization that can be every board the caller can see; use the paged variant below to fetch it in bounded pages.
 
@@ -250,7 +250,7 @@ A client that needs an exact snapshot should de-duplicate by `id`, and re-read f
 
 Fetch the next page with `offset + page_size` until it reaches `count`.
 
-**Errors:** the same as `GET /api/v1/groups/{id}/descendant-boards/`.
+**Errors:** the same as `GET /api/v1/groups/{id}/descendant-boards/`: `404 Not Found` if the group does not exist or the caller cannot see it; `403 Forbidden` for a navigation-only caller.
 
 ---
 
