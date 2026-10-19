@@ -5410,6 +5410,36 @@ pending forced password change on success (#1259). The Visiban web app does not 
 endpoint and is unaffected. See
 <a href="../../api/authentication/#post-apiv1authpasswordchange">Authentication API</a>.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Column and swimlane <code>reorder/</code> now require the board's full <code>order</code> list</p>
+<p>In 1.1, <code>POST /api/v1/boards/{id}/columns/reorder/</code> and <code>.../swimlanes/reorder/</code> read
+<code>order</code> with a default of an empty list, so a missing or partial <code>order</code> was a <code>200</code> no-op,
+a partial apply, or (columns) a <code>500</code> from a <code>unique_together(board, position)</code> collision. Since 1.2 (#1302), <code>order</code> must be exactly the board's current column
+(or swimlane) IDs: every one once, no duplicates, and no ID from another board. A missing
+or partial <code>order</code>, a duplicate or foreign ID, a non-integer entry, or an empty list on a
+board that has columns (or swimlanes) returns <code>400</code> with a body such as
+<code>{"order": ["order must contain exactly this board's column IDs, no more and no fewer."]}</code>,
+and nothing is changed. An empty <code>order</code> is accepted only when the board has none of that
+resource. Any script or integration that sends a partial or empty <code>order</code> must now <code>GET</code>
+the board's current IDs and send the complete list in the new order. The Visiban web app
+already sends the full list and is unaffected. See
+<a href="../../api/boards/#post-apiv1boardsidcolumnsreorder">Columns API</a> and
+<a href="../../api/boards/#post-apiv1boardsidswimlanesreorder">Swimlanes API</a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title"><code>PATCH</code>/<code>PUT</code> can no longer change <code>position</code></p>
+<p>Since 1.2, a <code>PATCH</code> or <code>PUT</code> on a card, column, or swimlane that changes <code>position</code>
+returns <code>400</code> instead of silently applying it (#1275), and so does a <code>PATCH</code> on a checklist
+item (#1292). The old behavior bypassed the WIP and weight limits, the card movement audit
+trail, and the reorder broadcast, which only the dedicated endpoints evaluate. A request
+that echoes the current <code>position</code> back unchanged (for example a full-object round-trip)
+is still accepted. Scripts that reorder this way must switch to
+<code>POST .../cards/{id}/move/</code> for cards, <code>POST .../columns/reorder/</code> or
+<code>POST .../swimlanes/reorder/</code> for columns and swimlanes, and
+<code>POST .../cards/{id}/checklist/reorder/</code> for checklist items. See the
+<a href="../../api/boards/#columns">Columns API</a>, the <a href="../../api/boards/#swimlanes">Swimlanes API</a>,
+and the <a href="../../api/cards/">checklist item reference</a>.</p>
+</div>
 <h3 id="upgrading-to-11x">Upgrading to 1.1.x<a class="headerlink" href="#upgrading-to-11x" title="Permanent link">&para;</a></h3>
 <div class="admonition warning">
 <p class="admonition-title">Removed env-var aliases — rename before upgrading</p>
