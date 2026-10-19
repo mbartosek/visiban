@@ -20,6 +20,14 @@ const weightError: MoveBlockedError = {
 }
 
 describe('MoveBlockedToast', () => {
+  it('words the version-conflict body for both drag and detail-panel moves (#1773)', () => {
+    render(
+      <MoveBlockedToast error={{ code: 'version_conflict', detail: 'x' }} isAdmin={false} onForce={vi.fn()} onDismiss={vi.fn()} />
+    )
+    expect(screen.getByText(/This card was modified by another user\. The board has been refreshed\./)).toBeInTheDocument()
+    expect(screen.queryByText(/dragging/)).not.toBeInTheDocument()
+  })
+
   it('renders WIP limit title and body', () => {
     render(
       <MoveBlockedToast error={wipError} isAdmin={false} onForce={vi.fn()} onDismiss={vi.fn()} />

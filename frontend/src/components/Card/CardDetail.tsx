@@ -185,6 +185,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   const [moveTargetSwimlane, setMoveTargetSwimlane] = useState<number | null>(null);
   const [moveSubmitting, setMoveSubmitting] = useState(false);
   const [movePopoverError, setMovePopoverError] = useState<string | null>(null);
+  // Shown in the panel header (always-mounted status line) when a refresh
+  // replaced the card out from under a failed move, because the popover that
+  // showed the failure closes with it (#1773).
+  const [moveNotice, setMoveNotice] = useState("");
   const [moveToSeen, setMoveToSeen] = useMoveToSeenPref();
 
   useEffect(() => {
@@ -246,17 +250,34 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // move. Only the location is synced into localCard: the rest can hold
   // in-progress edits that a board refresh must not clobber.
   const lastSeenVersionRef = useRef(card.version);
+  // Read through refs so the effect sees the state at the moment the version
+  // changed without re-running when the popover opens or closes.
+  const showMovePopoverRef = useRef(showMovePopover);
+  showMovePopoverRef.current = showMovePopover;
+  const movePopoverErrorRef = useRef(movePopoverError);
+  movePopoverErrorRef.current = movePopoverError;
   useEffect(() => {
     if (lastSeenVersionRef.current === card.version) return;
     lastSeenVersionRef.current = card.version;
     setLocalCard((c) => (c.column === card.column && c.swimlane === card.swimlane ? c : { ...c, column: card.column, swimlane: card.swimlane }));
+    // A failed move whose error is about to vanish with the popover: say so in
+    // the panel. A clean refresh (no error shown) stays silent; an in-flight
+    // own move is not announced either, since its success also bumps the version.
+    if (movePopoverErrorRef.current !== null) {
+      setMoveNotice("This card was changed elsewhere. Its current location is shown.");
+    }
+    const wasOpen = showMovePopoverRef.current;
     setShowMovePopover(false);
     setMovePopoverError(null);
-    // Closing unmounts the focused control: hand focus back to the Move button
-    // unless the user has moved on to another field.
-    const active = document.activeElement;
-    if (!active || active === document.body || movePopoverRef.current?.contains(active)) {
-      moveButtonRef.current?.focus();
+    // Closing unmounts the focused control: hand focus back to the Move button,
+    // but only when the popover was open and focus was inside it (or lost to
+    // body). A version bump while the popover is closed (e.g. the user's own
+    // title save) must never move focus.
+    if (wasOpen) {
+      const active = document.activeElement;
+      if (!active || active === document.body || movePopoverRef.current?.contains(active)) {
+        moveButtonRef.current?.focus();
+      }
     }
   }, [card.version, card.column, card.swimlane]);
 
@@ -323,6 +344,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     }
     setMoveSubmitting(true);
     setMovePopoverError(null);
+    setMoveNotice("");
     try {
       // position 9999 appends the card to the end of the target cell.
       // useBoard.moveCard never rejects; it reports failure in its result. Only
@@ -743,6 +765,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setMoveTargetColumn(localCard.column);
                       setMoveTargetSwimlane(localCard.swimlane);
                       setMovePopoverError(null);
+                      setMoveNotice("");
                       setShowMovePopover((v) => !v);
                     }}
                     // On coarse pointers (touch) this is the non-drag way to move a card,
@@ -763,6 +786,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                   </div>
                 </div>
               )}
+            </div>
+            {/* Always mounted, takes no space while empty; text swapped inside so it is announced (#1773). */}
+            <div role="status" aria-live="polite" aria-atomic="true" data-testid="move-notice">
+              {moveNotice && <p className="text-xs text-warning mt-1 px-1">{moveNotice}</p>}
             </div>
           </div>
           <button

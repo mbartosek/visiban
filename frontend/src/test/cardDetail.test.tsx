@@ -1516,8 +1516,12 @@ describe('CardDetail', () => {
 
         await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
         expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
+        // The failure message went with the popover, so the panel says why.
+        expect(screen.getByTestId('move-notice')).toHaveAttribute('role', 'status')
+        expect(screen.getByTestId('move-notice')).toHaveTextContent('This card was changed elsewhere. Its current location is shown.')
         // localCard follows the refreshed card: reopening seeds the targets from it.
         await openPopover(user)
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement() // cleared on the next open
         expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
         const reopened = container.querySelector('[class*="w-64"]')!
         expect(reopened.textContent).toContain('In Progress')
@@ -1539,13 +1543,15 @@ describe('CardDetail', () => {
         rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
 
         await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        // A clean refresh (no error was showing) stays silent.
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
         await openPopover(user)
         const reopened = container.querySelector('[class*="w-64"]')!
         expect(reopened.textContent).toContain('In Progress')
         expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
       })
 
-      it('leaves the popover open when the card prop is re-delivered unchanged', async () => {
+      it('leaves the popover open when the card changes without a version bump (title and column only)', async () => {
         const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
         const board = makeBoardWithTwoCols()
         const props = defaultProps()
@@ -1554,6 +1560,82 @@ describe('CardDetail', () => {
         await openPopover(user)
         rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'Renamed locally', column: 11 })} />)
         expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('leaves the popover open when the identical card is re-delivered', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard()} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('resets the popover on a version bump that leaves the location unchanged', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        await openPopover(user)
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('To Do')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('does not move focus on a version bump while the popover is closed', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        expect(document.body).toHaveFocus()
+        // e.g. the user's own title save returns through onUpdated.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        expect(screen.getByRole('button', { name: /Move card to different column or swimlane/ })).not.toHaveFocus()
+        expect(document.body).toHaveFocus()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('clears the notice when the next move starts', async () => {
+        const conflict = { ok: false, error: axiosFailure(409, { code: 'version_conflict' }) }
+        const onMoveCard = vi.fn().mockResolvedValueOnce(conflict).mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const pick = async () => {
+          const popover = container.querySelector('[class*="w-64"]')!
+          await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+          await user.click(screen.getByText('In Progress'))
+          await user.click(screen.getByRole('button', { name: 'Move' }))
+        }
+        await openPopover(user)
+        await pick()
+        await waitFor(() => expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument())
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toHaveTextContent('This card was changed elsewhere. Its current location is shown.'))
+        await openPopover(user)
+        await pick()
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('does not steal focus from another field on a version bump', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const title = screen.getByDisplayValue('Test Card')
+        title.focus()
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        expect(title).toHaveFocus()
       })
 
       it('keeps the inline error when its own failed move is rolled back (location changes, version does not)', async () => {
