@@ -77,6 +77,20 @@ class ImportUserScopeTests(TestCase):
         self.assertEqual(CardMovement.objects.get(card=card).moved_by, self.importer)
         self.assertEqual(CardActivity.objects.get(card=card).actor, self.importer)
 
+    def test_group_peers_require_importer_group_membership(self):
+        # Group co-members are visible through the importer's own membership
+        # in that group, not through other group attributes.
+        from boards.services.trello_import import visible_users
+
+        group = Group.objects.create(name="Owned", owner=self.importer)
+        GroupMembership.objects.create(group=group, user=self.hidden, role=GroupMembership.Role.MEMBER)
+        self.assertNotIn(self.hidden, visible_users(self.importer))
+        card = Card.objects.get(board=self._import(_payload(assignee="hidden")))
+        self.assertIsNone(card.assignee)
+
+        GroupMembership.objects.create(group=group, user=self.importer, role=GroupMembership.Role.ADMIN)
+        self.assertIn(self.hidden, visible_users(self.importer))
+
     def test_unseen_user_and_nonexistent_user_get_the_same_result(self):
         a = Card.objects.get(board=self._import(_payload(assignee="hidden")))
         b = Card.objects.get(board=self._import(_payload(assignee="no-such-user")))

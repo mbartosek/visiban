@@ -95,6 +95,7 @@ re-checks.
 | Surface | Entry point | Enforced via |
 |---|---|---|
 | REST | `boards/permissions.py` `get_board_role`; `groups/models.py` `user_has_group_access` (group endpoints), `group_access_resolver` (its bulk form, used by `GroupSerializer` for the group list and retrieve) | Role resolved from current membership on every request; an ancestor group listed for navigation but not covered by the predicate is serialized navigation-only (`GroupSerializer._NAVIGATION_ONLY_EMPTY`); a `GroupSerializer` with no viewer in its context also renders navigation-only, and full-detail callers opt out with `full_group_access` (`groups/tests/test_group_serializer_context_guard.py` requires every construction to pass `context`) |
+| REST board list, detail, star, update/destroy and cross-board card query | `boards/views/_helpers.py` `get_accessible_boards_queryset` (used by `boards/views/boards.py` `BoardViewSet.get_queryset` and `boards/views/card_query.py` `CardQueryViewSet`); `groups/models.py` `get_group_ids_for_board_access` | Group-derived board access is read from current `GroupMembership` rows only (the same source as `get_board_role`, with the same depth reach), so removing a membership ends access |
 | REST authentication | `PATAuthentication`; DRF `SessionAuthentication`, `TokenAuthentication` | Each checks `user.is_active` on every request |
 | Login and session issuance | `accounts/views.py` `ThrottledLoginView`; `accounts/backends.py` `EmailBackend` | `user_can_authenticate` refuses inactive users at login; allauth `respond_user_inactive` handles existing social accounts |
 | Personal access tokens and DRF auth token | `accounts/admin_views.py` `AdminUserDeactivateView._revoke_invite_links` | Deletes the user's PATs and DRF auth `Token` (`accounts/credentials.py` `revoke_auth_token`); invoked by `AdminUserDeactivateView.post` and by `AdminUserDetailView.patch` when `is_active` becomes false |
@@ -308,7 +309,7 @@ depend on whether a board id exists.
 | Surface | Entry point | Enforced via |
 |---|---|---|
 | Nested REST routes (members, cards, columns, swimlanes, labels, custom fields, analytics, export, invites, git lens) | `boards/views/_helpers.py` `get_board_for_user` | Raises `404` when the board is missing or the caller has no role on it; callers raise `403` for an insufficient role afterward |
-| Board detail | `boards/views/boards.py` `BoardViewSet.get_queryset` | Queryset scoped to accessible boards, so `retrieve` answers `404` |
+| Board detail | `boards/views/boards.py` `BoardViewSet.get_queryset` | Queryset scoped to accessible boards (`get_accessible_boards_queryset`; a board is in it exactly when `get_board_role` returns a role), so `retrieve`, update, destroy and `star` answer `404` |
 | Media | `boards/views/media.py` `ServeMediaView` | `404` for a non-member |
 | MCP | `mcp_server/tools.py` | `404`-equivalent not-found result for inaccessible boards |
 
@@ -390,6 +391,8 @@ arrives by any other route, any non-API write.
 | Group invite links, link and email (REST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`, `GroupInviteLinkEmailSerializer` | A `ChoiceField` over `GroupInviteLink.Role.choices` |
 | Invite redemption at registration | `boards/invites.py` `role_is_grantable`, `_would_create_membership`; `groups/invite_registration.py` `group_link_registration_refusal` | The stored link role must be in the grantable set (`GRANTABLE_ROLES`) or `GroupMembership.Role.values`, else the invite is refused as invalid |
 | Board role resolution (all transports) | `boards/permissions.py` `get_board_role`, `get_board_roles` | A stored board membership role outside `BoardMembership.Role.values` resolves to no access; a stored group role outside `GroupMembership.Role.values` is skipped in the ancestor walk (`_nearest_ancestor_role`); the moderator flag is honored only for an in-enum role |
+| Board list and card query scoping | `boards/views/_helpers.py` `get_accessible_boards_queryset` | A stored board membership role outside `BoardMembership.Role.values` admits no board through that membership and, as in `get_board_role`, is not overridden by group membership; the board owner is admitted regardless |
+| Group-derived board scoping | `groups/models.py` `get_group_ids_for_board_access` | Only group memberships whose stored role is within `GroupMembership.Role.values` contribute groups |
 | WebSocket (board) | `boards/consumers.py` `_lookup_role` | The role comes from `get_board_role`; the consumer accepts no role from a frame |
 | WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Access is the membership predicate `user_has_group_access`, which reads no role; the consumer accepts no role from a frame |
 | MCP | `mcp_server/tools.py` `_resolve_board` | Roles come from `get_board_role` and `get_board_roles`; no tool writes a membership role |
@@ -418,7 +421,7 @@ fails closed.
 |---|---|---|
 | WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check |
 | WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
-| MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` builds its own visibility queryset, a mirrored copy of `BoardViewSet.get_queryset`; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
+| MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` starts from `boards/views/_helpers.py` `get_accessible_boards_queryset`, the queryset `BoardViewSet.get_queryset` uses; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
 | MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
 | Change feed and board export | `boards/serializers.py` `BoardEventSerializer.to_representation`; `boards/views/import_export.py` `BoardImportExportMixin.export` | Rule 8 rows: per-reader field gating with the reader's role |
 

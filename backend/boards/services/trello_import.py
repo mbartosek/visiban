@@ -589,7 +589,6 @@ def visible_users(user, group=None):
         Q(pk=user.pk)
         | Q(memberships__board_id__in=my_boards)
         | Q(group_memberships__group_id__in=my_groups)
-        | Q(group_memberships__group__owner=user)
     )
     if group is not None:
         q |= Q(group_memberships__group=group) | Q(pk=group.owner_id)

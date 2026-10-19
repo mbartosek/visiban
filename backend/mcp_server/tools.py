@@ -49,7 +49,7 @@ from boards.services.errors import (
     BoardNotFound, CardNotFound, CardServiceError,
 )
 from boards.utils import _get_assignable_member_ids
-from groups.models import get_accessible_group_ids
+from boards.views._helpers import get_accessible_boards_queryset
 
 from .context import get_current_user
 
@@ -77,10 +77,10 @@ def _serialize_board(board, role):
 def list_boards():
     """Return every board the authenticated MCP caller can access.
 
-    The access rule deliberately mirrors ``BoardViewSet.get_queryset()``
-    exactly — ownership, direct membership, group-inherited access, and the
-    site-admin bypass — rather than the narrower "has a BoardMembership row"
-    reading. A board a user can open in the web UI but which the tool omits
+    The access rule is ``BoardViewSet.get_queryset()``'s, taken from the same
+    shared ``get_accessible_boards_queryset()`` — ownership, direct membership,
+    group-inherited access, and the site-admin bypass — rather than the
+    narrower "has a BoardMembership row" reading. A board a user can open in the web UI but which the tool omits
     would be silently invisible to an AI agent acting on their behalf, which is
     a correctness bug, not a conservative default.
 
@@ -91,14 +91,7 @@ def list_boards():
     """
     user = get_current_user()
 
-    if user.can_access_all_content:
-        qs = Board.objects.all()
-    else:
-        qs = Board.objects.filter(
-            Q(owner=user) |
-            Q(memberships__user=user) |
-            Q(group__in=get_accessible_group_ids(user))
-        ).distinct()
+    qs = get_accessible_boards_queryset(user)
 
     # distinct=True on every Count is load-bearing, not defensive. columns,
     # swimlanes and cards are three INDEPENDENT one-to-many children of Board,
@@ -127,11 +120,10 @@ def list_boards():
     for board in boards:
         role = roles[board.id]
         if role is None:
-            # Reachable for a board whose group is an *ancestor* of one the
-            # user belongs to: get_accessible_group_ids() includes ancestors so
-            # the sidebar tree can be navigated, but they confer no role. Such a
-            # board is not really readable, so omit it rather than report a
-            # null role.
+            # Defense in depth: get_accessible_boards_queryset() admits a board
+            # exactly when get_board_role() returns a role, so this should not
+            # occur. If the two ever disagree, the role resolver wins and the
+            # board is omitted rather than reported with a null role.
             continue
         results.append(_serialize_board(board, role))
     return results
