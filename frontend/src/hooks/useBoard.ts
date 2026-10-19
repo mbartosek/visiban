@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBoardFull, patchBoard as apiPatchBoard, reorderColumns as apiReorderColumns, reorderSwimlanes as apiReorderSwimlanes, deleteSwimlane as apiDeleteSwimlane, deleteColumn as apiDeleteColumn } from "../api/boards";
 import { moveCard as apiMoveCard } from "../api/cards";
+import { failureReason } from "../utils/moveFailure";
 import type { BoardFull, BoardMembership, Card, EffectiveBoardMember, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
 
 /** Result of useBoard.moveCard: it never rejects, so callers must check `ok`. */
@@ -13,7 +14,10 @@ export type MoveBlockedError =
   | { code: "weight_limit_exceeded"; column_name: string; current_weight: number; weight_limit: number; card_weight: number }
   | { code: "version_conflict"; detail: string; current_version: number }
   | { code: "permission_denied"; detail: string }
-  | { code: "maintenance_mode"; detail: string };
+  | { code: "maintenance_mode"; detail: string }
+  // Any other failure (network, 5xx, 404, unrecognized 409/503): without this the
+  // card snaps back with no explanation (#1761).
+  | { code: "move_failed"; detail: string };
 
 interface PendingMove {
   cardId: number;
@@ -168,10 +172,11 @@ export function useBoard() {
       // Roll back the optimistic update unconditionally.
       setBoard((b) => b ? { ...b, cards: prev } : b);
       // On 409, surface a structured error for the UI to display.
+      let surfaced = false;
       const axiosErr = err as { response?: { status?: number; data?: unknown } };
       if (axiosErr?.response?.status === 403) {
         const data = axiosErr.response.data as { code?: string; detail?: string };
-        setMoveError({ code: "permission_denied", detail: data?.detail ?? "You do not have permission to move this card." });
+        surfaced = true; setMoveError({ code: "permission_denied", detail: data?.detail ?? "You do not have permission to move this card." });
       } else if (axiosErr?.response?.status === 404) {
         // The card or board is gone, or access to the board was lost: a
         // caller with no access gets 404, not 403. Reload so the board either
@@ -185,21 +190,26 @@ export function useBoard() {
         // vanishes.
         const data = axiosErr.response.data as { code?: string; detail?: string };
         if (data?.code === "maintenance_mode") {
-          setMoveError({ code: "maintenance_mode", detail: data.detail ?? "Maintenance mode is active." });
+          surfaced = true; setMoveError({ code: "maintenance_mode", detail: data.detail ?? "Maintenance mode is active." });
         }
       } else if (axiosErr?.response?.status === 409) {
         const data = axiosErr.response.data as MoveBlockedError;
         if (data?.code === "version_conflict") {
           // Another user modified this card — reload the board to get fresh state.
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
           load();
         } else if (data?.code === "wip_limit_exceeded" || data?.code === "weight_limit_exceeded") {
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
           setPendingMove({ cardId, columnId, swimlaneId, position });
         } else if (data?.code === "wip_hard_blocked") {
           // Hard-blocked moves have no retry path — never set pendingMove.
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
         }
+      }
+      // Every failure gets a visible message; the branches above only cover the
+      // limit/permission/maintenance/conflict codes (#1761).
+      if (!surfaced) {
+        setMoveError({ code: "move_failed", detail: `The card was not moved — ${failureReason(err)}.` });
       }
       // Surface the failure to the caller (#1761). Drag-and-drop ignores it;
       // CardDetail uses it to roll back its local copy and name the cause.
