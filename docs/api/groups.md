@@ -105,7 +105,7 @@ Get group details.
 | `shared_labels` | `[]` |
 | `allowed_priorities` | `[]` |
 
-`id`, `name`, `parent`, `parent_name`, `owner`, `created_at`, `default_board_member_role`, `is_starred` and (on retrieve) `ancestors` are returned as for a member. `default_board_member_role` is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. `owner` (public profile fields only, no email) is returned because clients require it; an ancestor's owner is normally also a member there, but an owner whose membership was removed is still named. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read `navigation_only` to tell withheld values from real zeros. This matches the nested routes, which already answer `403` to such a user (`/members/`, `/boards/`, `/subgroups/`, `/labels/`, `/descendant-boards/`, `/star/`), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.
+`id`, `name`, `parent`, `parent_name`, `owner`, `created_at`, `default_board_member_role`, `is_starred` and (on retrieve) `ancestors` are returned as for a member. `default_board_member_role` is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. `owner` (public profile fields only, no email) is returned because clients require it; an ancestor's owner is normally also a member there, but an owner whose membership was removed is still named. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read `navigation_only` to tell withheld values from real zeros. This matches the nested routes, which already answer `403` to such a user (`/members/`, `/boards/`, `/subgroups/`, `/labels/`, `/descendant-boards/`, `/descendant-boards/paged/`, `/star/`), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.
 
 **Backward compatibility:** before 1.2 these fields carried the ancestor's real values for this role; no key was removed or retyped.
 
@@ -226,7 +226,14 @@ This endpoint is never paginated: it returns the whole subtree in one array, and
 | `offset` | Zero-based row offset (default `0`). An invalid or negative value is treated as `0`. |
 | `page_size` | Rows per page (default `50`, max `200`). An invalid, zero or negative value uses the default; a larger value is capped at `200`. |
 
-Boards are ordered by `id`, oldest first. The order never changes when a board is edited, and a board created during a walk is added at the end, so a client paging with `offset` neither misses a board nor sees it twice. A board deleted during a walk shifts later rows back by one, as with every offset-paginated endpoint.
+Boards are ordered by `id`, oldest first. Editing a board in place (its name, description or settings) does not change its position, and a board created in the subtree during a walk is added at the end. Neither moves the boards already returned.
+
+Other changes during a walk do shift the window, as with every offset-paginated endpoint:
+
+- **Rows added before the current offset:** a board moved into the subtree (a `PATCH` of its `group`, or `POST /api/v1/boards/{id}/move-group/`), a subgroup re-parented into the subtree, or a newly granted membership that makes more of the subtree visible. These can insert earlier rows, so a board already returned can appear again on the next page.
+- **Rows removed before the current offset:** a board deleted or moved out of the subtree, or access removed. These shift later rows back, so the next page can skip a board.
+
+A client that needs an exact snapshot should de-duplicate by `id`, and re-read from `offset=0` if `count` changes between pages.
 
 **Response** — the standard `{count, offset, page_size, results}` envelope (the same shape as every other paginated endpoint), where `results` is an array of board objects:
 

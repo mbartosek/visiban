@@ -1133,8 +1133,11 @@ class GroupViewSet(viewsets.ModelViewSet):
         description=(
             "Same board set and per-board shape as "
             "`GET /api/v1/groups/{id}/descendant-boards/`, returned in pages. "
-            "Ordered by board `id` ascending, so a board created or edited while "
-            "a client walks the pages never shifts the boards already returned."
+            "Ordered by board `id` ascending: an in-place edit does not move a board, "
+            "and a board created in the subtree during a walk is appended at the end. "
+            "A board moved into the subtree, a subgroup re-parented into it, or a newly "
+            "granted membership can insert earlier rows (a later row may repeat on the "
+            "next page); a deletion, a move out, or removed access can skip a row."
         ),
         responses=_BoardSerializer(many=True),
     )
@@ -1157,8 +1160,10 @@ class GroupViewSet(viewsets.ModelViewSet):
         so no page can reach a board the full list would not return. Ordering
         is by ``id`` rather than ``Board.Meta.ordering`` (``-updated_at``):
         offset pagination over a key that changes on every edit would move a
-        board between pages mid-walk, duplicating or skipping it, while new
-        boards only ever append at the end of an ascending ``id`` order.
+        board between pages mid-walk, duplicating or skipping it, while boards
+        created in the subtree append at the end of an ascending ``id`` order.
+        Moves into or out of the subtree and access changes still shift the
+        window, as with any offset pagination (docs/api/groups.md).
         """
         from boards.serializers import BoardSerializer
 
