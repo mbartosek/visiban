@@ -588,30 +588,30 @@ _LIST_CARDS_MAX_ROWS = 200
 
 
 def _parse_paging(limit, offset):
-    """Validate list_cards ``limit``/``offset`` exactly as REST's card list does.
+    """Validate list_cards ``limit``/``offset`` like REST's ``_parse_card_list_param``.
 
     Strict on purpose (a bad value is a clean ``validation_error``, never a
-    500 or a silently-ignored param): non-integers and negatives are rejected;
-    ``limit`` above the cap is clamped, not rejected, since asking for more
-    than the cap is a reasonable request.
+    500 or a silently-ignored param): negatives are rejected. As in REST,
+    ``limit`` is clamped to the cap BEFORE any range check, so an oversized
+    limit is a reasonable request, not an error, while an ``offset`` above
+    ``MAX_OFFSET`` is rejected. Over the MCP transport the tool's input schema
+    has already coerced the argument to an int (or rejected it); the
+    non-int branch only guards direct Python callers.
     """
     errors = {}
     values = {}
     for name, raw, default in (("limit", limit, _LIST_CARDS_MAX_ROWS), ("offset", offset, 0)):
         if raw is None:
             values[name] = default
-        # bool is an int subclass; True/False is never a meaningful page size.
-        elif isinstance(raw, bool) or not isinstance(raw, int):
+        elif not isinstance(raw, int) or raw < 0:
             errors[name] = ["Must be a non-negative integer."]
-        elif raw < 0:
-            errors[name] = ["Must be a non-negative integer."]
-        elif raw > MAX_OFFSET:
-            errors[name] = ["Must be a valid integer offset."]
         else:
-            values[name] = raw
+            values[name] = min(raw, _LIST_CARDS_MAX_ROWS) if name == "limit" else raw
+            if values[name] > MAX_OFFSET:
+                errors[name] = ["Must be a valid integer offset."]
     if errors:
         raise ValidationFailed(errors)
-    return min(values["limit"], _LIST_CARDS_MAX_ROWS), values["offset"]
+    return values["limit"], values["offset"]
 
 
 def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,
@@ -889,10 +889,12 @@ def archive_card(*, card_id):
 # ---------------------------------------------------------------------------
 
 def board_snapshot(*, board_id):
-    """Full read-only board snapshot for the ``board://{board_id}`` MCP resource.
+    """Read-only board snapshot (at most 200 active cards) for ``board://{board_id}``.
 
-    Equivalent in content to ``GET /api/v1/boards/{id}/full/``
-    (``BoardFullSerializer``), but deliberately NOT built from that
+    Similar in content to ``GET /api/v1/boards/{id}/full/``
+    (``BoardFullSerializer``) except that ``cards`` lists at most 200 active
+    cards (``/full/`` has no cap); ``cards_total``/``cards_truncated`` flag a
+    partial list (#1762). Deliberately NOT built from that
     serializer. Composed instead from ``_columns_payload``/
     ``_swimlanes_payload``/``_cards_page`` — the same query logic
     ``list_columns``/``list_swimlanes``/``list_cards`` already use and are

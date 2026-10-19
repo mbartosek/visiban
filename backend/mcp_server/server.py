@@ -38,7 +38,9 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
+from mcp.server.mcpserver.utilities.func_metadata import _convert_to_content
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp_types import CallToolResult, TextContent
 from pydantic import Field
 
 from accounts.models import SCOPE_MCP_WRITE, get_maintenance_message, get_maintenance_state
@@ -312,9 +314,11 @@ def build_mcp_server():
             "List a board's cards, optionally filtered by column_id, swimlane_id, assignee "
             "(username), priority, or label (name); include_archived defaults to false. "
             "Users are identified by username and display_name, matching the REST API. "
-            "Returns at most 200 cards: pass include_meta=true to get "
-            "{cards, total, truncated, limit, offset} instead of a bare array, "
-            "and limit (max 200) / offset to page past the cap."
+            "Returns at most 200 cards as an array. When more match, the result "
+            "carries an extra text block (\"Showing N of M cards; call again with "
+            "offset=K\") and _meta {\"visiban/total\", \"visiban/truncated\"}; page "
+            "with limit (max 200) / offset. include_meta=true returns "
+            "{cards, total, truncated, limit, offset} instead of an array."
         ),
     )
     @_throttled(compute=True)
@@ -329,12 +333,36 @@ def build_mcp_server():
         limit: int | None = None,
         offset: int | None = None,
         include_meta: bool = False,
-    ) -> _TOOL_OUTPUT:
-        return await sync_to_async(tools.list_cards, thread_sensitive=True)(
+    ) -> Annotated[CallToolResult, _TOOL_OUTPUT]:
+        # Ask tools for the meta envelope always, then shape it here: a bare
+        # array has nowhere to carry a truncation signal, so a truncated plain
+        # call is signaled in-band (extra text block + _meta) while its
+        # structuredContent stays the unchanged {"result": [...]} (#1762).
+        # An untruncated call returns the plain list, which the SDK renders
+        # byte-identically to before.
+        out = await sync_to_async(tools.list_cards, thread_sensitive=True)(
             board_id=board_id, column_id=column_id, swimlane_id=swimlane_id,
             assignee=assignee, priority=priority, label=label,
             include_archived=include_archived, limit=limit, offset=offset,
-            include_meta=include_meta,
+            include_meta=True,
+        )
+        if "error" in out or include_meta:
+            # An error payload, or the explicit envelope: pass through unchanged.
+            return out
+        rows = out["cards"]
+        if not out["truncated"]:
+            return rows
+        shown, total = len(rows), out["total"]
+        # Same per-card rendering the SDK applies to a returned list, so the
+        # existing blocks match the untruncated format exactly.
+        content = _convert_to_content(rows) + [TextContent(
+            type="text",
+            text=f"Showing {shown} of {total} cards; call again with offset={out['offset'] + shown}",
+        )]
+        return CallToolResult(
+            content=content,
+            structured_content={"result": rows},
+            meta={"visiban/total": total, "visiban/truncated": True},
         )
 
     # ── Resources (#513) — board:// and card://, all board roles ──
@@ -353,10 +381,12 @@ def build_mcp_server():
         name="board",
         mime_type="application/json",
         description=(
-            "Full read-only board snapshot: metadata, columns, swimlanes, "
-            "active cards, and labels — equivalent to list_columns + "
-            "list_swimlanes + list_cards in one read. All board roles may "
-            "read it."
+            "Read-only board snapshot: metadata, columns, swimlanes, up to 200 "
+            "active cards, and labels — like list_columns + list_swimlanes + "
+            "list_cards in one read. If the board has more than 200 active "
+            "cards, cards_truncated is true and cards_total gives the real "
+            "count; fetch the rest with list_cards (limit/offset). All board "
+            "roles may read it."
         ),
     )
     @_throttled(compute=True, as_resource=True)

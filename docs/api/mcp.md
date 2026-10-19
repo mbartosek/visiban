@@ -332,15 +332,15 @@ Lists a board's swimlanes, ordered by position. All board roles may call it.
 
 ### `list_cards`
 
-Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. A call returns at most 200 cards. By default the result is a bare array, which has no room for a truncation signal, so a result of exactly 200 rows may be incomplete: pass `include_meta: true` to learn the real `total` and whether the result was `truncated`, and page past the cap with `limit`/`offset`. These mirror the REST `GET /api/v1/boards/{board_id}/cards/` endpoint's `X-Total-Count` / `X-Truncated` headers and `limit`/`offset` query params, with the same bounds and the same card ordering.
+Lists a board's cards, ordered by column then swimlane then position (ties broken by id, so paging is stable). All board roles may call it. A call returns at most 200 cards. When more cards match than were returned, the result says so in-band: the array is unchanged, but the result's content gains one extra text block, `Showing N of M cards; call again with offset=K`, and its `_meta` carries `{"visiban/total": M, "visiban/truncated": true}`. A complete result has neither. Page past the cap with `limit`/`offset`. Pass `include_meta: true` to get the total and flag in the returned data itself. These mirror the REST `GET /api/v1/boards/{board_id}/cards/` endpoint's `X-Total-Count` / `X-Truncated` headers and `limit`/`offset` query params, with the same bounds and the same card ordering.
 
-**Arguments:** `board_id` (integer, required); `column_id`, `swimlane_id` (integers), `assignee` (username, case-insensitive), `priority`, `label` (name) — all optional filters, ANDed together; `include_archived` (boolean, default `false`); `limit` (integer, default and maximum `200`; a larger value is clamped to `200`); `offset` (integer, default `0`); `include_meta` (boolean, default `false`). A negative or oversized `limit`/`offset` returns a `validation_error` and a non-integer value is rejected by the tool's input schema; nothing is silently ignored.
+**Arguments:** `board_id` (integer, required); `column_id`, `swimlane_id` (integers), `assignee` (username, case-insensitive), `priority`, `label` (name) — all optional filters, ANDed together; `include_archived` (boolean, default `false`); `limit` (integer, default and maximum `200`; a larger value is clamped to `200`, as in REST); `offset` (integer, default `0`); `include_meta` (boolean, default `false`). A negative `limit`/`offset`, or an `offset` above 2^62, returns a `validation_error`. The tool's input schema coerces numeric strings and whole numbers (`"5"`, `5.0`) to integers and rejects anything else (`"abc"`, `5.5`) with an `isError` result; nothing is silently ignored.
 
 *Changed in 1.2: `limit`, `offset` and `include_meta` are new and optional; a call that omits them behaves exactly as before (#1762).*
 
 **Returns:** by default, an array of `{id, title, description, priority, assignee, labels, column, swimlane, due_date, position, created_at, updated_at}`. `assignee` is a `{username, display_name}` object or `null` (see [User fields](#user-fields)); `labels` is an array of names; `column`/`swimlane` are `{id, name}` objects so a result can be fed straight into `move_card`.
 
-With `include_meta: true`, an object instead: `{cards, total, truncated, limit, offset}`. `cards` is the same array described above; `total` is the number of cards matching the filters, ignoring `limit`/`offset`; `truncated` is `true` when more matching cards exist after the returned ones (fetch them with a larger `offset`); `limit` and `offset` echo the values applied.
+With `include_meta: true`, an object instead (and no in-band notice, since the data carries the signal): `{cards, total, truncated, limit, offset}`. `cards` is the same array described above; `total` is the number of cards matching the filters, ignoring `limit`/`offset`; `truncated` is `true` when more matching cards exist after the returned ones (fetch them with a larger `offset`); `limit` and `offset` echo the values applied.
 
 ### `create_card`
 
@@ -390,7 +390,7 @@ Like every other endpoint under `/mcp`, reading a resource requires the `mcp:rea
 
 ### `board://{board_id}`
 
-A full read-only board snapshot: metadata, columns, swimlanes, active cards, and labels — equivalent to calling `list_columns` + `list_swimlanes` + `list_cards` and merging the results, but resolves and authorizes the board once instead of three times. All board roles may read it. Mime type `application/json`.
+A read-only board snapshot: metadata, columns, swimlanes, up to 200 active cards, and labels — like calling `list_columns` + `list_swimlanes` + `list_cards` and merging the results (unlike `GET /api/v1/boards/{id}/full/`, the card list is capped at 200), but resolves and authorizes the board once instead of three times. All board roles may read it. Mime type `application/json`.
 
 **Returns:**
 

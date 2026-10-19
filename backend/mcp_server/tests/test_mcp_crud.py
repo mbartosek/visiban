@@ -229,6 +229,89 @@ class ListCardsPagingTests(CrudToolsTestCase):
             for i in range(n)
         ])
 
+    def test_truncated_default_call_signals_in_band(self):
+        self._seed(205)
+        result = self._raw_call()
+        self.assertEqual(len(result["structuredContent"]["result"]), 200)
+        texts = [c["text"] for c in result["content"]]
+        self.assertEqual(len(texts), 201)  # 200 per-card blocks + the notice
+        self.assertEqual(texts[-1], "Showing 200 of 205 cards; call again with offset=200")
+        self.assertEqual(
+            result["_meta"], {"visiban/total": 205, "visiban/truncated": True},
+        )
+        # The per-card blocks keep the SDK's list rendering (indent=2 JSON).
+        import pydantic_core
+        first = result["structuredContent"]["result"][0]
+        self.assertEqual(texts[0], pydantic_core.to_json(first, indent=2).decode())
+
+    def test_untruncated_default_call_has_no_notice_or_meta(self):
+        self._seed(3)
+        result = self._raw_call()
+        self.assertEqual(len(result["content"]), 3)
+        self.assertEqual(len(result["structuredContent"]["result"]), 3)
+        self.assertNotIn("_meta", result)
+        self.assertFalse(any("Showing" in c["text"] for c in result["content"]))
+
+    def test_output_schema_is_unchanged_by_the_calltoolresult_annotation(self):
+        status, body = self.client_.post(
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, token=self.raw_token,
+        )
+        self.assertEqual(status, 200)
+        tools = {t["name"]: t for t in _parse_sse(body)["result"]["tools"]}
+        # list_columns still uses the plain list|dict annotation.
+        strip = lambda schema: {k: v for k, v in schema.items() if k != "title"}  # noqa: E731 - title is per-tool
+        self.assertEqual(
+            strip(tools["list_cards"]["outputSchema"]), strip(tools["list_columns"]["outputSchema"]),
+        )
+
+    def test_exactly_cap_is_not_flagged_truncated(self):
+        self._seed(200)
+        result = self._raw_call()
+        self.assertEqual(len(result["content"]), 200)
+        self.assertNotIn("_meta", result)
+
+    def test_notice_next_offset_follows_offset_and_limit(self):
+        self._seed(30)
+        result = self._raw_call(limit=5, offset=10)
+        self.assertEqual(
+            result["content"][-1]["text"], "Showing 5 of 30 cards; call again with offset=15",
+        )
+        self.assertEqual(result["_meta"]["visiban/total"], 30)
+
+    def test_include_meta_has_no_in_band_notice(self):
+        self._seed(205)
+        result = self._raw_call(include_meta=True)
+        self.assertNotIn("_meta", result)
+        self.assertEqual(result["structuredContent"]["result"]["total"], 205)
+        self.assertFalse(any(c["text"].startswith("Showing") for c in result["content"]))
+
+    def test_id_tiebreaker_orders_ties_and_pages_without_gap(self):
+        # Identical column/swimlane/position: only `id` makes the order total.
+        self._seed_ties = Card.objects.bulk_create([
+            Card(board=self.board, column=self.column, swimlane=self.swimlane,
+                 title=f"T{i}", position=0, created_by=self.user)
+            for i in range(7)
+        ])
+        expected = sorted(Card.objects.filter(board=self.board).values_list("id", flat=True))
+        got = []
+        for offset in (0, 3, 6):
+            page = self._call(
+                "list_cards", self.raw_token, board_id=self.board.id,
+                include_meta=True, limit=3, offset=offset,
+            )
+            got += [c["id"] for c in page["cards"]]
+        self.assertEqual(got, expected)
+
+    def test_numeric_string_args_are_coerced_by_the_schema(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit="2")
+        self.assertEqual(len(result["cards"]), 2)
+
+    def test_huge_limit_is_clamped_not_rejected(self):
+        self._seed(2)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=2**63)
+        self.assertEqual((result["limit"], len(result["cards"])), (200, 2))
+
     def _raw_call(self, **arguments):
         status, body = self._tools_call("list_cards", self.raw_token, {"board_id": self.board.id, **arguments})
         self.assertEqual(status, 200, body)
