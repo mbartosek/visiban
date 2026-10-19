@@ -24,7 +24,7 @@ import CreateBoardModal from "../components/Board/CreateBoardModal";
 import ImportBoardModal from "../components/Board/ImportBoardModal";
 import TrelloImportModal from "../components/Board/TrelloImportModal";
 import { importBoard } from "../api/boards";
-import type { Board, Group, GroupMembership, ImportOptions, Priority, User } from "../types";
+import type { Board, BoardEventPayload, Group, GroupMembership, ImportOptions, Priority, User } from "../types";
 import { hasImportSkips } from "../utils/importSummary";
 import SelectDropdown from "../components/Common/SelectDropdown";
 import Spinner from "../components/Common/Spinner";
@@ -208,13 +208,13 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
     const data = evt.data as { id?: number; board_id?: number; board_uid?: string } & Record<string, unknown>;
     if (evt.event === "board.created") {
       // is_starred is the creator's value (#1559); this subscriber has not starred it.
-      const incoming = neutralizePerUserBoardFields(data as unknown as Board);
+      const incoming = neutralizePerUserBoardFields(data as unknown as BoardEventPayload);
       if (typeof incoming.id !== "number") return;
       setBoards((prev) => (prev.some((b) => b.id === incoming.id) ? prev : [...prev, incoming]));
       flagAnimate(incoming.id);
     } else if (evt.event === "board.updated") {
       // is_starred is the acting user's value (#1559); keep the local one.
-      const incoming = stripPerUserBoardFields(data as unknown as Board) as Partial<Board> & { id: number };
+      const incoming = stripPerUserBoardFields(data as unknown as BoardEventPayload) as Partial<Board> & { id: number };
       if (typeof incoming.id !== "number") return;
       setBoards((prev) => {
         const exists = prev.some((b) => b.id === incoming.id);
