@@ -2255,11 +2255,15 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           </div>
         </>
       )}
-      {searchTruncation && (
-        <div role="status" aria-live="polite" aria-atomic="true" className="mx-4 mt-2 px-4 py-2 bg-surface border border-line rounded-lg text-fg-tertiary text-sm">
-          Showing the first {searchTruncation.shown.toLocaleString()} of {searchTruncation.total.toLocaleString()} matches; the rest are hidden. Narrow your search to see them.
-        </div>
-      )}
+      {/* Always-mounted live region (text swapped inside) so the notice is announced reliably;
+          margins live on the inner div so the empty wrapper takes no layout space. */}
+      <div role="status" aria-live="polite" aria-atomic="true">
+        {searchTruncation && (
+          <div className="mx-4 mt-2 px-4 py-2 bg-surface border border-line rounded-lg text-fg-tertiary text-sm">
+            Showing the first {searchTruncation.shown.toLocaleString()} of {searchTruncation.total.toLocaleString()} matches; the rest are hidden. Narrow your search to see them.
+          </div>
+        )}
+      </div>
       {filteredCardIds !== null && filteredCardIds.size === 0 && (
         <div role="status" className="mx-4 mt-2 px-4 py-2 bg-surface border border-line rounded-lg text-fg-tertiary text-sm">
           No cards match the active filters.

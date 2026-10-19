@@ -334,7 +334,7 @@ Click **Filters** in the toolbar (or press `f`) to open the filter bar below the
 
 | Filter | Options |
 |---|---|
-| Search | Matches card title, description, assignee name, and label names. Search runs on the server and fetches every match in pages of 200 (up to 5,000); if a very broad search exceeds that, a notice above the board says "Showing the first N of M matches" so cards are never hidden silently |
+| Search | Matches card title, description, assignee name, and label names. Search runs on the server and fetches every match in pages of 200 (up to 5,000); if a very broad search exceeds that, a notice above the board says "Showing the first N of M matches" so cards are never hidden silently. The same notice appears if a later page fails to load (for example, when rate limited), showing the matches loaded so far |
 | **My cards** | Quick filter — shows only cards assigned to the current user. Click the **My cards** button in the filter bar to toggle. Active state is indicated by a blue highlight on the button. |
 | Assignee | Any board member, or "Unassigned" |
 | Labels | One or more labels (card must have all selected) |

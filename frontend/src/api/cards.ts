@@ -161,7 +161,8 @@ export interface AllCardSearchResult {
  * pages while the server reports `X-Truncated: true` (#1763). The endpoint caps
  * one response at 200 rows, so a single request silently drops matches on a
  * large board. Bounded by CARD_SEARCH_MAX_PAGES; if the ceiling is hit the
- * result is flagged `truncated` so the caller can tell the user.
+ * result is flagged `truncated` so the caller can tell the user. A non-abort
+ * failure on page 2+ also returns the partial matches flagged `truncated`.
  */
 export async function searchAllCards(
   boardId: number,
@@ -171,10 +172,22 @@ export async function searchAllCards(
   const cards: Card[] = [];
   let total = 0;
   for (let page = 0; page < CARD_SEARCH_MAX_PAGES; page++) {
-    const r = await client.get<Card[]>(`/api/v1/boards/${boardId}/cards/`, {
-      params: { search: query, limit: CARD_SEARCH_PAGE_SIZE, offset: cards.length },
-      signal,
-    });
+    let r;
+    try {
+      r = await client.get<Card[]>(`/api/v1/boards/${boardId}/cards/`, {
+        params: { search: query, limit: CARD_SEARCH_PAGE_SIZE, offset: cards.length },
+        signal,
+      });
+    } catch (err) {
+      // Page 1 failing, or an abort, keeps the caller's existing policy. A failure on a
+      // later page (e.g. a 429) returns what was gathered, flagged truncated, so the
+      // filter still applies and the notice appears instead of the filter silently
+      // dropping and showing every card.
+      const e = err as { name?: string };
+      const aborted = e?.name === "CanceledError" || e?.name === "AbortError" || signal?.aborted;
+      if (page === 0 || aborted) throw err;
+      return { cards, truncated: true, total: Math.max(total, cards.length) };
+    }
     cards.push(...r.data);
     const headerTotal = Number(r.headers?.["x-total-count"]);
     if (Number.isFinite(headerTotal)) total = headerTotal;

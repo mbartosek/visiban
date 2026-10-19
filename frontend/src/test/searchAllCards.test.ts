@@ -49,4 +49,26 @@ describe('searchAllCards', () => {
     expect(r.truncated).toBe(true)
     expect(get).toHaveBeenCalledTimes(1)
   })
+
+  it('returns partial matches flagged truncated when a later page fails', async () => {
+    get
+      .mockResolvedValueOnce(resp(rows(1, 200), true, 450))
+      .mockRejectedValueOnce(Object.assign(new Error('Too Many Requests'), { name: 'AxiosError' }))
+    const r = await searchAllCards(1, 'x')
+    expect(r.cards).toHaveLength(200)
+    expect(r.truncated).toBe(true)
+    expect(r.total).toBe(450)
+  })
+
+  it('rejects when the first page fails', async () => {
+    get.mockRejectedValueOnce(new Error('boom'))
+    await expect(searchAllCards(1, 'x')).rejects.toThrow('boom')
+  })
+
+  it('rejects on abort even after page 1 succeeded', async () => {
+    get
+      .mockResolvedValueOnce(resp(rows(1, 200), true, 450))
+      .mockRejectedValueOnce(Object.assign(new Error('canceled'), { name: 'CanceledError' }))
+    await expect(searchAllCards(1, 'x')).rejects.toThrow('canceled')
+  })
 })

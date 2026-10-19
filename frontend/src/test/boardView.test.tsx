@@ -333,6 +333,12 @@ describe('BoardView', () => {
     expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument()
   })
 
+  it('keeps the search notice live region mounted and empty when not truncated (#1763)', () => {
+    const { container } = render(<BoardView {...defaultProps()} />)
+    const region = container.querySelector('[role="status"][aria-live="polite"][aria-atomic="true"]:empty')
+    expect(region).not.toBeNull()
+  })
+
   it('renders view toggle buttons', () => {
     render(<BoardView {...defaultProps()} />)
     expect(screen.getByText('Board')).toBeInTheDocument()
