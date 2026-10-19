@@ -255,6 +255,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // so the checklist/attachment onUpdated payloads do not write a stale one back.
   const lastSeenVersionRef = useRef(card.version);
   const ownVersionsRef = useRef(new Set<number>());
+  const ownSavesInFlightRef = useRef(0);
   // Read through refs so the effect sees the state at the moment the version
   // changed without re-running when the popover opens or closes.
   const showMovePopoverRef = useRef(showMovePopover);
@@ -266,9 +267,12 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   useEffect(() => {
     if (lastSeenVersionRef.current === card.version) return;
     lastSeenVersionRef.current = card.version;
-    // Our own save, or our own move resolving: handleMoveSubmit and save() already
-    // applied the result. Just keep the version current.
-    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current) {
+    // Our own save, or our own move: handleMoveSubmit and save() apply their
+    // results themselves. Just keep the version current. A bump that lands while
+    // one of our saves or moves is still in flight is treated as ours too: the
+    // board's socket echo of our own PATCH can arrive before the HTTP response
+    // has registered its version in ownVersionsRef.
+    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current || ownSavesInFlightRef.current > 0) {
       setLocalCard((c) => (c.version === card.version ? c : { ...c, version: card.version }));
       return;
     }
@@ -323,6 +327,11 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // Takes the server's copy after one of this component's own saves and
   // remembers its version as ours, so the reset effect does not read the bump
   // as a remote change (#1773).
+  // Roll a failed save back to its snapshot, but keep the version and location
+  // the reset effect may have synced from a remote change while it was in
+  // flight, so later onUpdated payloads never write a stale version back.
+  const rollbackTo = (prev: Card) =>
+    setLocalCard((c) => ({ ...prev, version: c.version, column: c.column, swimlane: c.swimlane }));
   const adoptSaved = (updated: Card) => {
     titleBaselineRef.current = updated.title;
     ownVersionsRef.current.add(updated.version);
@@ -332,13 +341,16 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   const save = async (patch: CardPatch) => {
     // Snapshot pre-save state so we can roll back if the API call fails.
     const prev = localCard;
+    ownSavesInFlightRef.current += 1;
     try {
       const updated = await updateCard(board.id, localCard.id, patch);
       adoptSaved(updated);
       onUpdated(updated);
     } catch (err) {
-      setLocalCard(prev);
+      rollbackTo(prev);
       throw err;
+    } finally {
+      ownSavesInFlightRef.current -= 1;
     }
   };
 
@@ -424,12 +436,15 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       : [...localCard.labels, label];
     const prev = localCard;
     setLocalCard((c) => ({ ...c, labels: newLabels }));
+    ownSavesInFlightRef.current += 1;
     try {
       const updated = await updateCard(board.id, localCard.id, { label_ids: newLabels.map((l) => l.id) });
       adoptSaved(updated);
       onUpdated(updated);
     } catch {
-      setLocalCard(prev);
+      rollbackTo(prev);
+    } finally {
+      ownSavesInFlightRef.current -= 1;
     }
   };
 

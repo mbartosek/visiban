@@ -1768,6 +1768,46 @@ describe('CardDetail', () => {
         expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
       })
 
+      it('treats a socket echo that beats the save response as its own, not a remote change', async () => {
+        let resolveSave!: (c: unknown) => void
+        mockUpdateCard.mockImplementation(() => new Promise((r) => { resolveSave = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const title = screen.getByDisplayValue('Test Card')
+        await user.click(title)
+        fireEvent.change(title, { target: { value: 'My edit' } })
+        await openPopover(user) // blur starts the save; popover opens
+        // The board applies the echo of our PATCH before the HTTP response returns.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'My edit', version: 2 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        await act(async () => { resolveSave({ ...makeCard(), title: 'My edit', version: 2 }) })
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('a failed save does not roll the version back behind a refresh that landed while it was in flight', async () => {
+        const mockGetChecklist = getChecklist as ReturnType<typeof vi.fn>
+        mockGetChecklist.mockResolvedValue([{ id: 1, text: 'Item 1', is_checked: false, position: 0 }])
+        mockUpdateChecklistItem.mockResolvedValue({ id: 1, text: 'Item 1', is_checked: true, position: 0 })
+        let rejectSave!: (e: Error) => void
+        mockUpdateCard.mockImplementation(() => new Promise((_r, rej) => { rejectSave = rej }))
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} />)
+        await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+        const title = screen.getByDisplayValue('Test Card')
+        fireEvent.change(title, { target: { value: 'Edit' } })
+        fireEvent.blur(title)
+        rerender(<CardDetail {...props} card={makeCard({ version: 9 })} />)
+        await act(async () => { rejectSave(new Error('boom')) })
+        await user.click(screen.getAllByRole('checkbox')[0])
+        await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+        expect((props.onUpdated as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].version).toBe(9)
+      })
+
       it('keeps localCard.version current after its own move resolves, so a checklist onUpdated does not write the old one back', async () => {
         const mockGetChecklist = getChecklist as ReturnType<typeof vi.fn>
         mockGetChecklist.mockResolvedValue([{ id: 1, text: 'Item 1', is_checked: false, position: 0 }])
