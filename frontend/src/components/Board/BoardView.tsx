@@ -1376,7 +1376,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
   // Server-side text search — debounced 300ms, aborts stale requests.
   // searchMatchIds is null when query is empty or on error (silent fallback → show all cards).
-  const { searchMatchIds, isSearching } = useCardSearch(board.id, filters.search);
+  const { searchMatchIds, isSearching, truncation: searchTruncation } = useCardSearch(board.id, filters.search);
 
   // Search is handled server-side (useCardSearch → GET /api/boards/{id}/cards/?search=)
   // because it uses trigram indexes (migration 0030) for efficient title+description matching.
@@ -2254,6 +2254,11 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             />
           </div>
         </>
+      )}
+      {searchTruncation && (
+        <div role="status" className="mx-4 mt-2 px-4 py-2 bg-surface border border-line rounded-lg text-fg-tertiary text-sm">
+          Showing the first {searchTruncation.shown.toLocaleString()} of {searchTruncation.total.toLocaleString()} matches. Narrow your search to see the rest.
+        </div>
       )}
       {filteredCardIds !== null && filteredCardIds.size === 0 && (
         <div role="status" className="mx-4 mt-2 px-4 py-2 bg-surface border border-line rounded-lg text-fg-tertiary text-sm">

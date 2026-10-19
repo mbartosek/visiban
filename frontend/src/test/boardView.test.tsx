@@ -201,8 +201,9 @@ vi.mock('../hooks/useSavedFilters', () => ({
 vi.mock('../components/Board/MovementHistoryView', () => ({
   default: () => <div data-testid="movement-history-view">Movement History</div>,
 }))
+let mockSearchTruncation: { shown: number; total: number } | null = null
 vi.mock('../hooks/useCardSearch', () => ({
-  useCardSearch: () => ({ searchMatchIds: null, isSearching: false }),
+  useCardSearch: () => ({ searchMatchIds: null, isSearching: false, truncation: mockSearchTruncation }),
 }))
 vi.mock('../api/cards', () => ({
   getCardStatus: vi.fn(),
@@ -302,6 +303,7 @@ describe('BoardView', () => {
     vi.clearAllMocks()
     vi.mocked(getCardStatus).mockResolvedValue({ archived: false })
     mockSearchParams = new URLSearchParams()
+    mockSearchTruncation = null
     localStorage.clear()
     mockBoardContextValue = defaultContext()
     // Default: getCardStatus returns null (card deleted/unknown)
@@ -318,6 +320,17 @@ describe('BoardView', () => {
     expect(silentReload).not.toHaveBeenCalled()
     options.onReconnected!()
     expect(silentReload).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a partial-results notice when the search hit the page ceiling (#1763)', () => {
+    mockSearchTruncation = { shown: 5000, total: 7321 }
+    render(<BoardView {...defaultProps()} />)
+    expect(screen.getByText(/Showing the first 5,000 of 7,321 matches/)).toBeInTheDocument()
+  })
+
+  it('shows no partial-results notice for a complete search (#1763)', () => {
+    render(<BoardView {...defaultProps()} />)
+    expect(screen.queryByText(/Showing the first/)).not.toBeInTheDocument()
   })
 
   it('renders view toggle buttons', () => {

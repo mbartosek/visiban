@@ -122,7 +122,7 @@ vi.mock('../hooks/useSavedFilters', () => ({
   }),
 }))
 vi.mock('../hooks/useCardSearch', () => ({
-  useCardSearch: () => ({ searchMatchIds: null, isSearching: false }),
+  useCardSearch: () => ({ searchMatchIds: null, isSearching: false, truncation: null }),
 }))
 
 // Board context mock
