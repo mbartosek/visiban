@@ -15,6 +15,9 @@ describe('failureReason', () => {
     }
     expect(failureReason(axiosErr(409, { code: 'version_conflict' }))).toBe('someone else changed a card')
   })
+  it('names maintenance mode', () => {
+    expect(failureReason(axiosErr(503, { code: 'maintenance_mode' }))).toBe('maintenance mode is active')
+  })
   it('maps 403, 404 and other statuses', () => {
     expect(failureReason(axiosErr(403))).toBe('you do not have permission')
     expect(failureReason(axiosErr(403), 'custom')).toBe('custom')

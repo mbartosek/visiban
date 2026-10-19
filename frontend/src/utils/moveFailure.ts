@@ -10,6 +10,7 @@ export function failureReason(err: unknown, forbidden = "you do not have permiss
   if (!axios.isAxiosError(err) || !err.response) return "a network error occurred";
   const data = err.response.data as { code?: unknown } | undefined;
   if (typeof data?.code === "string" && LIMIT_CODES.has(data.code)) return "a column limit was reached";
+  if (data?.code === "maintenance_mode") return "maintenance mode is active";
   // Number-neutral wording: the same clause follows "1 of 1 card" and "2 of 5 cards".
   if (err.response.status === 403) return forbidden;
   if (err.response.status === 404) return "not found";

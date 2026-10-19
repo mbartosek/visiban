@@ -1482,7 +1482,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               onChange={(v) => setMoveTargetColumn(Number(v))}
             />
           </div>
-          <p className="text-xs h-4">
+          <p role="alert" className="text-xs min-h-4">
             {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
           </p>
           <div className="flex gap-3 justify-end">

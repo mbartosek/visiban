@@ -1438,7 +1438,7 @@ describe('CardDetail', () => {
       const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: Object.assign(new Error('Network Error'), { isAxiosError: true }) })
       await submitMove(onMoveCard)
       await waitFor(() => {
-        expect(screen.getByText('Card could not be moved — a network error occurred.')).toBeInTheDocument()
+        expect(screen.getByRole('alert')).toHaveTextContent('Card could not be moved — a network error occurred.')
       })
       expect(screen.queryByText(/limit/)).not.toBeInTheDocument()
       // Popover stays open and the breadcrumb still shows the original column.
