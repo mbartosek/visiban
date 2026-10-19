@@ -4006,6 +4006,7 @@
 <ul>
 <li><code>GET /boards/</code>, <code>GET /groups/</code></li>
 <li><code>GET /boards/{id}/columns/</code>, <code>swimlanes/</code>, <code>labels/</code>, <code>custom-fields/</code>, <code>swimlane-custom-fields/</code>, and <code>export-history/</code></li>
+<li><code>GET /groups/{id}/descendant-boards/paged/</code> (see <a href="groups/#get-apiv1groupsiddescendant-boardspaged">Groups API</a>)</li>
 <li><code>GET /admin/users/</code>, <code>GET /admin/action-log/</code>, and <code>GET /admin/board-invite-links/</code> (see the <a href="admin/">Admin API</a>)</li>
 </ul>
 <p>Some list endpoints deliberately <strong>do not</strong> use it. Check the endpoint's own page before parsing the response:</p>
@@ -4036,6 +4037,10 @@
 <tr>
 <td><code>GET /boards/{id}/events/</code></td>
 <td><code>{results, next}</code> cursor feed. See <a href="events/">Change Feed</a></td>
+</tr>
+<tr>
+<td><code>GET /groups/{id}/descendant-boards/</code></td>
+<td>Bare JSON array, not paginated and <strong>not bounded</strong>: it returns every board in the group's subtree that the caller can access, which for a top-level group can be the whole organization. Use <code>GET /groups/{id}/descendant-boards/paged/</code> for bounded pages</td>
 </tr>
 <tr>
 <td>Small, bounded lists (group members, subgroups, boards, labels, and invite links of a group; board invite links and saved filters; <code>GET /admin/invite-links/</code>; <code>GET /users/search/</code> (capped at 10 rows); sample boards and templates; notifications; personal access tokens; connected accounts; a card's comments, attachments, checklist, and relations)</td>

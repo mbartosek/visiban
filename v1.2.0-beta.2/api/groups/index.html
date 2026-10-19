@@ -2153,6 +2153,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#get-apiv1groupsiddescendant-boardspaged" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/v1/groups/{id}/descendant-boards/paged/
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4605,7 +4616,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>id</code>, <code>name</code>, <code>parent</code>, <code>parent_name</code>, <code>owner</code>, <code>created_at</code>, <code>default_board_member_role</code>, <code>is_starred</code> and (on retrieve) <code>ancestors</code> are returned as for a member. <code>default_board_member_role</code> is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. <code>owner</code> (public profile fields only, no email) is returned because clients require it; an ancestor's owner is normally also a member there, but an owner whose membership was removed is still named. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read <code>navigation_only</code> to tell withheld values from real zeros. This matches the nested routes, which already answer <code>403</code> to such a user (<code>/members/</code>, <code>/boards/</code>, <code>/subgroups/</code>, <code>/labels/</code>, <code>/descendant-boards/</code>, <code>/star/</code>), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.</p>
+<p><code>id</code>, <code>name</code>, <code>parent</code>, <code>parent_name</code>, <code>owner</code>, <code>created_at</code>, <code>default_board_member_role</code>, <code>is_starred</code> and (on retrieve) <code>ancestors</code> are returned as for a member. <code>default_board_member_role</code> is returned intentionally: it is a required enum with no empty value, it is deprecated with no effect, and it is not sensitive. Ownership alone does not count as membership here, the same as for the nested routes. <code>owner</code> (public profile fields only, no email) is returned because clients require it; an ancestor's owner is normally also a member there, but an owner whose membership was removed is still named. Every key stays in the response with a value of its documented type, so existing clients keep parsing it; read <code>navigation_only</code> to tell withheld values from real zeros. This matches the nested routes, which already answer <code>403</code> to such a user (<code>/members/</code>, <code>/boards/</code>, <code>/subgroups/</code>, <code>/labels/</code>, <code>/descendant-boards/</code>, <code>/descendant-boards/paged/</code>, <code>/star/</code>), and the group WebSocket channel, which does not admit them. Users with access to all content always receive every field.</p>
 <p><strong>Backward compatibility:</strong> before 1.2 these fields carried the ancestor's real values for this role; no key was removed or retyped.</p>
 <h3 id="put-apiv1groupsid-patch-apiv1groupsid"><code>PUT /api/v1/groups/{id}/</code> / <code>PATCH /api/v1/groups/{id}/</code><a class="headerlink" href="#put-apiv1groupsid-patch-apiv1groupsid" title="Permanent link">&para;</a></h3>
 <p>Update group fields. Both <code>PUT</code> and <code>PATCH</code> are accepted. Requires group admin.</p>
@@ -4748,7 +4759,48 @@
 <h3 id="get-apiv1groupsiddescendant-boards"><code>GET /api/v1/groups/{id}/descendant-boards/</code><a class="headerlink" href="#get-apiv1groupsiddescendant-boards" title="Permanent link">&para;</a></h3>
 <p>List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.</p>
 <p><strong>Response</strong> — array of board summary objects (same shape as <code>GET /api/v1/groups/{id}/boards/</code>). Each board's <code>group_detail</code> is always populated with a <code>GroupBrief</code> payload including the <code>ancestors</code> chain, so callers can render a full relative breadcrumb without an extra request (#845). <code>ancestors</code> is root-first and does <strong>not</strong> include the board's direct parent group — that name is in <code>group_name</code>.</p>
-<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller is not a group member; <code>404 Not Found</code> if the group does not exist.</p>
+<p><strong>Errors:</strong> <code>404 Not Found</code> if the group does not exist or the caller cannot see it; <code>403 Forbidden</code> if the caller sees the group only as <a href="#ancestor-groups-navigation-only">navigation-only</a> (a member of a descendant subgroup, not of this group or an ancestor).</p>
+<p>This endpoint is never paginated: it returns the whole subtree in one array, and <code>offset</code> / <code>page_size</code> in the query string are ignored. For a root group in a large organization that can be every board the caller can see; use the paged variant below to fetch it in bounded pages.</p>
+<h3 id="get-apiv1groupsiddescendant-boardspaged"><code>GET /api/v1/groups/{id}/descendant-boards/paged/</code><a class="headerlink" href="#get-apiv1groupsiddescendant-boardspaged" title="Permanent link">&para;</a></h3>
+<p><em>(1.2+)</em> The same boards as <code>GET /api/v1/groups/{id}/descendant-boards/</code>, with the same access rules and the same per-board payload (including <code>group_detail.ancestors</code>), returned in pages (#1317). Requires group membership.</p>
+<p><strong>Query parameters</strong></p>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>offset</code></td>
+<td>Zero-based row offset (default <code>0</code>). An invalid or negative value is treated as <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>page_size</code></td>
+<td>Rows per page (default <code>50</code>, max <code>200</code>). An invalid, zero or negative value uses the default; a larger value is capped at <code>200</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Boards are ordered by <code>id</code>, oldest first. Editing a board in place (its name, description or settings) does not change its position, and a board created in the subtree during a walk is added at the end. Neither moves the boards already returned.</p>
+<p>Other changes during a walk do shift the window, as with every offset-paginated endpoint:</p>
+<ul>
+<li><strong>Rows added before the current offset:</strong> a board moved into the subtree (a <code>PATCH</code> of its <code>group</code>, or <code>POST /api/v1/boards/{id}/move-group/</code>), a subgroup re-parented into the subtree, or a newly granted membership that makes more of the subtree visible. These can insert earlier rows, so a board already returned can appear again on the next page.</li>
+<li><strong>Rows removed before the current offset:</strong> a board deleted or moved out of the subtree, or access removed. These shift later rows back, so the next page can skip a board.</li>
+</ul>
+<p>A client that needs an exact snapshot should de-duplicate by <code>id</code>, and re-read from <code>offset=0</code> if <code>count</code> changes between pages.</p>
+<p><strong>Response</strong> — the standard <code>{count, offset, page_size, results}</code> envelope (the same shape as every other paginated endpoint), where <code>results</code> is an array of board objects:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">137</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"page_size"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">412</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Q3 Roadmap"</span><span class="p">,</span><span class="w"> </span><span class="nt">"group"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"group_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Platform"</span><span class="p">,</span><span class="w"> </span><span class="nt">"group_detail"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Platform"</span><span class="p">,</span><span class="w"> </span><span class="nt">"ancestors"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="p">}]},</span><span class="w"> </span><span class="nt">"..."</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">}</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
+</code></pre></div>
+<p>Fetch the next page with <code>offset + page_size</code> until it reaches <code>count</code>.</p>
+<p><strong>Errors:</strong> the same as <code>GET /api/v1/groups/{id}/descendant-boards/</code>: <code>404 Not Found</code> if the group does not exist or the caller cannot see it; <code>403 Forbidden</code> for a navigation-only caller.</p>
 <hr />
 <h2 id="invite-links">Invite links<a class="headerlink" href="#invite-links" title="Permanent link">&para;</a></h2>
 <p>A group can have up to 5 active shareable invite links. Each link has an independent name, role, and expiry. Links sent by email (<code>delivery: "email"</code>, below) are capped separately — up to 50 pending per group — and never count against the 5.</p>
@@ -4760,7 +4812,7 @@
 <h3 id="post-apiv1groupsidinvite-links"><code>POST /api/v1/groups/{id}/invite-links/</code><a class="headerlink" href="#post-apiv1groupsidinvite-links" title="Permanent link">&para;</a></h3>
 <p>Create a new invite link. Requires group admin.</p>
 <p><strong>Request</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p>All fields are optional. <code>role</code> defaults to <code>member</code>; <code>expiry_days</code> accepts any positive integer (<code>≥ 1</code>) or <code>null</code> (never expires) — common values <code>7</code>, <code>30</code>, <code>90</code>. <code>single_use</code> (boolean, default <code>false</code>) creates a link that expires automatically after one person joins.</p>
 <p><em>(1.2+)</em> A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.</p>
@@ -4770,39 +4822,39 @@
 <p class="admonition-title">Field name differs from site invite links</p>
 <p>Group and <a href="../boards/#board-invites">board</a> invite-link create responses name the secret <code>token</code>. The site-wide <a href="../admin/#post-apiv1admininvite-links"><code>POST /api/v1/admin/invite-links/</code></a> response names the same kind of value <code>raw_token</code>. The names differ for historical reasons and are frozen by the 1.0 API contract: both are stable and will not be renamed before a major version. Read the field that matches the endpoint you called. A consistent alias is planned for the next major version (tracked in #1255); until then each endpoint keeps its current name for 1.0 API compatibility. The field is present only on this create response, never on list responses.</p>
 </div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123raw"</span><span class="p">,</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123ra"</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="nt">"is_expired"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-07T00:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-31T00:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="nt">"created_by_username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="nt">"used_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">,</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">  </span><span class="nt">"delivery"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="p">}</span>
-</code></pre></div>
-<p><strong>List response</strong> — <code>token</code> is absent; <code>prefix</code> (first 8 chars) is shown for identification:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123ra"</span><span class="p">,</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">"is_expired"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-07T00:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-31T00:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">"created_by_username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">"used_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">,</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="nt">"delivery"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="p">}</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123raw"</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123ra"</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">"is_expired"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-07T00:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-31T00:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">"created_by_username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">  </span><span class="nt">"used_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">,</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">  </span><span class="nt">"delivery"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>List response</strong> — <code>token</code> is absent; <code>prefix</code> (first 8 chars) is shown for identification:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc123ra"</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">"is_expired"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-07T00:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-31T00:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">  </span><span class="nt">"created_by_username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">  </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">  </span><span class="nt">"used_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pending"</span><span class="p">,</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">  </span><span class="nt">"delivery"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="p">}</span>
 </code></pre></div></p>
 <table>
 <thead>
@@ -4892,7 +4944,7 @@
 <h3 id="post-apiv1groupsidinvite-linkssend"><code>POST /api/v1/groups/{id}/invite-links/send/</code><a class="headerlink" href="#post-apiv1groupsidinvite-linkssend" title="Permanent link">&para;</a></h3>
 <p>Email a single-use invite link to one address. Requires group admin. <em>(Added in 1.2.)</em></p>
 <p><strong>Request</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new.person@example.org"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new.person@example.org"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <table>
 <thead>
@@ -4926,7 +4978,7 @@
 </table>
 <p>The server mints a link with <code>single_use: true</code> and <code>delivery: "email"</code>, then sends a plain-text email naming the group, the join link (<code>&lt;FRONTEND_URL&gt;/join/&lt;token&gt;</code>) and the expiry date. There is no free-text message field.</p>
 <p><strong>Response</strong> <code>202 Accepted</code>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Invite sent"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sent_to"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new.person@example.org"</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Invite sent"</span><span class="p">,</span><span class="w"> </span><span class="nt">"sent_to"</span><span class="p">:</span><span class="w"> </span><span class="s2">"new.person@example.org"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p>The response is identical whether the address belongs to an existing member, an existing user who is not a member, or nobody — and the email is always sent — so this endpoint cannot be used to discover which addresses have accounts. The raw token is <strong>never</strong> returned; it exists only in the email. Under <code>DEBUG</code> with console mail delivery the response also carries <code>"delivery": "console"</code>.</p>
 <p><strong>Errors</strong></p>
@@ -5009,7 +5061,7 @@
 <h3 id="post-apiv1groupsidtransfer-ownership"><code>POST /api/v1/groups/{id}/transfer-ownership/</code><a class="headerlink" href="#post-apiv1groupsidtransfer-ownership" title="Permanent link">&para;</a></h3>
 <p>Transfer group ownership to another user. Requires the <strong>current owner</strong> (not just admin). There is no API route for administrators; a superuser can transfer a departed owner's group from the Django admin (see <a href="../../administration/django-admin/#transferring-a-groups-ownership">Transferring a group's ownership</a>).</p>
 <p><strong>Request</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"new_owner_id"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="nt">"confirmation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"new_owner_id"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="nt">"confirmation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <ul>
 <li><code>new_owner_id</code> — the user ID of the new owner; must already be a group <strong>admin</strong></li>
@@ -5067,7 +5119,7 @@
 </tbody>
 </table>
 <p><strong>Request</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"default_board_member_role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"allowed_priorities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="s2">"medium"</span><span class="p">,</span><span class="w"> </span><span class="s2">"high"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"default_board_member_role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"allowed_priorities"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"low"</span><span class="p">,</span><span class="w"> </span><span class="s2">"medium"</span><span class="p">,</span><span class="w"> </span><span class="s2">"high"</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
 <p>Returns the updated group object.</p>
 <p><em>(1.2+)</em> A <code>PATCH</code> that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719).</p>
@@ -5115,22 +5167,22 @@
 <p>Join the group with the role configured on the invite link. Requires authentication. Rate-limited to 10 requests/hour per IP, shared with the board join endpoints.</p>
 <p><em>(1.2+, #1678)</em> An emailed link (<code>delivery: "email"</code>) works only for an account with the address it was sent to. Otherwise the response is <code>403 {"code": "invite_recipient_mismatch", "detail": "This invite was sent to a different email address. ..."}</code>, nothing is written, and the link is not consumed. The same address rules apply as for <a href="../boards/#post-apiv1boardsjointoken">board invites</a>: verified addresses, plus the account's <code>email</code> unless <code>EMAIL_VERIFICATION=mandatory</code>, ignoring case. Shareable links and emailed links sent before upgrading to this version are not checked. Only a keyed fingerprint of the address is stored, and it is never returned.</p>
 <p><strong>Response body</strong> — returns the full group object (same shape as <code>GET /api/v1/groups/{id}/</code> but using the list serializer, without <code>ancestors</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="p">,</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Backend and frontend teams."</span><span class="p">,</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">"owner"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"display_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice Smith"</span><span class="p">,</span><span class="w"> </span><span class="nt">"avatar_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">"parent"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">"parent_name"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">"member_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">  </span><span class="nt">"board_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span><span class="nt">"subgroup_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span><span class="nt">"is_starred"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">  </span><span class="nt">"shared_labels"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">  </span><span class="nt">"default_board_member_role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">  </span><span class="nt">"allowed_priorities"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-01T10:00:00Z"</span>
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Engineering"</span><span class="p">,</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Backend and frontend teams."</span><span class="p">,</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">"owner"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"display_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice Smith"</span><span class="p">,</span><span class="w"> </span><span class="nt">"avatar_url"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">"parent"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span><span class="nt">"parent_name"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span><span class="nt">"member_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">  </span><span class="nt">"board_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span><span class="nt">"subgroup_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">  </span><span class="nt">"is_starred"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">  </span><span class="nt">"shared_labels"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">  </span><span class="nt">"default_board_member_role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">  </span><span class="nt">"allowed_priorities"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-01T10:00:00Z"</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="p">}</span>
 </code></pre></div>
 <p><strong>Status:</strong> <code>201 Created</code> on first join; <code>200 OK</code> if the caller was already a member (existing role preserved, no downgrade).</p>
 <p><strong>Note:</strong> Existing memberships are not downgraded — if you already hold a higher role than the link's role, your current role is preserved.</p>
