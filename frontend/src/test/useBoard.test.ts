@@ -555,6 +555,18 @@ describe('useBoard', () => {
     expect(result.current.board!.cards[0].column).toBe(10)
   })
 
+  it('forceMoveCard maps an unknown error code to move_failed, not a broken limit toast (#1761)', async () => {
+    const board = makeBoard()
+    mockGetBoardFull.mockResolvedValue(board)
+    mockMoveCard.mockRejectedValueOnce({ response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'X', current_count: 1, wip_limit: 1 } } })
+    mockMoveCard.mockRejectedValueOnce(Object.assign(new Error('x'), { isAxiosError: true, response: { status: 429, data: { code: 'throttled' } } }))
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    await act(async () => { await result.current.forceMoveCard() })
+    expect(result.current.moveError?.code).toBe('move_failed')
+  })
+
   it('moveCard does not replace a specific 409 limit toast with move_failed (#1761)', async () => {
     mockGetBoardFull.mockResolvedValue(makeBoard())
     mockMoveCard.mockRejectedValue({ response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'X', current_count: 1, wip_limit: 1 } } })
