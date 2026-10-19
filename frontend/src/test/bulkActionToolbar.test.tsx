@@ -793,18 +793,18 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
     const { onClearSelection } = renderToolbar()
     await user.click(screen.getByText('Move to...'))
     await user.click(screen.getByText('Done'))
-    expect(await screen.findByText(/2 of 2 cards could not be moved — they were changed by someone else/)).toBeInTheDocument()
-    expect(screen.queryByText(/WIP/)).not.toBeInTheDocument()
+    expect(await screen.findByText(/2 of 2 cards could not be moved — someone else changed a card/)).toBeInTheDocument()
+    expect(screen.queryByText(/limit/)).not.toBeInTheDocument()
     expect(onClearSelection).not.toHaveBeenCalled()
   })
 
-  it('move failure from a WIP limit keeps the WIP message', async () => {
+  it('move failure from a WIP limit names the column limit', async () => {
     const user = userEvent.setup()
     mockMoveCard.mockRejectedValue(axiosErr(409, { code: 'wip_limit_exceeded' }))
     renderToolbar()
     await user.click(screen.getByText('Move to...'))
     await user.click(screen.getByText('Done'))
-    expect(await screen.findByText(/could not be moved — blocked by a WIP or weight limit/)).toBeInTheDocument()
+    expect(await screen.findByText(/could not be moved — a column limit was reached/)).toBeInTheDocument()
   })
 
   it('move failure with no response reports a network error', async () => {
@@ -814,5 +814,42 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
     await user.click(screen.getByText('Move to...'))
     await user.click(screen.getByText('Done'))
     expect(await screen.findByText(/could not be moved — a network error occurred/)).toBeInTheDocument()
+  })
+
+  it('reports failures inside a persistent polite live region', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+    const region = screen.getByRole('status')
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    expect(region).toHaveAttribute('aria-atomic', 'true')
+    expect(region).toBeEmptyDOMElement()
+    mockUpdateCard.mockRejectedValue(axiosErr(500))
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    await waitFor(() => expect(screen.getByRole('status')).toBe(region))
+    expect(region).toHaveTextContent('2 of 2 cards could not be updated — something went wrong.')
+  })
+
+  it('uses singular noun and number-neutral reason for one card', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(404))
+    render(
+      <BulkActionToolbar board={makeBoard()} selectedCardIds={new Set([100])} onCardsUpdated={vi.fn()}
+        onCardsDeleted={vi.fn()} onCardsArchived={vi.fn()} onClearSelection={vi.fn()} />
+    )
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText('1 of 1 card could not be moved — not found.')).toBeInTheDocument()
+  })
+
+  it('archive keeps the ownership reason only for 403 and names others honestly', async () => {
+    const user = userEvent.setup()
+    mockArchiveCard.mockRejectedValueOnce(axiosErr(403)).mockRejectedValueOnce(axiosErr(403))
+    renderToolbar()
+    await user.click(screen.getByText('Archive'))
+    expect(await screen.findByText(/2 of 2 cards could not be archived — you can only archive cards you created\./)).toBeInTheDocument()
+    mockArchiveCard.mockRejectedValue(new Error('Network Error'))
+    await user.click(screen.getByText('Archive'))
+    expect(await screen.findByText(/could not be archived — a network error occurred/)).toBeInTheDocument()
   })
 })

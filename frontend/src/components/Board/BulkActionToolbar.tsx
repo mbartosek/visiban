@@ -25,14 +25,15 @@ const LIMIT_CODES = new Set(["wip_limit_exceeded", "wip_hard_blocked", "weight_l
 /** Why one bulk request failed, as a clause for "could not be X — {reason}".
  * The WIP/weight wording is used only when the server's `code` says so; a
  * network or permission failure must not be blamed on a column limit (#1733). */
-function failureReason(err: unknown): string {
+function failureReason(err: unknown, forbidden = "you do not have permission"): string {
   if (!axios.isAxiosError(err) || !err.response) return "a network error occurred";
   const data = err.response.data as { code?: unknown } | undefined;
-  if (typeof data?.code === "string" && LIMIT_CODES.has(data.code)) return "blocked by a WIP or weight limit";
-  if (err.response.status === 403) return "you do not have permission to change them";
-  if (err.response.status === 404) return "they no longer exist";
-  if (err.response.status === 409) return "they were changed by someone else";
-  return "the server rejected the change";
+  if (typeof data?.code === "string" && LIMIT_CODES.has(data.code)) return "a column limit was reached";
+  // Number-neutral wording: the same clause follows "1 of 1 card" and "2 of 5 cards".
+  if (err.response.status === 403) return forbidden;
+  if (err.response.status === 404) return "not found";
+  if (err.response.status === 409) return "someone else changed a card";
+  return "something went wrong";
 }
 
 const plural = (n: number) => `card${n !== 1 ? "s" : ""}`;
@@ -123,10 +124,10 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
 
   // Shared by the Promise.allSettled handlers: on any failure keep the whole
   // selection and say so (same as Archive/Delete); clear it only on full success.
-  const reportBulkResult = (results: PromiseSettledResult<unknown>[], verb: string) => {
+  const reportBulkResult = (results: PromiseSettledResult<unknown>[], verb: string, forbidden?: string) => {
     const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
     if (rejected.length > 0) {
-      const reasons = new Set(rejected.map((r) => failureReason(r.reason)));
+      const reasons = new Set(rejected.map((r) => failureReason(r.reason, forbidden)));
       setPartialError(
         `${rejected.length} of ${results.length} ${plural(results.length)} could not be ${verb} — ${
           reasons.size === 1 ? [...reasons][0] : "for more than one reason"
@@ -180,15 +181,7 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
       .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled")
       .map((r) => r.value);
     if (archivedIds.length > 0) onCardsArchived(archivedIds);
-    const failed = selectedCards.length - archivedIds.length;
-    if (failed > 0) {
-      setPartialError(
-        `${failed} of ${selectedCards.length} card${selectedCards.length !== 1 ? "s" : ""} could not be archived — you can only archive cards you created.`
-      );
-    } else {
-      onClearSelection();
-    }
-    setBusy(false);
+    reportBulkResult(results, "archived", "you can only archive cards you created");
   };
 
   const handleDelete = async () => {
@@ -203,15 +196,7 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
       .filter((r): r is PromiseFulfilledResult<number> => r.status === "fulfilled")
       .map((r) => r.value);
     if (deletedIds.length > 0) onCardsDeleted(deletedIds);
-    const failed = selectedCards.length - deletedIds.length;
-    if (failed > 0) {
-      setPartialError(
-        `${failed} of ${selectedCards.length} card${selectedCards.length !== 1 ? "s" : ""} could not be deleted — you can only delete cards you created.`
-      );
-    } else {
-      onClearSelection();
-    }
-    setBusy(false);
+    reportBulkResult(results, "deleted", "you can only delete cards you created");
   };
 
   const priorities: Array<{ value: "low" | "medium" | "high" | "urgent"; color: string }> = [
@@ -447,14 +432,16 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
           </svg>
         </button>
 
-        <span className="text-xs h-4 flex items-center min-w-0">
+        {/* Persistent live region: always mounted so assistive tech announces the
+            text swap; conditionally mounting the region itself is unreliable. */}
+        <span role="status" aria-live="polite" aria-atomic="true" className="text-xs min-h-4 flex items-center min-w-0">
           {partialError && (
-            <span className="text-warning truncate max-w-[20rem]" title={partialError}>{partialError}</span>
-          )}
-          {busy && (
-            <span className="text-fg-tertiary animate-pulse motion-reduce:animate-none">Working...</span>
+            <span className="text-warning line-clamp-2 max-w-[20rem]" title={partialError}>{partialError}</span>
           )}
         </span>
+        {busy && (
+          <span aria-hidden="true" className="text-xs text-fg-tertiary animate-pulse motion-reduce:animate-none">Working...</span>
+        )}
       </div>
 
       <ModalWrapper
