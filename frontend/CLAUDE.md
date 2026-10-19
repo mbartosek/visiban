@@ -739,6 +739,7 @@ This exception is scoped narrowly to the pinned-chip quick-edit affordance itsel
 ## Move-blocked toast (MoveBlockedToast)
 
 - **Use `MoveBlockedToast` for all card move constraint violations** — WIP limit, weight limit, or any future column constraint. Never add a second inline toast block in `App.tsx`.
+- **A failure shown by both this toast and an inline error states its cause once per surface and never contradicts the other (#1761).** `CardDetail`'s move popover keeps its inline message alongside the toast; both derive their reason from the same failure (`utils/moveFailure.ts`).
 - **Always amber** — `border-warning / text-warning`. Do not introduce a second color for a different limit type; severity is communicated via icon, not color.
 - **Always show three things**: what was blocked (column name), why (with numbers), and an admin override link when `isAdmin` is true.
 - **Admin override link**: `text-xs text-warning hover:text-warning underline transition` — never a button with background fill.

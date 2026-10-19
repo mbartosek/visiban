@@ -511,6 +511,24 @@ describe('useBoard', () => {
     })
   })
 
+  it('moveCard raises a move_failed toast for a network error (#1761)', async () => {
+    mockGetBoardFull.mockResolvedValue(makeBoard())
+    mockMoveCard.mockRejectedValue(Object.assign(new Error('Network Error'), { isAxiosError: true }))
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'The card was not moved — a network error occurred.' })
+  })
+
+  it('moveCard does not replace a specific 409 limit toast with move_failed (#1761)', async () => {
+    mockGetBoardFull.mockResolvedValue(makeBoard())
+    mockMoveCard.mockRejectedValue({ response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'X', current_count: 1, wip_limit: 1 } } })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    expect(result.current.moveError?.code).toBe('wip_limit_exceeded')
+  })
+
   it('clearMoveError clears the moveError state', async () => {
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValue(board)
@@ -539,7 +557,7 @@ describe('useBoard', () => {
     expect(result.current.moveError).toBeNull()
   })
 
-  it('moveCard rolls back on generic error without setting moveError', async () => {
+  it('moveCard rolls back on generic error with a generic move_failed toast', async () => {
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValue(board)
     // A plain 500 error — no WIP-specific payload
@@ -553,8 +571,8 @@ describe('useBoard', () => {
     })
 
     expect(result.current.board!.cards[0].column).toBe(10)
-    // moveError must not be set for non-409 errors
-    expect(result.current.moveError).toBeNull()
+    // No specific code applies, so the generic toast is raised (#1761)
+    expect(result.current.moveError?.code).toBe('move_failed')
   })
 
   it('reorderColumns optimistically updates and applies server response', async () => {
@@ -1211,7 +1229,7 @@ describe('useBoard — maintenance mode (#783)', () => {
 
   it('ignores a 503 that is not a maintenance response', async () => {
     // A proxy or an overloaded backend also returns 503; claiming maintenance
-    // mode for those would be a lie. Roll back, but say nothing specific.
+    // mode for those would be a lie. Roll back with the generic move_failed toast.
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValue(board)
     mockMoveCard.mockRejectedValue({
@@ -1226,6 +1244,6 @@ describe('useBoard — maintenance mode (#783)', () => {
     })
 
     expect(result.current.board!.cards[0].column).toBe(10)
-    expect(result.current.moveError).toBeNull()
+    expect(result.current.moveError?.code).toBe('move_failed')
   })
 })

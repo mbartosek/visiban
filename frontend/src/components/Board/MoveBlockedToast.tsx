@@ -15,7 +15,7 @@ export default function MoveBlockedToast({ error, isAdmin, onForce, onDismiss }:
   // (matching MaintenanceBanner's amber tone, not permission_denied's ⛔):
   // per frontend/CLAUDE.md, ⛔ is reserved for wip_hard_blocked, so the
   // no-override condition and the severity glyph are tracked separately.
-  const noOverride = hardBlocked || error.code === "maintenance_mode";
+  const noOverride = hardBlocked || error.code === "maintenance_mode" || error.code === "move_failed";
   const versionConflict = error.code === "version_conflict";
   return (
     <div

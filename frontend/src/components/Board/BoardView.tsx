@@ -1,3 +1,4 @@
+import { failureReason } from "../../utils/moveFailure";
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { stripPerUserBoardFields } from "../../utils/boardEventPayload";
 import { computeAutoSwimlaneWidth } from "../../utils/swimlaneAutoWidth";
@@ -1691,17 +1692,22 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     const targetSwimlaneId = Number(swimId);
     const targetCol = board.columns.find((c) => c.id === targetColumnId);
     const targetSwim = board.swimlanes.find((s) => s.id === targetSwimlaneId);
-    if (targetCol && targetSwim) {
-      setDndAnnouncement(`Card '${card.title}' moved to column '${targetCol.name}', swimlane '${targetSwim.name}'`);
-    }
 
     const siblings = board.cards
       .filter((c) => c.column === targetColumnId && c.swimlane === targetSwimlaneId && c.id !== cardId)
       .sort((a, b) => a.position - b.position);
 
     // onMoveCard (useBoard.moveCard) does its own optimistic update, rollback,
-    // and error surfacing (moveError) on failure and never rejects.
-    void onMoveCard(cardId, targetColumnId, targetSwimlaneId, siblings.length);
+    // and visible error surfacing (moveError) on failure and never rejects. Only
+    // announce the outcome once known: announcing "moved" up front told screen
+    // reader users a failed move had succeeded (#1761).
+    void Promise.resolve(onMoveCard(cardId, targetColumnId, targetSwimlaneId, siblings.length)).then((outcome) => {
+      if (outcome && outcome.ok === false) {
+        setDndAnnouncement(`Card '${card.title}' could not be moved — ${failureReason(outcome.error)}`);
+      } else if (targetCol && targetSwim) {
+        setDndAnnouncement(`Card '${card.title}' moved to column '${targetCol.name}', swimlane '${targetSwim.name}'`);
+      }
+    });
   };
 
   const activeCount = countActiveFilters(filters);

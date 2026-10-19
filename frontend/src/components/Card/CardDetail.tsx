@@ -278,6 +278,17 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     }
   };
 
+  // Names the column for limit refusals (the 409 body carries column_name);
+  // the shared failureReason stays generic for the bulk toolbar.
+  const moveFailureMessage = (err: unknown): string => {
+    const reason = failureReason(err);
+    const body = (err as { response?: { data?: { column_name?: unknown } } } | null)?.response?.data;
+    if (reason === "a column limit was reached" && typeof body?.column_name === "string") {
+      return `Card could not be moved — "${body.column_name}" has reached its limit.`;
+    }
+    return `Card could not be moved — ${reason}.`;
+  };
+
   const handleMoveSubmit = async () => {
     if (!onMoveCard || moveTargetColumn === null || moveTargetSwimlane === null) return;
     // No-op if the card is already in this location.
@@ -294,13 +305,13 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       // (limit wording only for limit codes, #1761).
       const result = await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
       if (result && result.ok === false) {
-        setMovePopoverError(`Card could not be moved — ${failureReason(result.error)}.`);
+        setMovePopoverError(moveFailureMessage(result.error));
         return;
       }
       setLocalCard((c) => ({ ...c, column: moveTargetColumn, swimlane: moveTargetSwimlane }));
       setShowMovePopover(false);
     } catch (err) {
-      setMovePopoverError(`Card could not be moved — ${failureReason(err)}.`);
+      setMovePopoverError(moveFailureMessage(err));
     } finally {
       setMoveSubmitting(false);
     }

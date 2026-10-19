@@ -9,7 +9,7 @@ export function toastBody(error: MoveBlockedError): string {
   if (error.code === "version_conflict") {
     return "This card was modified by another user while you were dragging it. The board has been refreshed.";
   }
-  if (error.code === "permission_denied" || error.code === "maintenance_mode") {
+  if (error.code === "permission_denied" || error.code === "maintenance_mode" || error.code === "move_failed") {
     return error.detail;
   }
   if (error.code === "wip_limit_exceeded" || error.code === "wip_hard_blocked") {
@@ -22,6 +22,7 @@ export function toastBody(error: MoveBlockedError): string {
 
 export function toastTitle(error: MoveBlockedError): string {
   if (error.code === "version_conflict") return "Card was updated";
+  if (error.code === "move_failed") return "Move failed";
   if (error.code === "permission_denied") return "Cannot move this card";
   // Fixed, non-admin-authored lead sentence (#1127) — distinguishes an
   // instance-wide, temporary, systemic block from a personal permission

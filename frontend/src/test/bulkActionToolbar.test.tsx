@@ -821,6 +821,15 @@ describe('BulkActionToolbar — partial failure reporting (#1733)', () => {
     expect(await screen.findByText(/could not be moved — a column limit was reached/)).toBeInTheDocument()
   })
 
+  it('move failure in maintenance mode names it instead of "something went wrong" (#1761)', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(503, { code: 'maintenance_mode' }))
+    renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/could not be moved — maintenance mode is active/)).toBeInTheDocument()
+  })
+
   it('move failure with no response reports a network error', async () => {
     const user = userEvent.setup()
     mockMoveCard.mockRejectedValue(new Error('Network Error'))

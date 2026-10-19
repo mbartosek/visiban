@@ -1431,6 +1431,9 @@ describe('CardDetail', () => {
       await user.click(screen.getByRole('button', { name: 'Move' }))
       return container
     }
+    // localCard must not adopt the target: the Move button is disabled only when
+    // the target equals the card's current location, so "enabled" proves rollback.
+    const expectNotMoved = () => expect(screen.getByRole('button', { name: 'Move' })).not.toBeDisabled()
     const axiosFailure = (status: number, data: unknown = {}) =>
       Object.assign(new Error('fail'), { isAxiosError: true, response: { status, data } })
 
@@ -1443,6 +1446,7 @@ describe('CardDetail', () => {
       expect(screen.queryByText(/limit/)).not.toBeInTheDocument()
       // Popover stays open and the breadcrumb still shows the original column.
       expect(screen.getByText('Move to')).toBeInTheDocument()
+      expectNotMoved()
     })
 
     it('names a permission failure, not a limit, on 403', async () => {
@@ -1451,6 +1455,7 @@ describe('CardDetail', () => {
       await waitFor(() => {
         expect(screen.getByText('Card could not be moved — you do not have permission.')).toBeInTheDocument()
       })
+      expectNotMoved()
     })
 
     it('uses limit wording only for a limit code', async () => {
@@ -1458,6 +1463,15 @@ describe('CardDetail', () => {
       await submitMove(onMoveCard)
       await waitFor(() => {
         expect(screen.getByText('Card could not be moved — a column limit was reached.')).toBeInTheDocument()
+      })
+      expectNotMoved()
+    })
+
+    it('names the column when the limit body carries column_name', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.getByText('Card could not be moved — "In Progress" has reached its limit.')).toBeInTheDocument()
       })
     })
 
@@ -1467,6 +1481,7 @@ describe('CardDetail', () => {
       await waitFor(() => {
         expect(screen.getByText('Card could not be moved — a network error occurred.')).toBeInTheDocument()
       })
+      expectNotMoved()
     })
 
     it('closes the popover on a successful move result', async () => {
