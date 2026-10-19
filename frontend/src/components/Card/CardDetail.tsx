@@ -1207,7 +1207,8 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="bulk-add-title"
-                      className="relative bg-surface border border-line rounded-lg shadow-xl w-80 p-5 flex flex-col gap-4"
+                      tabIndex={-1}
+                      className="relative bg-surface border border-line rounded-lg shadow-xl w-80 p-5 flex flex-col gap-4 outline-none"
                     >
                       <h3 id="bulk-add-title" className="text-sm font-semibold text-fg">Add checklist items</h3>
                       <p className="text-xs text-fg-muted -mt-2">One item per line</p>

@@ -261,7 +261,8 @@ export default function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="w-[480px] max-w-[90vw] bg-surface border border-line-strong rounded-lg shadow-2xl flex flex-col max-h-[60vh]"
+        tabIndex={-1}
+        className="w-[480px] max-w-[90vw] bg-surface border border-line-strong rounded-lg shadow-2xl flex flex-col max-h-[60vh] outline-none"
       >
         {/* Search input */}
         <div className="px-3 py-2 border-b border-line flex items-center gap-2 shrink-0">
