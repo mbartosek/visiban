@@ -16,12 +16,13 @@ from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Count, Value, BooleanField
+from django.db.models import Value, BooleanField
 from django.template.response import TemplateResponse
 
 from accounts.models import User
 
 from . import broadcast as group_broadcast
+from .counts import annotate_group_counts
 from .models import Group
 from .serializers import GroupSerializer, full_group_access
 from .services import GroupTransferError, transfer_group_ownership
@@ -166,11 +167,8 @@ class GroupAdmin(admin.ModelAdmin):
         sockets receive the key, as on the API path (#1705).
         """
         group = (
-            Group.objects.select_related("owner", "parent")
+            annotate_group_counts(Group.objects.select_related("owner", "parent"))
             .annotate(
-                _member_count=Count("memberships", distinct=True),
-                _board_count=Count("boards", distinct=True),
-                _subgroup_count=Count("subgroups", distinct=True),
                 _is_starred=Value(False, output_field=BooleanField()),
             )
             .get(pk=group_id)

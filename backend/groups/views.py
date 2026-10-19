@@ -3,7 +3,8 @@ import logging
 import datetime
 
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Q
+
 from rest_framework.generics import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -27,6 +28,7 @@ from visiban.invite_recipient import (
     recipient_admits,
 )
 from . import broadcast as _group_broadcast
+from .counts import annotate_group_counts
 from .invite_registration import link_can_register, lock_invite_group
 from .models import (
     GROUP_PARENT_CHAIN, Group, GroupFavorite, GroupLabel, GroupMembership, GroupInviteLink,
@@ -342,15 +344,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         # loaded parent objects instead of issuing up to 5 lazy FK queries per
         # write action on nested groups. Six levels matches _GROUP_TRAVERSAL_MAX_DEPTH.
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
-        return Group.objects.select_related(*related).prefetch_related(
-            # Prefetch shared labels to avoid one query per group in list responses.
-            "labels",
+        # Annotate counts so GroupSerializer can read _member_count etc. directly
+        # from the object instead of issuing 3-4 extra queries per group.
+        return annotate_group_counts(
+            Group.objects.select_related(*related).prefetch_related(
+                # Prefetch shared labels to avoid one query per group in list responses.
+                "labels",
+            )
         ).annotate(
-            # Annotate counts so GroupSerializer can read _member_count etc.
-            # directly from the object instead of issuing 3-4 extra queries per group.
-            _member_count=Count("memberships", distinct=True),
-            _board_count=Count("boards", distinct=True),
-            _subgroup_count=Count("subgroups", distinct=True),
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=user, group=OuterRef("pk"))
             ),
@@ -818,10 +819,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         # navigation-only (group_access_resolver); with only "parent" loaded
         # that walk would issue lazy queries per subgroup.
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
-        subgroups = subgroups.select_related(*related).prefetch_related("labels").annotate(
-            _member_count=Count("memberships", distinct=True),
-            _board_count=Count("boards", distinct=True),
-            _subgroup_count=Count("subgroups", distinct=True),
+        subgroups = annotate_group_counts(
+            subgroups.select_related(*related).prefetch_related("labels")
+        ).annotate(
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
@@ -1911,12 +1911,11 @@ class JoinGroupView(APIView):
         # 4 extra subqueries against the bare instance (#722).
         # The full parent chain (six levels, as in _annotated_groups) so the
         # can_place_boards admin check walks loaded rows at any depth (#1692).
-        annotated_group = Group.objects.select_related(
-            "owner", *["__".join(["parent"] * d) for d in range(1, 7)],
-        ).prefetch_related("labels").annotate(
-            _member_count=Count("memberships", distinct=True),
-            _board_count=Count("boards", distinct=True),
-            _subgroup_count=Count("subgroups", distinct=True),
+        annotated_group = annotate_group_counts(
+            Group.objects.select_related(
+                "owner", *["__".join(["parent"] * d) for d in range(1, 7)],
+            ).prefetch_related("labels")
+        ).annotate(
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
