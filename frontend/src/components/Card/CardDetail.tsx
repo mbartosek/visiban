@@ -178,6 +178,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     };
   }, []);
   const moveButtonRef = useRef<HTMLButtonElement>(null);
+  const movePopoverRef = useRef<HTMLDivElement>(null);
   const [showMovePopover, setShowMovePopover] = useState(false);
   const [movePopoverAnchor, setMovePopoverAnchor] = useState<{ top: number; left: number } | null>(null);
   const [moveTargetColumn, setMoveTargetColumn] = useState<number | null>(null);
@@ -235,25 +236,28 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setConfirmAction(null);
     setCardActionError(null);
   }, 35);
-  // Resolve the Move popover when the card changes underneath it (#1773). A
-  // version-conflict refresh or a forced move (useBoard.forceMoveCard) replaces
-  // the card in board.cards, but this component seeds localCard and the popover
+  // Resolve the Move popover when the card is replaced underneath it (#1773). A
+  // version-conflict refresh or a forced move (useBoard.forceMoveCard) swaps in
+  // the server's card, but this component seeds localCard and the popover
   // targets once, so without this the popover keeps the pre-refresh target and
-  // error. Only the location is synced into localCard: the rest of localCard
-  // can hold in-progress edits that a board refresh must not clobber. The
-  // in-flight guard skips useBoard's optimistic relocation of our own move,
-  // which handleMoveSubmit resolves itself.
-  const lastSeenCardRef = useRef({ version: card.version, column: card.column, swimlane: card.swimlane });
-  const moveInFlightRef = useRef(false);
-  moveInFlightRef.current = moveSubmitting;
+  // error. Keyed on version alone: useBoard's optimistic relocation and its
+  // rollback of a failed move change the location but never the version, so
+  // they cannot close the popover or erase the inline error of our own failed
+  // move. Only the location is synced into localCard: the rest can hold
+  // in-progress edits that a board refresh must not clobber.
+  const lastSeenVersionRef = useRef(card.version);
   useEffect(() => {
-    const seen = lastSeenCardRef.current;
-    if (seen.version === card.version && seen.column === card.column && seen.swimlane === card.swimlane) return;
-    lastSeenCardRef.current = { version: card.version, column: card.column, swimlane: card.swimlane };
-    if (moveInFlightRef.current) return;
+    if (lastSeenVersionRef.current === card.version) return;
+    lastSeenVersionRef.current = card.version;
     setLocalCard((c) => (c.column === card.column && c.swimlane === card.swimlane ? c : { ...c, column: card.column, swimlane: card.swimlane }));
     setShowMovePopover(false);
     setMovePopoverError(null);
+    // Closing unmounts the focused control: hand focus back to the Move button
+    // unless the user has moved on to another field.
+    const active = document.activeElement;
+    if (!active || active === document.body || movePopoverRef.current?.contains(active)) {
+      moveButtonRef.current?.focus();
+    }
   }, [card.version, card.column, card.swimlane]);
 
   // Close move popover before panel — priority 36 sits above confirmAction (35) so
@@ -1494,6 +1498,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       {/* Move popover — rendered fixed so the panel's overflow-hidden doesn't clip it */}
       {showMovePopover && movePopoverAnchor && (
         <div
+          ref={movePopoverRef}
           className="fixed w-64 bg-surface border border-line rounded-lg shadow-xl p-4 z-[60] flex flex-col gap-3"
           style={{ top: movePopoverAnchor.top, left: movePopoverAnchor.left }}
         >

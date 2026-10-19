@@ -1552,8 +1552,41 @@ describe('CardDetail', () => {
         const user = userEvent.setup()
         const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
         await openPopover(user)
-        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'Renamed locally' })} />)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'Renamed locally', column: 11 })} />)
         expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('keeps the inline error when its own failed move is rolled back (location changes, version does not)', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        await waitFor(() => expect(screen.getByText(/has reached its limit/)).toBeInTheDocument())
+        // Optimistic relocation, then rollback, both at the same version.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 11 })} />)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 10 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByText(/has reached its limit/)).toBeInTheDocument()
+      })
+
+      it('returns focus to the Move button when the refresh closes the popover', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        ;(popover.querySelector('button') as HTMLButtonElement).focus()
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByRole('button', { name: /Move card to different column or swimlane/ })).toHaveFocus()
       })
 
       it('does not close the popover for the optimistic update of its own in-flight move', async () => {
