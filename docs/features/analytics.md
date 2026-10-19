@@ -23,7 +23,11 @@ Useful for a quick health check across all active pipelines.
 
 > **Added in 1.1**
 
-The summary response includes an `extension_panels` field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here, and the Summary tab renders `stats` and `table` panels below the swimlane table. See the [extension panel payload](../api/boards.md#extension-panel-payload) for the shape. With no extensions registered, the Summary tab looks the same as before.
+The summary response includes an `extension_panels` field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here.
+
+> **Added in 1.2** (#1770)
+
+The Summary tab renders `stats` and `table` panels below the swimlane table. See the [extension panel payload](../api/boards.md#extension-panel-payload) for the shape. With no extensions registered, the Summary tab looks the same as before.
 
 **API:** `GET /api/v1/boards/{id}/summary/`
 

@@ -233,6 +233,50 @@ class TestSummaryMetrics(AnalyticsHistorySetup):
         self.assertEqual(resp.data["extension_panels"], [good])
         self.assertEqual(len(resp.data["swimlanes"]), 1)
 
+    def test_lone_surrogate_panels_are_dropped_not_500(self):
+        """A lone surrogate passes ensure_ascii json.dumps but crashes the UTF-8 renderer (#1770)."""
+        good = {"id": "ok", "title": "OK", "type": "stats", "data": {"items": [{"label": "A", "value": 1}]}}
+        bad = [
+            {"id": "t", "title": "bad \ud800", "type": "stats", "data": {"items": []}},
+            {"id": "n", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": "x\udc00"}]}},
+            {"id": "k", "title": "t", "type": "stats", "data": {"\ud800": 1}},
+        ]
+        resp = self._summary_with_panels(*bad, good)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [good])
+        self.assertEqual(len(resp.data["swimlanes"]), 1)
+
+    def test_valid_unicode_panel_passes_through_unchanged(self):
+        panel = {"id": "u", "title": "Risk \U0001F680 \u4e2d\u6587", "type": "stats", "data": {"items": [{"label": "\u00e9", "value": "\u65e5\u672c"}]}}
+        resp = self._summary_with_panels(panel)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [panel])
+
+    def test_drop_warning_never_includes_exception_text(self):
+        from boards import hooks as _hooks
+
+        def _raises(board, request):
+            raise RuntimeError("SECRET-EXC-TEXT")
+
+        _hooks.ANALYTICS_EXTENSIONS.append(_raises)
+        try:
+            with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+                resp = self._client_for(self.admin).get(self._summary_url())
+        finally:
+            _hooks.ANALYTICS_EXTENSIONS.remove(_raises)
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+        self.assertIsNone(cm.records[0].exc_info)
+
+        class _Unserializable:
+            def __repr__(self):
+                return "SECRET-REPR"
+
+        with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+            self._summary_with_panels({"id": "x", "title": "t", "data": {"v": _Unserializable()}})
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+        self.assertIsNone(cm.records[0].exc_info)
+
     def test_generator_in_panel_is_not_exhausted_by_validation(self):
         panel = {"id": "g", "title": "G", "type": "stats", "data": {"items": (x for x in [{"label": "A", "value": 1}])}}
         resp = self._summary_with_panels(panel)

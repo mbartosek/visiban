@@ -283,6 +283,8 @@ Board health summary — per-swimlane card counts, stage distribution, and veloc
 
 #### Extension panel payload
 
+> **Added in 1.2** (#1770)
+
 Each entry of `extension_panels` is returned verbatim from an `ANALYTICS_EXTENSIONS` callable (`boards/hooks.py`). The web UI renders two panel types, `stats` and `table`. This shape is a public contract: existing types only ever gain optional fields, and an incompatible shape gets a new `type` name. There is no version field.
 
 | Field | Required | Rule |
@@ -299,15 +301,15 @@ Each entry of `extension_panels` is returned verbatim from an `ANALYTICS_EXTENSI
 
 `table` data: `{"columns": [{"key": ..., "label": ..., "align": ...}], "rows": [{...}]}`
 
-- 1-12 columns; `key` is a string of 1-64 characters, unique within the panel; `label` is a string of 1-80 characters; `align` is `"left"` (default) or `"right"`.
+- 1-12 columns; `key` is a string of 1-64 characters, unique within the panel, and not `__proto__`, `constructor` or `prototype` (a panel using one of those keys is skipped); `label` is a string of 1-80 characters; `align` is `"left"` (default) or `"right"`.
 - 0-200 rows. Each row is an object keyed by column `key`; every cell is a string of up to 200 characters, a finite number, or `null`. A missing key renders as `null`. Zero rows renders `No data.`
 
 Rendering rules:
 
 - At most 20 panels are rendered; extras are skipped. Unknown fields are ignored at every level.
 - A `null` optional field (`description`, `hint`, `align`) is treated as absent, so a Python `None` is fine; omitting the key is still preferred.
-- Any other violation (wrong type, a value over a limit, `NaN` or infinity, a boolean or object cell) skips the whole panel. Panels are never truncated. Skipped panels log one browser console warning that names the panel id (or its index when the id is missing or empty) and the reason, never the title or data. Panels over the 20-panel cap log a single summary warning.
-- The backend also validates each panel before responding: a panel that is not an object, or that contains `NaN`, infinity or a value that cannot be serialized to JSON, is dropped by the API (with a server warning that never includes the panel contents), so one bad panel can never fail the summary response. The frontend skips any panel that still breaks the rules above.
+- Any other violation (wrong type, a value over a limit, `NaN` or infinity, a boolean or object cell) skips the whole panel. Panels are never truncated. Skipped panels log one browser console warning that names the panel id (or its index when the id is missing, empty, not a string, or over 100 characters) and the reason, never the title or data. Panels over the 20-panel cap log a single summary warning.
+- The backend also validates each panel before responding: a panel that is not an object, or that contains `NaN`, infinity or a value that cannot be serialized to JSON, (including a string with a lone surrogate) is dropped by the API, with a server warning that names the callable and the exception type but never the panel contents or exception text, so a bad panel does not fail the summary response. The frontend skips any panel that still breaks the rules above.
 - Chart panel types are not part of v1; they are tracked in #1774.
 - Panels supply text and numbers only. Every string renders as plain text: there is no HTML, Markdown, link, class, color, or style support. A URL in a string is shown as text, not as a link.
 

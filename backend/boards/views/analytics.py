@@ -10,7 +10,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.utils.encoders import JSONEncoder as DRFJSONEncoder
+from rest_framework.renderers import JSONRenderer
 from rest_framework import serializers, status
 
 from ..models import BoardExportLog, CardMovement
@@ -135,13 +135,14 @@ class BoardAnalyticsMixin:
                 # Validate here, not in the renderer: a NaN/inf or non-serializable
                 # value makes DRF's JSONRenderer raise after the view returns, which
                 # would 500 the whole summary and lose the swimlane data. The panel
-                # is round-tripped through the same strict encoder DRF uses, so what
-                # is appended is exactly what the renderer would emit (this also
-                # keeps a one-shot iterable from being exhausted by validation).
+                # is rendered with DRF's own JSONRenderer (same encoder, strict NaN
+                # handling and UTF-8 encoding, so a lone surrogate fails here too)
+                # and the result parsed back, so it matches what the renderer would
+                # emit and a one-shot iterable is not exhausted by validation.
                 if not isinstance(_panel, dict):
                     raise TypeError("panel must be a dict")
                 extension_panels.append(
-                    json.loads(json.dumps(_panel, cls=DRFJSONEncoder, allow_nan=False))
+                    json.loads(JSONRenderer().render(_panel))
                 )
             except Exception as exc:
                 # Log the callable's name and the exception type only: never the
