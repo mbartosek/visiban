@@ -346,9 +346,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
         return annotate_group_counts(
             Group.objects.select_related(*related).prefetch_related(
-            # Prefetch shared labels to avoid one query per group in list responses.
-            "labels",
-        )
+                # Prefetch shared labels to avoid one query per group in list responses.
+                "labels",
+            )
         ).annotate(
             # Annotate counts so GroupSerializer can read _member_count etc.
             # directly from the object instead of issuing 3-4 extra queries per group.
