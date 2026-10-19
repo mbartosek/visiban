@@ -156,7 +156,7 @@ Basic per-swimlane analytics — cards in flight, average cycle time, cards move
 
 Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.
 
-The OSS analytics summary exposes an `ANALYTICS_EXTENSIONS` registration point (`boards/hooks.py`) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in `extension_panels`, but the web UI does not render `extension_panels`.
+The OSS analytics summary exposes an `ANALYTICS_EXTENSIONS` registration point (`boards/hooks.py`) so enterprise can add panels without modifying OSS view files. The summary returns the panels in `extension_panels`, and the Summary tab renders `stats` and `table` panels below the swimlane table (see the [payload contract](../api/boards.md#extension-panel-payload)).
 
 **Issue:** #341
 
@@ -252,7 +252,7 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `BOARD_EVENT_HOOKS` list (`boards/hooks.py`) | Enterprise webhook operations (enterprise #44) — wake signal for a queue-backed dispatcher | Not yet implemented — planned in #863 |
 | `VISIBAN_AUTOMATION_BACKEND` setting | Enterprise automation (enterprise #69) | Not yet implemented |
 | `MOVEMENT_EXPORT_BACKENDS` list (`boards/hooks.py`) | Enterprise delivery report export (#342 enterprise) | ✅ Implemented — `boards/hooks.py` |
-| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | Backend only; the web UI does not render `extension_panels` — `boards/hooks.py`, consumed by `boards/views/analytics.py` into the summary's `extension_panels`. The web UI does not render `extension_panels` (no hits in `frontend/src`), so registered panels are not displayed |
+| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | ✅ Implemented — `boards/hooks.py`, consumed by `boards/views/analytics.py` into the summary's `extension_panels`, rendered by the Summary tab (`SummaryView` / `ExtensionPanels`, #1770). Payload contract (additive-only): [`docs/api/boards.md`](../api/boards.md#extension-panel-payload) |
 | `TEMPLATE_PROVIDERS` list (`boards/hooks.py`) | External board-template registration by installed packages (#1115; tracked further in #504) | ✅ Implemented — `boards/hooks.py` + `boards/template_sync.py`, synced via `post_migrate` in `BoardsConfig.ready()` |
 | `CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **card** values (#371) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary |
 | `SWIMLANE_CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **swimlane row** values (#1140) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary. A separate list from the card one, not a widening of it: a validator registered against the card signature may read card-only attributes, so feeding it a swimlane definition could raise. A validator that is generic across both levels registers in both lists. |

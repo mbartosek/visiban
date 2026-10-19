@@ -279,7 +279,53 @@ Board health summary — per-swimlane card counts, stage distribution, and veloc
 | `stage_distribution` | object | Card count per column for this swimlane (all columns, including zero counts) |
 | `velocity_7d` | integer | Cards moved into any column with `is_done: true` in the last 7 days |
 | `velocity_30d` | integer | Cards moved into any column with `is_done: true` in the last 30 days |
-| `extension_panels` | array | Always `[]` in OSS — reserved slot for enterprise analytics panel extensions |
+| `extension_panels` | array | `[]` in OSS. Panels registered through the `ANALYTICS_EXTENSIONS` hook; the web UI renders them in the Summary tab below the swimlane table. See [Extension panel payload](#extension-panel-payload) |
+
+#### Extension panel payload
+
+> **Added in 1.2** (#1770)
+
+Each entry of `extension_panels` comes from an `ANALYTICS_EXTENSIONS` callable (`boards/hooks.py`) and is returned after JSON normalization by the API encoder: tuples become lists, date, time and UUID values become strings, and `Decimal` values become numbers. The web UI renders two panel types, `stats` and `table`. This shape is a public contract: existing types only ever gain optional fields, and an incompatible shape gets a new `type` name. There is no version field.
+
+| Field | Required | Rule |
+|---|---|---|
+| `id` | yes | String, 1-100 characters, unique per response (the first valid panel with an id wins; a later duplicate is skipped, but renders if the earlier one was malformed) |
+| `title` | yes | String, 1-120 characters |
+| `type` | yes, to render | `"stats"` or `"table"`. A panel with a missing or unknown `type` (including legacy `{id, title, data}` panels) is returned by the API but has no renderer and is skipped |
+| `description` | no | String, up to 500 characters |
+| `data` | yes | Shape depends on `type`, below |
+
+`stats` data: `{"items": [{"label": ..., "value": ..., "hint": ...}]}`
+
+- 1-24 items; `label` is a string of 1-80 characters; `value` is a string of up to 200 characters, a finite number, or `null` (rendered as `—`); `hint` is an optional string of up to 200 characters.
+
+`table` data: `{"columns": [{"key": ..., "label": ..., "align": ...}], "rows": [{...}]}`
+
+- 1-12 columns; `key` is a string of 1-64 characters, unique within the panel, and not `__proto__`, `constructor` or `prototype` (a panel using one of those keys is skipped); `label` is a string of 1-80 characters; `align` is `"left"` (default) or `"right"`.
+- 0-200 rows. Each row is an object keyed by column `key`; every cell is a string of up to 200 characters, a finite number, or `null`. A missing key renders as `null`. Zero rows renders `No data.`
+
+Rendering rules:
+
+- At most 20 panels are rendered; extras are skipped. Unknown fields are ignored at every level.
+- A `null` optional field (`description`, `hint`, `align`) is treated as absent, so a Python `None` is fine; omitting the key is still preferred.
+- Any other violation (wrong type, a value over a limit, `NaN` or infinity, a boolean or object cell) skips the whole panel. Panels are never truncated. Skipped panels log one browser console warning that names the panel id (or its index when the id is missing, empty, not a string, or over 100 characters) and the reason, never the title or data. Panels over the 20-panel cap log a single summary warning.
+- The backend also validates each panel before responding: a panel that is not an object, or that contains `NaN`, infinity or a value that cannot be serialized to JSON, (including a string with a lone surrogate) is dropped by the API, with a server warning that names the callable and the exception type but never the panel contents or exception text, so a bad panel does not fail the summary response. The frontend skips any panel that still breaks the rules above.
+- Chart panel types are not part of v1; they are tracked in #1774.
+- Panels supply text and numbers only. Every string renders as plain text: there is no HTML, Markdown, link, class, color, or style support. A URL in a string is shown as text, not as a link.
+
+Example:
+
+```json
+{
+  "id": "delivery-risk",
+  "title": "Delivery risk",
+  "type": "stats",
+  "data": { "items": [{ "label": "Blocked cards", "value": 4, "hint": "since Monday" }] }
+}
+```
+
+!!! warning "Producers must gate on role"
+    The summary is returned to every member who can read the board, viewers included. An `ANALYTICS_EXTENSIONS` callable receives `request` and must check `request.user`'s role itself before returning data that not every member should see.
 
 ---
 

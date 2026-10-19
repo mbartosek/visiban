@@ -179,6 +179,116 @@ class TestSummaryMetrics(AnalyticsHistorySetup):
         resp = c.get(self._summary_url())
         self.assertEqual(resp.data["extension_panels"], [])
 
+    def test_valid_extension_panel_passes_through_unchanged(self):
+        """A registered panel dict is returned verbatim in extension_panels (#1770)."""
+        from boards import hooks as _hooks
+
+        panel = {
+            "id": "p1",
+            "title": "Panel",
+            "type": "stats",
+            "data": {"items": [{"label": "A", "value": 1}]},
+        }
+
+        def _good_panel(board, request):
+            return panel
+
+        _hooks.ANALYTICS_EXTENSIONS.append(_good_panel)
+        try:
+            c = self._client_for(self.admin)
+            resp = c.get(self._summary_url())
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data["extension_panels"], [panel])
+        finally:
+            _hooks.ANALYTICS_EXTENSIONS.remove(_good_panel)
+
+    def _summary_with_panels(self, *panels_or_fns):
+        """Register callables returning each value, GET the summary, always unregister."""
+        from boards import hooks as _hooks
+
+        fns = [(lambda board, request, _v=v: _v) for v in panels_or_fns]
+        _hooks.ANALYTICS_EXTENSIONS.extend(fns)
+        try:
+            return self._client_for(self.admin).get(self._summary_url())
+        finally:
+            for fn in fns:
+                _hooks.ANALYTICS_EXTENSIONS.remove(fn)
+
+    def test_invalid_extension_panels_are_dropped_not_500(self):
+        """NaN, inf, unserializable and non-dict panels are dropped; the rest renders (#1770).
+
+        DRF's renderer raises on these after the view returns, so without the
+        per-panel check the whole summary (swimlanes included) would 500.
+        """
+        good = {"id": "ok", "title": "OK", "type": "stats", "data": {"items": [{"label": "A", "value": 1}]}}
+        bad = [
+            {"id": "nan", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": float("nan")}]}},
+            {"id": "inf", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": float("inf")}]}},
+            {"id": "obj", "title": "t", "type": "stats", "data": {"items": [object()]}},
+            ["not", "a", "dict"],
+            None,
+        ]
+        resp = self._summary_with_panels(bad[0], bad[1], bad[2], bad[3], bad[4], good)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [good])
+        self.assertEqual(len(resp.data["swimlanes"]), 1)
+
+    def test_lone_surrogate_panels_are_dropped_not_500(self):
+        """A lone surrogate passes ensure_ascii json.dumps but crashes the UTF-8 renderer (#1770)."""
+        good = {"id": "ok", "title": "OK", "type": "stats", "data": {"items": [{"label": "A", "value": 1}]}}
+        bad = [
+            {"id": "t", "title": "bad \ud800", "type": "stats", "data": {"items": []}},
+            {"id": "n", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": "x\udc00"}]}},
+            {"id": "k", "title": "t", "type": "stats", "data": {"\ud800": 1}},
+        ]
+        resp = self._summary_with_panels(*bad, good)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [good])
+        self.assertEqual(len(resp.data["swimlanes"]), 1)
+
+    def test_valid_unicode_panel_passes_through_unchanged(self):
+        panel = {"id": "u", "title": "Risk \U0001F680 \u4e2d\u6587", "type": "stats", "data": {"items": [{"label": "\u00e9", "value": "\u65e5\u672c"}]}}
+        resp = self._summary_with_panels(panel)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [panel])
+
+    def test_drop_warning_never_includes_exception_text(self):
+        from boards import hooks as _hooks
+
+        def _raises(board, request):
+            raise RuntimeError("SECRET-EXC-TEXT")
+
+        _hooks.ANALYTICS_EXTENSIONS.append(_raises)
+        try:
+            with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+                resp = self._client_for(self.admin).get(self._summary_url())
+        finally:
+            _hooks.ANALYTICS_EXTENSIONS.remove(_raises)
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+        self.assertIsNone(cm.records[0].exc_info)
+
+        class _Unserializable:
+            def __repr__(self):
+                return "SECRET-REPR"
+
+        with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+            self._summary_with_panels({"id": "x", "title": "t", "data": {"v": _Unserializable()}})
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+        self.assertIsNone(cm.records[0].exc_info)
+
+    def test_generator_in_panel_is_not_exhausted_by_validation(self):
+        panel = {"id": "g", "title": "G", "type": "stats", "data": {"items": (x for x in [{"label": "A", "value": 1}])}}
+        resp = self._summary_with_panels(panel)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"][0]["data"]["items"], [{"label": "A", "value": 1}])
+
+    def test_dropped_panel_warning_never_logs_panel_contents(self):
+        secret = {"id": "s", "title": "SECRET-TITLE", "type": "stats", "data": {"items": [float("nan")]}}
+        with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+            self._summary_with_panels(secret)
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+
     def test_faulty_extension_panel_returns_200_with_empty_panels(self):
         """A raising ANALYTICS_EXTENSIONS callable must not crash the summary endpoint (#904).
 

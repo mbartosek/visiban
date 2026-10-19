@@ -1,6 +1,7 @@
 """BoardViewSet mixin for summary and analytics actions."""
 
 import datetime
+import json
 import logging
 import statistics
 
@@ -9,6 +10,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer
 from rest_framework import serializers, status
 
 from ..models import BoardExportLog, CardMovement
@@ -129,9 +131,28 @@ class BoardAnalyticsMixin:
         extension_panels = []
         for _fn in hooks.ANALYTICS_EXTENSIONS:
             try:
-                extension_panels.append(_fn(board, request))
-            except Exception:
-                _logger.warning("ANALYTICS_EXTENSIONS callable %r raised an exception", _fn, exc_info=True)
+                _panel = _fn(board, request)
+                # Validate here, not in the renderer: a NaN/inf or non-serializable
+                # value makes DRF's JSONRenderer raise after the view returns, which
+                # would 500 the whole summary and lose the swimlane data. The panel
+                # is rendered with DRF's own JSONRenderer (same encoder, strict NaN
+                # handling and UTF-8 encoding, so a lone surrogate fails here too)
+                # and the result parsed back, so it matches what the renderer would
+                # emit and a one-shot iterable is not exhausted by validation.
+                if not isinstance(_panel, dict):
+                    raise TypeError("panel must be a dict")
+                extension_panels.append(
+                    json.loads(JSONRenderer().render(_panel))
+                )
+            except Exception as exc:
+                # Log the callable's name and the exception type only: never the
+                # panel contents or exception text, which may carry sensitive data.
+                _logger.warning(
+                    "ANALYTICS_EXTENSIONS callable %s.%s dropped (%s)",
+                    getattr(_fn, "__module__", "?"),
+                    getattr(_fn, "__qualname__", type(_fn).__name__),
+                    type(exc).__name__,
+                )
         return Response({"swimlanes": result, "extension_panels": extension_panels})
 
     @action(detail=True, methods=["get"])

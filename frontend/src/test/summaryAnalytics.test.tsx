@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SummaryView from '../components/Board/SummaryView'
@@ -16,6 +16,7 @@ const mockGetBoardAnalytics = getBoardAnalytics as ReturnType<typeof vi.fn>
 
 describe('SummaryView', () => {
   beforeEach(() => { vi.clearAllMocks() })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('shows loading state', () => {
     mockGetBoardSummary.mockReturnValue(new Promise(() => {}))
@@ -49,6 +50,117 @@ describe('SummaryView', () => {
     // New #342 metrics
     expect(screen.getByText('3')).toBeInTheDocument() // active_cards
     expect(screen.getByText('4.5')).toBeInTheDocument() // avg_cycle_days
+  })
+
+  describe('extension panels (#1770)', () => {
+    const lane = {
+      id: 1, name: 'Customer A', color: '#3B82F6', total_cards: 5,
+      stage_distribution: { 'To Do': 3, 'Done': 2 },
+      velocity_7d: 2, velocity_30d: 8, active_cards: 3, done_30d: 2, avg_cycle_days: 4.5,
+    }
+    const statsPanel = {
+      id: 's1', title: 'Risk', type: 'stats', description: 'Quarterly',
+      data: { items: [{ label: 'Open', value: 7, hint: 'since Monday' }, { label: 'Owner', value: null }] },
+    }
+
+    it.each([
+      ['an empty list', { swimlanes: [lane], extension_panels: [] }],
+      ['no key at all', { swimlanes: [lane] }],
+    ])('renders nothing extra for %s', async (_n, payload) => {
+      mockGetBoardSummary.mockResolvedValue(payload)
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      expect(await screen.findByText('Customer A')).toBeInTheDocument()
+      expect(screen.queryByTestId('extension-panels')).toBeNull()
+      expect(screen.getAllByRole('table')).toHaveLength(1)
+    })
+
+    it('renders a valid stats panel', async () => {
+      mockGetBoardSummary.mockResolvedValue({ swimlanes: [lane], extension_panels: [statsPanel] })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const group = await screen.findByRole('group', { name: 'Risk' })
+      expect(within(group).getByText('Quarterly')).toBeInTheDocument()
+      expect(within(group).getByText('Open').tagName).toBe('DT')
+      expect(within(group).getByText('7').closest('dd')).not.toBeNull()
+      expect(within(group).getByText('since Monday')).toBeInTheDocument()
+      expect(within(group).getByText('—')).toBeInTheDocument()
+    })
+
+    it('renders a valid table panel, with No data. for zero rows', async () => {
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 't1', title: 'Owners', type: 'table', data: { columns: [{ key: 'n', label: 'Name' }, { key: 'c', label: 'Count', align: 'right' }], rows: [{ n: 'Ann', c: 3 }, { n: 'Bob' }] } },
+          { id: 't2', title: 'Empty', type: 'table', data: { columns: [{ key: 'n', label: 'Name' }], rows: [] } },
+        ],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const g = await screen.findByRole('group', { name: 'Owners' })
+      expect(within(g).getByRole('columnheader', { name: 'Count' })).toHaveClass('text-right')
+      expect(within(g).getByText('Ann')).toBeInTheDocument()
+      expect(within(g).getByText('3')).toBeInTheDocument()
+      expect(within(g).getByText('—')).toBeInTheDocument()
+      expect(within(screen.getByRole('group', { name: 'Empty' })).getByText('No data.')).toBeInTheDocument()
+    })
+
+    it('renders only the valid panel when one is malformed', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [null, { id: 'x', title: 'Legacy', data: {} }, statsPanel],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      await screen.findByRole('group', { name: 'Risk' })
+      expect(screen.getAllByRole('group')).toHaveLength(1)
+      expect(screen.queryByText('Legacy')).toBeNull()
+      warnSpy.mockRestore()
+    })
+
+    it('renders a numeric 0 as 0, right-aligns body cells, and keeps the hint in a dd', async () => {
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 'z', title: 'Zeros', type: 'stats', data: { items: [{ label: 'Blocked', value: 0, hint: 'none now' }] } },
+          { id: 'r', title: 'Right', type: 'table', data: { columns: [{ key: 'c', label: 'Count', align: 'right' }], rows: [{ c: 0 }] } },
+        ],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const z = await screen.findByRole('group', { name: 'Zeros' })
+      expect(within(z).getByText('0').closest('dd')).not.toBeNull()
+      expect(within(z).getByText('none now').tagName).toBe('DD')
+      expect(within(z).queryByText('—')).toBeNull()
+      const r = screen.getByRole('group', { name: 'Right' })
+      expect(within(r).getByText('0').closest('td')).toHaveClass('text-right')
+    })
+
+    it('wraps long unbroken titles, descriptions and cells instead of overflowing', async () => {
+      const long = 'x'.repeat(100)
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 'l', title: long, description: long, type: 'table', data: { columns: [{ key: 'c', label: 'C' }], rows: [{ c: long + 'y' }] } },
+        ],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const g = await screen.findByRole('group', { name: long })
+      expect(within(g).getByRole('heading')).toHaveClass('break-words')
+      expect(within(g).getAllByText(long)[0]).toHaveClass('break-words')
+      expect(within(g).getByText(long + 'y')).toHaveClass('break-words')
+    })
+
+    it('renders hostile strings as literal text', async () => {
+      const evil = '<img src=x onerror=alert(1)>'
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 'e', title: evil, type: 'stats', data: { items: [{ label: 'Link', value: 'javascript:alert(1)' }] } },
+        ],
+      })
+      const { container } = render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      expect(await screen.findByText(evil)).toBeInTheDocument()
+      expect(container.querySelector('img')).toBeNull()
+      expect(screen.getByText('javascript:alert(1)')).toBeInTheDocument()
+      expect(screen.queryByRole('link')).toBeNull()
+    })
   })
 
   it('renders column headers', async () => {

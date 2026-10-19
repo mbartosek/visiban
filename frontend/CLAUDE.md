@@ -1009,6 +1009,15 @@ The filter bar's search input carries a `SingleSelectDropdown` scope toggle to i
 - New metric columns grouped under a common section must use a two-row `<thead>`: first row `colspan` spanning the group with a `text-xs text-fg-muted uppercase tracking-wide` group label, second row with individual headers
 - Numeric metric cells: `font-mono text-fg-secondary`; zero or null values render `—` in `text-fg-muted`, never `0`
 
+## Extension panels (Summary tab)
+
+- `SummaryView` renders enterprise `extension_panels` directly after the swimlane `</table>`, inside the same scroll container, via `ExtensionPanels`. Render nothing (no wrapper, heading, or margin) when there are none.
+- The array is untrusted: always run it through `parseExtensionPanels` (`parseExtensionPanels.ts`); never render raw entries.
+- A panel supplies text and numbers only, never classes, colors, styles, HTML, Markdown, or links. Render every string as a React text node. A future link field must pass `isHttpUrl()` from `utils/externalRef.ts`.
+- Each panel is `role="group"` labeled by its `<h3>`, per § Inline summary panels. Derive the heading id from `useId()`, never from the payload id.
+- A real numeric `0` renders as `0` (a producer's zero is data, unlike the swimlane metric columns); only `null` renders the muted `—`. Panel tables are exempt from the pinned first column rule: they are narrow (at most 12 columns) and scroll inside their own `overflow-x-auto`.
+- The payload shape is a public, additive-only contract (`docs/api/boards.md` "Extension panel payload"): add optional fields or a new `type` name, never change an existing one.
+
 ## Analytics / split-panel scroll layout
 
 When a panel contains a fixed reference section (toolbar + table) and a scrollable list below it:
