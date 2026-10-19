@@ -2081,11 +2081,32 @@ describe('CardDetail focus trap (#1732)', () => {
     const overlay = screen.getByRole('dialog', { name: 'Add checklist items' })
     expect(overlay).toHaveAttribute('aria-modal', 'true')
     const buttons = overlay.querySelectorAll<HTMLElement>('button')
+    const focusables = overlay.querySelectorAll<HTMLElement>('button, textarea')
     buttons[buttons.length - 1].focus()
     fireEvent.keyDown(document, { key: 'Tab' })
-    expect(overlay.contains(document.activeElement)).toBe(true)
+    // fireEvent does not move focus itself, so this only holds if the trap wrapped it.
+    expect(document.activeElement).toBe(focusables[0])
     await user.keyboard('{Escape}')
     expect(screen.queryByText('Add checklist items')).not.toBeInTheDocument()
     expect(bulk).toHaveFocus()
+  })
+
+  it('keyboard users can reach the Move popover from the trapped panel', async () => {
+    const user = userEvent.setup()
+    render(<CardDetail {...defaultProps()} onMoveCard={vi.fn().mockResolvedValue(undefined)} />)
+    const trigger = screen.getByRole('button', { name: /Move card to different column or swimlane/ })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const moveTo = screen.getByText('Move to')
+    const popover = moveTo.parentElement as HTMLElement
+    const panel = screen.getByRole('dialog', { name: /./ })
+    expect(panel.contains(popover)).toBe(true)
+    // Tab through the whole panel: the popover's controls must be visited.
+    const seen = new Set<Element>()
+    for (let i = 0; i < 200; i++) {
+      await user.tab()
+      if (document.activeElement) seen.add(document.activeElement)
+    }
+    expect(Array.from(seen).some((el) => popover.contains(el))).toBe(true)
   })
 })

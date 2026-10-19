@@ -1480,47 +1480,47 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             )}
           </div>
         )}
-      </div>
 
-      {/* Move popover — rendered fixed so the panel's overflow-hidden doesn't clip it */}
-      {showMovePopover && movePopoverAnchor && (
-        <div
-          className="fixed w-64 bg-surface border border-line rounded-lg shadow-xl p-4 z-[60] flex flex-col gap-3"
-          style={{ top: movePopoverAnchor.top, left: movePopoverAnchor.left }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-fg-tertiary">Move to</p>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-fg-muted">Swimlane</label>
-            <SelectDropdown
-              options={board.swimlanes.map((s) => ({ value: String(s.id), label: s.name }))}
-              value={moveTargetSwimlane !== null ? String(moveTargetSwimlane) : ""}
-              onChange={(v) => setMoveTargetSwimlane(Number(v))}
-            />
+        {/* Move popover — position:fixed so the panel's overflow-hidden doesn't clip it; inside panelRef so the focus trap includes it (#1732) */}
+        {showMovePopover && movePopoverAnchor && (
+          <div
+            className="fixed w-64 bg-surface border border-line rounded-lg shadow-xl p-4 z-[60] flex flex-col gap-3"
+            style={{ top: movePopoverAnchor.top, left: movePopoverAnchor.left }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-fg-tertiary">Move to</p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-fg-muted">Swimlane</label>
+              <SelectDropdown
+                options={board.swimlanes.map((s) => ({ value: String(s.id), label: s.name }))}
+                value={moveTargetSwimlane !== null ? String(moveTargetSwimlane) : ""}
+                onChange={(v) => setMoveTargetSwimlane(Number(v))}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-fg-muted">Column</label>
+              <SelectDropdown
+                options={board.columns.map((c) => ({ value: String(c.id), label: c.name }))}
+                value={moveTargetColumn !== null ? String(moveTargetColumn) : ""}
+                onChange={(v) => setMoveTargetColumn(Number(v))}
+              />
+            </div>
+            <p role="alert" className="text-xs min-h-4">
+              {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowMovePopover(false)}
+                className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded"
+              >Cancel</button>
+              <button
+                onClick={handleMoveSubmit}
+                disabled={moveSubmitting || moveTargetColumn === null || moveTargetSwimlane === null || (moveTargetColumn === localCard.column && moveTargetSwimlane === localCard.swimlane)}
+                className="text-sm font-medium bg-button-primary hover:bg-button-primary-hover text-on-primary px-3 py-1.5 rounded transition disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+              >{moveSubmitting ? "Moving…" : "Move"}</button>
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-fg-muted">Column</label>
-            <SelectDropdown
-              options={board.columns.map((c) => ({ value: String(c.id), label: c.name }))}
-              value={moveTargetColumn !== null ? String(moveTargetColumn) : ""}
-              onChange={(v) => setMoveTargetColumn(Number(v))}
-            />
-          </div>
-          <p role="alert" className="text-xs min-h-4">
-            {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={() => setShowMovePopover(false)}
-              className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded"
-            >Cancel</button>
-            <button
-              onClick={handleMoveSubmit}
-              disabled={moveSubmitting || moveTargetColumn === null || moveTargetSwimlane === null || (moveTargetColumn === localCard.column && moveTargetSwimlane === localCard.swimlane)}
-              className="text-sm font-medium bg-button-primary hover:bg-button-primary-hover text-on-primary px-3 py-1.5 rounded transition disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
-            >{moveSubmitting ? "Moving…" : "Move"}</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Delete / Archive confirmation overlay */}
       <ModalWrapper
