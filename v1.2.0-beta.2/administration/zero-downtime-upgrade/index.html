@@ -4259,7 +4259,7 @@ than a Django migration error, means it never got to your schema change at all โ
 <code>backend/boards/management/commands/migrate_with_lock.py</code> for what each message means.</p>
 <p>If the migration itself was mid-way through an irreversible operation when it failed (rare,
 since Visiban's rules keep every 1.x migration additive), see
-<a href="../upgrade/#rollback-guidance">Rollback guidance</a> in the main upgrade page for which
+<a href="../upgrade/#rollback-guidance">Rollback guidance</a> in the main upgrade page (and its <a href="../upgrade/#restoring-from-backup">restore procedure</a>) for which
 operations can be reversed with <code>manage.py migrate &lt;app&gt; &lt;previous_migration&gt;</code> and which
 require restoring the backup taken in checklist step 4.</p>
 <h3 id="the-rollout-itself-is-unhealthy-2-step-3-or-4">The rollout itself is unhealthy (ยง2 Step 3 or 4)<a class="headerlink" href="#the-rollout-itself-is-unhealthy-2-step-3-or-4" title="Permanent link">&para;</a></h3>
