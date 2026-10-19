@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { routeAuth, routeBoard } from './helpers'
-import { BOARD_FULL, CARD, COLUMN_DONE, COLUMN_TODO } from './fixtures/board'
+import { BOARD_FULL, CARD, COLUMN_DONE, COLUMN_TODO, SWIMLANE } from './fixtures/board'
 
 test.describe('card detail', () => {
   test.beforeEach(async ({ page }) => {
@@ -173,11 +173,28 @@ test.describe('card detail', () => {
     const override = popover.getByRole('button', { name: 'Move anyway (admin override)' })
     await expect(override).toBeVisible()
 
-    // Keyboard only from here: walk the trap backwards from the popover's
-    // Move button (Move → Cancel → Move anyway) and activate with Enter.
-    for (let i = 0; i < 6 && !(await override.evaluate((el) => el === document.activeElement)); i++) {
-      await page.keyboard.press('Shift+Tab')
-    }
+    // Nothing is auto-focused when the failure appears, and the clicked Move
+    // button was disabled while its request ran, so focus has no reliable
+    // keyboard starting point. Anchor it on the first popover control, then
+    // keyboard only: pin the designed Tab order (Swimlane, Column, Move anyway,
+    // Cancel, Move) forward, walk back to the override, and press Enter.
+    const swimlaneSelect = popover.getByRole('combobox').filter({ hasText: SWIMLANE.name })
+    const columnSelect = popover.getByRole('combobox').filter({ hasText: COLUMN_DONE.name })
+    const cancel = popover.getByRole('button', { name: 'Cancel' })
+    const moveSubmit = popover.getByRole('button', { name: 'Move', exact: true })
+    await swimlaneSelect.focus()
+    await expect(swimlaneSelect).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(columnSelect).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(override).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(cancel).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(moveSubmit).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(cancel).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
     await expect(override).toBeFocused()
     await page.keyboard.press('Enter')
 

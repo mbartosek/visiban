@@ -265,8 +265,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setCardActionError(null);
   }, 35);
   // Resolve the Move popover when a REMOTE change replaces the card underneath
-  // it (#1773): another session's edit or move after a version-conflict reload,
-  // or an admin's forced move (useBoard.forceMoveCard). BoardView hands us the
+  // it (#1773): another session's edit or move, or a version-conflict reload.
+  // The popover's own admin override (#1772) is not remote: it is guarded like
+  // a plain Move through moveSubmittingRef below. BoardView hands us the
   // live card from board.cards, but localCard and the popover targets are
   // seeded once, so without this the popover keeps the pre-refresh target and
   // error. Keyed on version alone: useBoard's optimistic relocation and the
@@ -330,7 +331,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     ));
     // An open popover closes with the user's selection or error in it. Say so
     // in the panel, unless the card landed exactly where the popover was
-    // aiming (an admin's forced move of that very move): that is the user's
+    // aiming (another session placed it exactly there): that is the user's
     // own outcome. A refresh with the popover closed clears any older notice
     // instead (its "current location" may be stale).
     const wasOpen = showMovePopoverRef.current;
@@ -494,7 +495,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       // The panel may have closed while the request was in flight.
       moveButtonRef.current?.focus();
     } catch (err) {
-      // forceMoveCardTo never rejects; this keeps a throwing caller visible.
+      // Defensive: useBoard.forceMoveCardTo never rejects (it reports failure in
+      // its result), but the prop is a plain Promise, so a rejecting caller still
+      // gets its cause shown instead of an unhandled rejection.
       setMovePopoverError(moveFailureMessage(err));
       setMoveRefusal(limitRefusal(err));
       focusMoveSubmitRef.current = true;

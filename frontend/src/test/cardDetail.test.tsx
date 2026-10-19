@@ -2170,6 +2170,11 @@ describe('CardDetail', () => {
         expect(pending).toHaveAttribute('aria-disabled', 'true')
         expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
         expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+        // Both target dropdowns are locked too: the target is in flight.
+        const popover = document.querySelector('[class*="w-64"]')!
+        const triggers = Array.from(popover.querySelectorAll('button'))
+        expect(triggers.find((b) => b.textContent?.includes('Customer A'))).toBeDisabled()
+        expect(triggers.find((b) => b.textContent?.includes('In Progress'))).toBeDisabled()
         // A second activation while in flight is ignored.
         await user.click(pending)
         expect(onForceMoveCard).toHaveBeenCalledTimes(1)
@@ -2212,6 +2217,37 @@ describe('CardDetail', () => {
         await user.click(screen.getByRole('button', { name: overrideName }))
         await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Card could not be moved — a network error occurred.'))
         expect(screen.getByRole('alert')).not.toHaveTextContent('Limit 3 cards')
+        expect(screen.queryByRole('button', { name: overrideName })).not.toBeInTheDocument()
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Move' })).toHaveFocus())
+      })
+
+      it('on a hard-block refusal of the forced move drops the override and focuses the popover Move button', async () => {
+        const onForceMoveCard = vi.fn<ForceFn>().mockResolvedValue({ ok: false, error: axiosFailure(409, hardBody) })
+        const { user } = await setup({ moveResult: { ok: false, error: axiosFailure(409, wipBody) }, onForceMoveCard })
+        await user.click(screen.getByRole('button', { name: overrideName }))
+        await waitFor(() => expect(screen.queryByRole('button', { name: /Move anyway|Moving anyway/ })).not.toBeInTheDocument())
+        expect(screen.getByRole('alert')).toHaveTextContent('Card could not be moved — "In Progress" has reached its limit.')
+        expect(screen.getByRole('alert')).toHaveTextContent('Limit 3 cards, 3 active.')
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Move' })).toHaveFocus())
+      })
+
+      it('on a soft-limit refusal of the forced move keeps the override and its focus', async () => {
+        const onForceMoveCard = vi.fn<ForceFn>().mockResolvedValue({ ok: false, error: axiosFailure(409, weightBody) })
+        const { user } = await setup({ moveResult: { ok: false, error: axiosFailure(409, wipBody) }, onForceMoveCard })
+        await user.click(screen.getByRole('button', { name: overrideName }))
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Weight would reach 11 of 10 (this card +3).'))
+        const override = screen.getByRole('button', { name: overrideName })
+        expect(override).toHaveAttribute('aria-disabled', 'false')
+        expect(override).toHaveFocus()
+        expect(screen.getByRole('button', { name: 'Move' })).not.toHaveFocus()
+      })
+
+      it('shows the cause and focuses the popover Move button when onForceMoveCard rejects (defensive path)', async () => {
+        const onForceMoveCard = vi.fn<ForceFn>().mockRejectedValue(new Error('boom'))
+        const { user } = await setup({ moveResult: { ok: false, error: axiosFailure(409, wipBody) }, onForceMoveCard })
+        await user.click(screen.getByRole('button', { name: overrideName }))
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Card could not be moved — a network error occurred.'))
         expect(screen.queryByRole('button', { name: overrideName })).not.toBeInTheDocument()
         expect(screen.getByText('Move to')).toBeInTheDocument()
         await waitFor(() => expect(screen.getByRole('button', { name: 'Move' })).toHaveFocus())
