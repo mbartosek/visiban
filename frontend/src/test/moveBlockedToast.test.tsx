@@ -313,4 +313,12 @@ describe('MoveBlockedToast — maintenance mode (#783)', () => {
     )
     expect(screen.getByLabelText('Dismiss')).toBeInTheDocument()
   })
+
+  it('renders the generic move_failed variant with no override (#1761)', () => {
+    const error: MoveBlockedError = { code: 'move_failed', detail: 'The card was not moved — a network error occurred.' }
+    render(<MoveBlockedToast error={error} isAdmin={true} onForce={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByText('Move failed')).toBeInTheDocument()
+    expect(screen.getByText(/The card was not moved — a network error occurred\./)).toBeInTheDocument()
+    expect(screen.queryByText(/Move anyway/)).not.toBeInTheDocument()
+  })
 })
