@@ -94,6 +94,14 @@ describe('LensIssueCard', () => {
     )
   })
 
+  it('does not open a non-http(s) issue url (fails closed)', async () => {
+    const user = userEvent.setup()
+    render(<LensIssueCard issue={makeIssue({ url: 'javascript:alert(1)' })} />)
+    await user.click(screen.getByRole('button'))
+    await user.keyboard('{Enter}')
+    expect(openSpy).not.toHaveBeenCalled()
+  })
+
   it('tints label chips with the hex color (prepending #)', () => {
     render(<LensIssueCard issue={makeIssue({ labels: [{ name: 'bug', color: 'ff0000' }] })} />)
     const chip = screen.getByText('bug')
@@ -143,6 +151,20 @@ describe('LensIssueCard', () => {
       expect(link).toHaveAttribute('href', 'https://gitlab.com/acme/widgets/-/merge_requests/91')
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(screen.getByText('!91')).toBeInTheDocument()
+    })
+
+    it('renders the MR number as plain text, with no link, when mr_url is unsafe', () => {
+      render(
+        <LensIssueCard
+          issue={makeIssue({
+            has_open_pr: true,
+            pipeline_evidence: { branch: null, mr_number: 91, mr_url: 'javascript:alert(1)', mr_closes: true },
+          })}
+        />,
+      )
+      expect(screen.queryByRole('link')).toBeNull()
+      expect(document.querySelector('[href^="javascript"]')).toBeNull()
       expect(screen.getByText('!91')).toBeInTheDocument()
     })
 

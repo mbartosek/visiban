@@ -1,6 +1,7 @@
 import type { LensProvider } from "../../../types";
 import ExternalRefGlyph from "../../Card/ExternalRefGlyph";
 import LensFreshness from "./LensFreshness";
+import { isSafeHttpUrl } from "../../../utils/safeUrl";
 
 interface Props {
   provider: LensProvider;
@@ -41,15 +42,19 @@ export default function LensProvenanceBanner({ provider, repo, url, truncated, s
       <ExternalRefGlyph className="w-4 h-4 shrink-0" />
       <span className="truncate max-w-[24rem]">
         Read-only lens ·{" "}
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-info hover:underline rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
-          title={`Open ${repo} on ${providerName}`}
-        >
-          {repo}
-        </a>
+        {isSafeHttpUrl(url) ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-info hover:underline rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+            title={`Open ${repo} on ${providerName}`}
+          >
+            {repo}
+          </a>
+        ) : (
+          <span className="font-medium">{repo}</span>
+        )}
       </span>
       {truncated && (
         <span className="text-warning flex items-center gap-1 ml-2">
