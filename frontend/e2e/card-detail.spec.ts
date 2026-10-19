@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { routeAuth, routeBoard } from './helpers'
-import { BOARD_FULL, CARD } from './fixtures/board'
+import { BOARD_FULL, CARD, COLUMN_DONE, COLUMN_TODO, SWIMLANE } from './fixtures/board'
 
 test.describe('card detail', () => {
   test.beforeEach(async ({ page }) => {
@@ -131,5 +131,78 @@ test.describe('card detail', () => {
     // board behind the open card detail.
     const dialog = page.locator('[role="dialog"]')
     await expect(dialog.getByText('To Do → Done')).toBeVisible({ timeout: 5_000 })
+  })
+
+  // The Move-blocked toast sits under the panel's backdrop and outside its
+  // focus trap (#1732), so an admin overrides a limit from the Move popover
+  // itself (#1772). Keyboard-only from the failure on: the override must be
+  // reachable with Tab inside the trap.
+  test('admin overrides a WIP limit from the Move popover by keyboard', async ({ page }) => {
+    const moveUrls: string[] = []
+    await page.route(/\/api\/v1\/boards\/\d+\/cards\/\d+\/move\/(\?.*)?$/, (route) => {
+      const url = route.request().url()
+      moveUrls.push(url)
+      if (url.includes('force=true')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ card: { ...CARD, column: COLUMN_DONE.id, position: 0, version: CARD.version + 1 } }),
+        })
+      }
+      return route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'wip_limit_exceeded', column_name: COLUMN_DONE.name, current_count: 3, wip_limit: 3 }),
+      })
+    })
+
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    await page.getByText(CARD.title).first().click()
+    const dialog = page.locator('[role="dialog"]')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+
+    await dialog.getByRole('button', { name: 'Move card to different column or swimlane' }).click()
+    const popover = dialog.locator('div.fixed.w-64')
+    await expect(popover.getByText('Move to')).toBeVisible()
+    await popover.getByRole('combobox').filter({ hasText: COLUMN_TODO.name }).click()
+    await page.getByRole('option', { name: COLUMN_DONE.name }).click()
+    await popover.getByRole('button', { name: 'Move', exact: true }).click()
+
+    await expect(popover.getByRole('alert')).toContainText(`"${COLUMN_DONE.name}" has reached its limit.`)
+    await expect(popover.getByRole('alert')).toContainText('Limit 3 cards, 3 active.')
+    const override = popover.getByRole('button', { name: 'Move anyway (admin override)' })
+    await expect(override).toBeVisible()
+
+    // Nothing is auto-focused when the failure appears, and the clicked Move
+    // button was disabled while its request ran, so focus has no reliable
+    // keyboard starting point. Anchor it on the first popover control, then
+    // keyboard only: pin the designed Tab order (Swimlane, Column, Move anyway,
+    // Cancel, Move) forward, walk back to the override, and press Enter.
+    const swimlaneSelect = popover.getByRole('combobox').filter({ hasText: SWIMLANE.name })
+    const columnSelect = popover.getByRole('combobox').filter({ hasText: COLUMN_DONE.name })
+    const cancel = popover.getByRole('button', { name: 'Cancel' })
+    const moveSubmit = popover.getByRole('button', { name: 'Move', exact: true })
+    await swimlaneSelect.focus()
+    await expect(swimlaneSelect).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(columnSelect).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(override).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(cancel).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(moveSubmit).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(cancel).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(override).toBeFocused()
+    await page.keyboard.press('Enter')
+
+    await expect(popover).toHaveCount(0)
+    expect(moveUrls).toHaveLength(2)
+    expect(moveUrls[0]).not.toContain('force=true')
+    expect(moveUrls[1]).toContain('force=true')
+    await expect(dialog.getByTitle(COLUMN_DONE.name)).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Move card to different column or swimlane' })).toBeFocused()
   })
 })

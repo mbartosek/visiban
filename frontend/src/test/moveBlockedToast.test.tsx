@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MoveBlockedToast from '../components/Board/MoveBlockedToast'
 import type { MoveBlockedError } from '../hooks/useBoard'
+import { limitBlockedMessage, limitCounts, limitRefusal } from '../components/Board/moveBlockedMessages'
+import type { LimitRefusal } from '../components/Board/moveBlockedMessages'
 
 const wipError: MoveBlockedError = {
   code: 'wip_limit_exceeded',
@@ -328,5 +330,50 @@ describe('MoveBlockedToast — maintenance mode (#783)', () => {
     expect(screen.getByText('Move failed')).toBeInTheDocument()
     expect(screen.getByText(/A network error occurred\./)).toBeInTheDocument()
     expect(screen.queryByText(/Move anyway/)).not.toBeInTheDocument()
+  })
+})
+
+// Shared by the toast copy, the inline create/restore surfaces and CardDetail's
+// Move popover (#1428, #1772).
+describe('moveBlockedMessages limit helpers (#1772)', () => {
+  const wip = { code: 'wip_limit_exceeded', column_name: 'In Progress', current_count: 3, wip_limit: 3 } as const
+  const hard = { code: 'wip_hard_blocked', column_name: 'In Progress', current_count: 1, wip_limit: 1 } as const
+  const weight = { code: 'weight_limit_exceeded', column_name: 'In Progress', current_weight: 8, card_weight: 3, weight_limit: 10 } as const
+  const fail = (status: number, data: unknown) => ({ response: { status, data } })
+
+  it.each([wip, hard, weight])('limitRefusal returns the typed body for $code', (body) => {
+    expect(limitRefusal(fail(409, body))).toEqual(body)
+  })
+
+  it.each([
+    ['another 409 code', fail(409, { code: 'version_conflict', detail: 'x', current_version: 2 })],
+    ['a limit body on a non-409', fail(400, wip)],
+    ['a 409 with no body', fail(409, undefined)],
+    ['a network error', new Error('Network Error')],
+    ['null', null],
+  ])('limitRefusal returns null for %s', (_label, err) => {
+    expect(limitRefusal(err)).toBeNull()
+  })
+
+  it('limitCounts gives the WIP numbers, plural', () => {
+    expect(limitCounts(wip as LimitRefusal)).toBe('Limit 3 cards, 3 active.')
+  })
+
+  it('limitCounts uses the singular for a limit of 1, hard block included', () => {
+    expect(limitCounts(hard as LimitRefusal)).toBe('Limit 1 card, 1 active.')
+  })
+
+  it('limitCounts gives the weight numbers without the column name', () => {
+    const text = limitCounts(weight as LimitRefusal)
+    expect(text).toBe('Weight would reach 11 of 10 (this card +3).')
+    expect(text).not.toContain('In Progress')
+  })
+
+  it('limitBlockedMessage is unchanged: toast title and body for limit codes, null otherwise', () => {
+    expect(limitBlockedMessage(fail(409, wip))).toBe('WIP limit reached: "In Progress" is at its limit of 3 cards (3 active).')
+    expect(limitBlockedMessage(fail(409, hard))).toBe('Column at capacity — no exceptions: "In Progress" is at its limit of 1 card (1 active).')
+    expect(limitBlockedMessage(fail(409, weight))).toBe('Weight limit reached: "In Progress" has 8 weight — adding this card (+3) would reach 11 of 10.')
+    expect(limitBlockedMessage(fail(409, { code: 'version_conflict' }))).toBeNull()
+    expect(limitBlockedMessage(new Error('x'))).toBeNull()
   })
 })

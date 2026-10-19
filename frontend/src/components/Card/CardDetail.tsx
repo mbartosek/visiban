@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useConfirmFocusReturn } from "../../hooks/useConfirmFocusReturn";
 import { useMoveToSeenPref } from "../../hooks/useMoveToSeenPref";
 import { useAutosaveStatus } from "../../hooks/useAutosaveStatus";
 import AutosaveIndicator from "../Common/AutosaveIndicator";
-import { limitBlockedMessage } from "../Board/moveBlockedMessages";
+import { limitBlockedMessage, limitCounts, limitRefusal } from "../Board/moveBlockedMessages";
+import type { LimitRefusal } from "../Board/moveBlockedMessages";
 import type { BoardFull, Card, CardAttachment, CardChecklistItem, CardComment, Label, Priority, User } from "../../types";
 import { userDisplayName } from "../../types";
 import SelectDropdown from "../Common/SelectDropdown";
@@ -36,6 +37,11 @@ interface Props {
   onUpdated: (card: Card) => void;
   onArchived: (cardId: number) => void;
   onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome | void>;
+  // Admin override for a limit-refused move, with the popover's own target
+  // (useBoard.forceMoveCardTo). The Move-blocked toast's override is
+  // unreachable behind this panel's backdrop and focus trap (#1732), so the
+  // popover offers it itself (#1772). Omitted: no override is shown.
+  onForceMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome>;
   userDateFormat?: string;
   userTimeFormat?: string;
   userTimezone?: string;
@@ -87,7 +93,7 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: "urgent", label: "Urgent", color: PRIORITY_COLORS.urgent },
 ];
 
-export default function CardDetail({ card, board, onClose, onDeleted, onUpdated, onArchived, onMoveCard, userDateFormat = "MM/DD/YYYY", userTimeFormat: _userTimeFormat = "12h", userTimezone = "", currentUser = null, closeEditorOnEnter = false, refreshSignal = 0 }: Props) {
+export default function CardDetail({ card, board, onClose, onDeleted, onUpdated, onArchived, onMoveCard, onForceMoveCard, userDateFormat = "MM/DD/YYYY", userTimeFormat: _userTimeFormat = "12h", userTimezone = "", currentUser = null, closeEditorOnEnter = false, refreshSignal = 0 }: Props) {
   const [localCard, setLocalCard] = useState<Card>(card);
   const [comments, setComments] = useState<CardComment[]>([]);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<number | null>(null);
@@ -190,6 +196,19 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   const [moveTargetSwimlane, setMoveTargetSwimlane] = useState<number | null>(null);
   const [moveSubmitting, setMoveSubmitting] = useState(false);
   const [movePopoverError, setMovePopoverError] = useState<string | null>(null);
+  // The limit body behind movePopoverError, when it is a column-limit refusal:
+  // drives the numbers line and the admin override (#1772). Set and cleared
+  // together with movePopoverError.
+  const [moveRefusal, setMoveRefusal] = useState<LimitRefusal | null>(null);
+  // In-flight state for the popover's admin override; the ref is the
+  // synchronous re-entry guard (a double-fire before re-render sends one request).
+  const [moveForcing, setMoveForcing] = useState(false);
+  const moveForcingRef = useRef(false);
+  const moveSubmitRef = useRef<HTMLButtonElement>(null);
+  // Set when a failed override leaves no override link: the popover's Move
+  // button takes focus once moveForcing clears and it is enabled again.
+  const focusMoveSubmitRef = useRef(false);
+  const moveErrorId = useId();
   // Shown in the panel header (always-mounted status line) when a refresh
   // replaced the card out from under a failed move, because the popover that
   // showed the failure closes with it (#1773).
@@ -246,8 +265,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setCardActionError(null);
   }, 35);
   // Resolve the Move popover when a REMOTE change replaces the card underneath
-  // it (#1773): another session's edit or move after a version-conflict reload,
-  // or an admin's forced move (useBoard.forceMoveCard). BoardView hands us the
+  // it (#1773): another session's edit or move, or a version-conflict reload.
+  // The popover's own admin override (#1772) is not remote: it is guarded like
+  // a plain Move through moveSubmittingRef below. BoardView hands us the
   // live card from board.cards, but localCard and the popover targets are
   // seeded once, so without this the popover keeps the pre-refresh target and
   // error. Keyed on version alone: useBoard's optimistic relocation and the
@@ -265,8 +285,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // changed without re-running when the popover opens or closes.
   const showMovePopoverRef = useRef(showMovePopover);
   showMovePopoverRef.current = showMovePopover;
-  const moveSubmittingRef = useRef(moveSubmitting);
-  moveSubmittingRef.current = moveSubmitting;
+  const moveSubmittingRef = useRef(moveSubmitting || moveForcing);
+  // A forced move from the popover (#1772) is ours too: the version bump it
+  // causes syncs version and location but must not reset the popover.
+  moveSubmittingRef.current = moveSubmitting || moveForcing;
   const moveTargetRef = useRef({ column: moveTargetColumn, swimlane: moveTargetSwimlane });
   moveTargetRef.current = { column: moveTargetColumn, swimlane: moveTargetSwimlane };
   const localLocationRef = useRef({ column: localCard.column, swimlane: localCard.swimlane });
@@ -309,7 +331,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     ));
     // An open popover closes with the user's selection or error in it. Say so
     // in the panel, unless the card landed exactly where the popover was
-    // aiming (an admin's forced move of that very move): that is the user's
+    // aiming (another session placed it exactly there): that is the user's
     // own outcome. A refresh with the popover closed clears any older notice
     // instead (its "current location" may be stale).
     const wasOpen = showMovePopoverRef.current;
@@ -332,6 +354,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // it fires first when both are open, and above panel close (30) in the normal case.
   useEscapeStack(() => {
     if (!showMovePopover) return false;
+    // Swallow Escape while the admin override is in flight: closing would hide
+    // its outcome (#1772).
+    if (moveForcingRef.current) return;
     setShowMovePopover(false);
   }, 36);
   // Bulk-add overlay is a modal over the panel: Escape closes it first (priority 37, above
@@ -413,6 +438,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     }
     setMoveSubmitting(true);
     setMovePopoverError(null);
+    setMoveRefusal(null);
     try {
       // position 9999 appends the card to the end of the target cell.
       // useBoard.moveCard never rejects; it reports failure in its result. Only
@@ -421,16 +447,73 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       const result = await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
       if (result && result.ok === false) {
         setMovePopoverError(moveFailureMessage(result.error));
+        setMoveRefusal(limitRefusal(result.error));
         return;
       }
       setLocalCard((c) => ({ ...c, column: moveTargetColumn, swimlane: moveTargetSwimlane }));
       setShowMovePopover(false);
     } catch (err) {
       setMovePopoverError(moveFailureMessage(err));
+      setMoveRefusal(limitRefusal(err));
     } finally {
       setMoveSubmitting(false);
     }
   };
+
+  // Changing the target invalidates the last failure's message and override.
+  const clearMoveFailure = () => {
+    setMovePopoverError(null);
+    setMoveRefusal(null);
+  };
+
+  // Admin override from the popover (#1772): force the popover's own target,
+  // never the toast's shared pendingMove. Success closes the popover silently
+  // (the outcome is visible in the breadcrumb) and hands focus to the Move
+  // trigger; failure names its cause inline like a plain Move.
+  const handleForceMove = async () => {
+    if (!onForceMoveCard || moveForcingRef.current || moveTargetColumn === null || moveTargetSwimlane === null) return;
+    const columnId = moveTargetColumn;
+    const swimlaneId = moveTargetSwimlane;
+    moveForcingRef.current = true;
+    setMoveForcing(true);
+    try {
+      const result = await onForceMoveCard(localCard.id, columnId, swimlaneId, 9999);
+      if (result.ok === false) {
+        const refusal = limitRefusal(result.error);
+        setMovePopoverError(moveFailureMessage(result.error));
+        setMoveRefusal(refusal);
+        // The link the user activated is gone unless the new failure is again
+        // an overridable limit: move focus to the popover's Move button rather
+        // than letting it drop to the panel.
+        if (refusal === null || refusal.code === "wip_hard_blocked") focusMoveSubmitRef.current = true;
+        return;
+      }
+      setLocalCard((c) => ({ ...c, column: columnId, swimlane: swimlaneId }));
+      setMovePopoverError(null);
+      setMoveRefusal(null);
+      setShowMovePopover(false);
+      // The panel may have closed while the request was in flight.
+      moveButtonRef.current?.focus();
+    } catch (err) {
+      // Defensive: useBoard.forceMoveCardTo never rejects (it reports failure in
+      // its result), but the prop is a plain Promise, so a rejecting caller still
+      // gets its cause shown instead of an unhandled rejection.
+      setMovePopoverError(moveFailureMessage(err));
+      setMoveRefusal(limitRefusal(err));
+      focusMoveSubmitRef.current = true;
+    } finally {
+      moveForcingRef.current = false;
+      setMoveForcing(false);
+    }
+  };
+
+  // The popover's Move button is disabled while the override is in flight, so
+  // it can only take focus after the render that re-enables it.
+  useEffect(() => {
+    if (moveForcing || !focusMoveSubmitRef.current) return;
+    focusMoveSubmitRef.current = false;
+    moveSubmitRef.current?.focus();
+  }, [moveForcing]);
 
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -703,6 +786,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
 
   const role = board.current_user_role;
   const canEdit = role === "site_admin" || role === "admin" || role === "member";
+  // The popover's admin override (#1772): only a soft limit can be forced, so
+  // never for wip_hard_blocked, and never without a refusal body.
+  const isBoardAdmin = role === "admin" || role === "site_admin";
+  const canForceMove = isBoardAdmin && onForceMoveCard !== undefined && moveRefusal !== null && moveRefusal.code !== "wip_hard_blocked";
   const canManageLabels = role === "site_admin" || role === "admin";
   const canComment = canEdit || role === "collaborator";
   // Hosted demo (#1179): the server fence refuses comments and uploads, so
@@ -823,6 +910,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                   <button
                     ref={moveButtonRef}
                     onClick={() => {
+                      // Inert while the popover's admin override is in flight: toggling
+                      // would close the popover and hide the pending outcome (#1772).
+                      if (moveForcingRef.current) return;
                       setMoveToSeen(true);
                       // Calculate fixed position from the button's viewport rect so the
                       // popover isn't clipped by the panel's overflow-hidden container.
@@ -836,6 +926,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setMoveTargetColumn(localCard.column);
                       setMoveTargetSwimlane(localCard.swimlane);
                       setMovePopoverError(null);
+                      setMoveRefusal(null);
                       setMoveNotice("");
                       setShowMovePopover((v) => !v);
                     }}
@@ -1612,7 +1703,8 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               <SelectDropdown
                 options={board.swimlanes.map((s) => ({ value: String(s.id), label: s.name }))}
                 value={moveTargetSwimlane !== null ? String(moveTargetSwimlane) : ""}
-                onChange={(v) => setMoveTargetSwimlane(Number(v))}
+                onChange={(v) => { setMoveTargetSwimlane(Number(v)); clearMoveFailure(); }}
+                disabled={moveForcing}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -1620,20 +1712,38 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               <SelectDropdown
                 options={board.columns.map((c) => ({ value: String(c.id), label: c.name }))}
                 value={moveTargetColumn !== null ? String(moveTargetColumn) : ""}
-                onChange={(v) => setMoveTargetColumn(Number(v))}
+                onChange={(v) => { setMoveTargetColumn(Number(v)); clearMoveFailure(); }}
+                disabled={moveForcing}
               />
             </div>
-            <p role="alert" className="text-xs min-h-4">
-              {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
-            </p>
+            <div className="flex flex-col items-start gap-1">
+              <p id={moveErrorId} role="alert" className="text-xs min-h-4 self-stretch">
+                {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
+                {movePopoverError && moveRefusal && (
+                  <span className="block mt-0.5 text-fg-tertiary">{limitCounts(moveRefusal)}</span>
+                )}
+              </p>
+              {/* Outside the live region: the link is an action, not part of the announcement (#1772). */}
+              {canForceMove && (
+                <button
+                  type="button"
+                  onClick={handleForceMove}
+                  aria-disabled={moveForcing}
+                  aria-describedby={moveErrorId}
+                  className="text-xs text-warning hover:text-warning underline transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded aria-disabled:opacity-40 aria-disabled:cursor-not-allowed"
+                >{moveForcing ? "Moving anyway…" : "Move anyway (admin override)"}</button>
+              )}
+            </div>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowMovePopover(false)}
-                className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded"
+                disabled={moveForcing}
+                className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded disabled:opacity-40"
               >Cancel</button>
               <button
+                ref={moveSubmitRef}
                 onClick={handleMoveSubmit}
-                disabled={moveSubmitting || moveTargetColumn === null || moveTargetSwimlane === null || (moveTargetColumn === localCard.column && moveTargetSwimlane === localCard.swimlane)}
+                disabled={moveForcing || moveSubmitting || moveTargetColumn === null || moveTargetSwimlane === null || (moveTargetColumn === localCard.column && moveTargetSwimlane === localCard.swimlane)}
                 className="text-sm font-medium bg-button-primary hover:bg-button-primary-hover text-on-primary px-3 py-1.5 rounded transition disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
               >{moveSubmitting ? "Moving…" : "Move"}</button>
             </div>

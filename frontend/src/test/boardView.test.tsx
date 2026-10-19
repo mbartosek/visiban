@@ -126,7 +126,7 @@ vi.mock('../components/Card/CardItem', () => ({
   default: ({ card, compact }: { card: { title: string }; compact?: boolean }) => <div data-compact={String(compact ?? false)}>{card.title}</div>,
 }))
 vi.mock('../components/Card/CardDetail', () => ({
-  default: ({ card, onClose, onDeleted }: { card: { id: number; title: string }; onClose: () => void; onDeleted?: (id: number) => void }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button><button onClick={() => onDeleted?.(card.id)}>Delete From Detail</button></div>,
+  default: ({ card, onClose, onDeleted, onForceMoveCard }: { card: { id: number; title: string }; onClose: () => void; onDeleted?: (id: number) => void; onForceMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<unknown> }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button><button onClick={() => onDeleted?.(card.id)}>Delete From Detail</button>{onForceMoveCard && <button onClick={() => { void onForceMoveCard(card.id, 11, 21, 9999) }}>Force From Detail</button>}</div>,
 }))
 vi.mock('../components/Board/AddColumnModal', () => ({
   default: ({ onAdded }: { onAdded: (col: { id: number; name: string; position: number; color: string; wip_limit: null; weight_limit: null; allow_card_creation: true; is_done: false }) => void }) => (
@@ -260,7 +260,7 @@ function defaultContext(overrides: Partial<BoardContextType> = {}): BoardContext
     reload: vi.fn(),
     silentReload: vi.fn(),
     moveCard: vi.fn(),
-    forceMoveCard: vi.fn(),
+    forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(),
     moveError: null,
     clearMoveError: vi.fn(),
     addCard: vi.fn(),
@@ -1134,6 +1134,28 @@ describe('BoardView', () => {
       rerender(<BoardView {...defaultProps()} />)
 
       expect(screen.getByTestId('card-detail')).toHaveTextContent('Refreshed Card')
+    })
+
+    // The popover's admin override forces its own target via the context (#1772).
+    it('hands CardDetail an onForceMoveCard that calls the context forceMoveCardTo (#1772)', async () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      const forceMoveCardTo = vi.fn().mockResolvedValue({ ok: true })
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }), forceMoveCardTo })
+      render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Force From Detail' }))
+      expect(forceMoveCardTo).toHaveBeenCalledTimes(1)
+      expect(forceMoveCardTo).toHaveBeenCalledWith(1, 11, 21, 9999)
+    })
+
+    it('hands the analytics-view CardDetail the same onForceMoveCard (#1772)', async () => {
+      mockSearchParams = new URLSearchParams('view=analytics')
+      const forceMoveCardTo = vi.fn().mockResolvedValue({ ok: true })
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }), forceMoveCardTo })
+      render(<BoardView {...defaultProps()} />)
+      const user = userEvent.setup()
+      await user.click(screen.getByTestId('open-card-btn'))
+      await user.click(screen.getByRole('button', { name: 'Force From Detail' }))
+      expect(forceMoveCardTo).toHaveBeenCalledWith(1, 11, 21, 9999)
     })
 
     it('hands the analytics-view CardDetail the refreshed card too (#1773)', async () => {

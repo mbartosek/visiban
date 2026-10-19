@@ -44,6 +44,25 @@ export function toastTitle(error: MoveBlockedError): string {
  * failure. No override is offered: the inline surfaces have no force action.
  */
 export function limitBlockedMessage(err: unknown): string | null {
+  const data = limitRefusal(err);
+  if (data === null) return null;
+  return `${toastTitle(data)}: ${toastBody(data)}`;
+}
+
+/** The three column-limit refusal bodies (WIP soft, WIP hard, weight). */
+export type LimitRefusal = Extract<
+  MoveBlockedError,
+  { code: "wip_limit_exceeded" | "wip_hard_blocked" | "weight_limit_exceeded" }
+>;
+
+/**
+ * The typed 409 body of a column-limit refusal, or null for anything else
+ * (another 409 code, a non-409 status, a network error). Shared by
+ * limitBlockedMessage and CardDetail's Move popover, which needs the body to
+ * show the limit's numbers and decide whether to offer the admin override
+ * (#1772).
+ */
+export function limitRefusal(err: unknown): LimitRefusal | null {
   const response = (err as { response?: { status?: number; data?: unknown } } | null)?.response;
   if (response?.status !== 409) return null;
   const data = response.data as MoveBlockedError | undefined;
@@ -54,5 +73,18 @@ export function limitBlockedMessage(err: unknown): string | null {
   ) {
     return null;
   }
-  return `${toastTitle(data)}: ${toastBody(data)}`;
+  return data;
+}
+
+/**
+ * The numbers behind a limit refusal, for a surface that already names the
+ * column in its own message (CardDetail's Move popover, #1772). Never repeats
+ * the column name; pluralization matches toastBody.
+ */
+export function limitCounts(refusal: LimitRefusal): string {
+  if (refusal.code === "weight_limit_exceeded") {
+    return `Weight would reach ${refusal.current_weight + refusal.card_weight} of ${refusal.weight_limit} (this card +${refusal.card_weight}).`;
+  }
+  const s = refusal.wip_limit !== 1 ? "s" : "";
+  return `Limit ${refusal.wip_limit} card${s}, ${refusal.current_count} active.`;
 }

@@ -261,6 +261,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   const {
     board: boardOrNull,
     moveCard: onMoveCard,
+    forceMoveCardTo,
     addCard: onCardAdded,
     removeCard,
     archiveCard,
@@ -1933,6 +1934,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             onUpdated={onCardUpdated}
             onArchived={(id) => { onCardArchived(id); setSelectedCard(null); showArchiveToast(); }}
             onMoveCard={async (cardId, columnId, swimlaneId, position) => onMoveCard(cardId, columnId, swimlaneId, position)}
+            onForceMoveCard={(cardId, columnId, swimlaneId, position) => forceMoveCardTo(cardId, columnId, swimlaneId, position)}
             userDateFormat={userDateFormat}
             userTimeFormat={userTimeFormat}
             userTimezone={userTimezone}
@@ -2629,6 +2631,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             onUpdated={onCardUpdated}
             onArchived={(id) => { onCardArchived(id); setSelectedCard(null); showArchiveToast(); }}
             onMoveCard={async (cardId, columnId, swimlaneId, position) => onMoveCard(cardId, columnId, swimlaneId, position)}
+            onForceMoveCard={(cardId, columnId, swimlaneId, position) => forceMoveCardTo(cardId, columnId, swimlaneId, position)}
             userDateFormat={userDateFormat}
             userTimeFormat={userTimeFormat}
             userTimezone={userTimezone}

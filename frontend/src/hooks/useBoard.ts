@@ -36,7 +36,7 @@ function genericMoveFailure(err: unknown): MoveBlockedError {
   return { code: "move_failed", detail: `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.` };
 }
 
-interface PendingMove {
+export interface PendingMove {
   cardId: number;
   columnId: number;
   swimlaneId: number;
@@ -236,10 +236,15 @@ export function useBoard() {
     }
   }, [boardId, load, clearMoveError]);
 
-  // Admin-only: retry the last blocked move with force=true, bypassing the WIP limit.
-  const forceMoveCard = useCallback(async () => {
-    if (!boardRef.current || !pendingMoveRef.current) return;
-    const { cardId, columnId, swimlaneId, position } = pendingMoveRef.current;
+  // Admin-only: move a card with force=true, bypassing a soft WIP/weight limit.
+  // Shared by the toast's override (forceMoveCard, which replays pendingMove)
+  // and CardDetail's Move popover (forceMoveCardTo, which passes its own
+  // target): the panel's backdrop and focus trap make the toast unreachable
+  // while the panel is open, so the popover offers the override itself (#1772).
+  // Like moveCard it never rejects; failures are reported in the result.
+  const runForcedMove = useCallback(async (move: PendingMove): Promise<MoveOutcome> => {
+    if (!boardRef.current) return { ok: false, error: new Error("board not loaded") };
+    const { cardId, columnId, swimlaneId, position } = move;
     clearMoveError();
 
     const prev = boardRef.current.cards;
@@ -261,6 +266,7 @@ export function useBoard() {
         if (!b) return b;
         return { ...b, cards: b.cards.map((c) => (c.id === cardId ? card : c)) };
       });
+      return { ok: true };
     } catch (err: unknown) {
       setBoard((b) => b ? { ...b, cards: prev } : b);
       // Surface any structured error so the user knows the override failed
@@ -275,13 +281,27 @@ export function useBoard() {
         const data = axiosErr.response.data as MoveBlockedError;
         if (data?.code && KNOWN_MOVE_ERROR_CODES.has(data.code)) {
           setMoveError(data);
-          return;
+          return { ok: false, error: err };
         }
       }
       // No structured body (network error, bare 5xx): still say so (#1761).
       setMoveError(genericMoveFailure(err));
+      return { ok: false, error: err };
     }
   }, [boardId, clearMoveError]);
+
+  // Retry the last blocked move (the toast's "Move anyway"). Takes no
+  // arguments: App passes it straight to the toast's onClick.
+  const forceMoveCard = useCallback(async () => {
+    if (pendingMoveRef.current) await runForcedMove(pendingMoveRef.current);
+  }, [runForcedMove]);
+
+  // Force a move to an explicit target, independent of pendingMove (#1772).
+  const forceMoveCardTo = useCallback(
+    (cardId: number, columnId: number, swimlaneId: number, position: number): Promise<MoveOutcome> =>
+      runForcedMove({ cardId, columnId, swimlaneId, position }),
+    [runForcedMove],
+  );
 
   const addCard = useCallback((card: Card) => {
     setBoard((b) => {
@@ -536,5 +556,5 @@ export function useBoard() {
     }
   }, [boardId, load]);
 
-  return { board, loading, error, reload: load, silentReload, moveCard, forceMoveCard, moveError, clearMoveError, addCard, removeCard, archiveCard, archiveCardByUid, unarchiveCard, addColumn, removeColumn, addSwimlane, updateCard, updateColumn, addLabel, updateLabel, removeLabel, applyCustomFieldDefinitions, applySwimlaneFieldDefinitions, addMember, updateMember, removeMember, applyColumnOrder, applySwimlaneOrder, reorderColumns, reorderSwimlanes, updateSwimlane, removeSwimlane, updateBoardSettings, evictColumn, evictSwimlane, evictCardByUid, mergeBoardState };
+  return { board, loading, error, reload: load, silentReload, moveCard, forceMoveCard, forceMoveCardTo, moveError, clearMoveError, addCard, removeCard, archiveCard, archiveCardByUid, unarchiveCard, addColumn, removeColumn, addSwimlane, updateCard, updateColumn, addLabel, updateLabel, removeLabel, applyCustomFieldDefinitions, applySwimlaneFieldDefinitions, addMember, updateMember, removeMember, applyColumnOrder, applySwimlaneOrder, reorderColumns, reorderSwimlanes, updateSwimlane, removeSwimlane, updateBoardSettings, evictColumn, evictSwimlane, evictCardByUid, mergeBoardState };
 }

@@ -12,6 +12,7 @@ export interface BoardContextType {
   silentReload: () => void;
   moveCard: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome>;
   forceMoveCard: () => Promise<void>;
+  forceMoveCardTo: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome>;
   moveError: MoveBlockedError | null;
   clearMoveError: () => void;
   addCard: (card: Card) => void;

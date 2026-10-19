@@ -1117,6 +1117,80 @@ describe('useBoard', () => {
     expect(result.current.moveError?.code).toBe('move_failed')
   })
 
+  // CardDetail's Move popover forces its own target, never the shared pendingMove (#1772).
+  describe('forceMoveCardTo (#1772)', () => {
+    it('forces the explicit target with no pendingMove and no version, and reports ok', async () => {
+      const board = makeBoard()
+      mockGetBoardFull.mockResolvedValue(board)
+      const { result } = renderHook(() => useBoard())
+      await waitFor(() => expect(result.current.board).not.toBeNull())
+
+      const movedCard = { ...board.cards[0], column: 11, position: 9999, version: 2 }
+      mockMoveCard.mockResolvedValueOnce({ card: movedCard })
+      let outcome: unknown
+      await act(async () => { outcome = await result.current.forceMoveCardTo(100, 11, 20, 9999) })
+
+      expect(outcome).toEqual({ ok: true })
+      expect(mockMoveCard).toHaveBeenLastCalledWith(1, 100, { column_id: 11, swimlane_id: 20, position: 9999 }, true)
+      expect(result.current.board!.cards[0]).toEqual(movedCard)
+      expect(result.current.moveError).toBeNull()
+    })
+
+    it('uses its own arguments over a pendingMove and clears the earlier limit toast', async () => {
+      const board = makeBoard()
+      mockGetBoardFull.mockResolvedValue(board)
+      mockMoveCard.mockRejectedValueOnce({
+        response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'In Progress', current_count: 3, wip_limit: 3 } },
+      })
+      const { result } = renderHook(() => useBoard())
+      await waitFor(() => expect(result.current.board).not.toBeNull())
+      await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+      expect(result.current.moveError).toMatchObject({ code: 'wip_limit_exceeded' })
+
+      mockMoveCard.mockResolvedValueOnce({ card: { ...board.cards[0], column: 11, position: 9999 } })
+      await act(async () => { await result.current.forceMoveCardTo(100, 11, 20, 9999) })
+
+      expect(mockMoveCard).toHaveBeenLastCalledWith(1, 100, { column_id: 11, swimlane_id: 20, position: 9999 }, true)
+      expect(result.current.moveError).toBeNull()
+      // The pendingMove was cleared with the toast: the toast's override is now a no-op.
+      mockMoveCard.mockClear()
+      await act(async () => { await result.current.forceMoveCard() })
+      expect(mockMoveCard).not.toHaveBeenCalled()
+    })
+
+    it('rolls back, sets moveError and reports the failure', async () => {
+      const board = makeBoard()
+      mockGetBoardFull.mockResolvedValue(board)
+      const { result } = renderHook(() => useBoard())
+      await waitFor(() => expect(result.current.board).not.toBeNull())
+
+      const err = { message: 'Network Error', isAxiosError: true }
+      mockMoveCard.mockRejectedValueOnce(err)
+      let outcome: unknown
+      await act(async () => { outcome = await result.current.forceMoveCardTo(100, 11, 20, 9999) })
+
+      expect(outcome).toEqual({ ok: false, error: err })
+      expect(result.current.board!.cards[0].column).toBe(10)
+      expect(result.current.moveError?.code).toBe('move_failed')
+    })
+
+    it('reports a structured refusal with its body intact', async () => {
+      const board = makeBoard()
+      mockGetBoardFull.mockResolvedValue(board)
+      const { result } = renderHook(() => useBoard())
+      await waitFor(() => expect(result.current.board).not.toBeNull())
+
+      const err = { response: { status: 409, data: { code: 'wip_hard_blocked', column_name: 'In Progress', current_count: 3, wip_limit: 3 } } }
+      mockMoveCard.mockRejectedValueOnce(err)
+      let outcome: unknown
+      await act(async () => { outcome = await result.current.forceMoveCardTo(100, 11, 20, 9999) })
+
+      expect(outcome).toEqual({ ok: false, error: err })
+      expect(result.current.board!.cards[0].column).toBe(10)
+      expect(result.current.moveError).toMatchObject({ code: 'wip_hard_blocked' })
+    })
+  })
+
   // ─── reorderColumns / reorderSwimlanes — failure paths ──────────────────────
 
   it('reorderColumns rolls back to the previous order on API failure', async () => {
