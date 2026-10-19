@@ -12,7 +12,7 @@ vi.mock('../hooks/useAuth', () => ({
 vi.mock('../contexts/BoardContext', () => {
   const stubContext = {
     board: null, loading: true, error: null,
-    moveCard: vi.fn(), forceMoveCard: vi.fn(), moveError: null, clearMoveError: vi.fn(),
+    moveCard: vi.fn(), forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(), moveError: null, clearMoveError: vi.fn(),
     addCard: vi.fn(), removeCard: vi.fn(),
     addColumn: vi.fn(), removeColumn: vi.fn(), addSwimlane: vi.fn(),
     updateCard: vi.fn(), updateColumn: vi.fn(), addLabel: vi.fn(),
@@ -107,7 +107,7 @@ const fakeUser: User = {
 
 const defaultBoardHook = {
   board: null, loading: true, error: null,
-  moveCard: vi.fn(), forceMoveCard: vi.fn(), moveError: null, clearMoveError: vi.fn(),
+  moveCard: vi.fn(), forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(), moveError: null, clearMoveError: vi.fn(),
   addCard: vi.fn(), removeCard: vi.fn(),
   addColumn: vi.fn(), removeColumn: vi.fn(), addSwimlane: vi.fn(),
   updateCard: vi.fn(), updateColumn: vi.fn(), addLabel: vi.fn(),

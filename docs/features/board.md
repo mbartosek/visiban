@@ -212,7 +212,7 @@ Click a card to open its **detail panel** on the right side. The panel contains 
 - **Details** — description, priority, assignee, labels, due date, weight, checklist, attachments, and comments. The Checklist and Attachments sections are collapsible via a chevron toggle; each auto-collapses when empty on load. A scroll gradient at the bottom of the panel indicates there is more content below the visible area.
 - **Activity** — the full movement and activity timeline. See [Card History](card-history.md).
 
-The Details tab also includes a **Move to** section at the bottom (visible to members and above). It lets you move the card to a different column and/or swimlane without closing the panel — select the destination swimlane and column from the dropdowns, then click **Move**. WIP and weight limits are enforced the same way as drag-and-drop moves.
+The panel header also includes a **Move** button next to the column name in the breadcrumb row (visible to members and above). It opens a **Move to** popover that lets you move the card to a different column and/or swimlane without closing the panel — select the destination swimlane and column from the dropdowns, then click **Move**. WIP and weight limits are enforced the same way as drag-and-drop moves. When a limit blocks the move, the popover names the column and shows the limit's numbers; for a soft WIP or weight limit, board admins also get a **Move anyway (admin override)** link right there, which forces the move to the selected destination. Hard WIP limits have no override.
 
 Each card belongs to exactly one column and one swimlane. Cards have:
 

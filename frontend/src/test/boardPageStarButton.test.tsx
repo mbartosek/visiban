@@ -19,7 +19,7 @@ vi.mock('../hooks/useAuth', () => ({
 vi.mock('../contexts/BoardContext', () => {
   const stubContext = {
     board: null, loading: true, error: null,
-    moveCard: vi.fn(), forceMoveCard: vi.fn(), moveError: null, clearMoveError: vi.fn(),
+    moveCard: vi.fn(), forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(), moveError: null, clearMoveError: vi.fn(),
     addCard: vi.fn(), removeCard: vi.fn(),
     addColumn: vi.fn(), removeColumn: vi.fn(), addSwimlane: vi.fn(),
     updateCard: vi.fn(), updateColumn: vi.fn(), addLabel: vi.fn(),
@@ -111,7 +111,7 @@ function renderBoardPage(user: User) {
   mockUseAuth.mockReturnValue({ user, loading: false, logout: vi.fn(), updateUser: vi.fn() })
   mockUseBoardContext.mockReturnValue({
     board: fakeBoard, loading: false, error: null,
-    moveCard: vi.fn(), forceMoveCard: vi.fn(), moveError: null, clearMoveError: vi.fn(),
+    moveCard: vi.fn(), forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(), moveError: null, clearMoveError: vi.fn(),
     updateBoardSettings: vi.fn(),
   })
   return render(<MemoryRouter initialEntries={['/boards/1']}><App /></MemoryRouter>)

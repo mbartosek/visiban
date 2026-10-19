@@ -179,7 +179,7 @@ function makeContext(): BoardContextType {
     error: null,
     reload: vi.fn(),
     moveCard: vi.fn(),
-    forceMoveCard: vi.fn(),
+    forceMoveCard: vi.fn(), forceMoveCardTo: vi.fn(),
     moveError: null,
     clearMoveError: vi.fn(),
     addCard: vi.fn(),
