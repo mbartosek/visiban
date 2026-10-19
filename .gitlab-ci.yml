@@ -1088,12 +1088,15 @@ backend-schema-validate:
 # unchanged: FUZZ_INCLUDE_PATH_REGEX adds --include-path-regex only when set,
 # and FUZZ_BASELINE defaults to the shared baseline file.
 .schema-fuzz-run-steps: &schema-fuzz-run-steps
-    # The two email-confirm endpoints and the 3rdparty/signup safety-net (#1321)
-    # only 302 to the SPA at FRONTEND_URL, which does not run in this job —
-    # following that redirect is a "Connection refused" NonFatalError, and any
-    # NonFatalError exits `st run` 1. Their redirect behavior is covered by
-    # accounts/tests/test_email_confirm.py and
-    # accounts/tests/test_social_signup_redirect.py instead.
+    # The email-confirm endpoints only 302 to the SPA at FRONTEND_URL, which
+    # does not run in this job — following that redirect is a "Connection
+    # refused" NonFatalError, and any NonFatalError exits `st run` 1. Their
+    # redirect behavior is covered by accounts/tests/test_email_confirm.py
+    # instead. The 3rdparty/signup safety-net (#1321) behaved the same way, but
+    # since #1736 it is excluded from the published schema itself, so the
+    # `3rdparty/signup` regex alternative below can no longer match a schema
+    # path; it is retained as a harmless safety net. Its redirect behavior is
+    # covered by accounts/tests/test_social_signup_redirect.py.
     - |
       st run http://localhost:8000/api/schema/ \
         --seed "$(cat /tmp/fuzz_seed)" \
