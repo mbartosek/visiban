@@ -88,20 +88,42 @@ A read-only comparison of the v1.1.0 and current runtime code verified these cla
 
 The same comparison found no serializer field and no URL route removed between v1.1.0 and
 `main` (the `dj_rest_auth` `include()` became explicit routes, and five declarations were
-rewritten as same-name `SerializerMethodField`s). **All other entries remain unverified.**
+rewritten as same-name `SerializerMethodField`s).
 
-Those findings are therefore frozen as exact per-finding `key` entries under `#1695`, the burn-down tracker,
-(generated once from the gate's own output with an empty allow-list, sorted for stable
-diffs). The snapshot is closed: anything not already in it, including a further change to an
-operation that has entries, fails the job. Never add to it to get a pipeline green; a new
-finding is a real break or needs its own issue-referenced entry.
+Those findings are therefore frozen as exact per-finding `key` entries (generated once from
+the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
+closed: anything not already in it, including a further change to an operation that has
+entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
+or needs its own issue-referenced entry.
 
-**Burn-down workflow** (tracked in #1695). Pick an operation, check its v1.1.0 behavior against the current
-runtime (serializer, status code, response shape). If it is only a documentation correction,
-delete that operation's entries and confirm the job stays green (a deleted entry that still
-matches a finding turns the job red, which is the signal that the break is real and needs a
-fix or a properly justified entry). Entries should only ever be deleted, never added. The next
-GA baseline is generated from a corrected schema and does not carry this debt.
+**Burn-down result** (#1695). Every one of the 51 operations with entries was checked against
+the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, and each entry's
+`reason` now records what v1.1.0 actually read and returned. The outcome:
+
+- **556 entries under `#1695` are documentation-only.** The v1.1.0 schema showed a fallback
+  serializer for hand-written `@action`s and `APIView`s (a card serializer for `move/`,
+  `checklist/`, `comments/`, `attachments/`, `status/`, `timeline/`, `archived/`; a board
+  serializer for `share/`, `members/`, `movements/`, `export-history/`; a group serializer for
+  the group `labels/`, `members/`, `star/`, `invite-links/`, `boards/` actions), echoed the
+  request serializer as the response for the dj-rest-auth subclasses (`login/`,
+  `password/reset/`, `password/reset/confirm/`, `registration/`), and documented `200` where
+  the view returned `201` (or `204` where `DELETE share/` returned `200`). None of the listed
+  fields or statuses was ever on the wire.
+- **4 entries under `#1302` are a real, deliberate runtime change**, already announced in
+  `CHANGELOG.md`: `columns/reorder/` and `swimlanes/reorder/` used to treat a missing `order` as
+  a `200` no-op and now answer `400` unless `order` is the board's full ID list.
+- **3 `REMOVED_REQUEST_MEDIA_TYPE` entries on `POST /auth/password/change/` are a HEAD
+  schema defect, not a removal.** The endpoint still accepts JSON, form, and multipart bodies,
+  but HEAD's schema has no request body at all, because `VisibanPasswordChangeSerializer.__init__`
+  calls `has_usable_password()` on `AnonymousUser` during schema generation. When that is
+  fixed, these three entries go stale, and the gate reports `old_password` as a new required
+  field. That field is the deliberate `#1257` security break and needs its own entry then.
+
+These entries stay in the file because the drift lives in the frozen baseline itself: deleting
+an entry whose finding still fires turns the job red, whether the finding is drift or a real
+break. The list empties when the next GA tag regenerates the baseline from a corrected schema
+(see below). Until then, entries are only ever deleted (when one goes stale) or re-justified,
+never added.
 
 ## Running it locally
 
