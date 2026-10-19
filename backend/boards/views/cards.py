@@ -514,7 +514,12 @@ class CardViewSet(viewsets.ModelViewSet):
     _LIST_MAX_ROWS = _CARD_LIST_MAX_ROWS
 
     def list(self, request, *args, **kwargs):
-        # Validate params first so a bad request costs no card query.
+        # Resolve board access BEFORE validating params: a non-member or a
+        # nonexistent board must get the same 404 whatever the query string,
+        # never a 400 that confirms the endpoint shape for a board they cannot
+        # see. The (board, role) tuple is cached, so get_queryset() reuses it.
+        self._board()
+        # Then validate params, still before any card query.
         limit = _parse_card_list_param(request, "limit", self._LIST_MAX_ROWS, maximum=self._LIST_MAX_ROWS)
         offset = _parse_card_list_param(request, "offset", 0)
 

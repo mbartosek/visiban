@@ -847,6 +847,81 @@ class CardListTruncationSignalTests(TestCase):
         self.assertEqual(r.status_code, 404)
         self.assertNotIn("X-Total-Count", r)
 
+    def test_access_is_checked_before_param_validation(self):
+        # A non-member (or a nonexistent board) gets the same 404 whatever the
+        # query string; only a member ever sees the param 400.
+        outsider = User.objects.create_user(username="trunc_out2", password="pass")
+        c = APIClient()
+        c.force_authenticate(outsider)
+        self.assertEqual(c.get(self.url, {"limit": "abc"}).status_code, 404)
+        self.assertEqual(c.get(self.url, {"offset": "-1"}).status_code, 404)
+        self.assertEqual(
+            self.client.get("/api/v1/boards/999999999/cards/", {"limit": "abc"}).status_code, 404,
+        )
+        self.assertEqual(self.client.get(self.url, {"limit": "abc"}).status_code, 400)
+
+    def test_multi_valued_relations_do_not_duplicate_rows(self):
+        # CardFilter has no filter over a multi-valued relation (assignee is a
+        # FK), but the list query still joins via select_related and prefetches
+        # labels/checklists. Cards carrying several of each must still count
+        # and page as one row each.
+        self._seed(6, same_position=True)
+        labels = [Label.objects.create(board=self.board, name=f"L{i}", color="#000") for i in range(3)]
+        for card in Card.objects.filter(board=self.board):
+            card.labels.add(*labels)
+            for j in range(3):
+                CardChecklist.objects.create(card=card, text=f"t{j}", position=j)
+        seen = []
+        for offset in (0, 2, 4):
+            r = self.client.get(self.url, {"limit": 2, "offset": offset, "search": "c"})
+            self.assertEqual(r["X-Total-Count"], "6")
+            seen.extend(c["id"] for c in r.json())
+        self.assertEqual(len(seen), 6)
+        self.assertEqual(len(set(seen)), 6)
+
+    def test_query_count_extra_count_only_for_empty_window(self):
+        # The total rides the page query as a window COUNT; only a window with
+        # no row to carry it (offset past the end, limit=0) costs one more
+        # query for a separate COUNT.
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._seed(5)
+
+        def count(params):
+            with CaptureQueriesContext(connection) as ctx:
+                r = self.client.get(self.url, params)
+            self.assertEqual(r.status_code, 200)
+            return len(ctx.captured_queries)
+
+        base = count({})
+        self.assertEqual(count({"limit": 2, "offset": 1}), base)
+        # An empty page skips the prefetch queries, so the empty-window cases
+        # compare against an empty first page (filter matching nothing), whose
+        # total is known to be 0 without a COUNT.
+        empty = count({"column": self.col2.id})
+        self.assertEqual(count({"offset": 50}), empty + 1)
+        # limit=0 slices [o:o], which Django answers without a page query, so
+        # the separate COUNT replaces it: same total as an empty first page.
+        self.assertEqual(count({"limit": 0}), empty)
+
+    def test_schema_documents_paging_params_and_headers(self):
+        # Pins the published OpenAPI contract for this operation (#1724).
+        # The CardFilter params (priority, assignee, ...) are absent from the
+        # schema on main and in the v1.1.0 baseline too: DjangoFilterBackend
+        # cannot resolve the model because get_queryset() needs board_pk. This
+        # test therefore pins only what #1724 added plus the pre-existing
+        # `ordering`, so it fails if extend_schema ever drops them.
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        op = schema["paths"]["/api/v1/boards/{board_pk}/cards/"]["get"]
+        names = {p["name"] for p in op["parameters"]}
+        self.assertTrue({"board_pk", "limit", "offset", "ordering"} <= names, names)
+        headers = op["responses"]["200"]["headers"]
+        self.assertIn("X-Total-Count", headers)
+        self.assertIn("X-Truncated", headers)
+
 
 class CardListQueryCountTests(TestCase):
     """Assert that the card list endpoint does not produce N+1 queries as card count grows.
