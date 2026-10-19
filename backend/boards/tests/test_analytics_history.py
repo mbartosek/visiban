@@ -233,6 +233,12 @@ class TestSummaryMetrics(AnalyticsHistorySetup):
         self.assertEqual(resp.data["extension_panels"], [good])
         self.assertEqual(len(resp.data["swimlanes"]), 1)
 
+    def test_generator_in_panel_is_not_exhausted_by_validation(self):
+        panel = {"id": "g", "title": "G", "type": "stats", "data": {"items": (x for x in [{"label": "A", "value": 1}])}}
+        resp = self._summary_with_panels(panel)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"][0]["data"]["items"], [{"label": "A", "value": 1}])
+
     def test_dropped_panel_warning_never_logs_panel_contents(self):
         secret = {"id": "s", "title": "SECRET-TITLE", "type": "stats", "data": {"items": [float("nan")]}}
         with self.assertLogs("boards.views.analytics", level="WARNING") as cm:

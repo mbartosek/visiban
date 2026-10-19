@@ -135,14 +135,23 @@ class BoardAnalyticsMixin:
                 # Validate here, not in the renderer: a NaN/inf or non-serializable
                 # value makes DRF's JSONRenderer raise after the view returns, which
                 # would 500 the whole summary and lose the swimlane data. The panel
-                # is appended unchanged so valid payloads stay byte-identical.
+                # is round-tripped through the same strict encoder DRF uses, so what
+                # is appended is exactly what the renderer would emit (this also
+                # keeps a one-shot iterable from being exhausted by validation).
                 if not isinstance(_panel, dict):
                     raise TypeError("panel must be a dict")
-                json.dumps(_panel, cls=DRFJSONEncoder, allow_nan=False)
-                extension_panels.append(_panel)
-            except Exception:
-                # Log the callable only (never the panel contents, which may be sensitive).
-                _logger.warning("ANALYTICS_EXTENSIONS callable %r raised or returned an invalid panel", _fn, exc_info=False)
+                extension_panels.append(
+                    json.loads(json.dumps(_panel, cls=DRFJSONEncoder, allow_nan=False))
+                )
+            except Exception as exc:
+                # Log the callable's name and the exception type only: never the
+                # panel contents or exception text, which may carry sensitive data.
+                _logger.warning(
+                    "ANALYTICS_EXTENSIONS callable %s.%s dropped (%s)",
+                    getattr(_fn, "__module__", "?"),
+                    getattr(_fn, "__qualname__", type(_fn).__name__),
+                    type(exc).__name__,
+                )
         return Response({"swimlanes": result, "extension_panels": extension_panels})
 
     @action(detail=True, methods=["get"])
