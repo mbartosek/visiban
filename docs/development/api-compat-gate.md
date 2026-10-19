@@ -94,7 +94,9 @@ Those findings are therefore frozen as exact per-finding `key` entries (generate
 the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
 closed: anything not already in it, including a further change to an operation that has
 entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
-or needs its own issue-referenced entry.
+or needs its own issue-referenced entry. The temporary `#1788` entries described below are
+such entries, and any `#1783` entries are too if that issue adds them; none of them is part of
+the burn-down count above.
 
 **Burn-down result** (#1695). Every one of the 51 operations with entries was checked against
 the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, and each entry's
@@ -113,20 +115,24 @@ the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, a
   `CHANGELOG.md`: `columns/reorder/` and `swimlanes/reorder/` used to treat a missing `order` as
   a `200` no-op and now answer `400` unless `order` is the board's full ID list. The
   upgrade-guide note for this is tracked in #1782.
-- **3 `REMOVED_REQUEST_MEDIA_TYPE` entries on `POST /auth/password/change/` are a HEAD
-  schema defect, not a removal** (#1781). The endpoint still accepts JSON, form, and multipart
-  bodies, but HEAD's schema has no request body at all, because
-  `VisibanPasswordChangeSerializer.__init__` calls `has_usable_password()` on `AnonymousUser`
-  during schema generation. When #1781 is fixed, the gate stops reporting these three findings
-  and instead reports `old_password` as a new required request field, which is the deliberate
-  `#1257` security break. The MR that fixes #1781 replaces the three `REMOVED_REQUEST_MEDIA_TYPE`
-  entries with three `NEW_REQUIRED_REQUEST_FIELD ... .old_password` entries under `#1257`. This
-  is the one stated exception to the no-additions rule below.
+- **3 `REMOVED_REQUEST_MEDIA_TYPE` entries on `POST /auth/password/change/` were a HEAD
+  schema defect, not a removal** (#1781, fixed). `VisibanPasswordChangeSerializer.__init__`
+  called `has_usable_password()` on `AnonymousUser` during schema generation, so HEAD's schema
+  lost the request body. The fix replaced them with three
+  `NEW_REQUIRED_REQUEST_FIELD ... .old_password` entries under `#1257`, the deliberate security
+  break.
 
 These entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
-break. Entries are only ever deleted (when one goes stale) or re-justified, never added,
-except for the #1781 replacement described above.
+break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
+The exceptions are the #1781 replacement above and the temporary #1788 entries below.
+The #1783 entries are a third exception if that issue adds them.
+
+Four temporary `key` entries under `#1788` cover `NEW_REQUIRED_REQUEST_BODY` on `POST swimlanes/`,
+`PUT swimlanes/{id}/`, and `PATCH swimlanes/{id}/set-collapsed/` and `set_collapsed/`. The v1.1.0
+baseline lacks those bodies because `SwimlaneViewSet` crashed during schema generation; #1788
+fixes the schema, and the endpoints always required the body. Delete all four entries when the
+baseline is rolled at the v1.2.0 GA.
 
 The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
 as the new baseline. Several hand-written actions still document a fallback serializer today,

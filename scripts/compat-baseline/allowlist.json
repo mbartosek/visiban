@@ -2824,6 +2824,26 @@
    "key": "TYPE_CHANGED POST /api/v1/boards/{board_pk}/columns/reorder/ response 200 application/json object->array",
    "issue": "#1695",
    "reason": "verified doc-only vs v1.1.0 runtime (#1695): v1.1.0 ColumnViewSet.reorder read only `order` and returned a bare ColumnSerializer list; the baseline documented a single ColumnSerializer for request and response"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY POST /api/v1/boards/{board_pk}/swimlanes/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY PUT /api/v1/boards/{board_pk}/swimlanes/{id}/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY PATCH /api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY PATCH /api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
   }
  ]
 }
