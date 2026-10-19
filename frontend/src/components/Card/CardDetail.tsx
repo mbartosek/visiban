@@ -282,7 +282,18 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     // remote even while a save is in flight (a move is guarded unconditionally:
     // useBoard relocates the card optimistically).
     const sameLocation = localLocationRef.current.column === card.column && localLocationRef.current.swimlane === card.swimlane;
-    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current || (ownSavesInFlightRef.current > 0 && sameLocation)) {
+    if (moveSubmittingRef.current) {
+      // The location is synced too: it is our own target on success (a no-op next
+      // to handleMoveSubmit), and the real location if a remote move or the
+      // conflict reload lands before our request settles.
+      setLocalCard((c) => (
+        c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
+          ? c
+          : { ...c, version: card.version, column: card.column, swimlane: card.swimlane }
+      ));
+      return;
+    }
+    if (ownVersionsRef.current.delete(card.version) || (ownSavesInFlightRef.current > 0 && sameLocation)) {
       setLocalCard((c) => (c.version === card.version ? c : { ...c, version: card.version }));
       return;
     }

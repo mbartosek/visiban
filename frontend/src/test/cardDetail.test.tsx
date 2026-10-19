@@ -1834,6 +1834,23 @@ describe('CardDetail', () => {
         expect(screen.getByTestId('move-notice')).toHaveTextContent(NOTICE_TEXT)
       })
 
+      it('syncs the real location when a remote move lands before the own move settles', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // the conflict reload (or a remote move) arrives before the request settles
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 3, column: 10, swimlane: 21 })} />)
+        await act(async () => { resolveMove({ ok: false, error: axiosFailure(409, { code: 'version_conflict' }) }) })
+        expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument()
+        expect(screen.getByTitle('Customer B')).toBeInTheDocument()
+      })
+
       it('treats a version bump that comes with a location change as remote even while an own save is in flight', async () => {
         mockUpdateCard.mockImplementation(() => new Promise(() => {}))
         const board = makeBoardWithTwoCols()
