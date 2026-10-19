@@ -1136,6 +1136,19 @@ describe('BoardView', () => {
       expect(screen.getByTestId('card-detail')).toHaveTextContent('Refreshed Card')
     })
 
+    it('hands the analytics-view CardDetail the refreshed card too (#1773)', async () => {
+      mockSearchParams = new URLSearchParams('view=analytics')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      await userEvent.setup().click(screen.getByTestId('open-card-btn'))
+      expect(screen.getByTestId('card-detail')).toHaveTextContent('Doomed Card')
+
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [{ ...card, title: 'Refreshed Card', version: 2 }] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('card-detail')).toHaveTextContent('Refreshed Card')
+    })
+
     it('closes CardDetail with the notice in the analytics view too', async () => {
       mockSearchParams = new URLSearchParams('view=analytics')
       mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })

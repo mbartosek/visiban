@@ -240,42 +240,57 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setConfirmAction(null);
     setCardActionError(null);
   }, 35);
-  // Resolve the Move popover when the card is replaced underneath it (#1773). A
-  // version-conflict refresh or a forced move (useBoard.forceMoveCard) swaps in
-  // the server's card, but this component seeds localCard and the popover
-  // targets once, so without this the popover keeps the pre-refresh target and
-  // error. Keyed on version alone: useBoard's optimistic relocation and its
+  // Resolve the Move popover when a REMOTE change replaces the card underneath
+  // it (#1773): another session's edit or move after a version-conflict reload,
+  // or an admin's forced move (useBoard.forceMoveCard). BoardView hands us the
+  // live card from board.cards, but localCard and the popover targets are
+  // seeded once, so without this the popover keeps the pre-refresh target and
+  // error. Keyed on version alone: useBoard's optimistic relocation and the
   // rollback of a failed move change the location but never the version, so
-  // they cannot close the popover or erase the inline error of our own failed
-  // move. Only the location is synced into localCard: the rest can hold
-  // in-progress edits that a board refresh must not clobber.
+  // they cannot close the popover or erase the error of our own failed move.
+  // Every save bumps the version server-side and returns through onUpdated, so
+  // versions this component caused itself (ownVersionsRef) are not remote. Only
+  // version and location are synced into localCard: the rest can hold
+  // in-progress edits a refresh must not clobber, and the version must follow
+  // so the checklist/attachment onUpdated payloads do not write a stale one back.
   const lastSeenVersionRef = useRef(card.version);
+  const ownVersionsRef = useRef(new Set<number>());
   // Read through refs so the effect sees the state at the moment the version
   // changed without re-running when the popover opens or closes.
   const showMovePopoverRef = useRef(showMovePopover);
   showMovePopoverRef.current = showMovePopover;
   const moveSubmittingRef = useRef(moveSubmitting);
   moveSubmittingRef.current = moveSubmitting;
-  const movePopoverErrorRef = useRef(movePopoverError);
-  movePopoverErrorRef.current = movePopoverError;
+  const moveTargetRef = useRef({ column: moveTargetColumn, swimlane: moveTargetSwimlane });
+  moveTargetRef.current = { column: moveTargetColumn, swimlane: moveTargetSwimlane };
   useEffect(() => {
     if (lastSeenVersionRef.current === card.version) return;
     lastSeenVersionRef.current = card.version;
-    setLocalCard((c) => (c.column === card.column && c.swimlane === card.swimlane ? c : { ...c, column: card.column, swimlane: card.swimlane }));
-    // A popover that closes with an error or a half-made selection in it: say
-    // so in the panel. A refresh with the popover closed clears any older
-    // notice instead (its "current location" may be stale). Our own in-flight
-    // move is not announced: its success also bumps the version.
+    // Our own save, or our own move resolving: handleMoveSubmit and save() already
+    // applied the result. Just keep the version current.
+    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current) {
+      setLocalCard((c) => (c.version === card.version ? c : { ...c, version: card.version }));
+      return;
+    }
+    setLocalCard((c) => (
+      c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
+        ? c
+        : { ...c, version: card.version, column: card.column, swimlane: card.swimlane }
+    ));
+    // An open popover closes with the user's selection or error in it. Say so
+    // in the panel, unless the card landed exactly where the popover was
+    // aiming (an admin's forced move of that very move): that is the user's
+    // own outcome. A refresh with the popover closed clears any older notice
+    // instead (its "current location" may be stale).
     const wasOpen = showMovePopoverRef.current;
-    const hadError = movePopoverErrorRef.current !== null;
-    const ownMoveInFlight = moveSubmittingRef.current;
-    setMoveNotice(hadError || (wasOpen && !ownMoveInFlight) ? "This card was changed elsewhere. Its current location is shown." : "");
+    const target = moveTargetRef.current;
+    const landedOnTarget = target.column === card.column && target.swimlane === card.swimlane;
+    setMoveNotice(wasOpen && !landedOnTarget ? "This card was changed elsewhere. Its current location is shown." : "");
     setShowMovePopover(false);
     setMovePopoverError(null);
     // Closing unmounts the focused control: hand focus back to the Move button,
     // but only when the popover was open and focus was inside it (or lost to
-    // body). A version bump while the popover is closed (e.g. the user's own
-    // title save) must never move focus.
+    // body). A version bump while the popover is closed must never move focus.
     if (wasOpen) {
       const active = document.activeElement;
       if (!active || active === document.body || movePopoverRef.current?.contains(active)) {
@@ -289,6 +304,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   useEscapeStack(() => {
     if (!showMovePopover) return false;
     setShowMovePopover(false);
+    setMovePopoverError(null);
   }, 36);
   // Bulk-add overlay is a modal over the panel: Escape closes it first (priority 37, above
   // the move popover) instead of closing the whole card panel (#1376).
@@ -299,12 +315,26 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   }, 37);
   useEscapeStack(onClose, 30);
 
+  // The title the field was last in sync with: seeded from the card, then the
+  // server's title after this component's own saves. The blur check compares
+  // against this, not the live card prop, so another session's rename cannot
+  // turn a plain focus+blur into a PATCH that writes the old title back.
+  const titleBaselineRef = useRef(card.title);
+  // Takes the server's copy after one of this component's own saves and
+  // remembers its version as ours, so the reset effect does not read the bump
+  // as a remote change (#1773).
+  const adoptSaved = (updated: Card) => {
+    titleBaselineRef.current = updated.title;
+    ownVersionsRef.current.add(updated.version);
+    setLocalCard(updated);
+  };
+
   const save = async (patch: CardPatch) => {
     // Snapshot pre-save state so we can roll back if the API call fails.
     const prev = localCard;
     try {
       const updated = await updateCard(board.id, localCard.id, patch);
-      setLocalCard(updated);
+      adoptSaved(updated);
       onUpdated(updated);
     } catch (err) {
       setLocalCard(prev);
@@ -347,7 +377,6 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     }
     setMoveSubmitting(true);
     setMovePopoverError(null);
-    setMoveNotice("");
     try {
       // position 9999 appends the card to the end of the target cell.
       // useBoard.moveCard never rejects; it reports failure in its result. Only
@@ -373,7 +402,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       (e.target as HTMLInputElement).blur(); // blur triggers save
       if (closeEditorOnEnter) onClose();
     } else if (e.key === "Escape") {
-      setLocalCard((c) => ({ ...c, title: card.title }));
+      setLocalCard((c) => ({ ...c, title: titleBaselineRef.current }));
       (e.target as HTMLInputElement).blur();
     }
   };
@@ -382,8 +411,8 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     const trimmed = localCard.title.trim();
     if (!trimmed) {
       // Restore if user cleared the title entirely
-      setLocalCard((c) => ({ ...c, title: card.title }));
-    } else if (trimmed !== card.title) {
+      setLocalCard((c) => ({ ...c, title: titleBaselineRef.current }));
+    } else if (trimmed !== titleBaselineRef.current) {
       await save({ title: trimmed }).catch(() => {});
     }
   };
@@ -397,7 +426,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setLocalCard((c) => ({ ...c, labels: newLabels }));
     try {
       const updated = await updateCard(board.id, localCard.id, { label_ids: newLabels.map((l) => l.id) });
-      setLocalCard(updated);
+      adoptSaved(updated);
       onUpdated(updated);
     } catch {
       setLocalCard(prev);
@@ -419,7 +448,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       // too produces a duplicate label in the board's label list.
       const updatedLabelIds = [...localCard.labels.map((l) => l.id), label.id];
       const updated = await updateCard(board.id, localCard.id, { label_ids: updatedLabelIds });
-      setLocalCard(updated);
+      adoptSaved(updated);
       onUpdated(updated);
       setNewLabelName("");
       setAddingLabel(false);
@@ -1554,7 +1583,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
           </p>
           <div className="flex gap-3 justify-end">
             <button
-              onClick={() => setShowMovePopover(false)}
+              onClick={() => { setShowMovePopover(false); setMovePopoverError(null); }}
               className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded"
             >Cancel</button>
             <button

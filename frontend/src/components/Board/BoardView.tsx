@@ -1920,8 +1920,9 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
         {selectedCard && (
           <CardDetail
             // Remount on card change (#449). CardDetail seeds localCard and its
-            // collapsible-section state from useState(card) initializers with no
-            // prop-sync effect, so without a key, opening a different card from
+            // collapsible-section state from useState(card) initializers. Its only
+            // prop-sync is a version-keyed effect for the Move popover and the
+            // card's location (#1773), so without a key, opening a different card from
             // a relation row would render the previous card's title, weight and
             // relations while the new card's data loads.
             key={selectedCard.id}
@@ -2615,8 +2616,9 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
         <SectionErrorBoundary section="Card detail">
           <CardDetail
             // Remount on card change (#449). CardDetail seeds localCard and its
-            // collapsible-section state from useState(card) initializers with no
-            // prop-sync effect, so without a key, opening a different card from
+            // collapsible-section state from useState(card) initializers. Its only
+            // prop-sync is a version-keyed effect for the Move popover and the
+            // card's location (#1773), so without a key, opening a different card from
             // a relation row would render the previous card's title, weight and
             // relations while the new card's data loads.
             key={selectedCard.id}
