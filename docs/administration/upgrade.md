@@ -1251,6 +1251,21 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     endpoint and is unaffected. See
     [Authentication API](../api/authentication.md#post-apiv1authpasswordchange).
 
+!!! warning "Column and swimlane `reorder/` now require the board's full `order` list"
+    In 1.1, `POST /api/v1/boards/{id}/columns/reorder/` and `.../swimlanes/reorder/` read
+    `order` with a default of an empty list, so a missing or partial `order` was a `200` no-op
+    or a partial apply. Since 1.2 (#1302), `order` must be exactly the board's current column
+    (or swimlane) IDs: every one once, no duplicates, and no ID from another board. A missing
+    or partial `order`, a duplicate or foreign ID, a non-integer entry, or an empty list on a
+    board that has columns (or swimlanes) returns `400` with a body such as
+    `{"order": ["order must contain exactly this board's column IDs, no more and no fewer."]}`,
+    and nothing is changed. An empty `order` is accepted only when the board has none of that
+    resource. Any script or integration that sends a partial or empty `order` must now `GET`
+    the board's current IDs and send the complete list in the new order. The Visiban web app
+    already sends the full list and is unaffected. See
+    [Columns API](../api/boards.md#post-apiv1boardsidcolumnsreorder) and
+    [Swimlanes API](../api/boards.md#post-apiv1boardsidswimlanesreorder).
+
 ### Upgrading to 1.1.x
 
 !!! warning "Removed env-var aliases — rename before upgrading"
