@@ -344,14 +344,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         # loaded parent objects instead of issuing up to 5 lazy FK queries per
         # write action on nested groups. Six levels matches _GROUP_TRAVERSAL_MAX_DEPTH.
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
+        # Annotate counts so GroupSerializer can read _member_count etc. directly
+        # from the object instead of issuing 3-4 extra queries per group.
         return annotate_group_counts(
             Group.objects.select_related(*related).prefetch_related(
                 # Prefetch shared labels to avoid one query per group in list responses.
                 "labels",
             )
         ).annotate(
-            # Annotate counts so GroupSerializer can read _member_count etc.
-            # directly from the object instead of issuing 3-4 extra queries per group.
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=user, group=OuterRef("pk"))
             ),
@@ -819,7 +819,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         # navigation-only (group_access_resolver); with only "parent" loaded
         # that walk would issue lazy queries per subgroup.
         related = ["owner"] + ["__".join(["parent"] * d) for d in range(1, 7)]
-        subgroups = annotate_group_counts(subgroups.select_related(*related).prefetch_related("labels")).annotate(
+        subgroups = annotate_group_counts(
+            subgroups.select_related(*related).prefetch_related("labels")
+        ).annotate(
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),
@@ -1909,9 +1911,11 @@ class JoinGroupView(APIView):
         # 4 extra subqueries against the bare instance (#722).
         # The full parent chain (six levels, as in _annotated_groups) so the
         # can_place_boards admin check walks loaded rows at any depth (#1692).
-        annotated_group = annotate_group_counts(Group.objects.select_related(
-            "owner", *["__".join(["parent"] * d) for d in range(1, 7)],
-        ).prefetch_related("labels")).annotate(
+        annotated_group = annotate_group_counts(
+            Group.objects.select_related(
+                "owner", *["__".join(["parent"] * d) for d in range(1, 7)],
+            ).prefetch_related("labels")
+        ).annotate(
             _is_starred=Exists(
                 GroupFavorite.objects.filter(user=request.user, group=OuterRef("pk"))
             ),

@@ -5,6 +5,8 @@
 by side (members x boards x subgroups rows per group). The query count stayed
 flat, so the query-count guards could not see it.
 """
+import re
+
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -89,8 +91,7 @@ class GroupCountsTests(TestCase):
         self.assertEqual(self._counts(got["big"]), (4, 3, 2))
 
     def test_annotated_queryset_sql_has_no_count_join(self):
-        # Covers every site (list/detail/subgroups, join, admin broadcast): all
-        # annotate through annotate_group_counts.
+        # The helper in isolation; each call site has its own shape test below.
         qs = annotate_group_counts(Group.objects.all())
         with CaptureQueriesContext(connection) as ctx:
             list(qs)
@@ -104,9 +105,58 @@ class GroupCountsTests(TestCase):
     def test_list_sql_has_no_count_join(self):
         with CaptureQueriesContext(connection) as ctx:
             self.client.get("/api/v1/groups/")
+        self._assert_one_count_query_without_join(ctx)
+
+    # -- per-queryset SQL shape (every annotated site, #1766) -------------
+
+    def _assert_one_count_query_without_join(self, ctx, expected=1):
+        """Exactly ``expected`` captured queries carry the count annotations (so
+        the assertion cannot pass vacuously), and none has a count-related join
+        or GROUP BY outside the correlated subqueries. The select_related
+        parent chain legitimately joins groups on parent_id; a subgroup-count
+        join would be the reverse (groups.id = child.parent_id)."""
         sqls = [q["sql"] for q in ctx.captured_queries if '"_subgroup_count"' in q["sql"]]
-        self.assertTrue(sqls)
-        outer = _strip_subqueries(sqls[0])
-        self.assertNotIn('join "group_memberships"', outer)
-        self.assertNotIn('join "boards"', outer)
-        self.assertNotIn("group by", outer)
+        self.assertEqual(len(sqls), expected, [q["sql"][:200] for q in ctx.captured_queries])
+        for sql in sqls:
+            self.assertEqual(sql.lower().count("count(*)"), 3)
+            outer = _strip_subqueries(sql)
+            self.assertNotIn('join "group_memberships"', outer)
+            self.assertNotIn('join "boards"', outer)
+            self.assertIsNone(
+                re.search(r'join "groups" \w* ?on \("groups"\."id" = ', outer), outer
+            )
+            self.assertNotIn("group by", outer)
+
+    def test_retrieve_sql_has_no_count_join(self):
+        with CaptureQueriesContext(connection) as ctx:
+            r = self.client.get(f"/api/v1/groups/{self.big.pk}/")
+        self.assertEqual(r.status_code, 200)
+        self._assert_one_count_query_without_join(ctx)
+
+    def test_subgroups_sql_has_no_count_join(self):
+        with CaptureQueriesContext(connection) as ctx:
+            r = self.client.get(f"/api/v1/groups/{self.big.pk}/subgroups/")
+        self.assertEqual(r.status_code, 200)
+        self._assert_one_count_query_without_join(ctx, expected=2)
+
+    def test_join_endpoint_sql_has_no_count_join_and_counts_correct(self):
+        from groups.models import GroupInviteLink
+
+        _, raw = GroupInviteLink.generate(group=self.big, created_by=self.owner)
+        joiner = User.objects.create_user(username="joiner", password="x")
+        client = APIClient()
+        client.force_authenticate(joiner)
+        with CaptureQueriesContext(connection) as ctx:
+            r = client.post(f"/api/v1/groups/join/{raw}/")
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(self._counts(r.data), (5, 3, 2))
+        self._assert_one_count_query_without_join(ctx)
+
+    def test_admin_broadcast_sql_has_no_count_join(self):
+        from django.contrib import admin as dj_admin
+        from groups.admin import GroupAdmin
+
+        model_admin = GroupAdmin(Group, dj_admin.site)
+        with CaptureQueriesContext(connection) as ctx:
+            model_admin._broadcast_after_commit(self.big.pk, actor_id=self.owner.pk)
+        self._assert_one_count_query_without_join(ctx)
