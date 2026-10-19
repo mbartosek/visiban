@@ -691,6 +691,10 @@ SPECTACULAR_SETTINGS = {
 # CORS
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
 CORS_ALLOW_CREDENTIALS = True
+# Response headers a cross-origin client may read. Browsers hide non-safelisted
+# headers from cross-origin JS unless exposed; GET /boards/{id}/cards/ signals
+# its count and truncation in these (#1724).
+CORS_EXPOSE_HEADERS = ["X-Total-Count", "X-Truncated"]
 
 # Guard: refuse to start in production if CORS_ALLOWED_ORIGINS contains a
 # localhost or loopback origin. Developers sometimes leave the default env value

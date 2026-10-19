@@ -708,6 +708,146 @@ class CardListRowCapTests(TestCase):
         self.assertEqual(len(r.json()), cap)
 
 
+class CardListTruncationSignalTests(TestCase):
+    """GET /boards/{id}/cards/ signals its cap and supports limit/offset (#1724).
+
+    The body stays a bare JSON array (1.0 contract); the count and the
+    truncation flag travel in X-Total-Count / X-Truncated.
+    """
+
+    N = 205  # one page past the 200 cap, plus a few
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="trunc", password="pass")
+        self.board, self.col, self.col2, self.swim = _make_board(self.user)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.url = f"/api/v1/boards/{self.board.id}/cards/"
+
+    def _seed(self, n, same_position=False):
+        Card.objects.bulk_create([
+            Card(board=self.board, column=self.col, swimlane=self.swim,
+                 title=f"c{i}", created_by=self.user,
+                 position=0 if same_position else i)
+            for i in range(n)
+        ])
+
+    def test_over_cap_without_params_is_capped_and_flagged(self):
+        self._seed(self.N)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIsInstance(body, list)  # shape unchanged
+        self.assertEqual(len(body), 200)
+        self.assertEqual(r["X-Total-Count"], str(self.N))
+        self.assertEqual(r["X-Truncated"], "true")
+
+    def test_under_cap_is_not_truncated(self):
+        self._seed(5)
+        r = self.client.get(self.url)
+        self.assertEqual(len(r.json()), 5)
+        self.assertEqual(r["X-Total-Count"], "5")
+        self.assertEqual(r["X-Truncated"], "false")
+
+    def test_empty_board_headers(self):
+        r = self.client.get(self.url)
+        self.assertEqual(r.json(), [])
+        self.assertEqual(r["X-Total-Count"], "0")
+        self.assertEqual(r["X-Truncated"], "false")
+
+    def test_total_reflects_filters(self):
+        self._seed(3)
+        Card.objects.create(board=self.board, column=self.col2, swimlane=self.swim,
+                            title="other", created_by=self.user, position=0)
+        r = self.client.get(self.url, {"column": self.col2.id})
+        self.assertEqual(len(r.json()), 1)
+        self.assertEqual(r["X-Total-Count"], "1")
+
+    def test_limit_offset_walk_returns_every_card_once(self):
+        # Every card shares one position, so only the pk tiebreaker keeps the
+        # order total; without it offset paging could skip or repeat cards.
+        self._seed(self.N, same_position=True)
+        seen, offset = [], 0
+        while True:
+            r = self.client.get(self.url, {"limit": 60, "offset": offset})
+            self.assertEqual(r.status_code, 200)
+            page = r.json()
+            self.assertEqual(r["X-Total-Count"], str(self.N))
+            seen.extend(c["id"] for c in page)
+            offset += len(page)
+            if r["X-Truncated"] == "false":
+                break
+        self.assertEqual(len(seen), self.N)
+        self.assertEqual(len(set(seen)), self.N)
+        self.assertEqual(set(seen), set(Card.objects.filter(board=self.board).values_list("id", flat=True)))
+
+    def test_default_order_uses_pk_tiebreaker(self):
+        self._seed(10, same_position=True)
+        ids = [c["id"] for c in self.client.get(self.url).json()]
+        self.assertEqual(ids, sorted(ids))
+
+    def test_limit_above_cap_is_clamped(self):
+        self._seed(self.N)
+        r = self.client.get(self.url, {"limit": 10_000})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 200)
+        self.assertEqual(r["X-Truncated"], "true")
+
+    def test_last_page_is_not_truncated(self):
+        self._seed(self.N)
+        r = self.client.get(self.url, {"offset": 200})
+        self.assertEqual(len(r.json()), self.N - 200)
+        self.assertEqual(r["X-Total-Count"], str(self.N))
+        self.assertEqual(r["X-Truncated"], "false")
+
+    def test_offset_past_end_returns_empty_with_total(self):
+        self._seed(5)
+        r = self.client.get(self.url, {"offset": 50})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), [])
+        self.assertEqual(r["X-Total-Count"], "5")
+        self.assertEqual(r["X-Truncated"], "false")
+
+    def test_limit_zero_returns_only_headers(self):
+        self._seed(5)
+        r = self.client.get(self.url, {"limit": 0})
+        self.assertEqual(r.json(), [])
+        self.assertEqual(r["X-Total-Count"], "5")
+        self.assertEqual(r["X-Truncated"], "true")
+
+    def test_blank_params_mean_default(self):
+        self._seed(3)
+        r = self.client.get(self.url, {"limit": "", "offset": ""})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 3)
+
+    def test_invalid_params_are_400(self):
+        for params in (
+            {"limit": "-1"}, {"limit": "abc"}, {"limit": "1.5"},
+            {"offset": "-1"}, {"offset": "x"}, {"offset": str(2**62 + 1)},
+            {"offset": "9" * 5000},
+        ):
+            with self.subTest(params=params):
+                r = self.client.get(self.url, params)
+                self.assertEqual(r.status_code, 400)
+                self.assertIn(next(iter(params)), r.json())
+
+    def test_huge_limit_is_clamped_not_rejected(self):
+        self._seed(3)
+        r = self.client.get(self.url, {"limit": "9" * 5000})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.json()), 3)
+
+    def test_non_member_still_404(self):
+        self._seed(3)
+        outsider = User.objects.create_user(username="trunc_out", password="pass")
+        c = APIClient()
+        c.force_authenticate(outsider)
+        r = c.get(self.url, {"limit": 1})
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn("X-Total-Count", r)
+
+
 class CardListQueryCountTests(TestCase):
     """Assert that the card list endpoint does not produce N+1 queries as card count grows.
 

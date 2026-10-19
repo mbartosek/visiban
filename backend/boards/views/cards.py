@@ -22,7 +22,7 @@ from django.conf import settings as django_settings
 from accounts.models import User, get_uploads_enabled
 from accounts.permissions import TokenHasScope
 from visiban.exceptions import CodedValidationError
-from visiban.request_shape import parse_offset
+from visiban.request_shape import MAX_OFFSET, parse_offset
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -256,6 +256,93 @@ def _force_denied_response(name):
     )
 
 
+# Row cap on GET /boards/{id}/cards/ (#791). Module-level so the schema below
+# and CardViewSet._LIST_MAX_ROWS cannot drift apart.
+_CARD_LIST_MAX_ROWS = 200
+
+# Response headers on GET /boards/{id}/cards/ (#1724). The body stays a bare JSON
+# array (a 1.0 contract), so the count and truncation signal travel in headers.
+CARD_LIST_TOTAL_HEADER = "X-Total-Count"
+CARD_LIST_TRUNCATED_HEADER = "X-Truncated"
+
+_CARD_LIST_SCHEMA = extend_schema(
+    description=(
+        "List the board's active cards as a bare JSON array (not a pagination "
+        f"envelope). At most {_CARD_LIST_MAX_ROWS} cards are returned per request. "
+        f"`{CARD_LIST_TOTAL_HEADER}` gives the number of cards matching the filters "
+        f"and `{CARD_LIST_TRUNCATED_HEADER}` is `true` when more matching cards "
+        "exist after the returned ones; walk them with `limit`/`offset`. Rows are "
+        "ordered by the requested ordering with the card id as a tiebreaker, so "
+        "offset paging neither skips nor repeats a card on an unchanged board."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="limit",
+            type={"type": "integer", "minimum": 0},
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description=(
+                f"Maximum cards to return (default and maximum {_CARD_LIST_MAX_ROWS}; "
+                "larger values are clamped to the maximum). `0` returns an empty "
+                "array with the headers set. A negative or non-integer value is a 400."
+            ),
+        ),
+        OpenApiParameter(
+            name="offset",
+            type={"type": "integer", "minimum": 0, "maximum": MAX_OFFSET},
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description=(
+                "Number of matching cards to skip (default 0). A negative or "
+                "non-integer value is a 400."
+            ),
+        ),
+        OpenApiParameter(
+            name=CARD_LIST_TOTAL_HEADER,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.HEADER,
+            response=[200],
+            description="Total number of active cards matching the filters, ignoring `limit`/`offset`.",
+        ),
+        OpenApiParameter(
+            name=CARD_LIST_TRUNCATED_HEADER,
+            type=OpenApiTypes.STR,
+            enum=["true", "false"],
+            location=OpenApiParameter.HEADER,
+            response=[200],
+            description=(
+                "`true` when more matching cards exist after the returned ones "
+                "(fetch them with a larger `offset`), otherwise `false`."
+            ),
+        ),
+    ],
+)
+
+
+def _parse_card_list_param(request, name, default, maximum=None):
+    """Parse an optional non-negative integer query param for the card list (#1724).
+
+    Strict on purpose: these params are new, so there is no lenient legacy
+    behavior to preserve, and silently treating ``limit=abc`` as the default
+    would recreate the "client cannot tell what it got" bug this fixes.
+    Absent or blank means ``default``; ``maximum`` (when given) clamps rather
+    than rejects, since asking for more than the cap is a reasonable request.
+    """
+    raw = request.query_params.get(name, "")
+    if raw == "":
+        return default
+    if not (raw.isascii() and raw.isdigit()):
+        raise serializers.ValidationError({name: "Must be a non-negative integer."})
+    # Past 19 digits the value exceeds MAX_OFFSET anyway; skipping int() also
+    # sidesteps Python's int-from-str digit limit (a ValueError -> 500).
+    value = int(raw) if len(raw) <= 19 else MAX_OFFSET + 1
+    if maximum is not None:
+        value = min(value, maximum)
+    if value > MAX_OFFSET:
+        raise serializers.ValidationError({name: "Must be a valid integer offset."})
+    return value
+
+
 _ENTER_COLUMN_409 = (
     "`wip_limit_exceeded` / `wip_hard_blocked` — the column is at its WIP limit; "
     "`weight_limit_exceeded` — the card's weight would push the column over its "
@@ -288,6 +375,7 @@ _CARD_UPDATE_SCHEMA = extend_schema(
 # ---------------------------------------------------------------------------
 
 @extend_schema_view(
+    list=_CARD_LIST_SCHEMA,
     create=extend_schema(
         description=(
             "Create a card at the end of its column/swimlane cell. The column's "
@@ -326,15 +414,13 @@ class CardViewSet(viewsets.ModelViewSet):
     ]
     serializer_class = CardSerializer
     filterset_class = CardFilter
-    # Disable pagination: the full board state is loaded via the /full/ endpoint; individual
-    # card list calls (e.g. search) return plain arrays consumed directly by the frontend.
+    # No DRF pagination class: the list response is a bare JSON array (a 1.0
+    # contract; the SPA's search consumes it directly). Paging is done by hand in
+    # list() with optional limit/offset params and count/truncation headers
+    # (#1724), which keeps that shape. The full board state is loaded via /full/.
     pagination_class = None
     ordering_fields = ["position", "due_date", "created_at", "priority"]
     ordering = ["position"]
-    # Cards are always scoped to a single board so paginating the list endpoint
-    # would silently truncate results for busy boards. Disable pagination here;
-    # the board-full endpoint already returns all cards without pagination.
-    pagination_class = None
 
     # Cache the (board, role) tuple for the lifetime of the request so that
     # multiple _board_and_role() / _board() calls within one action (e.g.
@@ -420,15 +506,45 @@ class CardViewSet(viewsets.ModelViewSet):
     # path that returns the complete board; /cards/ is for targeted lookups
     # (search, priority filter, etc.) and must bound its response so a board
     # with thousands of matching cards cannot return an unbounded payload.
-    _LIST_MAX_ROWS = 200
+    #
+    # The cap used to truncate silently (#1724). The body is still a bare array
+    # capped at this many rows when no params are sent, but the response now
+    # carries X-Total-Count / X-Truncated, and limit/offset let a client walk
+    # past the cap without changing the response shape.
+    _LIST_MAX_ROWS = _CARD_LIST_MAX_ROWS
 
     def list(self, request, *args, **kwargs):
+        # Validate params first so a bad request costs no card query.
+        limit = _parse_card_list_param(request, "limit", self._LIST_MAX_ROWS, maximum=self._LIST_MAX_ROWS)
+        offset = _parse_card_list_param(request, "offset", 0)
+
         queryset = self.filter_queryset(self.get_queryset())
-        # Cap results after ordering is applied — slicing before filter_queryset()
-        # would prevent OrderingFilter from calling .order_by() on the queryset.
-        queryset = queryset[:self._LIST_MAX_ROWS]
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        # Make the order total: `position` (the default) and every other
+        # ordering field repeat across cards, and offset paging over a
+        # non-total order can skip or repeat a card at a page boundary.
+        order = list(queryset.query.order_by)
+        if not any(f.lstrip("-") in ("pk", "id") for f in order if isinstance(f, str)):
+            queryset = queryset.order_by(*order, "pk")
+
+        # Window COUNT rides the page query, so the total costs no extra round
+        # trip (same pattern as the archived action). Slice after ordering —
+        # slicing before filter_queryset() would block OrderingFilter.
+        rows = list(queryset.annotate(_total=Window(Count("id")))[offset:offset + limit])
+        if rows:
+            total = rows[0]._total
+        elif offset == 0 and limit > 0:
+            total = 0
+        else:
+            # Empty window past the end, or limit=0: the page query had no row
+            # to carry the total, so count separately. Never hit by a no-param
+            # request on a non-empty board.
+            total = queryset.count()
+
+        serializer = self.get_serializer(rows, many=True)
+        response = Response(serializer.data)
+        response[CARD_LIST_TOTAL_HEADER] = str(total)
+        response[CARD_LIST_TRUNCATED_HEADER] = "true" if offset + len(rows) < total else "false"
+        return response
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
