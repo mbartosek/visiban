@@ -32,6 +32,8 @@ Every write operation that changes state visible to other users on the same chan
 - Implicit writes inside DRF `perform_create` / `perform_update` / `perform_destroy`
 - Action methods that mutate state — every `@action` whose method list contains `post`, `patch`, `put`, or `delete`
 
+Do not stop at the REST viewsets. Writes that change what other users are watching also arrive from: the admin API and the Django admin, management commands and repair scripts, and the **side effects of foreign-key `on_delete` rules** (a `SET_NULL` or `CASCADE` silently changes rows that other viewers hold open). For each deletion of a container, list the rows its `on_delete` rules rewrite or remove and check that each affected viewer-visible row, including nested child containers, gets its own event. Also check bulk transfers (e.g. reassigning owners with `.update()`), which touch many rows with one statement and no signal.
+
 For each write, identify which channel(s) it should broadcast on:
 
 - **Board-scoped resources** (cards, columns, swimlanes, labels, board settings, members, saved filters, comments, attachments, checklist) → `broadcast_board_event(board_id, event, payload)`

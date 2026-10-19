@@ -82,9 +82,12 @@ Work through each category. For categories with no findings from the scans, stat
 - **Post-revocation data retention** — when a write removes a user's access to a resource (e.g. `BoardMembership.delete`, group membership delete, role demotion), audit every endpoint that surfaces the resource's *historical* content to that user (notifications, activity feeds, mention digests, search results, recent-views lists). If access is revoked but historical board/card/group names are still served, that is an information-retention leak and should be flagged. The fix is either to filter at read time or purge on the revocation event.
 - **Frontend** — `dangerouslySetInnerHTML`, raw `fetch()`, content sanitization
 
+- **List/visibility paths vs. single-object paths** — an object can be unreadable through the single-object permission check yet still appear through a list, search, bulk-read or favorite queryset that uses a broader predicate. For each resource the diff touches, check every queryset that can return it, not only the detail view.
+- **Fail-open defaults on stored authorization values** — a lookup that maps an unrecognized stored role, threshold or scope to the *lowest* tier (rank 0, "viewer", "everyone") instead of denying. API validation does not protect values written by the ORM, admin, import or migrations.
+
 #### Security invariants registry
 
-Read `docs/development/security-invariants.md`. If the diff touches a rule listed there (account-state gates, access revocation, grants and their revocation paths, consume-once tokens, import user scoping), check every surface in that rule's table, not only the surface in the diff, and report any sibling surface that does not enforce the rule as a finding. Report such a finding to the maintainer privately or file it as a confidential issue; never paste it into an MR description, commit message or public doc.
+Read the whole of `docs/development/security-invariants.md`; a partial read has missed later rules and the import-scoping section. If the diff touches a rule listed there (account-state gates, access revocation, grants and their revocation paths, consume-once tokens, import user scoping), check every surface in that rule's table, not only the surface in the diff, and report any sibling surface that does not enforce the rule as a finding. Report such a finding to the maintainer privately or file it as a confidential issue; never paste it into an MR description, commit message or public doc.
 
 For design-level trust-boundary questions that precede code, see the `threat-model` skill (`.claude/skills/threat-model/SKILL.md`), which runs upstream of `architect`.
 

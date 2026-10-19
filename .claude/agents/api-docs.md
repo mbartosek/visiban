@@ -47,7 +47,10 @@ Every documented endpoint must have:
 - Permission requirement (e.g. "Requires member or above")
 - Request body — field table with name, type, required/optional, description
 - Response — example JSON showing the shape (not exhaustive, but representative)
-- Error cases worth documenting (403, 404, 400 with common reasons)
+- Error cases worth documenting (401, 403, 404, 400, 429 with common reasons). Check the status the code actually returns for each condition, not the one assumed: an unauthenticated request gets the status of the first authentication class in `DEFAULT_AUTHENTICATION_CLASSES` (401 with a `WWW-Authenticate` header when that class provides one). For every throttle scope on the endpoint, document the 429.
+- List endpoints: the response envelope and paging parameters the view's pagination class actually emits. Confirm the example is wrapped in that envelope, or states that the endpoint is unpaginated or capped.
+- Update endpoints: if the router exposes both PUT and PATCH, say so and state which fields each requires.
+- Version callouts: "Added in X" must match the milestone of the issue that shipped the change, not the milestone being worked on next.
 
 ### 3. Update request/response examples
 
