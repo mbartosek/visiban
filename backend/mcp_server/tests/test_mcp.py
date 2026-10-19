@@ -32,7 +32,8 @@ from accounts.models import (
     PersonalAccessToken,
 )
 from boards.models import (
-    BoardMembership, Card, CardActivity, CardChecklist, CardComment, CardMovement, Label,
+    BoardMembership, Card, CardActivity, CardChecklist, CardComment, CardMovement, Column,
+    Label, Swimlane,
 )
 from boards.tests.conftest import (
     _make_board, _make_card, _make_column, _make_membership, _make_swimlane,
@@ -998,6 +999,51 @@ class ListBoardsQueryCountTests(TestCase):
         few = self._query_count(2, via_group=True)
         many = self._query_count(8, via_group=True)
         self.assertEqual(few, many, f"query count grew: {few} -> {many}")
+
+
+class ListBoardsCountShapeTests(TestCase):
+    """list_boards counts are correlated subqueries, not a multi-join (#1768)."""
+
+    def _run(self):
+        user = _make_user("shape-owner")
+        board = _make_board(user, name="shape-board")
+        for i in range(3):
+            Column.objects.create(board=board, name=f"extra-c{i}", position=10 + i)
+            Swimlane.objects.create(board=board, name=f"extra-l{i}", position=10 + i)
+        col = Column.objects.filter(board=board).first()
+        lane = Swimlane.objects.filter(board=board).first()
+        for n in range(4):
+            Card.objects.create(
+                board=board, column=col, swimlane=lane, title=f"k{n}",
+                created_by=user, position=n,
+                archived_at=timezone.now() if n == 3 else None,
+            )
+        token = set_current_user(user)
+        try:
+            with CaptureQueriesContext(connection) as ctx:
+                result = tools.list_boards()
+        finally:
+            reset_current_user(token)
+        return board, result, ctx
+
+    def test_counts_unchanged_and_exclude_archived(self):
+        board, result, _ = self._run()
+        (row,) = result
+        self.assertEqual(row["column_count"], Column.objects.filter(board=board).count())
+        self.assertEqual(row["swimlane_count"], Swimlane.objects.filter(board=board).count())
+        self.assertEqual(row["card_count"], 3)
+
+    def test_board_query_has_no_child_table_joins(self):
+        _, _, ctx = self._run()
+        board_sql = [
+            q["sql"] for q in ctx.captured_queries
+            if q["sql"].startswith('SELECT "boards"."id"') and "_column_count" in q["sql"]
+        ]
+        self.assertEqual(len(board_sql), 1, [q["sql"][:400] for q in ctx.captured_queries])
+        sql = board_sql[0]
+        for table in (Column, Swimlane, Card):
+            table = table._meta.db_table
+            self.assertNotRegex(sql, rf'JOIN "{table}"')
 
 
 class BoardSnapshotQueryCountTests(TestCase):
