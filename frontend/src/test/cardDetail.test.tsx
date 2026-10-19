@@ -1492,6 +1492,595 @@ describe('CardDetail', () => {
       })
     })
 
+    describe('card prop changes underneath an open popover (#1773)', () => {
+      const openPopover = async (user: ReturnType<typeof userEvent.setup>) =>
+        user.click(screen.getByRole('button', { name: /Move card to different column or swimlane/ }))
+
+      it('closes the popover, clears the error and follows the refreshed card after a version-conflict refresh', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'version_conflict' }) })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        await waitFor(() => expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument())
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+
+        // useBoard reloads the board: the same card arrives with a new version
+        // and a location another session chose.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 21 })} />)
+
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
+        // The failure message went with the popover, so the panel says why.
+        expect(screen.getByTestId('move-notice')).toHaveAttribute('role', 'status')
+        expect(screen.getByTestId('move-notice')).toHaveTextContent('This card was changed elsewhere. Its current location is shown.')
+        // localCard follows the refreshed card: reopening seeds the targets from it.
+        await openPopover(user)
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement() // cleared on the next open
+        expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('In Progress')
+        expect(reopened.textContent).toContain('Customer B')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('closes the popover without a notice when a forced move lands on the popover target', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
+
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        // The card landed exactly where the popover was aiming (a forced move):
+        // the user's own outcome, so no "changed elsewhere" notice.
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        await openPopover(user)
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('In Progress')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('leaves the popover open when the card changes without a version bump (title and column only)', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'Renamed locally', column: 11 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('closes silently on a remote bump that changes nothing the popover was aiming at', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user) // targets are pre-filled with the current location, nothing chosen
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('leaves the popover open when the identical card is re-delivered', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard()} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('resets the popover on a version bump that leaves the location unchanged', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        await openPopover(user)
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('To Do')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('stays silent on a refresh while the popover is closed and clears an older notice', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toHaveTextContent('changed elsewhere'))
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 3 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement())
+      })
+
+      it('does not move focus on a version bump while the popover is closed', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        expect(document.body).toHaveFocus()
+        // e.g. the user's own title save returns through onUpdated.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        expect(screen.getByRole('button', { name: /Move card to different column or swimlane/ })).not.toHaveFocus()
+        expect(document.body).toHaveFocus()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('clears the notice when the popover is reopened', async () => {
+        const conflict = { ok: false, error: axiosFailure(409, { code: 'version_conflict' }) }
+        const onMoveCard = vi.fn().mockResolvedValueOnce(conflict).mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const pick = async () => {
+          const popover = container.querySelector('[class*="w-64"]')!
+          await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+          await user.click(screen.getByText('In Progress'))
+          await user.click(screen.getByRole('button', { name: 'Move' }))
+        }
+        await openPopover(user)
+        await pick()
+        await waitFor(() => expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument())
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        await waitFor(() => expect(screen.getByTestId('move-notice')).toHaveTextContent('This card was changed elsewhere. Its current location is shown.'))
+        await openPopover(user)
+        await pick()
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      const NOTICE_TEXT = 'This card was changed elsewhere. Its current location is shown.'
+      const pickInProgress = async (user: ReturnType<typeof userEvent.setup>, container: HTMLElement) => {
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+      }
+
+      describe('own saves are not remote changes', () => {
+        // Every save bumps the card version server-side and comes back through onUpdated.
+        beforeEach(() => {
+          mockUpdateCard.mockImplementation((_b: number, _c: number, patch: Record<string, unknown>) =>
+            Promise.resolve({ ...makeCard(), ...patch, version: 2 }))
+        })
+
+        it('keeps the popover open and silent when the user\'s own title save returns while it is open', async () => {
+          const board = makeBoardWithTwoCols()
+          const props = defaultProps()
+          const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+          const user = userEvent.setup()
+          const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+          const title = screen.getByDisplayValue('Test Card')
+          await user.click(title)
+          fireEvent.change(title, { target: { value: 'My edit' } })
+          await openPopover(user) // blurs the title: the save starts
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(expect.anything(), expect.anything(), { title: 'My edit' }))
+          // the save returns through onUpdated: the live card now carries the bumped version
+          rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'My edit', version: 2 })} />)
+          expect(screen.getByText('Move to')).toBeInTheDocument()
+          expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        })
+
+        it('does not close a popover opened after the user\'s own save', async () => {
+          const board = makeBoardWithTwoCols()
+          const props = defaultProps()
+          const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+          const user = userEvent.setup()
+          const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: 'My edit' } })
+          fireEvent.blur(title)
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+          await openPopover(user)
+          rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'My edit', version: 2 })} />)
+          expect(screen.getByText('Move to')).toBeInTheDocument()
+          expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        })
+
+        it('shows no notice for an own save after the popover was cancelled with an error showing', async () => {
+          const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+          const board = makeBoardWithTwoCols()
+          const props = defaultProps()
+          const user = userEvent.setup()
+          const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+          await openPopover(user)
+          await pickInProgress(user, container)
+          await user.click(screen.getByRole('button', { name: 'Move' }))
+          await waitFor(() => expect(screen.getByText(/has reached its limit/)).toBeInTheDocument())
+          await user.click(screen.getByRole('button', { name: 'Cancel' }))
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: 'My edit' } })
+          fireEvent.blur(title)
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+          rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'My edit', version: 2 })} />)
+          expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        })
+      })
+
+      it('shows the notice and closes for a real remote bump that moves the card elsewhere', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 10, swimlane: 21 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toHaveTextContent(NOTICE_TEXT)
+      })
+
+      it('closes silently when the popover showed a limit error and an admin forced move lands on its target', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        await waitFor(() => expect(screen.getByText(/has reached its limit/)).toBeInTheDocument())
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('ignores a version bump from its own in-flight move, then closes once it resolves', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // useBoard swaps in the server's card (new version, new location) before the call resolves.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        await act(async () => { resolveMove({ ok: true }) })
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+      })
+
+      it('treats a socket echo that beats the save response as its own, not a remote change', async () => {
+        let resolveSave!: (c: unknown) => void
+        mockUpdateCard.mockImplementation(() => new Promise((r) => { resolveSave = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const title = screen.getByDisplayValue('Test Card')
+        await user.click(title)
+        fireEvent.change(title, { target: { value: 'My edit' } })
+        await openPopover(user) // blur starts the save; popover opens
+        // The board applies the echo of our PATCH before the HTTP response returns.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'My edit', version: 2 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        await act(async () => { resolveSave({ ...makeCard(), title: 'My edit', version: 2 }) })
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('a failed save does not roll the version back behind a refresh that landed while it was in flight', async () => {
+        const mockGetChecklist = getChecklist as ReturnType<typeof vi.fn>
+        mockGetChecklist.mockResolvedValue([{ id: 1, text: 'Item 1', is_checked: false, position: 0 }])
+        mockUpdateChecklistItem.mockResolvedValue({ id: 1, text: 'Item 1', is_checked: true, position: 0 })
+        let rejectSave!: (e: Error) => void
+        mockUpdateCard.mockImplementation(() => new Promise((_r, rej) => { rejectSave = rej }))
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} />)
+        await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+        const title = screen.getByDisplayValue('Test Card')
+        fireEvent.change(title, { target: { value: 'Edit' } })
+        fireEvent.blur(title)
+        rerender(<CardDetail {...props} card={makeCard({ version: 9 })} />)
+        await act(async () => { rejectSave(new Error('boom')) })
+        await user.click(screen.getAllByRole('checkbox')[0])
+        await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+        expect((props.onUpdated as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].version).toBe(9)
+      })
+
+      it('ignores the rollback of a failed own move (older version): the error stays, and the later conflict reload still closes with the notice', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 1 })} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // a remote edit arrives during the request, then useBoard rolls back to the older snapshot
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, title: 'Remote' })} />)
+        // (React can batch the rollback with the move settling, so the in-flight guard is already off)
+        await act(async () => {
+          rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 1 })} />)
+          resolveMove({ ok: false, error: axiosFailure(409, { code: 'version_conflict' }) })
+        })
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument()
+        expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        // the conflict reload then lands with a newer version: durable notice
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 3, title: 'Remote' })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toHaveTextContent(NOTICE_TEXT)
+      })
+
+      it('syncs the real location when a remote move lands before the own move settles', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // the conflict reload (or a remote move) arrives before the request settles
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 3, column: 10, swimlane: 21 })} />)
+        await act(async () => { resolveMove({ ok: false, error: axiosFailure(409, { code: 'version_conflict' }) }) })
+        expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument()
+        expect(screen.getByTitle('Customer B')).toBeInTheDocument()
+      })
+
+      it('treats a version bump that comes with a location change as remote even while an own save is in flight', async () => {
+        mockUpdateCard.mockImplementation(() => new Promise(() => {}))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const title = screen.getByDisplayValue('Test Card')
+        await user.click(title)
+        fireEvent.change(title, { target: { value: 'My edit' } })
+        await openPopover(user) // blur starts the save, popover opens
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByTestId('move-notice')).toHaveTextContent(NOTICE_TEXT)
+      })
+
+      describe('label saves and title restores', () => {
+        beforeEach(() => {
+          mockUpdateCard.mockImplementation((_b: number, _c: number, patch: Record<string, unknown>) =>
+            Promise.resolve({ ...makeCard(), ...patch, version: 2 }))
+        })
+
+        it('an own label toggle keeps an open popover open when its version comes back', async () => {
+          const board = makeBoardWithTwoCols()
+          const props = defaultProps()
+          const user = userEvent.setup()
+          const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={vi.fn()} />)
+          await openPopover(user)
+          await user.click(screen.getByRole('button', { name: 'Bug' }))
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+          rerender(<CardDetail {...props} board={board} onMoveCard={vi.fn()} card={makeCard({ version: 2 })} />)
+          expect(screen.getByText('Move to')).toBeInTheDocument()
+          expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        })
+
+        it('an own label create keeps an open popover open when its version comes back', async () => {
+          const { createLabel } = await import('../api/boards')
+          ;(createLabel as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 99, uid: 'x', name: 'Urgent', color: '#ff0000' })
+          const board = makeBoardWithTwoCols()
+          const props = defaultProps()
+          const user = userEvent.setup()
+          const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={vi.fn()} />)
+          await openPopover(user)
+          await user.click(screen.getByText('+ New label'))
+          const input = screen.getByPlaceholderText('Label name')
+          fireEvent.change(input, { target: { value: 'Urgent' } })
+          fireEvent.keyDown(input, { key: 'Enter' })
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+          rerender(<CardDetail {...props} board={board} onMoveCard={vi.fn()} card={makeCard({ version: 2 })} />)
+          expect(screen.getByText('Move to')).toBeInTheDocument()
+          expect(screen.getByTestId('move-notice')).toBeEmptyDOMElement()
+        })
+
+        it('Escape in the title restores the last saved title, not a remote one', async () => {
+          const props = defaultProps()
+          const { rerender } = render(<CardDetail {...props} />)
+          rerender(<CardDetail {...props} card={makeCard({ title: 'Renamed remotely', version: 5 })} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: 'half typed' } })
+          fireEvent.keyDown(title, { key: 'Escape' })
+          expect(screen.getByDisplayValue('Test Card')).toBeInTheDocument()
+          expect(mockUpdateCard).not.toHaveBeenCalled()
+        })
+
+        it('clearing the title restores the last saved title and sends nothing', async () => {
+          const props = defaultProps()
+          const { rerender } = render(<CardDetail {...props} />)
+          rerender(<CardDetail {...props} card={makeCard({ title: 'Renamed remotely', version: 5 })} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: '   ' } })
+          fireEvent.blur(title)
+          await waitFor(() => expect(screen.getByDisplayValue('Test Card')).toBeInTheDocument())
+          expect(mockUpdateCard).not.toHaveBeenCalled()
+        })
+      })
+
+      it('keeps localCard.version current after its own move resolves, so a checklist onUpdated does not write the old one back', async () => {
+        const mockGetChecklist = getChecklist as ReturnType<typeof vi.fn>
+        mockGetChecklist.mockResolvedValue([{ id: 1, text: 'Item 1', is_checked: false, position: 0 }])
+        mockUpdateChecklistItem.mockResolvedValue({ id: 1, text: 'Item 1', is_checked: true, position: 0 })
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+        await openPopover(user)
+        await pickInProgress(user, container)
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 5, column: 11 })} />)
+        await act(async () => { resolveMove({ ok: true }) })
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        await user.click(screen.getAllByRole('checkbox')[0])
+        await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+        expect((props.onUpdated as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].version).toBe(5)
+      })
+
+      it('leaves focus on a field outside the popover when the popover closes on a remote bump', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const description = screen.getByTestId('rich-text-editor')
+        description.focus()
+        expect(description).toHaveFocus()
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(description).toHaveFocus()
+      })
+
+      describe('title baseline (live card must not drift the blur check)', () => {
+        it('sends no PATCH when the title is only focused and blurred after a remote rename', async () => {
+          const props = defaultProps()
+          const { rerender } = render(<CardDetail {...props} />)
+          rerender(<CardDetail {...props} card={makeCard({ title: 'Renamed remotely', version: 2 })} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.focus(title)
+          fireEvent.blur(title)
+          await new Promise((r) => setTimeout(r, 20))
+          expect(mockUpdateCard).not.toHaveBeenCalled()
+        })
+
+        it('still saves a title the user typed after a remote rename', async () => {
+          const props = defaultProps()
+          const { rerender } = render(<CardDetail {...props} />)
+          rerender(<CardDetail {...props} card={makeCard({ title: 'Renamed remotely', version: 2 })} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: 'Typed by me' } })
+          fireEvent.blur(title)
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(expect.anything(), expect.anything(), { title: 'Typed by me' }))
+        })
+
+        it('A to B to A still saves the second rename back', async () => {
+          mockUpdateCard.mockImplementation((_b: number, _c: number, patch: Record<string, unknown>) =>
+            Promise.resolve({ ...makeCard(), ...patch, version: 2 }))
+          const props = defaultProps()
+          const { rerender } = render(<CardDetail {...props} />)
+          const title = screen.getByDisplayValue('Test Card')
+          fireEvent.change(title, { target: { value: 'B' } })
+          fireEvent.blur(title)
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledTimes(1))
+          rerender(<CardDetail {...props} card={makeCard({ title: 'B', version: 2 })} />)
+          fireEvent.change(screen.getByDisplayValue('B'), { target: { value: 'Test Card' } })
+          fireEvent.blur(screen.getByDisplayValue('Test Card'))
+          await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledTimes(2))
+          expect(mockUpdateCard).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), { title: 'Test Card' })
+        })
+      })
+
+      it('does not write the pre-refresh version back through a checklist onUpdated', async () => {
+        const mockGetChecklist = getChecklist as ReturnType<typeof vi.fn>
+        mockGetChecklist.mockResolvedValue([{ id: 1, text: 'Item 1', is_checked: false, position: 0 }])
+        mockUpdateChecklistItem.mockResolvedValue({ id: 1, text: 'Item 1', is_checked: true, position: 0 })
+        const props = defaultProps()
+        const { rerender } = render(<CardDetail {...props} />)
+        await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+        rerender(<CardDetail {...props} card={makeCard({ version: 7 })} />)
+        await userEvent.setup().click(screen.getAllByRole('checkbox')[0])
+        await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+        const last = (props.onUpdated as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0]
+        expect(last.version).toBe(7)
+      })
+
+      it('does not steal focus from another field on a version bump', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        const title = screen.getByDisplayValue('Test Card')
+        title.focus()
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2 })} />)
+        expect(title).toHaveFocus()
+      })
+
+      it('keeps the inline error when its own failed move is rolled back (location changes, version does not)', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        await waitFor(() => expect(screen.getByText(/has reached its limit/)).toBeInTheDocument())
+        // Optimistic relocation, then rollback, both at the same version.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 11 })} />)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 10 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        expect(screen.getByText(/has reached its limit/)).toBeInTheDocument()
+      })
+
+      it('returns focus to the Move button when the refresh closes the popover', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        ;(popover.querySelector('button') as HTMLButtonElement).focus()
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11 })} />)
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.getByRole('button', { name: /Move card to different column or swimlane/ })).toHaveFocus()
+      })
+
+      it('does not close the popover for the optimistic update of its own in-flight move', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // useBoard's optimistic update relocates the card while the request is in flight.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 11 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        await act(async () => { resolveMove({ ok: true }) })
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+      })
+    })
+
     describe('first-encounter dot', () => {
       it('shows dot when move-to-seen is absent from localStorage', () => {
         const onMoveCard = vi.fn().mockResolvedValue(undefined)

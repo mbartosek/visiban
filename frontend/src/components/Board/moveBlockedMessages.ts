@@ -7,7 +7,7 @@ import type { MoveBlockedError } from "../../hooks/useBoard";
 
 export function toastBody(error: MoveBlockedError): string {
   if (error.code === "version_conflict") {
-    return "This card was modified by another user while you were dragging it. The board has been refreshed.";
+    return "This card was modified by another user. The board has been refreshed.";
   }
   if (error.code === "permission_denied" || error.code === "maintenance_mode" || error.code === "move_failed") {
     return error.detail;
