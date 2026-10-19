@@ -23,7 +23,7 @@ Useful for a quick health check across all active pipelines.
 
 > **Added in 1.1**
 
-The summary response includes an `extension_panels` field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here. The web UI does not render `extension_panels` yet.
+The summary response includes an `extension_panels` field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here. The web UI does not render `extension_panels`.
 
 **API:** `GET /api/v1/boards/{id}/summary/`
 

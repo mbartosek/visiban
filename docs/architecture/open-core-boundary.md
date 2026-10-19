@@ -126,7 +126,7 @@ post_member_removed   # sender=BoardMembership, kwargs: board, user, actor
 
 A `VISIBAN_AUDIT_BACKEND` setting (defaulting to `NullAuditBackend`) is planned and not yet implemented; it must be defined in OSS settings so enterprise can register its audit recorder without modifying OSS files.
 
-**Issue:** OSS extension points tracked in #350 (transferred to enterprise repo; OSS signal work tracked separately).
+**Issue:** OSS extension points tracked in #350 (transferred to enterprise repo; OSS signal and `VISIBAN_AUDIT_BACKEND` work tracked in #367, milestone 1.7).
 
 ---
 
@@ -156,7 +156,7 @@ Basic per-swimlane analytics — cards in flight, average cycle time, cards move
 
 Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.
 
-The OSS analytics summary exposes an `ANALYTICS_EXTENSIONS` registration point (`boards/hooks.py`) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in `extension_panels`, but the frontend has no renderer for that field yet.
+The OSS analytics summary exposes an `ANALYTICS_EXTENSIONS` registration point (`boards/hooks.py`) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in `extension_panels`, but the web UI does not render `extension_panels`.
 
 **Issue:** #341
 
@@ -243,8 +243,8 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `TicketAuthMiddleware` (`accounts/ws_auth.py`) | WebSocket routing, including `enterprise.routing.enterprise_websocket_urlpatterns` | ✅ Implemented. **Stable.** Authenticates a WebSocket upgrade from a `?ticket=` parameter. Must be nested *inside* `AuthMiddlewareStack` (`AuthMiddlewareStack(TicketAuthMiddleware(URLRouter(...)))`); see its docstring for why, and [WebSockets](../api/websockets.md) for the handshake |
 | `accounts.E001`–`E008` and `accounts.W001`–`W002` system checks (`accounts/checks.py`) | Startup guard rails for the extension surface above | ✅ Implemented. **Stable IDs.** `E001` reset-token generator lost the address binding (#1337), `E002` allauth by-code password reset enabled (#1314, #1337), `W001` session engine cannot support WebSocket credential revocation (#1483), `E003` `FRONTEND_URL` under a gated path (#1551), `E004` malformed `PENDING_ACTION_EXTRA_GATED_PREFIXES` entry, `E005` pending-action middleware missing from `MIDDLEWARE` or placed before `AuthenticationMiddleware` (#1561), `E006` malformed `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` entry, `E007` exempt view that is OSS-gated (#1589, #1593), `E008` `changepassword` command no longer provided by `operator_commands` ([security invariants](../development/security-invariants.md) Rule 3), `W002` `ALLOWED_HOSTS` contains a wildcard entry (#1697). IDs are never reused or renumbered, so `SILENCED_SYSTEM_CHECKS` entries keep working |
 | Enterprise WebSocket routing extension point (`enterprise.routing.enterprise_websocket_urlpatterns`) | All enterprise WebSocket URL registrations | ✅ Implemented — `visiban/asgi.py`, mirrors the HTTP URL extension point above; silently skipped (`ImportError`) when the enterprise package is not installed (#1009) |
-| `post_board_created/deleted/member_added/removed` signals | Enterprise audit log (enterprise #28) | Not yet implemented |
-| `VISIBAN_AUDIT_BACKEND` setting | Enterprise audit log | Not yet implemented |
+| `post_board_created/deleted/member_added/removed` signals | Enterprise audit log (enterprise #28) | Not yet implemented — tracked in #367 |
+| `VISIBAN_AUDIT_BACKEND` setting | Enterprise audit log | Not yet implemented — tracked in #367 |
 | `post_card_created/moved/closed/updated` signals (superseded) | — | Superseded, will not be built: card lifecycle is covered by `CARD_MUTATION_HOOKS` (below) and every board event by the change feed (#1114) |
 | `VISIBAN_WEBHOOK_BACKEND` setting (superseded) | — | Superseded, will not be built: webhooks are OSS (#863); the Enterprise operations layer (enterprise #44) consumes the change feed and `BOARD_EVENT_HOOKS` |
 | `CARD_MUTATION_HOOKS` list (`boards/hooks.py`) | Enterprise automation (enterprise #69) and any in-process reaction to card create/update/move/delete/archive/restore | ✅ Implemented — `boards/hooks.py`, fired on commit from `boards/services/cards.py` (handler exceptions are logged and swallowed; handlers cannot veto or roll back the write); pinned by `boards/tests/test_card_mutation_hooks.py` |
@@ -252,7 +252,7 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `BOARD_EVENT_HOOKS` list (`boards/hooks.py`) | Enterprise webhook operations (enterprise #44) — wake signal for a queue-backed dispatcher | Not yet implemented — planned in #863 |
 | `VISIBAN_AUTOMATION_BACKEND` setting | Enterprise automation (enterprise #69) | Not yet implemented |
 | `MOVEMENT_EXPORT_BACKENDS` list (`boards/hooks.py`) | Enterprise delivery report export (#342 enterprise) | ✅ Implemented — `boards/hooks.py` |
-| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | Backend only — `boards/hooks.py`, consumed by `boards/views/analytics.py` into the summary's `extension_panels`. The frontend does not read `extension_panels` yet (no hits in `frontend/src`); a renderer is pending, so registered panels are not displayed |
+| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | Backend only; the web UI does not render `extension_panels` — `boards/hooks.py`, consumed by `boards/views/analytics.py` into the summary's `extension_panels`. The web UI does not render `extension_panels` (no hits in `frontend/src`), so registered panels are not displayed |
 | `TEMPLATE_PROVIDERS` list (`boards/hooks.py`) | External board-template registration by installed packages (#1115; tracked further in #504) | ✅ Implemented — `boards/hooks.py` + `boards/template_sync.py`, synced via `post_migrate` in `BoardsConfig.ready()` |
 | `CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **card** values (#371) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary |
 | `SWIMLANE_CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **swimlane row** values (#1140) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary. A separate list from the card one, not a widening of it: a validator registered against the card signature may read card-only attributes, so feeding it a swimlane definition could raise. A validator that is generic across both levels registers in both lists. |

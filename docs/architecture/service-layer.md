@@ -11,7 +11,7 @@ Both failure modes had already happened:
 - The MCP tool scaffold carried its own copy of the board-role precedence ladder, with a comment saying it "must be kept in step with" the original. Nothing enforced that.
 - A `PATCH` that changed a card's `column` bypassed WIP enforcement and the movement audit trail entirely, because only the move endpoint evaluated them.
 
-The API now has several writers in view — a second front end, MCP write tools, import, and webhooks — so the invariants need a home that is not a request handler.
+The API now has several writers in view — a second front end, MCP write tools, import, and webhooks (planned, #863) — so the invariants need a home that is not a request handler.
 
 ## What a service function owns
 
