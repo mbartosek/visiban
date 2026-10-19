@@ -202,6 +202,43 @@ class TestSummaryMetrics(AnalyticsHistorySetup):
         finally:
             _hooks.ANALYTICS_EXTENSIONS.remove(_good_panel)
 
+    def _summary_with_panels(self, *panels_or_fns):
+        """Register callables returning each value, GET the summary, always unregister."""
+        from boards import hooks as _hooks
+
+        fns = [(lambda board, request, _v=v: _v) for v in panels_or_fns]
+        _hooks.ANALYTICS_EXTENSIONS.extend(fns)
+        try:
+            return self._client_for(self.admin).get(self._summary_url())
+        finally:
+            for fn in fns:
+                _hooks.ANALYTICS_EXTENSIONS.remove(fn)
+
+    def test_invalid_extension_panels_are_dropped_not_500(self):
+        """NaN, inf, unserializable and non-dict panels are dropped; the rest renders (#1770).
+
+        DRF's renderer raises on these after the view returns, so without the
+        per-panel check the whole summary (swimlanes included) would 500.
+        """
+        good = {"id": "ok", "title": "OK", "type": "stats", "data": {"items": [{"label": "A", "value": 1}]}}
+        bad = [
+            {"id": "nan", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": float("nan")}]}},
+            {"id": "inf", "title": "t", "type": "stats", "data": {"items": [{"label": "A", "value": float("inf")}]}},
+            {"id": "obj", "title": "t", "type": "stats", "data": {"items": [object()]}},
+            ["not", "a", "dict"],
+            None,
+        ]
+        resp = self._summary_with_panels(bad[0], bad[1], bad[2], bad[3], bad[4], good)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["extension_panels"], [good])
+        self.assertEqual(len(resp.data["swimlanes"]), 1)
+
+    def test_dropped_panel_warning_never_logs_panel_contents(self):
+        secret = {"id": "s", "title": "SECRET-TITLE", "type": "stats", "data": {"items": [float("nan")]}}
+        with self.assertLogs("boards.views.analytics", level="WARNING") as cm:
+            self._summary_with_panels(secret)
+        self.assertNotIn("SECRET", "\n".join(cm.output))
+
     def test_faulty_extension_panel_returns_200_with_empty_panels(self):
         """A raising ANALYTICS_EXTENSIONS callable must not crash the summary endpoint (#904).
 

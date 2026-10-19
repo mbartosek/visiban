@@ -287,7 +287,7 @@ Each entry of `extension_panels` is returned verbatim from an `ANALYTICS_EXTENSI
 
 | Field | Required | Rule |
 |---|---|---|
-| `id` | yes | String, 1-100 characters, unique per response (the first wins; later duplicates are skipped) |
+| `id` | yes | String, 1-100 characters, unique per response (the first valid panel with an id wins; a later duplicate is skipped, but renders if the earlier one was malformed) |
 | `title` | yes | String, 1-120 characters |
 | `type` | yes, to render | `"stats"` or `"table"`. A panel with a missing or unknown `type` (including legacy `{id, title, data}` panels) is returned by the API but has no renderer and is skipped |
 | `description` | no | String, up to 500 characters |
@@ -305,7 +305,10 @@ Each entry of `extension_panels` is returned verbatim from an `ANALYTICS_EXTENSI
 Rendering rules:
 
 - At most 20 panels are rendered; extras are skipped. Unknown fields are ignored at every level.
-- Any other violation (wrong type, a value over a limit, `NaN` or infinity, a boolean or object cell) skips the whole panel. Panels are never truncated. Skipped panels log one browser console warning that names the panel id or index and the reason, never the title or data.
+- A `null` optional field (`description`, `hint`, `align`) is treated as absent, so a Python `None` is fine; omitting the key is still preferred.
+- Any other violation (wrong type, a value over a limit, `NaN` or infinity, a boolean or object cell) skips the whole panel. Panels are never truncated. Skipped panels log one browser console warning that names the panel id (or its index when the id is missing or empty) and the reason, never the title or data. Panels over the 20-panel cap log a single summary warning.
+- The backend also validates each panel before responding: a panel that is not an object, or that contains `NaN`, infinity or a value that cannot be serialized to JSON, is dropped by the API (with a server warning that never includes the panel contents), so one bad panel can never fail the summary response. The frontend skips any panel that still breaks the rules above.
+- Chart panel types are not part of v1; they are tracked in #1774.
 - Panels supply text and numbers only. Every string renders as plain text: there is no HTML, Markdown, link, class, color, or style support. A URL in a string is shown as text, not as a link.
 
 Example:

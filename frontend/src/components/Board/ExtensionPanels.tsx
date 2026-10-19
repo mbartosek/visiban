@@ -15,8 +15,8 @@ function Panel({ panel }: { panel: ExtensionPanel }) {
   const hid = useId();
   return (
     <div role="group" aria-labelledby={hid} className="bg-surface border border-line rounded-lg p-4">
-      <h3 id={hid} className="text-sm font-semibold text-fg-secondary">{panel.title}</h3>
-      {panel.description && <p className="text-xs text-fg-muted mt-1">{panel.description}</p>}
+      <h3 id={hid} className="text-sm font-semibold text-fg-secondary break-words">{panel.title}</h3>
+      {panel.description && <p className="text-xs text-fg-muted mt-1 break-words">{panel.description}</p>}
       {panel.type === "stats" ? (
         <dl className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 break-words">
           {panel.items.map((item, i) => (
@@ -25,7 +25,7 @@ function Panel({ panel }: { panel: ExtensionPanel }) {
               <dd className="font-mono text-lg text-fg">
                 <Cell value={item.value} />
               </dd>
-              {item.hint && <p className="text-xs text-fg-muted">{item.hint}</p>}
+              {item.hint && <dd className="text-xs text-fg-muted">{item.hint}</dd>}
             </div>
           ))}
         </dl>
@@ -59,7 +59,7 @@ function Panel({ panel }: { panel: ExtensionPanel }) {
                       return (
                         <td
                           key={c.key}
-                          className={`py-2 pr-4 ${tone} ${c.align === "right" ? "text-right" : "text-left"}`}
+                          className={`py-2 pr-4 break-words ${tone} ${c.align === "right" ? "text-right" : "text-left"}`}
                         >
                           <Cell value={v} />
                         </td>

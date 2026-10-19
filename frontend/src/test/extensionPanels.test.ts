@@ -47,7 +47,9 @@ describe('parseExtensionPanels', () => {
     ['missing type (legacy)', stats({ type: undefined })],
     ['unknown type', stats({ type: 'chart' })],
     ['empty id', stats({ id: '' })],
-    ['id too long', stats({ id: 'x'.repeat(LIMITS.idMax + 1) })],
+    ['id 101 chars', stats({ id: 'x'.repeat(101) })],
+    ['unknown type with table-shaped data', table({ type: 'chart' })],
+    ['type casing TABLE with table data', table({ type: 'TABLE' })],
     ['title too long', stats({ title: 'x'.repeat(LIMITS.titleMax + 1) })],
     ['description too long', stats({ description: 'x'.repeat(LIMITS.descriptionMax + 1) })],
     ['stats no items', stats({ data: { items: [] } })],
@@ -63,6 +65,11 @@ describe('parseExtensionPanels', () => {
     ['table too many columns', table({ data: { columns: Array.from({ length: 13 }, (_, i) => ({ key: `k${i}`, label: 'a' })), rows: [] } })],
     ['table duplicate key', table({ data: { columns: [{ key: 'a', label: 'A' }, { key: 'a', label: 'B' }], rows: [] } })],
     ['table __proto__ column key', table({ data: { columns: [{ key: '__proto__', label: 'A' }], rows: [] } })],
+    ['table constructor column key', table({ data: { columns: [{ key: 'constructor', label: 'A' }], rows: [] } })],
+    ['table prototype column key', table({ data: { columns: [{ key: 'prototype', label: 'A' }], rows: [] } })],
+    ['table column key 65 chars', table({ data: { columns: [{ key: 'k'.repeat(65), label: 'A' }], rows: [] } })],
+    ['table column label 81 chars', table({ data: { columns: [{ key: 'a', label: 'x'.repeat(81) }], rows: [] } })],
+    ['type casing Stats', stats({ type: 'Stats' })],
     ['table bad align', table({ data: { columns: [{ key: 'a', label: 'A', align: 'center' }], rows: [] } })],
     ['table too many rows', table({ data: { columns: [{ key: 'a', label: 'A' }], rows: Array.from({ length: 201 }, () => ({ a: 1 })) } })],
     ['table boolean cell', table({ data: { columns: [{ key: 'a', label: 'A' }], rows: [{ a: false }] } })],
@@ -77,6 +84,39 @@ describe('parseExtensionPanels', () => {
       stats({ id: 'x'.repeat(100), title: 'x'.repeat(120), data: { items: Array.from({ length: 24 }, () => ({ label: 'x'.repeat(80), value: 'x'.repeat(200), hint: 'x'.repeat(200) })) } }),
     ])
     expect(out).toHaveLength(1)
+  })
+
+  it('accepts table values at the upper limits', () => {
+    const columns = Array.from({ length: 12 }, (_, i) => ({ key: i === 0 ? 'k'.repeat(64) : `c${i}`, label: 'x'.repeat(80) }))
+    const rows = Array.from({ length: 200 }, () => ({}))
+    const out = parseExtensionPanels([table({ description: 'd'.repeat(500), data: { columns, rows } })])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ description: 'd'.repeat(500) })
+  })
+
+  it('tolerates null optional fields (description, hint, align) as absent', () => {
+    const out = parseExtensionPanels([
+      stats({ description: null, data: { items: [{ label: 'a', value: 1, hint: null }] } }),
+      table({ data: { columns: [{ key: 'a', label: 'A', align: null }], rows: [] } }),
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0]).toEqual({ id: 's1', title: 'Stats', type: 'stats', items: [{ label: 'a', value: 1 }] })
+    expect(out[1]).toMatchObject({ columns: [{ align: 'left' }] })
+  })
+
+  it('a later duplicate renders when the first one with that id was malformed', () => {
+    const out = parseExtensionPanels([stats({ type: 'bogus' }), stats({ title: 'second' })])
+    expect(out.map((p) => p.title)).toEqual(['second'])
+  })
+
+  it('logs one summary warning for panels over the cap, and names the index for an empty id', () => {
+    const many = Array.from({ length: 30 }, (_, i) => stats({ id: `p${i}` }))
+    parseExtensionPanels(many)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0][0])).toContain('over panel limit (10 dropped)')
+    warn.mockClear()
+    parseExtensionPanels([stats({ id: '' })])
+    expect(String(warn.mock.calls[0][0])).toContain('skipped panel #0: invalid id')
   })
 
   it('first duplicate id wins', () => {

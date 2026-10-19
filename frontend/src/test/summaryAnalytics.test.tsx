@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SummaryView from '../components/Board/SummaryView'
@@ -16,6 +16,7 @@ const mockGetBoardAnalytics = getBoardAnalytics as ReturnType<typeof vi.fn>
 
 describe('SummaryView', () => {
   beforeEach(() => { vi.clearAllMocks() })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('shows loading state', () => {
     mockGetBoardSummary.mockReturnValue(new Promise(() => {}))
@@ -102,7 +103,7 @@ describe('SummaryView', () => {
     })
 
     it('renders only the valid panel when one is malformed', async () => {
-      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockGetBoardSummary.mockResolvedValue({
         swimlanes: [lane],
         extension_panels: [null, { id: 'x', title: 'Legacy', data: {} }, statsPanel],
@@ -111,6 +112,39 @@ describe('SummaryView', () => {
       await screen.findByRole('group', { name: 'Risk' })
       expect(screen.getAllByRole('group')).toHaveLength(1)
       expect(screen.queryByText('Legacy')).toBeNull()
+      warnSpy.mockRestore()
+    })
+
+    it('renders a numeric 0 as 0, right-aligns body cells, and keeps the hint in a dd', async () => {
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 'z', title: 'Zeros', type: 'stats', data: { items: [{ label: 'Blocked', value: 0, hint: 'none now' }] } },
+          { id: 'r', title: 'Right', type: 'table', data: { columns: [{ key: 'c', label: 'Count', align: 'right' }], rows: [{ c: 0 }] } },
+        ],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const z = await screen.findByRole('group', { name: 'Zeros' })
+      expect(within(z).getByText('0').closest('dd')).not.toBeNull()
+      expect(within(z).getByText('none now').tagName).toBe('DD')
+      expect(within(z).queryByText('—')).toBeNull()
+      const r = screen.getByRole('group', { name: 'Right' })
+      expect(within(r).getByText('0').closest('td')).toHaveClass('text-right')
+    })
+
+    it('wraps long unbroken titles, descriptions and cells instead of overflowing', async () => {
+      const long = 'x'.repeat(100)
+      mockGetBoardSummary.mockResolvedValue({
+        swimlanes: [lane],
+        extension_panels: [
+          { id: 'l', title: long, description: long, type: 'table', data: { columns: [{ key: 'c', label: 'C' }], rows: [{ c: long + 'y' }] } },
+        ],
+      })
+      render(<SummaryView boardId={1} columns={['To Do', 'Done']} />)
+      const g = await screen.findByRole('group', { name: long })
+      expect(within(g).getByRole('heading')).toHaveClass('break-words')
+      expect(within(g).getAllByText(long)[0]).toHaveClass('break-words')
+      expect(within(g).getByText(long + 'y')).toHaveClass('break-words')
     })
 
     it('renders hostile strings as literal text', async () => {

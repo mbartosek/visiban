@@ -6,7 +6,8 @@
  * The parser returns normalized primitives only and skips (never truncates) any
  * panel that violates the contract in docs/api/boards.md "Extension panel
  * payload". Unknown fields are ignored at every level so optional fields can be
- * added later.
+ * added later. A `null` optional field (description, hint, align) is treated as
+ * absent, because Python producers often send None.
  */
 
 export type PanelCell = string | number | null;
@@ -107,7 +108,7 @@ function parseStats(base: PanelBase, data: Record<string, unknown>): StatsPanel 
       label: str(it.label, 1, LIMITS.labelMax, "item label"),
       value: cell(it.value, "item value"),
     };
-    if (it.hint !== undefined) item.hint = str(it.hint, 0, LIMITS.hintMax, "item hint");
+    if (it.hint !== undefined && it.hint !== null) item.hint = str(it.hint, 0, LIMITS.hintMax, "item hint");
     return item;
   });
   return { ...base, type: "stats", items };
@@ -127,7 +128,7 @@ function parseTable(base: PanelBase, data: Record<string, unknown>): TablePanel 
     if (seen.has(key)) fail("duplicate column key");
     seen.add(key);
     const label = str(c.label, 1, LIMITS.labelMax, "column label");
-    if (c.align !== undefined && c.align !== "left" && c.align !== "right") fail("invalid align");
+    if (c.align !== undefined && c.align !== null && c.align !== "left" && c.align !== "right") fail("invalid align");
     return { key, label, align: c.align === "right" ? "right" : "left" };
   });
   const rawRows = data.rows;
@@ -152,7 +153,7 @@ function parseOne(entry: unknown, seenIds: Set<string>): ExtensionPanel {
   
   const title = str(entry.title, 1, LIMITS.titleMax, "title");
   const base: PanelBase = { id, title };
-  if (entry.description !== undefined) {
+  if (entry.description !== undefined && entry.description !== null) {
     base.description = str(entry.description, 0, LIMITS.descriptionMax, "description");
   }
   if (entry.type !== "stats" && entry.type !== "table") fail("unsupported type");
@@ -175,7 +176,7 @@ export function parseExtensionPanels(raw: unknown): ExtensionPanel[] {
       break;
     }
     const id =
-      isRecord(entry) && typeof entry.id === "string" && entry.id.length <= LIMITS.idMax
+      isRecord(entry) && typeof entry.id === "string" && entry.id.length >= 1 && entry.id.length <= LIMITS.idMax
         ? entry.id
         : null;
     try {

@@ -1,6 +1,7 @@
 """BoardViewSet mixin for summary and analytics actions."""
 
 import datetime
+import json
 import logging
 import statistics
 
@@ -9,6 +10,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.utils.encoders import JSONEncoder as DRFJSONEncoder
 from rest_framework import serializers, status
 
 from ..models import BoardExportLog, CardMovement
@@ -129,9 +131,18 @@ class BoardAnalyticsMixin:
         extension_panels = []
         for _fn in hooks.ANALYTICS_EXTENSIONS:
             try:
-                extension_panels.append(_fn(board, request))
+                _panel = _fn(board, request)
+                # Validate here, not in the renderer: a NaN/inf or non-serializable
+                # value makes DRF's JSONRenderer raise after the view returns, which
+                # would 500 the whole summary and lose the swimlane data. The panel
+                # is appended unchanged so valid payloads stay byte-identical.
+                if not isinstance(_panel, dict):
+                    raise TypeError("panel must be a dict")
+                json.dumps(_panel, cls=DRFJSONEncoder, allow_nan=False)
+                extension_panels.append(_panel)
             except Exception:
-                _logger.warning("ANALYTICS_EXTENSIONS callable %r raised an exception", _fn, exc_info=True)
+                # Log the callable only (never the panel contents, which may be sensitive).
+                _logger.warning("ANALYTICS_EXTENSIONS callable %r raised or returned an invalid panel", _fn, exc_info=False)
         return Response({"swimlanes": result, "extension_panels": extension_panels})
 
     @action(detail=True, methods=["get"])
