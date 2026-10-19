@@ -1015,6 +1015,7 @@ The filter bar's search input carries a `SingleSelectDropdown` scope toggle to i
 - The array is untrusted: always run it through `parseExtensionPanels` (`parseExtensionPanels.ts`); never render raw entries.
 - A panel supplies text and numbers only, never classes, colors, styles, HTML, Markdown, or links. Render every string as a React text node. A future link field must pass `isHttpUrl()` from `utils/externalRef.ts`.
 - Each panel is `role="group"` labelled by its `<h3>`, per § Inline summary panels. Derive the heading id from `useId()`, never from the payload id.
+- A real numeric `0` renders as `0` (a producer's zero is data, unlike the swimlane metric columns); only `null` renders the muted `—`. Panel tables are exempt from the pinned first column rule: they are narrow (at most 12 columns) and scroll inside their own `overflow-x-auto`.
 - The payload shape is a public, additive-only contract (`docs/api/boards.md` "Extension panel payload"): add optional fields or a new `type` name, never change an existing one.
 
 ## Analytics / split-panel scroll layout

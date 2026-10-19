@@ -122,6 +122,8 @@ function parseTable(base: PanelBase, data: Record<string, unknown>): TablePanel 
   const columns = rawCols.map((c): TableColumn => {
     if (!isRecord(c)) fail("invalid column");
     const key = str(c.key, 1, LIMITS.keyMax, "column key");
+    // Keys index plain row objects; these names would hit the prototype chain.
+    if (key === "__proto__" || key === "constructor" || key === "prototype") fail("reserved column key");
     if (seen.has(key)) fail("duplicate column key");
     seen.add(key);
     const label = str(c.label, 1, LIMITS.labelMax, "column label");
@@ -165,18 +167,23 @@ export function parseExtensionPanels(raw: unknown): ExtensionPanel[] {
   if (!Array.isArray(raw)) return [];
   const out: ExtensionPanel[] = [];
   const seenIds = new Set<string>();
-  raw.forEach((entry, index) => {
+  for (let index = 0; index < raw.length; index++) {
+    const entry: unknown = raw[index];
+    if (out.length >= LIMITS.maxPanels) {
+      // Stop after the cap: do not parse or log the remainder one by one.
+      warnSkipped(null, index, `over panel limit (${raw.length - index} dropped)`);
+      break;
+    }
     const id =
       isRecord(entry) && typeof entry.id === "string" && entry.id.length <= LIMITS.idMax
         ? entry.id
         : null;
     try {
-      if (out.length >= LIMITS.maxPanels) fail("over panel limit");
       out.push(parseOne(entry, seenIds));
     } catch (e) {
       if (!(e instanceof Skip)) throw e;
       warnSkipped(id, index, e.message);
     }
-  });
+  }
   return out;
 }

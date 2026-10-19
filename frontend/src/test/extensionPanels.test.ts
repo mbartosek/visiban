@@ -62,6 +62,7 @@ describe('parseExtensionPanels', () => {
     ['table no columns', table({ data: { columns: [], rows: [] } })],
     ['table too many columns', table({ data: { columns: Array.from({ length: 13 }, (_, i) => ({ key: `k${i}`, label: 'a' })), rows: [] } })],
     ['table duplicate key', table({ data: { columns: [{ key: 'a', label: 'A' }, { key: 'a', label: 'B' }], rows: [] } })],
+    ['table __proto__ column key', table({ data: { columns: [{ key: '__proto__', label: 'A' }], rows: [] } })],
     ['table bad align', table({ data: { columns: [{ key: 'a', label: 'A', align: 'center' }], rows: [] } })],
     ['table too many rows', table({ data: { columns: [{ key: 'a', label: 'A' }], rows: Array.from({ length: 201 }, () => ({ a: 1 })) } })],
     ['table boolean cell', table({ data: { columns: [{ key: 'a', label: 'A' }], rows: [{ a: false }] } })],

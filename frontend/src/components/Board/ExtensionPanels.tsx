@@ -18,7 +18,7 @@ function Panel({ panel }: { panel: ExtensionPanel }) {
       <h3 id={hid} className="text-sm font-semibold text-fg-secondary">{panel.title}</h3>
       {panel.description && <p className="text-xs text-fg-muted mt-1">{panel.description}</p>}
       {panel.type === "stats" ? (
-        <dl className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <dl className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 break-words">
           {panel.items.map((item, i) => (
             <div key={i}>
               <dt className="text-xs text-fg-muted">{item.label}</dt>
