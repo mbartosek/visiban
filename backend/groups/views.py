@@ -1002,20 +1002,24 @@ class GroupViewSet(viewsets.ModelViewSet):
         subtree?" — including boards in deeply nested subgroups.  It powers the GroupDetail
         page's board list and the sidebar's auto-expand logic for deeply nested boards.
 
-        The traversal uses get_accessible_group_ids() which already caps at
-        _GROUP_TRAVERSAL_MAX_DEPTH, so we avoid unbounded recursion here too.
+        The visible set is intersected with get_group_ids_for_board_access(),
+        the group set the board list uses, so for boards with valid stored
+        roles a board listed here is one on which get_board_role() resolves a
+        role; that function's descendant reach matches the role ladder's
+        ancestor reach.
         """
         from boards.models import Board, BoardFavorite
         from boards.serializers import BoardSerializer
         from boards.views._helpers import annotate_board_counts
-        from .models import get_accessible_group_ids, _GROUP_TRAVERSAL_MAX_DEPTH
+        from .models import get_group_ids_for_board_access, _GROUP_TRAVERSAL_MAX_DEPTH
 
         group = self.get_object()
         _require_group_member(request.user, group)
 
-        # Collect accessible group IDs for this user, then filter to only those
-        # that are descendants of the target group (including the group itself).
-        accessible_ids = get_accessible_group_ids(request.user)
+        # Collect the groups whose boards this user may access, then filter to
+        # only those that are descendants of the target group (including the
+        # group itself).
+        accessible_ids = get_group_ids_for_board_access(request.user)
 
         # Walk down from the target group to find all descendant group IDs.
         # Bounded BFS: at most _GROUP_TRAVERSAL_MAX_DEPTH (=6) round-trips,

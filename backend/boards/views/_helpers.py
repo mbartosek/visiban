@@ -257,8 +257,14 @@ def annotate_board_counts(qs):
 
 def get_accessible_boards_queryset(user):
     """Return the Board queryset `user` may access: owned, directly a member of,
-    inherited via group ancestry, or — for `can_access_all_content` users — every
-    board.
+    inherited via group membership (a member of the board's group or one of its
+    ancestors), or — for `can_access_all_content` users — every board.
+
+    A board is in this queryset exactly when `get_board_role()` returns a role.
+    The predicates below follow that function's ladder rung for rung: the
+    owner first; then the user's explicit BoardMembership, which decides the
+    answer on its own (a stored role outside ``BoardMembership.Role`` means no
+    access, and group inheritance is not consulted); then group membership.
 
     Factored out of `BoardViewSet.get_queryset()` so the board-list endpoint and
     the cross-board card query endpoint (#1112) share one access-scoping rule
@@ -279,16 +285,27 @@ def get_accessible_boards_queryset(user):
 
     if user.can_access_all_content:
         return Board.objects.all()
-    # Direct membership is an Exists() predicate, not ``Q(memberships__user=...)``:
-    # the latter LEFT JOINs board_memberships, which multiplies each board by its
-    # member count (hence the old ``.distinct()``) and made every correlated
-    # count annotation run once per membership row (#1723). Every term here is
-    # now a row-preserving predicate (owner FK, Exists, group FK ``IN``), so a
-    # board can match more than one term without duplicating -- no DISTINCT.
+    # Every term is a row-preserving predicate (owner FK, Exists, group FK ``IN``),
+    # so a board can match more than one term without duplicating -- no DISTINCT.
+    # Direct membership is an Exists(), not ``Q(memberships__user=...)``: the join
+    # multiplies each board by its member count and made every correlated count
+    # annotation run once per membership row (#1723). A stored role outside
+    # ``BoardMembership.Role`` grants nothing and also blocks group inheritance,
+    # mirroring get_board_role() (#1721).
+    valid_board_roles = BoardMembership.Role.values
+    invalid_explicit = BoardMembership.objects.filter(
+        board=OuterRef("pk"), user=user,
+    ).exclude(role__in=valid_board_roles)
+    valid_explicit = BoardMembership.objects.filter(
+        board=OuterRef("pk"), user=user, role__in=valid_board_roles,
+    )
     return Board.objects.filter(
         Q(owner=user) |
-        Exists(BoardMembership.objects.filter(board=OuterRef("pk"), user=user)) |
-        Q(group__in=get_group_ids_for_board_access(user))
+        Exists(valid_explicit) |
+        (
+            Q(group__in=get_group_ids_for_board_access(user))
+            & ~Exists(invalid_explicit)
+        )
     )
 
 

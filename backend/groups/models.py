@@ -231,8 +231,13 @@ def get_accessible_group_ids(user):
 
 def get_group_ids_for_board_access(user):
     """Return group IDs whose boards `user` may access via group inheritance:
-    direct member/owner groups plus descendant sub-groups only. Site admins
-    have access to every group's boards.
+    groups the user is a member of plus their descendant sub-groups only.
+    Site admins have access to every group's boards.
+
+    Group-derived board access is read from GroupMembership rows, the same
+    source as `get_board_role()` and `user_has_group_access()`. A membership
+    whose stored role is outside ``GroupMembership.Role`` is skipped, as
+    `get_board_role()` skips it.
 
     Deliberately NOT `get_accessible_group_ids()`: that function also walks
     UP to ancestor groups so a user can navigate to their subgroup through the
@@ -249,19 +254,23 @@ def get_group_ids_for_board_access(user):
     entry, since `get_board_role()` would deny that same user a role on the
     same board (#1112 rbac-check finding).
 
-    Descendant discovery is capped at _GROUP_TRAVERSAL_MAX_DEPTH iterations,
-    matching `get_board_role()`'s own ancestor-walk cap.
+    Reach matches `get_board_role()` exactly: its ancestor walk evaluates at
+    most _GROUP_TRAVERSAL_MAX_DEPTH groups counting the board's own group, so
+    a membership reaches a board at most _GROUP_TRAVERSAL_MAX_DEPTH - 1 levels
+    below the member's group. The descendant walk below therefore takes
+    _GROUP_TRAVERSAL_MAX_DEPTH - 1 steps; one more would list boards on which
+    `get_board_role()` resolves no role.
     """
     if getattr(user, "can_access_all_content", False):
         return set(Group.objects.values_list("id", flat=True))
     direct_ids = set(
-        Group.objects.filter(
-            Q(owner=user) | Q(memberships__user=user)
-        ).values_list("id", flat=True)
+        GroupMembership.objects.filter(
+            user=user, role__in=GroupMembership.Role.values,
+        ).values_list("group_id", flat=True)
     )
     all_ids = set(direct_ids)
     frontier = set(direct_ids)
-    for depth in range(_GROUP_TRAVERSAL_MAX_DEPTH):
+    for depth in range(_GROUP_TRAVERSAL_MAX_DEPTH - 1):
         if not frontier:
             break
         children = set(
@@ -277,7 +286,7 @@ def get_group_ids_for_board_access(user):
                 "Group descendant traversal capped at depth %d for user %s "
                 "(board-access scoping). Groups nested deeper than this limit "
                 "are not included.",
-                _GROUP_TRAVERSAL_MAX_DEPTH,
+                _GROUP_TRAVERSAL_MAX_DEPTH - 1,
                 getattr(user, "pk", user),
             )
     return all_ids
