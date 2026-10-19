@@ -4511,7 +4511,7 @@
 <h3 id="per-swimlane-analytics-basic-oss-vs-advanced-enterprise">Per-swimlane analytics: basic (OSS) vs advanced (Enterprise)<a class="headerlink" href="#per-swimlane-analytics-basic-oss-vs-advanced-enterprise" title="Permanent link">&para;</a></h3>
 <p>Basic per-swimlane analytics — cards in flight, average cycle time, cards moved to Done in the last 30 days — is OSS. Teams managing work per client/swimlane need row-level visibility.</p>
 <p>Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.</p>
-<p>The OSS analytics summary exposes an <code>ANALYTICS_EXTENSIONS</code> registration point (<code>boards/hooks.py</code>) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in <code>extension_panels</code>, but the web UI does not render <code>extension_panels</code>.</p>
+<p>The OSS analytics summary exposes an <code>ANALYTICS_EXTENSIONS</code> registration point (<code>boards/hooks.py</code>) so enterprise can add panels without modifying OSS view files. The summary returns the panels in <code>extension_panels</code>, and the Summary tab renders <code>stats</code> and <code>table</code> panels below the swimlane table (see the <a href="../../api/boards/#extension-panel-payload">payload contract</a>).</p>
 <p><strong>Issue:</strong> #341</p>
 <hr />
 <h3 id="outgoing-webhooks-oss-vs-webhook-operations-enterprise">Outgoing webhooks (OSS) vs webhook operations (Enterprise)<a class="headerlink" href="#outgoing-webhooks-oss-vs-webhook-operations-enterprise" title="Permanent link">&para;</a></h3>
@@ -4651,7 +4651,7 @@
 <tr>
 <td><code>ANALYTICS_EXTENSIONS</code> list (<code>boards/hooks.py</code>)</td>
 <td>Enterprise advanced analytics (#341 enterprise)</td>
-<td>Backend only; the web UI does not render <code>extension_panels</code> — <code>boards/hooks.py</code>, consumed by <code>boards/views/analytics.py</code> into the summary's <code>extension_panels</code>. The web UI does not render <code>extension_panels</code> (no hits in <code>frontend/src</code>), so registered panels are not displayed</td>
+<td>✅ Implemented — <code>boards/hooks.py</code>, consumed by <code>boards/views/analytics.py</code> into the summary's <code>extension_panels</code>, rendered by the Summary tab (<code>SummaryView</code> / <code>ExtensionPanels</code>, #1770). Payload contract (additive-only): <a href="../../api/boards/#extension-panel-payload"><code>docs/api/boards.md</code></a></td>
 </tr>
 <tr>
 <td><code>TEMPLATE_PROVIDERS</code> list (<code>boards/hooks.py</code>)</td>

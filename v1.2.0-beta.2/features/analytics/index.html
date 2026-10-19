@@ -4085,7 +4085,11 @@
 <blockquote>
 <p><strong>Added in 1.1</strong></p>
 </blockquote>
-<p>The summary response includes an <code>extension_panels</code> field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here. The web UI does not render <code>extension_panels</code>.</p>
+<p>The summary response includes an <code>extension_panels</code> field (always an empty list in the OSS edition). Enterprise extensions can register additional panels here.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1770)</p>
+</blockquote>
+<p>The Summary tab renders <code>stats</code> and <code>table</code> panels below the swimlane table. See the <a href="../../api/boards/#extension-panel-payload">extension panel payload</a> for the shape. With no extensions registered, the Summary tab looks the same as before.</p>
 <p><strong>API:</strong> <code>GET /api/v1/boards/{id}/summary/</code></p>
 <h2 id="analytics-view">Analytics view<a class="headerlink" href="#analytics-view" title="Permanent link">&para;</a></h2>
 <p>Shows time-in-stage data derived from <code>CardMovement</code> records.</p>
