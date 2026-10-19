@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { useBoard } from "../hooks/useBoard";
-import type { MoveBlockedError } from "../hooks/useBoard";
+import type { MoveBlockedError, MoveOutcome } from "../hooks/useBoard";
 import type { BoardFull, BoardMembership, Card, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
 
 export interface BoardContextType {
@@ -10,7 +10,7 @@ export interface BoardContextType {
   error: string | null;
   reload: () => void;
   silentReload: () => void;
-  moveCard: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<void>;
+  moveCard: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome>;
   forceMoveCard: () => Promise<void>;
   moveError: MoveBlockedError | null;
   clearMoveError: () => void;

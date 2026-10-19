@@ -4,6 +4,9 @@ import { getBoardFull, patchBoard as apiPatchBoard, reorderColumns as apiReorder
 import { moveCard as apiMoveCard } from "../api/cards";
 import type { BoardFull, BoardMembership, Card, EffectiveBoardMember, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
 
+/** Result of useBoard.moveCard: it never rejects, so callers must check `ok`. */
+export type MoveOutcome = { ok: true } | { ok: false; error: unknown };
+
 export type MoveBlockedError =
   | { code: "wip_limit_exceeded"; column_name: string; current_count: number; wip_limit: number }
   | { code: "wip_hard_blocked"; column_name: string; current_count: number; wip_limit: number }
@@ -131,8 +134,8 @@ export function useBoard() {
     columnId: number,
     swimlaneId: number,
     position: number
-  ) => {
-    if (!boardRef.current) return;
+  ): Promise<MoveOutcome> => {
+    if (!boardRef.current) return { ok: false, error: new Error("board not loaded") };
 
     // Optimistic update — capture current cards for rollback via the ref
     // so this callback does not depend on the `board` state value.
@@ -160,6 +163,7 @@ export function useBoard() {
         if (!b) return b;
         return { ...b, cards: b.cards.map((c) => (c.id === cardId ? card : c)) };
       });
+      return { ok: true };
     } catch (err: unknown) {
       // Roll back the optimistic update unconditionally.
       setBoard((b) => b ? { ...b, cards: prev } : b);
@@ -197,6 +201,9 @@ export function useBoard() {
           setMoveError(data);
         }
       }
+      // Surface the failure to the caller (#1761). Drag-and-drop ignores it;
+      // CardDetail uses it to roll back its local copy and name the cause.
+      return { ok: false, error: err };
     }
   }, [boardId, load]);
 

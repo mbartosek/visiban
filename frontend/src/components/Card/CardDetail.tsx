@@ -22,6 +22,8 @@ import ModalWrapper from "../shared/ModalWrapper";
 import CustomFieldEditRow from "./CustomFieldEditRow";
 import CardRelationsSection from "./CardRelationsSection";
 import CardExternalRefSection from "./CardExternalRefSection";
+import { failureReason } from "../../utils/moveFailure";
+import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON } from "../../constants/demoCopy";
 
@@ -32,7 +34,7 @@ interface Props {
   onDeleted: (id: number) => void;
   onUpdated: (card: Card) => void;
   onArchived: (cardId: number) => void;
-  onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<void>;
+  onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome | void>;
   userDateFormat?: string;
   userTimeFormat?: string;
   userTimezone?: string;
@@ -287,11 +289,18 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setMovePopoverError(null);
     try {
       // position 9999 appends the card to the end of the target cell.
-      await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
+      // useBoard.moveCard never rejects; it reports failure in its result. Only
+      // commit the new location to localCard on success, and name the real cause
+      // (limit wording only for limit codes, #1761).
+      const result = await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
+      if (result && result.ok === false) {
+        setMovePopoverError(`Card could not be moved — ${failureReason(result.error)}.`);
+        return;
+      }
       setLocalCard((c) => ({ ...c, column: moveTargetColumn, swimlane: moveTargetSwimlane }));
       setShowMovePopover(false);
-    } catch {
-      setMovePopoverError("Move blocked — check WIP or weight limits.");
+    } catch (err) {
+      setMovePopoverError(`Card could not be moved — ${failureReason(err)}.`);
     } finally {
       setMoveSubmitting(false);
     }

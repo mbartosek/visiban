@@ -447,25 +447,32 @@ describe('useBoard', () => {
     const { result } = renderHook(() => useBoard())
     await waitFor(() => expect(result.current.board).not.toBeNull())
 
+    let outcome: unknown
     await act(async () => {
-      await result.current.moveCard(100, 11, 20, 0)
+      outcome = await result.current.moveCard(100, 11, 20, 0)
     })
 
+    expect(outcome).toEqual({ ok: true })
     expect(mockMoveCard).toHaveBeenCalledWith(1, 100, { column_id: 11, swimlane_id: 20, position: 0, version: 1 })
     expect(result.current.board!.cards[0].column).toBe(11)
   })
 
-  it('moveCard rolls back on error', async () => {
+  it('moveCard rolls back on error and reports the failure to the caller', async () => {
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValue(board)
-    mockMoveCard.mockRejectedValue(new Error('fail'))
+    const failure = new Error('fail')
+    mockMoveCard.mockRejectedValue(failure)
 
     const { result } = renderHook(() => useBoard())
     await waitFor(() => expect(result.current.board).not.toBeNull())
 
+    let outcome: unknown
     await act(async () => {
-      await result.current.moveCard(100, 11, 20, 0)
+      outcome = await result.current.moveCard(100, 11, 20, 0)
     })
+
+    // Never rejects (drag-and-drop voids the call); failure is in the result (#1761).
+    expect(outcome).toEqual({ ok: false, error: failure })
 
     // Should roll back to original column
     expect(result.current.board!.cards[0].column).toBe(10)
