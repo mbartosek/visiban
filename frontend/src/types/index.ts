@@ -1457,3 +1457,14 @@ export interface BoardSummary {
   swimlanes: BoardSummarySwimlane[];
   extension_panels: unknown[];
 }
+
+/**
+ * `board.created` / `board.updated` WebSocket payload (#1734). Unlike the REST
+ * `Board`, `is_starred` is the acting user's value and, since #1705, is omitted
+ * for every other recipient, so it is optional here. REST responses always
+ * include it; keep `Board.is_starred` required.
+ */
+export type BoardEventPayload = Omit<Board, "is_starred"> & { is_starred?: boolean };
+
+/** `group.created` / `group.updated` WebSocket payload; `is_starred` omitted for non-actors (#1705). */
+export type GroupEventPayload = Omit<Group, "is_starred"> & { is_starred?: boolean };

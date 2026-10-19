@@ -28,6 +28,8 @@ export function stripPerUserBoardFields<T extends object>(payload: T): Omit<T, "
  * reload or `board.star_changed`; accepted because the alternative is showing
  * the creator's star to everyone.
  */
-export function neutralizePerUserBoardFields<T extends object>(payload: T): T {
-  return { ...stripPerUserBoardFields(payload), is_starred: false } as T;
+export function neutralizePerUserBoardFields<T extends object>(
+  payload: T,
+): Omit<T, "is_starred"> & { is_starred: boolean } {
+  return { ...stripPerUserBoardFields(payload), is_starred: false } as Omit<T, "is_starred"> & { is_starred: boolean };
 }
