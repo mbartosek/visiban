@@ -235,6 +235,27 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setConfirmAction(null);
     setCardActionError(null);
   }, 35);
+  // Resolve the Move popover when the card changes underneath it (#1773). A
+  // version-conflict refresh or a forced move (useBoard.forceMoveCard) replaces
+  // the card in board.cards, but this component seeds localCard and the popover
+  // targets once, so without this the popover keeps the pre-refresh target and
+  // error. Only the location is synced into localCard: the rest of localCard
+  // can hold in-progress edits that a board refresh must not clobber. The
+  // in-flight guard skips useBoard's optimistic relocation of our own move,
+  // which handleMoveSubmit resolves itself.
+  const lastSeenCardRef = useRef({ version: card.version, column: card.column, swimlane: card.swimlane });
+  const moveInFlightRef = useRef(false);
+  moveInFlightRef.current = moveSubmitting;
+  useEffect(() => {
+    const seen = lastSeenCardRef.current;
+    if (seen.version === card.version && seen.column === card.column && seen.swimlane === card.swimlane) return;
+    lastSeenCardRef.current = { version: card.version, column: card.column, swimlane: card.swimlane };
+    if (moveInFlightRef.current) return;
+    setLocalCard((c) => (c.column === card.column && c.swimlane === card.swimlane ? c : { ...c, column: card.column, swimlane: card.swimlane }));
+    setShowMovePopover(false);
+    setMovePopoverError(null);
+  }, [card.version, card.column, card.swimlane]);
+
   // Close move popover before panel — priority 36 sits above confirmAction (35) so
   // it fires first when both are open, and above panel close (30) in the normal case.
   useEscapeStack(() => {

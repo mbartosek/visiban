@@ -1492,6 +1492,90 @@ describe('CardDetail', () => {
       })
     })
 
+    describe('card prop changes underneath an open popover (#1773)', () => {
+      const openPopover = async (user: ReturnType<typeof userEvent.setup>) =>
+        user.click(screen.getByRole('button', { name: /Move card to different column or swimlane/ }))
+
+      it('closes the popover, clears the error and follows the refreshed card after a version-conflict refresh', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'version_conflict' }) })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        await waitFor(() => expect(screen.getByText(/Card could not be moved/)).toBeInTheDocument())
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+
+        // useBoard reloads the board: the same card arrives with a new version
+        // and a location another session chose.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 21 })} />)
+
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
+        // localCard follows the refreshed card: reopening seeds the targets from it.
+        await openPopover(user)
+        expect(screen.queryByText(/Card could not be moved/)).not.toBeInTheDocument()
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('In Progress')
+        expect(reopened.textContent).toContain('Customer B')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('closes the popover when a forced move relocates the card while it is open', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ version: 2, column: 11, swimlane: 20 })} />)
+
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+        await openPopover(user)
+        const reopened = container.querySelector('[class*="w-64"]')!
+        expect(reopened.textContent).toContain('In Progress')
+        expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+      })
+
+      it('leaves the popover open when the card prop is re-delivered unchanged', async () => {
+        const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ title: 'Renamed locally' })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+      })
+
+      it('does not close the popover for the optimistic update of its own in-flight move', async () => {
+        let resolveMove!: (v: MoveOutcome) => void
+        const onMoveCard = vi.fn().mockImplementation(() => new Promise<MoveOutcome>((r) => { resolveMove = r }))
+        const board = makeBoardWithTwoCols()
+        const props = defaultProps()
+        const user = userEvent.setup()
+        const { container, rerender } = render(<CardDetail {...props} board={board} onMoveCard={onMoveCard} />)
+        await openPopover(user)
+        const popover = container.querySelector('[class*="w-64"]')!
+        await user.click(Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!)
+        await user.click(screen.getByText('In Progress'))
+        await user.click(screen.getByRole('button', { name: 'Move' }))
+        // useBoard's optimistic update relocates the card while the request is in flight.
+        rerender(<CardDetail {...props} board={board} onMoveCard={onMoveCard} card={makeCard({ column: 11 })} />)
+        expect(screen.getByText('Move to')).toBeInTheDocument()
+        await act(async () => { resolveMove({ ok: true }) })
+        await waitFor(() => expect(screen.queryByText('Move to')).not.toBeInTheDocument())
+      })
+    })
+
     describe('first-encounter dot', () => {
       it('shows dot when move-to-seen is absent from localStorage', () => {
         const onMoveCard = vi.fn().mockResolvedValue(undefined)

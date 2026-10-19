@@ -1124,6 +1124,11 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // delete or archive made from the panel itself closes it first, so this
   // effect does not fire for it.
   const selectedCardId = selectedCard?.id ?? null;
+  // selectedCard is a snapshot taken when the panel opened. Hand CardDetail the
+  // live copy from board.cards so a conflict refresh or forced move that
+  // replaces the card reaches it (#1773); falls back to the snapshot for the
+  // render before the not-found effect below closes the panel.
+  const liveSelectedCard = selectedCard ? (board.cards.find((c) => c.id === selectedCard.id) ?? selectedCard) : null;
   useEffect(() => {
     if (selectedCardId === null) return;
     if (board.cards.some((c) => c.id === selectedCardId)) return;
@@ -1920,7 +1925,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             // a relation row would render the previous card's title, weight and
             // relations while the new card's data loads.
             key={selectedCard.id}
-            card={selectedCard}
+            card={liveSelectedCard ?? selectedCard}
             board={board}
             onClose={() => setSelectedCard(null)}
             onDeleted={(id) => { onCardDeleted(id); setSelectedCard(null); }}
@@ -2615,7 +2620,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             // a relation row would render the previous card's title, weight and
             // relations while the new card's data loads.
             key={selectedCard.id}
-            card={selectedCard}
+            card={liveSelectedCard ?? selectedCard}
             board={board}
             onClose={() => setSelectedCard(null)}
             onDeleted={(id) => { onCardDeleted(id); setSelectedCard(null); }}

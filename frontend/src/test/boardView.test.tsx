@@ -1123,6 +1123,19 @@ describe('BoardView', () => {
       expect(screen.getByText('The card you had open was deleted or archived, so it was closed.')).toBeInTheDocument()
     })
 
+    it('hands CardDetail the refreshed card after a board reload replaces it (#1773)', () => {
+      mockSearchParams = new URLSearchParams('card=1')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      expect(screen.getByTestId('card-detail')).toHaveTextContent('Doomed Card')
+
+      // A 409 version-conflict refresh swaps in the server's copy of the card.
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [{ ...card, title: 'Refreshed Card', version: 2 }] }) })
+      rerender(<BoardView {...defaultProps()} />)
+
+      expect(screen.getByTestId('card-detail')).toHaveTextContent('Refreshed Card')
+    })
+
     it('closes CardDetail with the notice in the analytics view too', async () => {
       mockSearchParams = new URLSearchParams('view=analytics')
       mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
