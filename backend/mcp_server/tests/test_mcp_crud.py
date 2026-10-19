@@ -239,10 +239,11 @@ class ListCardsPagingTests(CrudToolsTestCase):
         self.assertEqual(
             result["_meta"], {"visiban/total": 205, "visiban/truncated": True},
         )
-        # The per-card blocks keep the SDK's list rendering (indent=2 JSON).
-        import pydantic_core
-        first = result["structuredContent"]["result"][0]
-        self.assertEqual(texts[0], pydantic_core.to_json(first, indent=2).decode())
+        # The per-card blocks are byte-identical to what the SDK renders for
+        # the same rows (the server inlines that formatting).
+        from mcp.server.mcpserver.utilities.func_metadata import _convert_to_content
+        sdk_blocks = [b.text for b in _convert_to_content(result["structuredContent"]["result"])]
+        self.assertEqual(texts[:-1], sdk_blocks)
 
     def test_untruncated_default_call_has_no_notice_or_meta(self):
         self._seed(3)
@@ -269,6 +270,22 @@ class ListCardsPagingTests(CrudToolsTestCase):
         result = self._raw_call()
         self.assertEqual(len(result["content"]), 200)
         self.assertNotIn("_meta", result)
+
+    def test_plain_limit_zero_has_no_looping_continuation_notice(self):
+        self._seed(4)
+        result = self._raw_call(limit=0)
+        self.assertEqual(result["content"], [])
+        self.assertEqual(result["structuredContent"]["result"], [])
+        self.assertNotIn("_meta", result)
+
+    def test_offset_beyond_total_reports_real_total(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=99)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 4, False))
+
+    def test_empty_board_total_is_zero(self):
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 0, False))
 
     def test_notice_next_offset_follows_offset_and_limit(self):
         self._seed(30)

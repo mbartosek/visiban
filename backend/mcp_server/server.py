@@ -34,11 +34,11 @@ import functools
 import logging
 from typing import Annotated
 
+import pydantic_core
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
-from mcp.server.mcpserver.utilities.func_metadata import _convert_to_content
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types import CallToolResult, TextContent
 from pydantic import Field
@@ -350,12 +350,18 @@ def build_mcp_server():
             # An error payload, or the explicit envelope: pass through unchanged.
             return out
         rows = out["cards"]
-        if not out["truncated"]:
+        # limit=0 is an explicit total-only request (use include_meta); a
+        # "call again with offset=0" hint there would loop with no progress.
+        if not out["truncated"] or not rows:
             return rows
         shown, total = len(rows), out["total"]
-        # Same per-card rendering the SDK applies to a returned list, so the
-        # existing blocks match the untruncated format exactly.
-        content = _convert_to_content(rows) + [TextContent(
+        # Same per-card rendering the SDK applies to a returned list (indent=2
+        # JSON, one block per card); a test asserts byte-identity against the
+        # SDK's own helper so an SDK bump that changes it is caught.
+        content = [
+            TextContent(type="text", text=pydantic_core.to_json(row, fallback=str, indent=2).decode())
+            for row in rows
+        ] + [TextContent(
             type="text",
             text=f"Showing {shown} of {total} cards; call again with offset={out['offset'] + shown}",
         )]

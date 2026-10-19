@@ -33,7 +33,7 @@ top-level ``"error"`` key, and a failure is ALWAYS a dict with exactly that
 key — that split is the whole contract, and it is now part of the tools'
 public (agent-facing) shape, so do not change it without a major version bump.
 """
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Window
 from rest_framework.exceptions import ValidationError as _DRFValidationError
 
 from accounts.models import User
@@ -649,10 +649,22 @@ def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,
         qs = qs.filter(labels__name=label).distinct()
     # `id` makes the order total: position repeats across cells, and offset
     # paging over a non-total order can skip or repeat a card at a boundary.
-    total = qs.order_by().count()
     ordered = qs.order_by("column__position", "swimlane__position", "position", "id")
-    rows = [_serialize_card(card) for card in ordered[offset:offset + limit]]
-    return rows, total
+    # Window COUNT rides the page query (the same pattern as REST's card list,
+    # boards/views/cards.py), so the total costs no extra query and always
+    # agrees with the rows returned: a separate COUNT could be stale by the
+    # time the page is read and report truncated=false with cards missing.
+    cards = list(ordered.annotate(_total=Window(Count("id")))[offset:offset + limit])
+    if cards:
+        total = cards[0]._total
+    elif offset == 0 and limit > 0:
+        total = 0
+    else:
+        # Empty window past the end, or limit=0: no row carries the window
+        # value, so count separately. Never hit by a no-param call on a
+        # non-empty board.
+        total = qs.order_by().count()
+    return [_serialize_card(card) for card in cards], total
 
 
 def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
