@@ -1,3 +1,4 @@
+import type { MoveOutcome } from '../hooks/useBoard'
 import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -1418,7 +1419,7 @@ describe('CardDetail', () => {
     })
 
     // useBoard.moveCard never rejects — it reports failure as { ok: false, error } (#1761).
-    const submitMove = async (onMoveCard: (...a: number[]) => Promise<unknown>) => {
+    const submitMove = async (onMoveCard: (...a: number[]) => Promise<MoveOutcome | void>) => {
       const board = makeBoardWithTwoCols()
       const user = userEvent.setup()
       const { container } = render(<CardDetail {...defaultProps()} board={board} onMoveCard={onMoveCard} />)
