@@ -1,5 +1,5 @@
 import client from "./client";
-import type { Board, BoardFull, BoardInviteLink, CreatedBoardInviteLink, InviteEmailSent, BoardExportLogEntry, BoardMembership, BoardTemplate, BoardPublic, CardMovement, Column, Swimlane, Label, ShareActionResponse, CustomFieldDefinition, CustomFieldType, SwimlaneCustomFieldDefinition, TrelloImportMapping, TrelloImportPreview, TrelloImportResult, ImportOptions, ImportBoardResponse, SampleBoardSummary } from "../types";
+import type { Board, BoardFull, BoardInviteLink, CreatedBoardInviteLink, InviteEmailSent, BoardExportLogEntry, BoardMembership, BoardTemplate, BoardPublic, CardMovement, Column, Swimlane, Label, ShareActionResponse, CustomFieldDefinition, CustomFieldType, SwimlaneCustomFieldDefinition, TrelloImportMapping, TrelloImportPreview, TrelloImportResult, ImportOptions, ImportBoardResponse, SampleBoardSummary, BoardSummary } from "../types";
 import type { AxiosProgressEvent } from "axios";
 
 export type BoardRole = "admin" | "member" | "collaborator" | "viewer";
@@ -138,7 +138,7 @@ export const reorderSwimlanes = (boardId: number, order: number[]) =>
 
 // Analytics
 export const getBoardSummary = (id: number) =>
-  client.get(`/api/v1/boards/${id}/summary/`).then((r) => r.data);
+  client.get<BoardSummary>(`/api/v1/boards/${id}/summary/`).then((r) => r.data);
 
 export const getBoardAnalytics = (id: number, days = 30, stalledDays?: number) =>
   client

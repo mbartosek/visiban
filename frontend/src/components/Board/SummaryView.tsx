@@ -1,22 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getBoardSummary } from "../../api/boards";
-
-interface SwimlaneRow {
-  id: number;
-  name: string;
-  color: string;
-  total_cards: number;
-  stage_distribution: Record<string, number>;
-  velocity_7d: number;
-  velocity_30d: number;
-  active_cards: number;
-  done_30d: number;
-  avg_cycle_days: number | null;
-}
-
-interface SummaryData {
-  swimlanes: SwimlaneRow[];
-}
+import type { BoardSummary } from "../../types";
+import { parseExtensionPanels } from "./parseExtensionPanels";
+import ExtensionPanels from "./ExtensionPanels";
 
 interface Props {
   boardId: number;
@@ -24,7 +10,7 @@ interface Props {
 }
 
 export default function SummaryView({ boardId, columns }: Props) {
-  const [data, setData] = useState<SummaryData | null>(null);
+  const [data, setData] = useState<BoardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +20,9 @@ export default function SummaryView({ boardId, columns }: Props) {
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => { setError("Failed to load summary."); setLoading(false); });
   }, [boardId]);
+
+  // Hook sits above the early returns; the parser tolerates a missing key.
+  const panels = useMemo(() => parseExtensionPanels(data?.extension_panels), [data]);
 
   if (loading) return <div className="flex-1 flex items-center justify-center bg-sunken text-fg-tertiary">Loading summary…</div>;
   if (error) return <div className="flex-1 flex items-center justify-center bg-sunken text-danger">{error}</div>;
@@ -124,6 +113,7 @@ export default function SummaryView({ boardId, columns }: Props) {
           })}
         </tbody>
       </table>
+      <ExtensionPanels panels={panels} />
     </div>
   );
 }

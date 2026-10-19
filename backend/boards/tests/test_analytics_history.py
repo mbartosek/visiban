@@ -179,6 +179,29 @@ class TestSummaryMetrics(AnalyticsHistorySetup):
         resp = c.get(self._summary_url())
         self.assertEqual(resp.data["extension_panels"], [])
 
+    def test_valid_extension_panel_passes_through_unchanged(self):
+        """A registered panel dict is returned verbatim in extension_panels (#1770)."""
+        from boards import hooks as _hooks
+
+        panel = {
+            "id": "p1",
+            "title": "Panel",
+            "type": "stats",
+            "data": {"items": [{"label": "A", "value": 1}]},
+        }
+
+        def _good_panel(board, request):
+            return panel
+
+        _hooks.ANALYTICS_EXTENSIONS.append(_good_panel)
+        try:
+            c = self._client_for(self.admin)
+            resp = c.get(self._summary_url())
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data["extension_panels"], [panel])
+        finally:
+            _hooks.ANALYTICS_EXTENSIONS.remove(_good_panel)
+
     def test_faulty_extension_panel_returns_200_with_empty_panels(self):
         """A raising ANALYTICS_EXTENSIONS callable must not crash the summary endpoint (#904).
 

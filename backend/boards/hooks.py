@@ -25,7 +25,12 @@ MOVEMENT_EXPORT_BACKENDS: list = []
 
 # Analytics panel extension hook (enterprise advanced analytics feature).
 # Callable signature: (board: Board, request: Request) -> dict
-# Each callable returns a dict with at minimum {"id": str, "title": str, "data": any}.
+# Each callable returns a dict {"id": str, "title": str, "type": "stats" | "table",
+# "description": str (optional), "data": {...}}. The payload shape per type is a public,
+# additive-only contract: see docs/api/boards.md "Extension panel payload". A panel with
+# no "type" (or an unknown one) is returned by the API but not rendered by the web UI.
+# The summary is readable by every board member, viewers included, so the callable MUST
+# gate on request.user's role itself before returning sensitive data.
 # Register via: from boards.hooks import ANALYTICS_EXTENSIONS
 #               ANALYTICS_EXTENSIONS.append(my_panel)
 # The OSS summary endpoint returns an empty extension_panels list when this list is empty.

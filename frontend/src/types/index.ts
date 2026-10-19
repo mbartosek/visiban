@@ -1433,3 +1433,27 @@ export interface ImportSummary {
 
 /** `POST /api/v1/boards/import/` response: the board plus an additive summary. */
 export type ImportBoardResponse = Board & { import_summary: ImportSummary };
+
+/** One swimlane row of `GET /boards/{id}/summary/`. */
+export interface BoardSummarySwimlane {
+  id: number;
+  name: string;
+  color: string;
+  total_cards: number;
+  stage_distribution: Record<string, number>;
+  velocity_7d: number;
+  velocity_30d: number;
+  active_cards: number;
+  done_30d: number;
+  avg_cycle_days: number | null;
+}
+
+/**
+ * `GET /boards/{id}/summary/` response. `extension_panels` is untrusted input
+ * from enterprise `ANALYTICS_EXTENSIONS` producers: it is `unknown[]` on
+ * purpose and must go through `parseExtensionPanels` before rendering (#1770).
+ */
+export interface BoardSummary {
+  swimlanes: BoardSummarySwimlane[];
+  extension_panels: unknown[];
+}
