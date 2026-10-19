@@ -143,6 +143,63 @@ export const searchCards = (boardId: number, query: string, signal?: AbortSignal
   client.get<Card[]>(`/api/v1/boards/${boardId}/cards/`, { params: { search: query }, signal })
     .then((r) => r.data);
 
+/** Rows the card list endpoint returns per request (its server-side cap, #1724). */
+export const CARD_SEARCH_PAGE_SIZE = 200;
+/** Upper bound on pages walked for one search, so a runaway query cannot loop forever. */
+export const CARD_SEARCH_MAX_PAGES = 25;
+
+export interface AllCardSearchResult {
+  cards: Card[];
+  /** True when matches exist that are NOT in `cards` (page ceiling hit). */
+  truncated: boolean;
+  /** Server-reported number of matches (X-Total-Count), or `cards.length` if absent. */
+  total: number;
+}
+
+/**
+ * Search the whole board and return every match, walking `limit`/`offset`
+ * pages while the server reports `X-Truncated: true` (#1763). The endpoint caps
+ * one response at 200 rows, so a single request silently drops matches on a
+ * large board. Bounded by CARD_SEARCH_MAX_PAGES; if the ceiling is hit the
+ * result is flagged `truncated` so the caller can tell the user. A non-abort
+ * failure on page 2+ also returns the partial matches flagged `truncated`.
+ */
+export async function searchAllCards(
+  boardId: number,
+  query: string,
+  signal?: AbortSignal,
+): Promise<AllCardSearchResult> {
+  const cards: Card[] = [];
+  let total = 0;
+  for (let page = 0; page < CARD_SEARCH_MAX_PAGES; page++) {
+    let r;
+    try {
+      r = await client.get<Card[]>(`/api/v1/boards/${boardId}/cards/`, {
+        params: { search: query, limit: CARD_SEARCH_PAGE_SIZE, offset: cards.length },
+        signal,
+      });
+    } catch (err) {
+      // Page 1 failing, or an abort, keeps the caller's existing policy. A failure on a
+      // later page (e.g. a 429) returns what was gathered, flagged truncated, so the
+      // filter still applies and the notice appears instead of the filter silently
+      // dropping and showing every card.
+      const e = err as { name?: string };
+      const aborted = e?.name === "CanceledError" || e?.name === "AbortError" || signal?.aborted;
+      if (page === 0 || aborted) throw err;
+      // A truncated result has more matches than were loaded, even if the total header was missing.
+      return { cards, truncated: true, total: Math.max(total, cards.length + 1) };
+    }
+    cards.push(...r.data);
+    const headerTotal = Number(r.headers?.["x-total-count"]);
+    if (Number.isFinite(headerTotal)) total = headerTotal;
+    const truncated = String(r.headers?.["x-truncated"]).toLowerCase() === "true";
+    // An empty page while "truncated" would loop without progress; stop and flag it.
+    if (!truncated) return { cards, truncated: false, total: Math.max(total, cards.length) };
+    if (r.data.length === 0) break;
+  }
+  return { cards, truncated: true, total: Math.max(total, cards.length) };
+}
+
 export interface TimelinePage {
   count: number;
   next: string | null;

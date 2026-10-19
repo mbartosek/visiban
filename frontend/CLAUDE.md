@@ -837,6 +837,8 @@ Each key in either namespace requires a `load()` function with try/catch + fallb
 
 **Post-join success strip (#1444).** `Common/JoinedNotice.tsx` is the single post-join success strip, used by `GroupDetail` (#998) and `BoardView` (#1444). It persists until dismissed and never auto-dismisses (`role="status"`, dismiss button `aria-label="Dismiss notification"`). Any new invite surface that lands the user on a destination page reuses it rather than hand-rolling a banner. Board placement is between the filter row and the scroll container — the same slot as the mode banners below.
 
+**Board search-result notices (#1763).** A transient board-level notice about the search result (e.g. "Showing the first N of M matches") renders between the `FilterBar` and the scroll container, in the same slot as the mode banners, never inside the scroll container. Keep the margin and padding on the inner element so the always-mounted live-region wrapper takes no layout space while empty.
+
 When a persistent board-wide mode is active (e.g. focus mode, a future "view-only" lock), render a full-width strip between the filter row and the scroll container. The strip must sit **outside** the scroll container so it does not scroll away.
 
 - Style: `bg-primary/15 border-b border-primary-emphasis/40 px-4 py-2 flex items-center gap-3 text-sm text-info transition-opacity duration-150`

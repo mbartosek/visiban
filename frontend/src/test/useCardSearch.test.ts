@@ -4,12 +4,12 @@ import { useCardSearch } from '../hooks/useCardSearch'
 import type { Card } from '../types'
 
 vi.mock('../api/cards', () => ({
-  searchCards: vi.fn(),
+  searchAllCards: vi.fn(),
 }))
 
-import { searchCards } from '../api/cards'
+import { searchAllCards } from '../api/cards'
 
-const mockSearchCards = searchCards as ReturnType<typeof vi.fn>
+const mockSearchCards = searchAllCards as ReturnType<typeof vi.fn>
 
 function makeCard(id: number, title: string): Card {
   return {
@@ -67,7 +67,7 @@ describe('useCardSearch', () => {
 
   it('fires request after debounce and returns matching IDs', async () => {
     const cards = [makeCard(10, 'Fix login bug'), makeCard(20, 'Fix logout')]
-    mockSearchCards.mockResolvedValue(cards)
+    mockSearchCards.mockResolvedValue({ cards, truncated: false, total: cards.length })
 
     const { result } = renderHook(() => useCardSearch(1, 'Fix', 300))
 
@@ -82,10 +82,28 @@ describe('useCardSearch', () => {
     expect(mockSearchCards).toHaveBeenCalledTimes(1)
     expect(result.current.searchMatchIds).toEqual(new Set([10, 20]))
     expect(result.current.isSearching).toBe(false)
+    expect(result.current.truncation).toBeNull()
+  })
+
+  it('reports truncation when the page ceiling was hit', async () => {
+    mockSearchCards.mockResolvedValue({ cards: [makeCard(1, 'a')], truncated: true, total: 9000 })
+    const { result } = renderHook(() => useCardSearch(1, 'broad', 300))
+    await act(async () => { vi.runAllTimers() })
+    expect(result.current.truncation).toEqual({ shown: 1, total: 9000 })
+    expect(result.current.searchMatchIds).toEqual(new Set([1]))
+  })
+
+  it('keeps the filter applied for a partial result (late page failed) instead of dropping it', async () => {
+    mockSearchCards.mockResolvedValue({ cards: [makeCard(3, 'c'), makeCard(4, 'd')], truncated: true, total: 450 })
+    const { result } = renderHook(() => useCardSearch(1, 'broad', 300))
+    await act(async () => { vi.runAllTimers() })
+    expect(result.current.searchMatchIds).toEqual(new Set([3, 4]))
+    expect(result.current.truncation).toEqual({ shown: 2, total: 450 })
+    expect(result.current.isSearching).toBe(false)
   })
 
   it('does not fire before debounce delay elapses', () => {
-    mockSearchCards.mockResolvedValue([])
+    mockSearchCards.mockResolvedValue({ cards: [], truncated: false, total: 0 })
     renderHook(() => useCardSearch(1, 'partial', 300))
 
     act(() => { vi.advanceTimersByTime(299) })
@@ -95,7 +113,7 @@ describe('useCardSearch', () => {
 
   it('aborts stale request when query changes within debounce window', async () => {
     const cards = [makeCard(42, 'Final result')]
-    mockSearchCards.mockResolvedValue(cards)
+    mockSearchCards.mockResolvedValue({ cards, truncated: false, total: cards.length })
 
     const { result, rerender } = renderHook(
       ({ query }: { query: string }) => useCardSearch(1, query, 300),
@@ -132,7 +150,7 @@ describe('useCardSearch', () => {
 
   it('clears results when query becomes empty', async () => {
     const cards = [makeCard(5, 'Match')]
-    mockSearchCards.mockResolvedValue(cards)
+    mockSearchCards.mockResolvedValue({ cards, truncated: false, total: cards.length })
 
     const { result, rerender } = renderHook(
       ({ query }: { query: string }) => useCardSearch(1, query, 300),
