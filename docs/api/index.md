@@ -96,6 +96,7 @@ The following list endpoints use the standard envelope and accept `offset` and `
 
 - `GET /boards/`, `GET /groups/`
 - `GET /boards/{id}/columns/`, `swimlanes/`, `labels/`, `custom-fields/`, `swimlane-custom-fields/`, and `export-history/`
+- `GET /groups/{id}/descendant-boards/paged/` (see [Groups API](groups.md#get-apiv1groupsiddescendant-boardspaged))
 - `GET /admin/users/`, `GET /admin/action-log/`, and `GET /admin/board-invite-links/` (see the [Admin API](admin.md))
 
 Some list endpoints deliberately **do not** use it. Check the endpoint's own page before parsing the response:
@@ -107,6 +108,7 @@ Some list endpoints deliberately **do not** use it. Check the endpoint's own pag
 | `GET /boards/{id}/movements/` and `GET /boards/{id}/cards/archived/` | The standard envelope, but the page size is fixed at `50` and `page_size` is ignored; only `offset` pages |
 | `GET /boards/{id}/cards/{card_id}/timeline/` | `limit` (default 50, max 200) and `offset`, with `next` / `previous` links. See [Cards API](cards.md) |
 | `GET /boards/{id}/events/` | `{results, next}` cursor feed. See [Change Feed](events.md) |
+| `GET /groups/{id}/descendant-boards/` | Bare JSON array, not paginated and **not bounded**: it returns every board in the group's subtree that the caller can access, which for a top-level group can be the whole organization. Use `GET /groups/{id}/descendant-boards/paged/` for bounded pages |
 | Small, bounded lists (group members, subgroups, boards, labels, and invite links of a group; board invite links and saved filters; `GET /admin/invite-links/`; `GET /users/search/` (capped at 10 rows); sample boards and templates; notifications; personal access tokens; connected accounts; a card's comments, attachments, checklist, and relations) | Bare JSON array, not paginated |
 
 ### Maintenance mode (503)
