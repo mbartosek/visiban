@@ -19,6 +19,13 @@ export type MoveBlockedError =
   // card snaps back with no explanation (#1761).
   | { code: "move_failed"; detail: string };
 
+// Codes the toast has copy for; anything else (a throttle or validation code)
+// would render as "undefined weight ... NaN", so it falls to the generic toast.
+const KNOWN_MOVE_ERROR_CODES = new Set<string>([
+  "wip_limit_exceeded", "wip_hard_blocked", "weight_limit_exceeded",
+  "version_conflict", "permission_denied", "maintenance_mode", "move_failed",
+]);
+
 /** Generic toast for a failed move that no specific code covered (#1761). The
  * title is "Move failed", so the body is just the capitalized cause. */
 function genericMoveFailure(err: unknown): MoveBlockedError {
@@ -266,7 +273,7 @@ export function useBoard() {
       const axiosErr = err as { response?: { status?: number; data?: unknown } };
       if (axiosErr?.response?.data) {
         const data = axiosErr.response.data as MoveBlockedError;
-        if (data?.code) {
+        if (data?.code && KNOWN_MOVE_ERROR_CODES.has(data.code)) {
           setMoveError(data);
           return;
         }
