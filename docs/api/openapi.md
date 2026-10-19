@@ -319,4 +319,6 @@ def saved_filters(self, request, pk=None):
     ...
 ```
 
+A viewset that reads `self.kwargs`, `self.request.user`, or a URL parameter such as `board_pk` in `get_serializer_class()`, `get_serializer_context()`, `get_queryset()`, or a serializer's `__init__` must guard that code with `if getattr(self, "swagger_fake_view", False):` and return a safe default. drf-spectacular builds these views with no request and no URL kwargs, and an unguarded lookup makes it drop the serializer and silently emit an operation with no request body (`SwimlaneViewSet`, #1788; `VisibanPasswordChangeSerializer`, #1781). The failure prints `exception raised while getting serializer` to stderr and does not fail the build.
+
 See the [drf-spectacular docs](https://drf-spectacular.readthedocs.io/en/latest/customization.html) for full customization options.

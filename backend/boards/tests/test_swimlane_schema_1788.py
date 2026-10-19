@@ -41,7 +41,7 @@ class SwimlaneSchemaTests(TestCase):
     def test_schema_generation_reports_no_swimlane_serializer_error(self):
         bad = [
             line for line in self.stderr.getvalue().splitlines()
-            if "SwimlaneViewSet" in line and "exception raised while getting serializer" in line
+            if "exception raised while getting serializer" in line
         ]
         self.assertEqual(bad, [])
 
@@ -68,8 +68,11 @@ class SwimlaneSchemaTests(TestCase):
         props = self._body(_REORDER, "post")["properties"]
         self.assertEqual(props["order"]["type"], "array")
 
-    def test_set_collapsed_documents_only_is_collapsed(self):
+    def test_set_collapsed_documents_required_is_collapsed(self):
+        # The view answers 400 without is_collapsed, so the body is required.
         for path in _COLLAPSE:
-            body = self._body(path, "patch")
+            op = self.schema["paths"][path]["patch"]
+            self.assertTrue(op["requestBody"].get("required"), path)
+            body = op["requestBody"]["content"]["application/json"]["schema"]
             self.assertEqual(list(body["properties"]), ["is_collapsed"], path)
-            # PATCH bodies are emitted as "Patched*" components with no required list.
+            self.assertEqual(body["required"], ["is_collapsed"], path)

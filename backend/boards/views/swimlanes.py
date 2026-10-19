@@ -84,14 +84,22 @@ def _require_live_swimlane_definitions(field_pairs):
 # documented the full swimlane body. Admin-only, so the response is always the
 # admin serializer. Schema-only: no runtime effect.
 _SET_COLLAPSED_SCHEMA = extend_schema(
-    request=inline_serializer(
-        name="SwimlaneSetCollapsedRequest",
-        fields={
-            "is_collapsed": serializers.BooleanField(
-                help_text="The default collapsed state for every board member. Must be a boolean."
-            ),
-        },
-    ),
+    # A raw schema, not a serializer: spectacular turns every PATCH serializer
+    # into an all-optional "Patched*" body, but the view answers 400 without
+    # is_collapsed, so the body and field must be documented as required (the
+    # body's own `required` flag is set by schema_hooks.require_declared_request_bodies).
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "is_collapsed": {
+                    "type": "boolean",
+                    "description": "The default collapsed state for every board member. Must be a boolean.",
+                },
+            },
+            "required": ["is_collapsed"],
+        }
+    },
     responses=SwimlaneAdminSerializer,
 )
 

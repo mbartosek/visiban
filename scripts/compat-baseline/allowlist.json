@@ -2834,6 +2834,16 @@
    "key": "NEW_REQUIRED_REQUEST_BODY PUT /api/v1/boards/{board_pk}/swimlanes/{id}/",
    "issue": "#1788",
    "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY PATCH /api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_BODY PATCH /api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
+   "issue": "#1788",
+   "reason": "temporary: real swimlane request body declared in #1788; baseline drift cleared at the v1.2.0 roll"
   }
  ]
 }
