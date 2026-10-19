@@ -9,6 +9,10 @@ id = "GHSA-vfj7-8cjw-p6xm"
 # tailwindcss (chokidar, micromatch) and only ever expands the repo's own
 # static glob patterns at build time; it is not shipped in the production
 # bundle and never sees user input. Re-check npm for a fixed braces release
-# and remove this entry when one lands (tracked in #1415).
-ignoreUntil = 2026-11-30
+# and remove this entry when one lands (tracked in #1415; the Tailwind v4
+# migration in #1420 is the other way out, expiry tracked in #1778).
+# Re-checked 2026-10-19 (#1751): npm still resolves braces 3.0.3 as the newest
+# release and OSV lists no fixed version, so an overrides pin cannot help; the
+# ignore is extended to 2027-01-31 (about one quarter). Re-check before it expires (#1778).
+ignoreUntil = 2027-01-31
 reason = "No fixed braces release exists; dev-only build-time transitive of tailwindcss, never sees untrusted input"
