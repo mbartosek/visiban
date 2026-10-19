@@ -428,7 +428,7 @@ class CardRelationRbacTests(_RelationTestBase):
         r = self._link(self.card_a, self.card_b, client=client)
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_anonymous_gets_401_or_403(self):
+    def test_anonymous_gets_401(self):
         r = self._link(self.card_a, self.card_b, client=APIClient())
         self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 

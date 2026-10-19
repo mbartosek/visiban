@@ -182,8 +182,8 @@ class PATAuthenticationTests(APITestCase):
     def test_non_pat_token_falls_through(self):
         """Non-vbn_ tokens must not be rejected by PATAuthentication."""
         r = self.client.get("/api/v1/auth/me/", **self._auth_header("someothertoken123"))
-        # Falls through to other authenticators; unauthenticated = 403 (not 401 which
-        # would be PATAuthentication raising AuthenticationFailed directly).
+        # Falls through to other authenticators; unauthenticated = 401 (the request is
+        # not rejected by PATAuthentication itself, so the default 401 applies).
         self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_successful_auth_updates_last_used_at(self):

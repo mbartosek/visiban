@@ -48,7 +48,7 @@ class ServeMediaNonMemberTests(TestCase):
         r = self.client.get(f"/media/{self.attachment.file.name}")
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_unauthenticated_gets_401_or_403(self):
+    def test_unauthenticated_gets_401(self):
         """Unauthenticated requests must be rejected."""
         anon = APIClient()
         r = anon.get(f"/media/{self.attachment.file.name}")

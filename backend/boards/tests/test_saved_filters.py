@@ -9,7 +9,7 @@ Coverage:
 - Validation: missing name, missing state_json, non-dict state_json, name too long
 - Duplicate name returns 400
 - Non-member (outsider) gets 404
-- Unauthenticated returns 401/403
+- Unauthenticated returns 401
 """
 
 from django.test import TestCase
@@ -162,7 +162,7 @@ class SavedFilterListCreateTests(TestCase):
         r = c.post(self.url, {"name": "Outsider", "state_json": SIMPLE_STATE}, format="json")
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_create_unauthenticated_returns_401_or_403(self):
+    def test_create_unauthenticated_returns_401(self):
         anon = APIClient()
         r = anon.post(self.url, {"name": "Anon", "state_json": SIMPLE_STATE}, format="json")
         self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -202,7 +202,7 @@ class SavedFilterDeleteTests(TestCase):
         r = self.client.delete(self._delete_url(9999))
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_delete_unauthenticated_returns_401_or_403(self):
+    def test_delete_unauthenticated_returns_401(self):
         sf = SavedFilter.objects.create(
             user=self.user, board=self.board, name="Auth test", state_json=SIMPLE_STATE
         )

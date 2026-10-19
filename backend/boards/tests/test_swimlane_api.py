@@ -98,7 +98,7 @@ class SwimlaneSetCollapsedTests(TestCase):
         r = self.client.patch(self._url(), {"is_collapsed": True}, format="json")
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_unauthenticated_gets_403(self):
+    def test_unauthenticated_gets_401(self):
         r = self.client.patch(self._url(), {"is_collapsed": True}, format="json")
         self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
