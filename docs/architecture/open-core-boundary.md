@@ -23,7 +23,7 @@ The OSS vs enterprise classification for every feature area where the boundary h
 | MCP server (AI agent tool/resource access) | OSS | Core team-automation surface — the tools, resources, and Bearer-token auth a small team needs to let its own AI agents read and act on boards. See [MCP server](#mcp-server-oss-vs-mcp-enterprise-upgrade-enterprise) below | #511 |
 | System-wide compliance audit log | Enterprise | Compliance tooling; card-level history in OSS is sufficient for small teams | #350→enterprise |
 | Hard WIP enforcement | OSS | Core Kanban mechanism; soft-only enforcement does not work | #344 |
-| Outgoing webhooks (per-board, signed, best-effort) | OSS | Minimum integration surface for a team tool; delivered from the change feed with no task queue. Reversed from Enterprise on 2026-04-15 | #863 |
+| Outgoing webhooks (per-board, signed, best-effort) | OSS (planned, not yet implemented; open in #863, milestone 1.3) | Minimum integration surface for a team tool; delivered from the change feed with no task queue. Reversed from Enterprise on 2026-04-15 | #863 |
 | Webhook operations layer (guaranteed delivery, delivery log + replay, account-wide subscriptions, delivery audit) | Enterprise | Reliability and support tooling for hosted and large operators; basic webhooks work without it | enterprise #44 |
 | Saved filters per user per board | OSS | Basic productivity feature for boards with many swimlanes | #343 |
 | Movement history search + filter view | OSS | Teams need to query their own audit trail | #342 |
@@ -114,17 +114,17 @@ A compliance audit log records board lifecycle events (created, deleted, archive
 
 > **Reconciling with `AdminActionLog` / `BoardExportLog` (#1248).** "Admin actions" in the paragraph above describes the enterprise product's *configurable, system-wide* scope, not a rule that any record of an admin action belongs in enterprise. The two OSS tables above are deliberately narrow — a closed set of control-plane toggles, and board exports, respectively — with no retention configuration and no SIEM export; that narrowness, not the mere existence of an admin-action record, is what keeps them in OSS. If either table ever grows configurable retention, arbitrary diffing, or SIEM export, revisit this ruling — until then they are the OSS side of the split this section describes, not candidates for it.
 
-**OSS extension points required** (before the enterprise audit log can be built):
+**OSS extension points required** (before the enterprise audit log can be built; none of the signals or the setting below exist in `boards/signals.py` or settings yet):
 
 ```python
-# boards/signals.py — OSS fires these; enterprise subscribes
+# boards/signals.py — PLANNED, not yet implemented. OSS is to fire these; enterprise subscribes
 post_board_created    # sender=Board, kwargs: board, actor
 post_board_deleted    # sender=Board, kwargs: board_id, name, actor
 post_member_added     # sender=BoardMembership, kwargs: board, user, role, actor
 post_member_removed   # sender=BoardMembership, kwargs: board, user, actor
 ```
 
-A `VISIBAN_AUDIT_BACKEND` setting (defaulting to `NullAuditBackend`) must be defined in OSS settings so enterprise can register its audit recorder without modifying OSS files.
+A `VISIBAN_AUDIT_BACKEND` setting (defaulting to `NullAuditBackend`) is planned and not yet implemented; it must be defined in OSS settings so enterprise can register its audit recorder without modifying OSS files.
 
 **Issue:** OSS extension points tracked in #350 (transferred to enterprise repo; OSS signal work tracked separately).
 
@@ -144,7 +144,7 @@ The board setting `enforce_wip_hard` (boolean, default `false`) toggles between 
 
 The board-level movement history view — filterable by swimlane, column, date range, and assignee — is OSS. Without it, teams cannot query their own audit trail.
 
-Structured delivery report export (CSV/PDF, formatted for client or QBR presentation) is enterprise. The OSS view must expose a `movement_history_export` signal/hook so enterprise can attach export formatters without modifying OSS view code.
+Structured delivery report export (CSV/PDF, formatted for client or QBR presentation) is enterprise. The OSS view exposes the `MOVEMENT_EXPORT_BACKENDS` hook list (`boards/hooks.py`) so enterprise can attach export formatters without modifying OSS view code.
 
 **Issue:** #342
 
@@ -156,13 +156,15 @@ Basic per-swimlane analytics — cards in flight, average cycle time, cards move
 
 Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.
 
-The OSS analytics page must expose an `ANALYTICS_EXTENSIONS` registration point so enterprise can add panels without modifying OSS view files.
+The OSS analytics summary exposes an `ANALYTICS_EXTENSIONS` registration point (`boards/hooks.py`) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in `extension_panels`, but the frontend has no renderer for that field yet.
 
 **Issue:** #341
 
 ---
 
 ### Outgoing webhooks (OSS) vs webhook operations (Enterprise)
+
+> **Status.** The OSS ruling is decided, but the feature is **planned and not yet implemented**: #863 is open on the 1.3 milestone and no webhook model, view, or dispatch command exists in the codebase.
 
 Basic outgoing webhooks are OSS: per-board subscriptions, HMAC-signed, delivered in order from the [board change feed](../api/events.md) by a scheduled command, with best-effort retry. This reverses the original Enterprise ruling. On 2026-04-15 enterprise #39 was closed in favor of an OSS implementation (#740, consolidated into #863 on 2026-09-14). Webhooks are the minimum integration surface a team tool is evaluated on, and self-hosted alternatives commonly ship them free.
 
@@ -171,7 +173,7 @@ The operations layer is Enterprise: guaranteed delivery on a durable queue, a de
 **OSS extension points:**
 
 - **The change feed** (#1114, shipped in 1.2) is the delivery source. It is durable, ordered, and replayable by cursor, and it covers every board event type. The Enterprise dispatcher reads it exactly as the OSS one does.
-- **`BOARD_EVENT_HOOKS`** (`boards/hooks.py`, planned in #863) is a list-append hook called on commit from `record_board_event()` with `(board_id, event_type, event_id)`. It is a nudge only ("check the feed now"), so a missed call self-heals from the cursor.
+- **`BOARD_EVENT_HOOKS`** (`boards/hooks.py`; **planned, not yet implemented**, tracked in #863) will be a list-append hook called on commit from `record_board_event()` with `(board_id, event_type, event_id)`. It is a nudge only ("check the feed now"), so a missed call self-heals from the cursor.
 
 The earlier design, `post_card_created/moved/closed/updated` signals plus a `VISIBAN_WEBHOOK_BACKEND` setting, is **superseded and will not be built**. The change feed covers far more than four card events. For in-process card lifecycle reactions (such as automation), use `CARD_MUTATION_HOOKS`.
 
@@ -239,7 +241,7 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `PENDING_ACTION_EXTRA_GATED_PREFIXES` setting (`visiban/settings.py`) | Extension packages that mount their own session-based HTML pages (for example `/sso/`) | ✅ Implemented — #1551. **Stable.** Tuple of path prefixes, each with a leading and trailing slash, that `PendingAccountActionMiddleware` gates like `/accounts/` and `/admin/`. Default `()`. Validated by `accounts.E004`. See [Authorization entry points](../development/authorization-entry-points.md) |
 | `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` setting (`visiban/settings.py`) | Extension views a user with a pending forced change must still reach (for example an SSO callback) | ✅ Implemented — #1561. **Stable.** Tuple of exact resolved view names; each must meet the admission rule in [Authorization entry points](../development/authorization-entry-points.md). Default `()`. Validated by `accounts.E006`; a name that resolves to an OSS-gated view is rejected by `accounts.E007` and ignored at runtime |
 | `TicketAuthMiddleware` (`accounts/ws_auth.py`) | WebSocket routing, including `enterprise.routing.enterprise_websocket_urlpatterns` | ✅ Implemented. **Stable.** Authenticates a WebSocket upgrade from a `?ticket=` parameter. Must be nested *inside* `AuthMiddlewareStack` (`AuthMiddlewareStack(TicketAuthMiddleware(URLRouter(...)))`); see its docstring for why, and [WebSockets](../api/websockets.md) for the handshake |
-| `accounts.E001`–`E007` and `accounts.W001` system checks (`accounts/checks.py`) | Startup guard rails for the extension surface above | ✅ Implemented. **Stable IDs.** `E001` reset-token generator lost the address binding (#1337), `E002` allauth by-code password reset enabled (#1314, #1337), `W001` session engine cannot support WebSocket credential revocation (#1483), `E003` `FRONTEND_URL` under a gated path (#1551), `E004` malformed `PENDING_ACTION_EXTRA_GATED_PREFIXES` entry, `E005` pending-action middleware missing from `MIDDLEWARE` or placed before `AuthenticationMiddleware` (#1561), `E006` malformed `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` entry, `E007` exempt view that is OSS-gated (#1589, #1593). IDs are never reused or renumbered, so `SILENCED_SYSTEM_CHECKS` entries keep working |
+| `accounts.E001`–`E008` and `accounts.W001`–`W002` system checks (`accounts/checks.py`) | Startup guard rails for the extension surface above | ✅ Implemented. **Stable IDs.** `E001` reset-token generator lost the address binding (#1337), `E002` allauth by-code password reset enabled (#1314, #1337), `W001` session engine cannot support WebSocket credential revocation (#1483), `E003` `FRONTEND_URL` under a gated path (#1551), `E004` malformed `PENDING_ACTION_EXTRA_GATED_PREFIXES` entry, `E005` pending-action middleware missing from `MIDDLEWARE` or placed before `AuthenticationMiddleware` (#1561), `E006` malformed `PENDING_ACTION_EXTRA_EXEMPT_VIEWS` entry, `E007` exempt view that is OSS-gated (#1589, #1593), `E008` `changepassword` command no longer provided by `operator_commands` ([security invariants](../development/security-invariants.md) Rule 3), `W002` `ALLOWED_HOSTS` contains a wildcard entry (#1697). IDs are never reused or renumbered, so `SILENCED_SYSTEM_CHECKS` entries keep working |
 | Enterprise WebSocket routing extension point (`enterprise.routing.enterprise_websocket_urlpatterns`) | All enterprise WebSocket URL registrations | ✅ Implemented — `visiban/asgi.py`, mirrors the HTTP URL extension point above; silently skipped (`ImportError`) when the enterprise package is not installed (#1009) |
 | `post_board_created/deleted/member_added/removed` signals | Enterprise audit log (enterprise #28) | Not yet implemented |
 | `VISIBAN_AUDIT_BACKEND` setting | Enterprise audit log | Not yet implemented |
@@ -250,7 +252,7 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `BOARD_EVENT_HOOKS` list (`boards/hooks.py`) | Enterprise webhook operations (enterprise #44) — wake signal for a queue-backed dispatcher | Not yet implemented — planned in #863 |
 | `VISIBAN_AUTOMATION_BACKEND` setting | Enterprise automation (enterprise #69) | Not yet implemented |
 | `MOVEMENT_EXPORT_BACKENDS` list (`boards/hooks.py`) | Enterprise delivery report export (#342 enterprise) | ✅ Implemented — `boards/hooks.py` |
-| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | ✅ Implemented — `boards/hooks.py` |
+| `ANALYTICS_EXTENSIONS` list (`boards/hooks.py`) | Enterprise advanced analytics (#341 enterprise) | Backend only — `boards/hooks.py`, consumed by `boards/views/analytics.py` into the summary's `extension_panels`. The frontend does not read `extension_panels` yet (no hits in `frontend/src`); a renderer is pending, so registered panels are not displayed |
 | `TEMPLATE_PROVIDERS` list (`boards/hooks.py`) | External board-template registration by installed packages (#1115; tracked further in #504) | ✅ Implemented — `boards/hooks.py` + `boards/template_sync.py`, synced via `post_migrate` in `BoardsConfig.ready()` |
 | `CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **card** values (#371) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary |
 | `SWIMLANE_CUSTOM_FIELD_VALIDATORS` list (`boards/hooks.py`) | Enterprise per-type custom field validators, **swimlane row** values (#1140) | ✅ Implemented — `boards/hooks.py`, applied at the serializer boundary. A separate list from the card one, not a widening of it: a validator registered against the card signature may read card-only attributes, so feeding it a swimlane definition could raise. A validator that is generic across both levels registers in both lists. |
