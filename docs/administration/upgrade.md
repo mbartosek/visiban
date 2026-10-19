@@ -316,6 +316,41 @@ After rolling back, restart the backend container with the previous image versio
     is not a member. See [Security Invariants](../development/security-invariants.md)
     (Rules 5 and 7) (#1670).
 
+!!! warning "Group and board placement now require group admin; emailed invites are bound to an address"
+    - **Group create with a `parent` you do not administer** (`POST /api/v1/groups/`) now
+      returns `400` with a `parent` error instead of `403`; an unknown parent id returns the
+      same `400`. Changing `parent` on `PATCH`/`PUT /api/v1/groups/{id}/` and setting `group`
+      on a board follow the same rule: admin of the target group is required, and an unknown
+      group and an unauthorized one get the same `400`.
+    - **Moving or importing a board into a group now requires group admin**, matching board
+      creation in a group. A group the caller cannot see (or that does not exist) returns
+      `404`; a visible group the caller does not administer returns `403`. Site admins with
+      all-content access may still move boards into groups without a membership.
+    - **Emailed invites are bound to the address they were sent to.** Redeeming one requires
+      an account with that address (under `EMAIL_VERIFICATION=mandatory`, a verified one); a
+      mismatch is refused with `invite_recipient_mismatch` and the invite stays unused.
+      Shareable invite links and emailed invites sent before upgrading are unchanged.
+
+    **Check any script or integration** that treats `403` as the answer for an unadministered
+    `parent` group (now `400`), or that moves or imports boards into groups without being an
+    admin of them (now `403` for a visible group, `404` for one the caller cannot see) (#1678,
+    #1703).
+
+!!! note "Secrets are read verbatim — a leading `$` is no longer a variable reference"
+    `DJANGO_SECRET_KEY`, OAuth/OIDC client IDs and secrets, `EMAIL_HOST_PASSWORD`,
+    `VISIBAN_SECRET_ENCRYPTION_KEY`, `DEMO_ADMIN_PASSWORD`, and `DEMO_MEMBER_PASSWORD` are now
+    used exactly as written. Before 1.2, a value starting with `$` was treated as a reference
+    to another environment variable and silently replaced by that variable's value (or an
+    empty string). If you relied on that substitution, set the real value instead; a secret
+    that merely starts with `$` now works as written (#1362). See
+    [Configuration](configuration.md#docker-compose).
+
+!!! note "New `DEMO_*` variables are opt-in"
+    1.2 adds demo mode (`DEMO_MODE`, `DEMO_LOGIN_USERNAME`, `DEMO_RESET_SCHEDULE`, and
+    related variables). `DEMO_MODE` defaults to `false`, so existing installs are unchanged
+    and need no action. Never enable it on an instance with real data. See
+    [Demo mode](configuration.md#demo-mode).
+
 !!! warning "Edits to seeded system board templates are overwritten"
     `boards/0054` (#1115) rewrites `columns_json` for the built-in system templates, matched by
     slug, to correct drift in `project_delivery` and `legal_compliance` and to add `is_done`
@@ -466,6 +501,11 @@ touched — so it is zero-downtime and requires no operator action.
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.
+      The MCP server is also **off by default**: `/mcp` returns `404` until an operator sets
+      `MCP_SERVER_ENABLED=true` on the backend. Request throttles are tunable with
+      `MCP_THROTTLE_READ_RATE` (default `300/min`), `MCP_THROTTLE_COMPUTE_RATE` (default
+      `30/min`), and `MCP_THROTTLE_PREAUTH_RATE` (default `30/min`). See the
+      [MCP server guide](../features/mcp-server.md).
     - **New tokens default to `["read", "write"]`** when `POST /api/v1/auth/tokens/` is
       called without a `scopes` list — previously a newly created token silently carried
       its owner's full authority, including `admin` for a site administrator. Any script or
