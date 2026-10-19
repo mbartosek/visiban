@@ -9,6 +9,10 @@ id = "GHSA-8pqf-f4m5-798g"
 # as last_affected), so there is nothing to bump. twisted is a transitive
 # of daphne; Visiban never imports twisted.mail or serves IMAP, so the
 # vulnerable function is unreachable. Re-check PyPI for a fixed twisted
-# release and remove this entry when one lands (tracked in #1685).
-ignoreUntil = 2026-11-30
+# release and remove this entry when one lands (tracked in #1685, closed;
+# expiry now tracked in #1751).
+# Re-checked 2026-10-19 (#1751): PyPI still shows 26.4.0 (2026-05-11) as the
+# newest twisted and OSV still lists no fixed version, so the ignore is
+# extended to 2027-01-31 (about one quarter). Re-check before it expires.
+ignoreUntil = 2027-01-31
 reason = "No fixed twisted release exists; IMAP-only code path (twisted.mail) that Visiban never loads"
