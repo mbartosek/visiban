@@ -4708,6 +4708,7 @@
 <h2 id="boards">Boards<a class="headerlink" href="#boards" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1groupsidboards"><code>GET /api/v1/groups/{id}/boards/</code><a class="headerlink" href="#get-apiv1groupsidboards" title="Permanent link">&para;</a></h3>
 <p>List boards in this group. Requires group membership.</p>
+<p>Pass <code>?expand=group</code> to populate <code>group_detail</code> on each board (see <a href="../#expanding-foreign-key-fields">Expanding foreign-key fields</a>). <em>(1.2+)</em> The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).</p>
 <h3 id="post-apiv1groupsidboards"><code>POST /api/v1/groups/{id}/boards/</code><a class="headerlink" href="#post-apiv1groupsidboards" title="Permanent link">&para;</a></h3>
 <p>Create a board in this group. Requires group admin. Boards created here inherit the group's <code>shared_labels</code> and <code>allowed_priorities</code> automatically. The seeded <code>allowed_priorities</code> value is not enforced on cards (see <a href="../../architecture/field-enforcement/">Field Enforcement</a>).</p>
 <p><em>(1.2+)</em> A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1638).</p>

@@ -4149,6 +4149,13 @@ family stays uniform; no other resource gains a new <code>*_username</code> fiel
 <td><code>group_detail: null</code></td>
 <td><code>group_detail: { id, name, parent, parent_name, ancestors }</code></td>
 </tr>
+<tr>
+<td><code>GET /groups/&lt;id&gt;/boards/</code></td>
+<td><code>group</code></td>
+<td><code>?expand=group</code></td>
+<td><code>group_detail: null</code></td>
+<td><code>group_detail: { id, name, parent, parent_name, ancestors }</code></td>
+</tr>
 </tbody>
 </table>
 <p>Multiple expansions may be combined with a comma, e.g. <code>?expand=group,members</code>. Unknown values are silently ignored. The original FK id fields (<code>group</code>, <code>group_name</code>) always remain in the response for backward compatibility.</p>
