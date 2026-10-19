@@ -1386,6 +1386,7 @@
    "reason": "verified doc-only vs v1.1.0 runtime (#1695): v1.1.0 labels POST validated and returned GroupLabelSerializer {id, name, color} with 201; the baseline documented GroupSerializer with 200"
   },
   {
+<<<<<<< HEAD
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/auth/password/change/ application/json",
    "issue": "#1695",
    "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, tracked in #1781; when #1781 lands these 3 entries are replaced by 3 NEW_REQUIRED_REQUEST_FIELD .old_password entries under #1257 in the same MR)"
@@ -1399,6 +1400,21 @@
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/auth/password/change/ multipart/form-data",
    "issue": "#1695",
    "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, tracked in #1781; when #1781 lands these 3 entries are replaced by 3 NEW_REQUIRED_REQUEST_FIELD .old_password entries under #1257 in the same MR)"
+=======
+   "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/auth/password/change/ request application/json .old_password",
+   "issue": "#1257",
+   "reason": "old_password became required on this endpoint (security fix #1257; documented in docs/api/authentication.md and the 1.2 upgrade notes); the v1.1.0 baseline predates it, and the body was missing from the schema until #1781"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/auth/password/change/ request application/x-www-form-urlencoded .old_password",
+   "issue": "#1257",
+   "reason": "old_password became required on this endpoint (security fix #1257; documented in docs/api/authentication.md and the 1.2 upgrade notes); the v1.1.0 baseline predates it, and the body was missing from the schema until #1781"
+  },
+  {
+   "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/auth/password/change/ request multipart/form-data .old_password",
+   "issue": "#1257",
+   "reason": "old_password became required on this endpoint (security fix #1257; documented in docs/api/authentication.md and the 1.2 upgrade notes); the v1.1.0 baseline predates it, and the body was missing from the schema until #1781"
+>>>>>>> 3263e9e4d (fix(api): document password/change request body in OpenAPI schema (#1781))
   },
   {
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/boards/{board_pk}/cards/{id}/attachments/ application/json",

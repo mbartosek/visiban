@@ -388,7 +388,16 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
         self.old_password_field_enabled = True
         if "old_password" not in self.fields:
             self.fields["old_password"] = serializers.CharField(max_length=128)
-        if self.user is not None and not self.user.has_usable_password():
+        # #1781: drf-spectacular instantiates the serializer with the view's
+        # AnonymousUser, which has no has_usable_password(). Without this guard
+        # schema generation dropped the whole request body, hiding the required
+        # old_password (#1257) from the OpenAPI contract. An anonymous/absent
+        # user keeps the field required, which is the documented contract.
+        if (
+            self.user is not None
+            and hasattr(self.user, "has_usable_password")
+            and not self.user.has_usable_password()
+        ):
             self.fields["old_password"].required = False
             self.fields["old_password"].allow_blank = True
 
