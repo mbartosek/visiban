@@ -271,7 +271,7 @@ Select multiple cards by clicking the checkbox that appears in the top-right cor
 
 Press **Escape** or click the **×** button to clear the selection. Selection is also cleared when starting a drag or opening a card detail panel. Bulk operations are only available to users with the **member** role or above.
 
-Each bulk action calls the existing individual card API endpoints, so partial failures are handled gracefully. Assign, Priority, Archive, and Delete fire their requests concurrently via `Promise.allSettled`; **Move to...** runs sequentially instead, to avoid database deadlocks from concurrent position-reorder transactions.
+Each bulk action calls the existing individual card API endpoints, so each card succeeds or fails on its own. When some cards fail, a message in the toolbar says how many failed and why, and the selection stays so you can retry the action; this applies to Move, Assign, Priority, Archive, and Delete. Assign, Priority, Archive, and Delete fire their requests concurrently via `Promise.allSettled`; **Move to...** runs sequentially instead, to avoid database deadlocks from concurrent position-reorder transactions.
 
 ## Right-click to add
 

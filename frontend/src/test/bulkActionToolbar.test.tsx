@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import BulkActionToolbar from '../components/Board/BulkActionToolbar'
-import type { BoardFull } from '../types'
+import type { BoardFull, Card } from '../types'
 
 vi.mock('../api/cards', () => ({
   moveCard: vi.fn(),
@@ -726,3 +726,162 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 })
+
+describe('BulkActionToolbar — partial failure reporting (#1733)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  const renderToolbar = (over: object = {}) => {
+    const props = { onCardsUpdated: vi.fn<(cards: Card[]) => void>(), onClearSelection: vi.fn<() => void>(), ...over }
+    render(
+      <BulkActionToolbar
+        board={makeBoard()}
+        selectedCardIds={new Set([100, 101])}
+        onCardsUpdated={props.onCardsUpdated}
+        onCardsDeleted={vi.fn()}
+        onCardsArchived={vi.fn()}
+        onClearSelection={props.onClearSelection}
+      />
+    )
+    return props
+  }
+
+  const axiosErr = (status: number, data: unknown = {}) =>
+    Object.assign(new Error('x'), { isAxiosError: true, response: { status, data } })
+
+  it('assign partial failure keeps selection, applies fulfilled, shows error', async () => {
+    const user = userEvent.setup()
+    const ok = { ...makeBoard().cards[0], assignee: makeBoard().members[0].user }
+    mockUpdateCard.mockResolvedValueOnce(ok).mockRejectedValueOnce(axiosErr(403))
+    const { onCardsUpdated, onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Assign to...'))
+    await user.click(screen.getByText('Jane Doe'))
+    expect(await screen.findByText(/1 of 2 cards could not be assigned — you do not have permission/)).toBeInTheDocument()
+    expect(onCardsUpdated).toHaveBeenCalledWith([ok])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('priority partial failure keeps selection and reports a network error', async () => {
+    const user = userEvent.setup()
+    const ok = { ...makeBoard().cards[0], priority: 'high' }
+    mockUpdateCard.mockResolvedValueOnce(ok).mockRejectedValueOnce(new Error('Network Error'))
+    const { onCardsUpdated, onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    expect(await screen.findByText(/1 of 2 cards could not be updated — a network error occurred/)).toBeInTheDocument()
+    expect(onCardsUpdated).toHaveBeenCalledWith([ok])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('mixed failure reasons are reported as such', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockRejectedValueOnce(axiosErr(404)).mockRejectedValueOnce(axiosErr(500))
+    renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    expect(await screen.findByText(/2 of 2 cards could not be updated — for more than one reason/)).toBeInTheDocument()
+  })
+
+  it('priority clears selection when all succeed', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockResolvedValue(makeBoard().cards[0])
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    await waitFor(() => expect(onClearSelection).toHaveBeenCalled())
+    expect(screen.queryByText(/could not be/)).not.toBeInTheDocument()
+  })
+
+  it('assign clears selection when all succeed', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockResolvedValue(makeBoard().cards[0])
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Assign to...'))
+    await user.click(screen.getByText('Jane Doe'))
+    await waitFor(() => expect(onClearSelection).toHaveBeenCalled())
+    expect(screen.queryByText(/could not be/)).not.toBeInTheDocument()
+  })
+
+  it('move failure that is not a limit does not blame WIP', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(409, { code: 'version_conflict' }))
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/2 of 2 cards could not be moved — someone else changed a card/)).toBeInTheDocument()
+    expect(screen.queryByText(/limit/)).not.toBeInTheDocument()
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('move failure from a WIP limit names the column limit', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(409, { code: 'wip_limit_exceeded' }))
+    renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/could not be moved — a column limit was reached/)).toBeInTheDocument()
+  })
+
+  it('move failure with no response reports a network error', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(new Error('Network Error'))
+    renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/could not be moved — a network error occurred/)).toBeInTheDocument()
+  })
+
+  it('reports failures inside a persistent polite live region', async () => {
+    const user = userEvent.setup()
+    renderToolbar()
+    const region = screen.getByRole('status')
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    expect(region).toHaveAttribute('aria-atomic', 'true')
+    expect(region).toBeEmptyDOMElement()
+    mockUpdateCard.mockRejectedValue(axiosErr(500))
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    await waitFor(() => expect(screen.getByRole('status')).toBe(region))
+    expect(region).toHaveTextContent('2 of 2 cards could not be updated — something went wrong.')
+  })
+
+  it('uses singular noun and number-neutral reason for one card', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(404))
+    render(
+      <BulkActionToolbar board={makeBoard()} selectedCardIds={new Set([100])} onCardsUpdated={vi.fn()}
+        onCardsDeleted={vi.fn()} onCardsArchived={vi.fn()} onClearSelection={vi.fn()} />
+    )
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText('1 of 1 card could not be moved — not found.')).toBeInTheDocument()
+  })
+
+  it('archive keeps the ownership reason only for 403 and names others honestly', async () => {
+    const user = userEvent.setup()
+    mockArchiveCard.mockRejectedValueOnce(axiosErr(403)).mockRejectedValueOnce(axiosErr(403))
+    renderToolbar()
+    await user.click(screen.getByText('Archive'))
+    expect(await screen.findByText(/2 of 2 cards could not be archived — you can only archive cards you created\./)).toBeInTheDocument()
+    mockArchiveCard.mockRejectedValue(new Error('Network Error'))
+    await user.click(screen.getByText('Archive'))
+    expect(await screen.findByText(/could not be archived — a network error occurred/)).toBeInTheDocument()
+  })
+
+  it('delete partial failure keeps selection and uses the 403 ownership reason', async () => {
+    const user = userEvent.setup()
+    mockDeleteCard.mockResolvedValueOnce(undefined).mockRejectedValueOnce(axiosErr(403))
+    const onCardsDeleted = vi.fn()
+    const onClearSelection = vi.fn()
+    render(
+      <BulkActionToolbar board={makeBoard()} selectedCardIds={new Set([100, 101])} onCardsUpdated={vi.fn()}
+        onCardsDeleted={onCardsDeleted} onCardsArchived={vi.fn()} onClearSelection={onClearSelection} />
+    )
+    await user.click(screen.getByText('Delete'))
+    const deleteButtons = screen.getAllByText('Delete')
+    await user.click(deleteButtons[deleteButtons.length - 1])
+    expect(await screen.findByText(/1 of 2 cards could not be deleted — you can only delete cards you created\./)).toBeInTheDocument()
+    expect(onCardsDeleted).toHaveBeenCalledWith([100])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+})
+
