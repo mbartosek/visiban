@@ -111,19 +111,29 @@ the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, a
   fields or statuses was ever on the wire.
 - **4 entries under `#1302` are a real, deliberate runtime change**, already announced in
   `CHANGELOG.md`: `columns/reorder/` and `swimlanes/reorder/` used to treat a missing `order` as
-  a `200` no-op and now answer `400` unless `order` is the board's full ID list.
+  a `200` no-op and now answer `400` unless `order` is the board's full ID list. The
+  upgrade-guide note for this is tracked in #1782.
 - **3 `REMOVED_REQUEST_MEDIA_TYPE` entries on `POST /auth/password/change/` are a HEAD
-  schema defect, not a removal.** The endpoint still accepts JSON, form, and multipart bodies,
-  but HEAD's schema has no request body at all, because `VisibanPasswordChangeSerializer.__init__`
-  calls `has_usable_password()` on `AnonymousUser` during schema generation. When that is
-  fixed, these three entries go stale, and the gate reports `old_password` as a new required
-  field. That field is the deliberate `#1257` security break and needs its own entry then.
+  schema defect, not a removal** (#1781). The endpoint still accepts JSON, form, and multipart
+  bodies, but HEAD's schema has no request body at all, because
+  `VisibanPasswordChangeSerializer.__init__` calls `has_usable_password()` on `AnonymousUser`
+  during schema generation. When #1781 is fixed, the gate stops reporting these three findings
+  and instead reports `old_password` as a new required request field, which is the deliberate
+  `#1257` security break. The MR that fixes #1781 replaces the three `REMOVED_REQUEST_MEDIA_TYPE`
+  entries with three `NEW_REQUIRED_REQUEST_FIELD ... .old_password` entries under `#1257`. This
+  is the one stated exception to the no-additions rule below.
 
 These entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
-break. The list empties when the next GA tag regenerates the baseline from a corrected schema
-(see below). Until then, entries are only ever deleted (when one goes stale) or re-justified,
-never added.
+break. Entries are only ever deleted (when one goes stale) or re-justified, never added,
+except for the #1781 replacement described above.
+
+The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
+as the new baseline. Several hand-written actions still document a fallback serializer today,
+for example `POST groups/{id}/star/`, `PATCH groups/{id}/members/{user_id}/`, and analytics
+actions. Those errors would be carried into the next baseline and produce the same kind of drift
+against the following release. Fixing them is tracked in #1783 and should land before the
+baseline is rolled.
 
 ## Running it locally
 

@@ -38,7 +38,7 @@
   {
    "key": "NEW_REQUIRED_REQUEST_BODY POST /api/v1/boards/{board_pk}/swimlanes/reorder/",
    "issue": "#1302",
-   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise"
+   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise; upgrade-note follow-up tracked in #1782"
   },
   {
    "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/boards/{board_pk}/cards/{id}/attachments/ request multipart/form-data .file",
@@ -108,17 +108,17 @@
   {
    "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/boards/{board_pk}/columns/reorder/ request application/json .order",
    "issue": "#1302",
-   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise"
+   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise; upgrade-note follow-up tracked in #1782"
   },
   {
    "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/boards/{board_pk}/columns/reorder/ request application/x-www-form-urlencoded .order",
    "issue": "#1302",
-   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise"
+   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise; upgrade-note follow-up tracked in #1782"
   },
   {
    "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/boards/{board_pk}/columns/reorder/ request multipart/form-data .order",
    "issue": "#1302",
-   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise"
+   "reason": "deliberate 1.2 behavior change, documented in CHANGELOG (#1302), not schema drift: v1.1.0 defaulted a missing `order` to [] and answered 200 as a no-op; 1.2 requires `order` to be exactly the board's full ID list and answers 400 otherwise; upgrade-note follow-up tracked in #1782"
   },
   {
    "key": "NEW_REQUIRED_REQUEST_FIELD POST /api/v1/boards/{id}/members/ request application/json .user_id",
@@ -1388,17 +1388,17 @@
   {
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/auth/password/change/ application/json",
    "issue": "#1695",
-   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, reported for a separate fix)"
+   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, tracked in #1781; when #1781 lands these 3 entries are replaced by 3 NEW_REQUIRED_REQUEST_FIELD .old_password entries under #1257 in the same MR)"
   },
   {
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/auth/password/change/ application/x-www-form-urlencoded",
    "issue": "#1695",
-   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, reported for a separate fix)"
+   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, tracked in #1781; when #1781 lands these 3 entries are replaced by 3 NEW_REQUIRED_REQUEST_FIELD .old_password entries under #1257 in the same MR)"
   },
   {
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/auth/password/change/ multipart/form-data",
    "issue": "#1695",
-   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, reported for a separate fix)"
+   "reason": "verified not a runtime change (#1695): v1.1.0 and HEAD both serve dj-rest-auth PasswordChangeView with DRF's default JSON/form/multipart parsers. HEAD's schema omits the request body because VisibanPasswordChangeSerializer.__init__ calls has_usable_password() on AnonymousUser during schema generation (HEAD documentation defect, tracked in #1781; when #1781 lands these 3 entries are replaced by 3 NEW_REQUIRED_REQUEST_FIELD .old_password entries under #1257 in the same MR)"
   },
   {
    "key": "REMOVED_REQUEST_MEDIA_TYPE POST /api/v1/boards/{board_pk}/cards/{id}/attachments/ application/json",
