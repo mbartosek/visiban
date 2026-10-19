@@ -3771,41 +3771,8 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#upgrading-to-11x" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Upgrading to 1.1.x
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#upgrading-to-100" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Upgrading to 1.0.0
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#checking-migration-status" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Checking migration status
-      
-    </span>
-  </a>
   
 </li>
       
@@ -4495,6 +4462,45 @@ is not a member. See <a href="../../development/security-invariants/">Security I
 (Rules 5 and 7) (#1670).</p>
 </div>
 <div class="admonition warning">
+<p class="admonition-title">Group and board placement now require group admin; emailed invites are bound to an address</p>
+<ul>
+<li><strong>Group create with a <code>parent</code> you do not administer</strong> (<code>POST /api/v1/groups/</code>) now
+  returns <code>400</code> with a <code>parent</code> error instead of <code>403</code>; an unknown parent id returns the
+  same <code>400</code>. Changing <code>parent</code> on <code>PATCH</code>/<code>PUT /api/v1/groups/{id}/</code> and setting <code>group</code>
+  on a board follow the same rule: admin of the target group is required, and an unknown
+  group and an unauthorized one get the same <code>400</code>.</li>
+<li><strong>Moving or importing a board into a group now requires group admin</strong>, matching board
+  creation in a group. A group the caller cannot see (or that does not exist) returns
+  <code>404</code>; a visible group the caller does not administer returns <code>403</code>. Site admins with
+  all-content access may still move boards into groups without a membership.</li>
+<li><strong>Emailed invites are bound to the address they were sent to.</strong> Redeeming one requires
+  an account with that address (under <code>EMAIL_VERIFICATION=mandatory</code>, a verified one); a
+  mismatch is refused with <code>invite_recipient_mismatch</code> and the invite stays unused.
+  Shareable invite links and emailed invites sent before upgrading are unchanged.</li>
+</ul>
+<p><strong>Check any script or integration</strong> that treats <code>403</code> as the answer for an unadministered
+<code>parent</code> group (now <code>400</code>), or that moves or imports boards into groups without being an
+admin of them (now <code>403</code> for a visible group, <code>404</code> for one the caller cannot see) (#1678,</p>
+<h1 id="1703">1703).<a class="headerlink" href="#1703" title="Permanent link">&para;</a></h1>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Secrets are read verbatim — a leading <code>$</code> is no longer a variable reference</p>
+<p><code>DJANGO_SECRET_KEY</code>, OAuth/OIDC client IDs and secrets, <code>EMAIL_HOST_PASSWORD</code>,
+<code>VISIBAN_SECRET_ENCRYPTION_KEY</code>, <code>DEMO_ADMIN_PASSWORD</code>, and <code>DEMO_MEMBER_PASSWORD</code> are now
+used exactly as written. Before 1.2, a value starting with <code>$</code> was treated as a reference
+to another environment variable and silently replaced by that variable's value (or an
+empty string). If you relied on that substitution, set the real value instead; a secret
+that merely starts with <code>$</code> now works as written (#1362). See
+<a href="../configuration/#docker-compose">Configuration</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">New <code>DEMO_*</code> variables are opt-in</p>
+<p>1.2 adds demo mode (<code>DEMO_MODE</code>, <code>DEMO_LOGIN_USERNAME</code>, <code>DEMO_RESET_SCHEDULE</code>, and
+related variables). <code>DEMO_MODE</code> defaults to <code>false</code>, so existing installs are unchanged
+and need no action. Never enable it on an instance with real data. See
+<a href="../configuration/#demo-mode">Demo mode</a>.</p>
+</div>
+<div class="admonition warning">
 <p class="admonition-title">Edits to seeded system board templates are overwritten</p>
 <p><code>boards/0054</code> (#1115) rewrites <code>columns_json</code> for the built-in system templates, matched by
 slug, to correct drift in <code>project_delivery</code> and <code>legal_compliance</code> and to add <code>is_done</code>
@@ -4648,7 +4654,12 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   unaffected (see <a href="../authentication/#connected-accounts-and-email-collisions">Connected accounts</a>).</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
   scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
-  upgrade — create a new token with <code>mcp:read</code> to reconnect it.</li>
+  upgrade — create a new token with <code>mcp:read</code> to reconnect it.
+  The MCP server is also <strong>off by default</strong>: <code>/mcp</code> returns <code>404</code> until an operator sets
+  <code>MCP_SERVER_ENABLED=true</code> on the backend. Request throttles are tunable with
+  <code>MCP_THROTTLE_READ_RATE</code> (default <code>300/min</code>), <code>MCP_THROTTLE_COMPUTE_RATE</code> (default
+  <code>30/min</code>), and <code>MCP_THROTTLE_PREAUTH_RATE</code> (default <code>30/min</code>). See the
+  <a href="../../features/mcp-server/">MCP server guide</a>.</li>
 <li><strong>New tokens default to <code>["read", "write"]</code></strong> when <code>POST /api/v1/auth/tokens/</code> is
   called without a <code>scopes</code> list — previously a newly created token silently carried
   its owner's full authority, including <code>admin</code> for a site administrator. Any script or
