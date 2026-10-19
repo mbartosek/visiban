@@ -311,7 +311,10 @@ def build_mcp_server():
         description=(
             "List a board's cards, optionally filtered by column_id, swimlane_id, assignee "
             "(username), priority, or label (name); include_archived defaults to false. "
-            "Users are identified by username and display_name, matching the REST API."
+            "Users are identified by username and display_name, matching the REST API. "
+            "Returns at most 200 cards: pass include_meta=true to get "
+            "{cards, total, truncated, limit, offset} instead of a bare array, "
+            "and limit (max 200) / offset to page past the cap."
         ),
     )
     @_throttled(compute=True)
@@ -323,11 +326,15 @@ def build_mcp_server():
         priority: str | None = None,
         label: str | None = None,
         include_archived: bool = False,
+        limit: int | None = None,
+        offset: int | None = None,
+        include_meta: bool = False,
     ) -> _TOOL_OUTPUT:
         return await sync_to_async(tools.list_cards, thread_sensitive=True)(
             board_id=board_id, column_id=column_id, swimlane_id=swimlane_id,
             assignee=assignee, priority=priority, label=label,
-            include_archived=include_archived,
+            include_archived=include_archived, limit=limit, offset=offset,
+            include_meta=include_meta,
         )
 
     # ── Resources (#513) — board:// and card://, all board roles ──

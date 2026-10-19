@@ -219,6 +219,93 @@ class ListCardsTests(CrudToolsTestCase):
         self.assertEqual(result, [])
 
 
+class ListCardsPagingTests(CrudToolsTestCase):
+    """#1762: the 200-row cap is detectable and pageable, mirroring REST's #1724."""
+
+    def _seed(self, n):
+        Card.objects.bulk_create([
+            Card(board=self.board, column=self.column, swimlane=self.swimlane,
+                 title=f"C{i}", position=i, created_by=self.user)
+            for i in range(n)
+        ])
+
+    def _raw_call(self, **arguments):
+        status, body = self._tools_call("list_cards", self.raw_token, {"board_id": self.board.id, **arguments})
+        self.assertEqual(status, 200, body)
+        return _parse_sse(body)["result"]
+
+    def test_default_is_bare_array_capped_at_200(self):
+        self._seed(205)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id)
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 200)
+
+    def test_include_meta_reports_total_and_truncated(self):
+        self._seed(205)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual(len(result["cards"]), 200)
+        self.assertEqual(result["total"], 205)
+        self.assertTrue(result["truncated"])
+        self.assertEqual((result["limit"], result["offset"]), (200, 0))
+
+    def test_include_meta_not_truncated_when_complete(self):
+        self._seed(3)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual((result["total"], result["truncated"], len(result["cards"])), (3, False, 3))
+
+    def test_offset_pages_past_the_cap_without_overlap(self):
+        self._seed(205)
+        first = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        second = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=200,
+        )
+        self.assertEqual(len(second["cards"]), 5)
+        self.assertFalse(second["truncated"])
+        ids = [c["id"] for c in first["cards"]] + [c["id"] for c in second["cards"]]
+        self.assertEqual(len(set(ids)), 205)
+
+    def test_limit_is_clamped_to_200(self):
+        self._seed(205)
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=5000,
+        )
+        self.assertEqual((len(result["cards"]), result["limit"]), (200, 200))
+
+    def test_limit_zero_returns_total_only(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=0)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 4, True))
+
+    def test_offset_past_end_is_empty_not_error(self):
+        self._seed(2)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=50)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 2, False))
+
+    def test_total_respects_filters(self):
+        self._seed(3)
+        _make_card(self.other_column, self.swimlane, title="Other")
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True,
+            column_id=self.column.id,
+        )
+        self.assertEqual(result["total"], 3)
+
+    def test_negative_paging_is_a_validation_error(self):
+        for arg in ("limit", "offset"):
+            with self.subTest(arg=arg):
+                result = self._call("list_cards", self.raw_token, board_id=self.board.id, **{arg: -1})
+                self.assertEqual(result["error"]["code"], "validation_error")
+                self.assertIn(arg, result["error"]["errors"])
+
+    def test_oversized_offset_is_a_validation_error(self):
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, offset=2**63)
+        self.assertEqual(result["error"]["code"], "validation_error")
+
+    def test_non_integer_paging_is_rejected_cleanly(self):
+        result = self._raw_call(limit="abc")
+        self.assertTrue(result["isError"])
+
+
 class CreateCardTests(CrudToolsTestCase):
     def test_admin_can_create_card_with_from_column_null_movement(self):
         result = self._call(

@@ -50,6 +50,7 @@ from boards.services.errors import (
 )
 from boards.utils import _get_assignable_member_ids
 from boards.views._helpers import get_accessible_boards_queryset
+from visiban.request_shape import MAX_OFFSET
 
 from .context import get_current_user
 
@@ -578,20 +579,51 @@ def list_swimlanes(*, board_id):
     return _swimlanes_payload(board, role)
 
 
-# Hard cap on list_cards rows, matching CardViewSet.list()'s existing
-# `_LIST_MAX_ROWS` (boards/views/cards.py) — targeted lookups must bound their
-# response the same way REST's do, not return an unbounded payload.
+# Hard cap on list_cards rows, matching CardViewSet.list()'s `_LIST_MAX_ROWS`
+# (boards/views/cards.py) — targeted lookups must bound their response the
+# same way REST's do, not return an unbounded payload. Unlike before #1762 the
+# cap is no longer silent: ``include_meta`` reports ``total``/``truncated`` and
+# ``limit``/``offset`` page past it, mirroring REST's #1724 semantics.
 _LIST_CARDS_MAX_ROWS = 200
 
 
-def _cards_payload(board, *, column_id=None, swimlane_id=None, assignee=None,
-                    priority=None, label=None, include_archived=False):
-    """Build the ``list_cards`` shape for an already-resolved *board*.
+def _parse_paging(limit, offset):
+    """Validate list_cards ``limit``/``offset`` exactly as REST's card list does.
 
-    Split out of ``list_cards`` for the same reuse reason as
-    ``_columns_payload`` — ``board_snapshot`` calls this with no filters
-    (its own contract is "all active cards") without paying a second
-    ``_resolve_board`` query.
+    Strict on purpose (a bad value is a clean ``validation_error``, never a
+    500 or a silently-ignored param): non-integers and negatives are rejected;
+    ``limit`` above the cap is clamped, not rejected, since asking for more
+    than the cap is a reasonable request.
+    """
+    errors = {}
+    values = {}
+    for name, raw, default in (("limit", limit, _LIST_CARDS_MAX_ROWS), ("offset", offset, 0)):
+        if raw is None:
+            values[name] = default
+        # bool is an int subclass; True/False is never a meaningful page size.
+        elif isinstance(raw, bool) or not isinstance(raw, int):
+            errors[name] = ["Must be a non-negative integer."]
+        elif raw < 0:
+            errors[name] = ["Must be a non-negative integer."]
+        elif raw > MAX_OFFSET:
+            errors[name] = ["Must be a valid integer offset."]
+        else:
+            values[name] = raw
+    if errors:
+        raise ValidationFailed(errors)
+    return min(values["limit"], _LIST_CARDS_MAX_ROWS), values["offset"]
+
+
+def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,
+                priority=None, label=None, include_archived=False,
+                limit=_LIST_CARDS_MAX_ROWS, offset=0):
+    """Return ``(rows, total)`` for an already-resolved *board*.
+
+    ``total`` counts every matching card ignoring ``limit``/``offset`` so a
+    caller can tell a capped page from a complete one (#1762). Split out of
+    ``list_cards`` for the same reuse reason as ``_columns_payload`` —
+    ``board_snapshot`` calls this with no filters (its own contract is "all
+    active cards") without paying a second ``_resolve_board`` query.
     """
     qs = (
         Card.objects.filter(board=board)
@@ -615,28 +647,56 @@ def _cards_payload(board, *, column_id=None, swimlane_id=None, assignee=None,
         # board+name), but stays for defense-in-depth and because it costs
         # nothing extra with an already-selective board+name filter.
         qs = qs.filter(labels__name=label).distinct()
-    qs = qs.order_by("column__position", "swimlane__position", "position")[:_LIST_CARDS_MAX_ROWS]
-    return [_serialize_card(card) for card in qs]
+    # `id` makes the order total: position repeats across cells, and offset
+    # paging over a non-total order can skip or repeat a card at a boundary.
+    total = qs.order_by().count()
+    ordered = qs.order_by("column__position", "swimlane__position", "position", "id")
+    rows = [_serialize_card(card) for card in ordered[offset:offset + limit]]
+    return rows, total
+
+
+def _cards_payload(board, **kwargs):
+    """The bare ``list_cards`` row list for *board* (no total)."""
+    return _cards_page(board, **kwargs)[0]
 
 
 def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
-                priority=None, label=None, include_archived=False):
+                priority=None, label=None, include_archived=False,
+                limit=None, offset=None, include_meta=False):
     """List a board's cards, optionally filtered, ordered by board position.
 
     All filters are optional and compose with AND. ``assignee`` matches by
     username (case-insensitive), consistent with how ``create_card``/
     ``update_card`` accept an assignee and how cards report one — never an
     internal user id.
+
+    The default return is a bare array (the 1.0 contract), capped at 200 rows.
+    A bare array has nowhere to carry a truncation signal without breaking
+    existing callers, so the signal is opt-in: ``include_meta=True`` returns
+    ``{cards, total, truncated, limit, offset}`` instead (#1762), mirroring
+    REST's ``X-Total-Count``/``X-Truncated``. ``limit``/``offset`` page past
+    the cap with REST's semantics (limit clamped to 200, both non-negative).
     """
     user = get_current_user()
     try:
         board, _role = _resolve_board(user, board_id)
-    except CardServiceError as exc:
+        page_limit, page_offset = _parse_paging(limit, offset)
+    except (CardServiceError, ValidationFailed) as exc:
         return _error_payload(exc)
-    return _cards_payload(
+    rows, total = _cards_page(
         board, column_id=column_id, swimlane_id=swimlane_id, assignee=assignee,
         priority=priority, label=label, include_archived=include_archived,
+        limit=page_limit, offset=page_offset,
     )
+    if not include_meta:
+        return rows
+    return {
+        "cards": rows,
+        "total": total,
+        "truncated": page_offset + len(rows) < total,
+        "limit": page_limit,
+        "offset": page_offset,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -857,6 +917,7 @@ def board_snapshot(*, board_id):
     except CardServiceError as exc:
         raise ValueError(exc.body()["detail"]) from None
 
+    cards, cards_total = _cards_page(board)
     return {
         "id": board.id,
         "name": board.name,
@@ -865,7 +926,12 @@ def board_snapshot(*, board_id):
         "updated_at": board.updated_at.isoformat(),
         "columns": _columns_payload(board),
         "swimlanes": _swimlanes_payload(board, role),
-        "cards": _cards_payload(board),
+        "cards": cards,
+        # The snapshot is capped at 200 cards like list_cards; these two
+        # additive keys make a partial snapshot detectable (#1762). Fetch the
+        # rest with list_cards(limit/offset) when `cards_truncated` is true.
+        "cards_total": cards_total,
+        "cards_truncated": len(cards) < cards_total,
         "labels": [_serialize_label(label) for label in board.labels.all()],
     }
 
