@@ -4995,6 +4995,11 @@ nightly-load-test:
     # CI-only file; provision_fuzz_token writes the raw PAT here (mode 0600),
     # never to job output — same pattern as backend-schema-fuzz.
     VISIBAN_LOAD_TEST_TOKEN_FILE: "/tmp/visiban_load_test_token"
+    # Second token, for demo1 (the load-test board's owner), used ONLY by the
+    # board_list scenario (#1723): demo2 is a plain member, so the board-list
+    # access query would only ever see demo2's own membership row and the
+    # board's 20 members would not be exercised.
+    VISIBAN_LOAD_TEST_OWNER_TOKEN_FILE: "/tmp/visiban_load_test_owner_token"
   before_script:
     - pip install --quiet -r backend/requirements.txt
     - cd backend
@@ -5007,6 +5012,7 @@ nightly-load-test:
     # (#1607, #1609); the load profile does not change passwords today, but the
     # token must not be revocable by one. Throwaway CI database only.
     - python manage.py provision_fuzz_token --username demo2 --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}" --set-random-password
+    - python manage.py provision_fuzz_token --username demo1 --token-file "${VISIBAN_LOAD_TEST_OWNER_TOKEN_FILE}" --set-random-password
     # Server output goes to an artifact, not the job log (#1611), same as
     # backend-schema-fuzz (#1607). after_script tails it on failure.
     - python manage.py runserver 0.0.0.0:8000 > "${CI_PROJECT_DIR}/nightly-load-test-server.log" 2>&1 &
@@ -5027,6 +5033,7 @@ nightly-load-test:
     - python3 scripts/nightly_load_test.py
         --base-url http://localhost:8000
         --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}"
+        --owner-token-file "${VISIBAN_LOAD_TEST_OWNER_TOKEN_FILE}"
         --board-name "Visiban Load Test Board"
         --budget-file backend/nightly-load-test-baseline.json
         --iterations "${LOAD_TEST_ITERATIONS}"

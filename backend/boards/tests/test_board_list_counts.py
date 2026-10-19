@@ -72,7 +72,8 @@ class BoardListCountsTests(TestCase):
             self._list()
         board_sql = [
             q["sql"].lower() for q in ctx.captured_queries
-            if q["sql"].lstrip().upper().startswith("SELECT") and '"_card_count"' in q["sql"]
+            if '"_card_count"' in q["sql"] and "count(" in q["sql"].lower()
+            and not q["sql"].lstrip().upper().startswith("SELECT COUNT(*) FROM")
         ]
         self.assertTrue(board_sql, [q["sql"][:400] for q in ctx.captured_queries])
         sql = board_sql[0]
@@ -91,6 +92,9 @@ class BoardListCountsTests(TestCase):
             outer = outer[:start] + "<sub>" + outer[i:]
         self.assertNotIn('join "cards"', outer)
         self.assertNotIn("group by", outer)
+        # The access filter must not join memberships either (it multiplied rows
+        # per member and forced DISTINCT).
+        self.assertNotIn('join "board_memberships"', outer)
         self.assertGreaterEqual(sql.count("count(*)"), 3)
 
     def test_direct_member_sees_true_totals(self):

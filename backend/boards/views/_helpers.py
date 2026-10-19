@@ -23,7 +23,7 @@ import datetime
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db.models import Count, IntegerField, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, Exists, IntegerField, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django_filters import DateTimeFilter, NumberFilter
 from drf_spectacular.utils import OpenApiResponse, inline_serializer
@@ -279,11 +279,17 @@ def get_accessible_boards_queryset(user):
 
     if user.can_access_all_content:
         return Board.objects.all()
+    # Direct membership is an Exists() predicate, not ``Q(memberships__user=...)``:
+    # the latter LEFT JOINs board_memberships, which multiplies each board by its
+    # member count (hence the old ``.distinct()``) and made every correlated
+    # count annotation run once per membership row (#1723). Every term here is
+    # now a row-preserving predicate (owner FK, Exists, group FK ``IN``), so a
+    # board can match more than one term without duplicating -- no DISTINCT.
     return Board.objects.filter(
         Q(owner=user) |
-        Q(memberships__user=user) |
+        Exists(BoardMembership.objects.filter(board=OuterRef("pk"), user=user)) |
         Q(group__in=get_group_ids_for_board_access(user))
-    ).distinct()
+    )
 
 
 def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=False):
