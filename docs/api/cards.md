@@ -10,8 +10,9 @@ Cards and everything attached to one — moves, comments, attachments, checklist
 
 Paginated, filterable card query across every board the requesting user can access — for
 table/list views over large boards and for incremental sync (`?updated_since=`). This is
-additive: it does not change `GET /api/v1/boards/{board_id}/cards/` or `GET
-/api/v1/boards/{board_id}/full/` below, both of which keep their existing (unpaginated) shape.
+additive: it does not change `GET /api/v1/boards/{board_id}/cards/` (a bare array of up to 200
+cards per request, offset-paged with optional `limit`/`offset`) or `GET
+/api/v1/boards/{board_id}/full/` (every active card, unpaginated) below.
 
 **Access scoping:** identical to `GET /api/v1/boards/` — boards you own, are a direct member
 of, or have via group-ancestry inheritance, or every board if you have `can_access_all_content`.
@@ -67,16 +68,37 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 ## Cards
 
 ### `GET /api/v1/boards/{board_id}/cards/`
-List all cards on the board. Pagination is disabled — all cards are returned in a single response.
+List the board's active (non-archived) cards, optionally filtered. Returns at most 200 cards per request.
 
-> **Response shape:** This endpoint returns a bare JSON array (`[ {...}, {...} ]`), not the standard `{count, offset, page_size, results}` pagination envelope used by other list endpoints. The endpoint is intentionally unpaginated because the board UI bulk-loads cards via `GET /api/v1/boards/{board_id}/full/`. Generic API clients that assume a pagination envelope must special-case this endpoint.
->
-> **200-card cap:** The response is capped at 200 cards. Boards with more than 200 active cards will receive only the first 200 results with no indication that records were truncated. Use `GET /api/v1/boards/{board_id}/full/` (which has no cap) for boards at this scale.
+> **Response shape:** This endpoint returns a bare JSON array (`[ {...}, {...} ]`), not the standard `{count, offset, page_size, results}` pagination envelope used by other list endpoints, and not the `{results, next_cursor}` shape of the cross-board `GET /api/v1/cards/` above. Generic API clients that assume a pagination envelope must special-case this endpoint. The board UI bulk-loads cards via `GET /api/v1/boards/{board_id}/full/` (no cap); this endpoint is for targeted lookups such as search.
+
+**200-card cap and truncation headers** (since 1.2)
+
+Without `limit`/`offset` the response is the first 200 matching cards, exactly as before. Every `200` response also carries two headers so a client can tell whether it got everything:
+
+| Header | Value |
+|---|---|
+| `X-Total-Count` | Number of active cards matching the filters, ignoring `limit`/`offset` |
+| `X-Truncated` | `true` when more matching cards exist after the returned ones, otherwise `false` |
+
+Both headers are listed in the server's CORS exposed headers, so cross-origin browser clients can read them. Before 1.2 a board with more than 200 matching cards was truncated with no signal.
+
+To walk past the cap, page with `limit` and `offset` (offset paging, not the cursor paging of `GET /api/v1/cards/`):
+
+```
+GET /api/v1/boards/4/cards/?limit=200&offset=0     -> X-Total-Count: 450, X-Truncated: true
+GET /api/v1/boards/4/cards/?limit=200&offset=200   -> X-Total-Count: 450, X-Truncated: true
+GET /api/v1/boards/4/cards/?limit=200&offset=400   -> X-Total-Count: 450, X-Truncated: false
+```
+
+Rows are ordered by `ordering` with the card ID as a tiebreaker, so a walk over an unchanged board returns every card exactly once. Cards created, moved or archived between requests can still shift rows across a page boundary; for a feed under concurrent writes use the cursor-paginated `GET /api/v1/cards/?board=<id>`.
 
 **Query parameters**
 
 | Parameter | Description |
 |---|---|
+| `?limit=<n>` | Maximum cards to return. Default and maximum `200`; a larger value is clamped to `200`. `0` returns `[]` with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns `400` |
+| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value returns `400` |
 | `?search=<q>` | Filter by title and description (partial, case-insensitive) |
 | `?assignee=<id>` | Filter by assignee user ID |
 | `?unassigned=true` | Return only cards with no assignee |
