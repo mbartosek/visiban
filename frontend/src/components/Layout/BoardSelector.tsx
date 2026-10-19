@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { listBoards, createBoard, deleteBoard } from "../../api/boards";
 import type { Board, User } from "../../types";
+import ModalWrapper from "../shared/ModalWrapper";
 import CreateBoardModal from "../Board/CreateBoardModal";
 
 interface Props {
@@ -157,62 +158,51 @@ export default function BoardSelector({ user, onSelect }: Props) {
         const nameMatches = deleteConfirmInput === board?.name;
         const canDelete = !hasCards || nameMatches;
         return (
-          <div
-            className="fixed inset-0 bg-backdrop/60 flex items-center justify-center z-50"
-            onKeyDown={(e) => { if (e.key === "Escape") closeDeleteDialog(); }}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={dialogTitleId}
-              className="bg-surface border border-line rounded-lg p-6 w-full max-w-sm shadow-xl"
-            >
-              <h3 id={dialogTitleId} className="text-fg font-semibold text-lg mb-2">Delete board?</h3>
-              <p className="text-fg-tertiary text-sm mb-1">
-                <span className="text-fg font-medium">{board?.name}</span> and all its columns, swimlanes, cards (including archived cards), and history will be permanently deleted.
-              </p>
-              <p className="text-danger text-sm mb-4">This cannot be undone.</p>
-              {hasCards && (
-                <div className="mb-4">
-                  <p className="text-fg-tertiary text-xs mb-2">
-                    This board has{" "}
-                    {activeCount > 0 && (
-                      <span className="text-fg font-medium">{activeCount} card{activeCount !== 1 ? "s" : ""}</span>
-                    )}
-                    {activeCount > 0 && archivedCount > 0 && " and "}
-                    {archivedCount > 0 && (
-                      <span className="text-fg font-medium">{archivedCount} archived card{archivedCount !== 1 ? "s" : ""}</span>
-                    )}
-                    . Type the board name to confirm deletion.
-                  </p>
-                  <input
-                    type="text"
-                    value={deleteConfirmInput}
-                    onChange={(e) => setDeleteConfirmInput(e.target.value)}
-                    placeholder={`Type "${board?.name}" to confirm`}
-                    className="w-full bg-surface border border-line text-fg-secondary text-sm rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent placeholder-fg-muted"
-                    autoFocus
-                  />
-                </div>
-              )}
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={closeDeleteDialog}
-                  autoFocus={!hasCards}
-                  className="text-fg-tertiary text-sm hover:text-fg px-3 py-1.5 rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDelete(confirmDeleteId)}
-                  disabled={!canDelete}
-                  className="bg-danger-bg hover:bg-danger-bg-hover disabled:opacity-40 disabled:cursor-not-allowed text-on-danger text-sm px-4 py-1.5 rounded font-medium transition focus:outline-none focus:ring-2 focus:ring-danger-emphasis"
-                >
-                  Delete
-                </button>
+          <ModalWrapper open onClose={closeDeleteDialog} title="Delete board?" labelId={dialogTitleId} maxWidth="max-w-sm">
+            <p className="text-fg-tertiary text-sm mb-1">
+              <span className="text-fg font-medium">{board?.name}</span> and all its columns, swimlanes, cards (including archived cards), and history will be permanently deleted.
+            </p>
+            <p className="text-danger text-sm mb-4">This cannot be undone.</p>
+            {hasCards && (
+              <div className="mb-4">
+                <p className="text-fg-tertiary text-xs mb-2">
+                  This board has{" "}
+                  {activeCount > 0 && (
+                    <span className="text-fg font-medium">{activeCount} card{activeCount !== 1 ? "s" : ""}</span>
+                  )}
+                  {activeCount > 0 && archivedCount > 0 && " and "}
+                  {archivedCount > 0 && (
+                    <span className="text-fg font-medium">{archivedCount} archived card{archivedCount !== 1 ? "s" : ""}</span>
+                  )}
+                  . Type the board name to confirm deletion.
+                </p>
+                <input
+                  type="text"
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  placeholder={`Type "${board?.name}" to confirm`}
+                  className="w-full bg-surface border border-line text-fg-secondary text-sm rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent placeholder-fg-muted"
+                  autoFocus
+                />
               </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeDeleteDialog}
+                autoFocus={!hasCards}
+                className="text-fg-tertiary text-sm hover:text-fg px-3 py-1.5 rounded focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                disabled={!canDelete}
+                className="bg-danger-bg hover:bg-danger-bg-hover disabled:opacity-40 disabled:cursor-not-allowed text-on-danger text-sm px-4 py-1.5 rounded font-medium transition focus:outline-none focus:ring-2 focus:ring-danger-emphasis"
+              >
+                Delete
+              </button>
             </div>
-          </div>
+          </ModalWrapper>
         );
       })()}
     </div>

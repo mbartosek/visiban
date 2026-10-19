@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useRecentBoardsPref } from "../../hooks/useRecentBoardsPref";
 import { listBoards } from "../../api/boards";
@@ -113,6 +114,10 @@ export default function CommandPalette({
   // pruneByIds is stable across renders via the hook's closure scope.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- pruneByIds intentionally excluded, see comment above
   }, [open]);
+
+  // #1732 — the palette is modal-like: trap Tab and restore focus on close.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open);
 
   // Focus the input on open
   useEffect(() => {
@@ -251,7 +256,13 @@ export default function CommandPalette({
       className="fixed inset-0 z-50 bg-backdrop/60 flex items-start justify-center pt-[12vh]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-[480px] max-w-[90vw] bg-surface border border-line-strong rounded-lg shadow-2xl flex flex-col max-h-[60vh]">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="w-[480px] max-w-[90vw] bg-surface border border-line-strong rounded-lg shadow-2xl flex flex-col max-h-[60vh]"
+      >
         {/* Search input */}
         <div className="px-3 py-2 border-b border-line flex items-center gap-2 shrink-0">
           <svg className="w-4 h-4 text-fg-muted shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

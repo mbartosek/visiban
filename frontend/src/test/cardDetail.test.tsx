@@ -2047,3 +2047,34 @@ describe('CardDetail — custom fields (#371, #1236)', () => {
     })
   })
 })
+
+describe('CardDetail focus trap (#1732)', () => {
+  it('panel is an aria-modal dialog and Tab wraps inside it', () => {
+    render(<CardDetail {...defaultProps()} />)
+    const panel = screen.getByRole('dialog', { name: /./ })
+    expect(panel).toHaveAttribute('aria-modal', 'true')
+    const focusables = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href]'))
+    const last = focusables[focusables.length - 1]
+    last.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(panel.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).toBe(focusables[0])
+  })
+
+  it('bulk-add overlay is a labelled modal dialog, traps Tab, and returns focus to Bulk on close', async () => {
+    const user = userEvent.setup()
+    render(<CardDetail {...defaultProps()} />)
+    const bulk = screen.getByText('Bulk')
+    bulk.focus()
+    await user.click(bulk)
+    const overlay = screen.getByRole('dialog', { name: 'Add checklist items' })
+    expect(overlay).toHaveAttribute('aria-modal', 'true')
+    const buttons = overlay.querySelectorAll<HTMLElement>('button')
+    buttons[buttons.length - 1].focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(overlay.contains(document.activeElement)).toBe(true)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByText('Add checklist items')).not.toBeInTheDocument()
+    expect(bulk).toHaveFocus()
+  })
+})

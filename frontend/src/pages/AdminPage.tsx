@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useEscapeStack } from "../hooks/useEscapeStack";
 import { useConfirmFocusReturn } from "../hooks/useConfirmFocusReturn";
 import {
@@ -64,31 +65,15 @@ interface ConfirmDialogProps {
 function ConfirmDialog({ message, onConfirm, onCancel }: ConfirmDialogProps) {
   useEscapeStack(onCancel, 40);
   const modalRef = useRef<HTMLDivElement>(null);
+  // #1732 — shared trap (Tab wrap + focus restore) instead of a hand-rolled copy.
+  useFocusTrap(modalRef, true);
   useEffect(() => {
-    const el = modalRef.current;
-    if (!el) return;
-    const focusable = Array.from(
-      el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(el => !el.hasAttribute('disabled'));
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      } else {
-        if (document.activeElement === last) { e.preventDefault(); first?.focus(); }
-      }
-    };
-    el.addEventListener('keydown', trap);
-    return () => el.removeEventListener('keydown', trap);
+    // Safe default: land on Cancel (first button), not the destructive action.
+    modalRef.current?.querySelector<HTMLElement>("button")?.focus();
   }, []);
   return (
     <div className="fixed inset-0 bg-backdrop/60 z-50 flex items-center justify-center p-4">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message" className="bg-surface border border-line rounded-lg shadow-xl p-6 max-w-sm w-full">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message" tabIndex={-1} className="bg-surface border border-line rounded-lg shadow-xl p-6 max-w-sm w-full">
         <p id="confirm-dialog-message" className="text-sm text-fg-secondary mb-6">{message}</p>
         <div className="flex justify-end gap-3">
           <button
