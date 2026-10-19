@@ -2513,7 +2513,12 @@ class BoardImportExportMixin:
     )
     @action(detail=True, methods=["get"], throttle_classes=[BoardExportThrottle])
     def export(self, request, pk=None):
-        """Export board data as CSV or JSON. Requires member or admin access."""
+        """Export board data as CSV or JSON.
+
+        Requires board membership (any role). A caller below the board's
+        ``export_min_role`` gets 403 ``export_restricted``; owners and site
+        admins bypass the threshold.
+        """
         board, role = get_board_for_user(pk, request.user)
         # Viewers and collaborators can read every card/movement via the
         # paginated API, so denying them a bulk export of the same data is
