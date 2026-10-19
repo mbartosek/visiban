@@ -765,10 +765,9 @@ class CardListTruncationSignalTests(TestCase):
 
     def test_limit_offset_walk_returns_every_card_once(self):
         # Every card shares one position, the worst case for offset paging.
-        # This proves a full walk returns every card once; it does NOT by
-        # itself prove the pk tiebreaker, since SQLite tends to return equal
-        # rows in insert order anyway. test_default_order_uses_pk_tiebreaker
-        # pins the tiebreaker.
+        # This proves a full walk returns every card exactly once; it does not
+        # prove the pk tiebreaker (it passes with the tiebreaker removed).
+        # test_default_order_uses_pk_tiebreaker pins the tiebreaker.
         self._seed(self.N, same_position=True)
         seen, offset = [], 0
         while True:
