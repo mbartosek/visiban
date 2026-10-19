@@ -13,6 +13,10 @@ List all boards accessible to the current user.
 |---|---|
 | `?starred=true` | Return only boards the requesting user has starred |
 | `?expand=group` | Populate `group_detail` on each board with a `GroupBrief` object (see `GET /api/v1/boards/{id}/full/` for the shape). Without this parameter `group_detail` is `null`. Triggers a one-query ancestor bulk-fetch — safe to use on list responses. |
+| `?offset=<n>` | Zero-based row offset (default `0`) |
+| `?page_size=<n>` | Rows per page (default `50`, max `200`) |
+
+**Response** — the standard [paginated envelope](index.md#pagination): `{ "count", "offset", "page_size", "results": [ ...boards ] }`. Read the boards from `results`; the response is not a bare array.
 
 ### `POST /api/v1/boards/`
 
@@ -352,7 +356,7 @@ Board-level movement history for all cards on the board, sorted newest first. Re
 
 **Permissions:** any board member (`viewer` and above).
 
-**Pagination:** fixed page size of 50 results. Use `offset` to page through results.
+**Pagination:** the standard [envelope](index.md#pagination), but the page size is fixed at 50 results and `page_size` is ignored. Use `offset` to page through results.
 
 **Query parameters:**
 
@@ -606,13 +610,15 @@ caller below `admin` — the same role gate this export already applies to a swi
 ### `GET /api/v1/boards/{id}/export-history/`
 Return recent successful board exports for audit purposes (#842). Requires board `admin` or `site_admin` role — the board owner always resolves to `admin` even with no explicit membership row, so only `member`, `collaborator`, and `viewer` roles are actually turned away, with `403 Forbidden` and body `{"detail": "Export history is restricted to board admins."}`. Failed exports (permission denied, rate limited) are not logged.
 
-**Response** (paginated — standard DRF envelope with `count`, `next`, `previous`, `results`; ordered newest-first)
+**Query parameters:** `offset` (default `0`) and `page_size` (default `50`, max `200`).
+
+**Response** (paginated — the standard [envelope](index.md#pagination) with `count`, `offset`, `page_size`, `results`; ordered newest-first. There are no `next` / `previous` links.)
 
 ```json
 {
   "count": 12,
-  "next": null,
-  "previous": null,
+  "offset": 0,
+  "page_size": 50,
   "results": [
     {
       "id": 42,
@@ -1396,6 +1402,8 @@ Column objects include a `uid` field — a stable 16-character hex identifier th
 ### `GET /api/v1/boards/{id}/columns/`
 List all columns on the board in position order. Available to all board members.
 
+Paginated: returns the standard [envelope](index.md#pagination) `{ "count", "offset", "page_size", "results" }` and accepts `?offset` and `?page_size` (default `50`, max `200`).
+
 ### `GET /api/v1/boards/{id}/columns/{col_id}/`
 Get a single column. Available to all board members.
 
@@ -1457,6 +1465,8 @@ Swimlane objects include a `uid` field — stable across renames, read-only.
 
 ### `GET /api/v1/boards/{id}/swimlanes/`
 List all swimlanes on the board in position order. Available to all board members. `admin` and `site_admin` roles see `contact_email` and `notes`; all other roles receive swimlane objects without those fields.
+
+Paginated: returns the standard [envelope](index.md#pagination) `{ "count", "offset", "page_size", "results" }` and accepts `?offset` and `?page_size` (default `50`, max `200`).
 
 ### `GET /api/v1/boards/{id}/swimlanes/{swimlane_id}/`
 Get a single swimlane. Same role-gated field rules as the list endpoint.
@@ -1558,6 +1568,8 @@ Label objects include a `uid` field — stable across renames, read-only.
 
 ### `GET /api/v1/boards/{id}/labels/`
 List board labels. Available to all board members.
+
+Paginated: returns the standard [envelope](index.md#pagination) `{ "count", "offset", "page_size", "results" }` and accepts `?offset` and `?page_size` (default `50`, max `200`).
 
 ### `GET /api/v1/boards/{id}/labels/{label_id}/`
 Get a single label. Available to all board members.

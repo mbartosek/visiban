@@ -33,7 +33,7 @@ These rules are enforced by code review and are documented in `CLAUDE.md` so the
 
 ## Pagination shape
 
-All paginated list endpoints return a consistent envelope:
+Most paginated list endpoints return a consistent envelope:
 
 ```json
 {
@@ -44,7 +44,7 @@ All paginated list endpoints return a consistent envelope:
 }
 ```
 
-Query parameters: `?offset=0&page_size=50` (max `200`). This shape is stable for the lifetime of `v1`.
+Query parameters: `?offset=0&page_size=50` (max `200`). This shape is stable for the lifetime of `v1`. A few endpoints deliberately use another shape (cursor `{results, next_cursor}` on `/cards/`, `next`/`previous` links on a card timeline, `{results, next}` on the board events feed, and bare arrays for small bounded lists); see [Pagination](../api/index.md#pagination) for the full list.
 
 ## How deprecation works
 
