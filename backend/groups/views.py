@@ -14,9 +14,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from accounts.permissions import TokenHasScope
 from visiban.authorization import invite_creator_is_valid, principal_is_active
+from visiban.pagination import OffsetCountPagination
 from visiban.permissions import MustNotHavePendingPasswordChange, MustNotHavePendingUsernameChange
 from visiban.request_shape import coerce_int_id, optional_text, require_json_object
-from visiban.pagination import OffsetCountPagination
 from visiban.utils import get_client_ip
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -1166,6 +1166,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         _require_group_member(request.user, group)
 
         boards, context = self._descendant_boards_queryset(request, group)
+        # The paginator's COUNT(*) stays a bare count only while no filter or
+        # ordering references the helper's annotations (Django strips unused
+        # ones from count()); order by a plain column, never an annotation.
         page = self.paginate_queryset(boards.order_by("id"))
         return self.get_paginated_response(BoardSerializer(page, many=True, context=context).data)
 

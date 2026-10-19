@@ -336,7 +336,15 @@ class DescendantBoardsPagedTests(TestCase):
             self.assertEqual(len(r.json()["results"]), page_size)
             counts[page_size] = len(ctx.captured_queries)
         self.assertEqual(counts[5], counts[50], msg=f"query counts by page size: {counts}")
-        self.assertLess(counts[50], 25, msg=f"query counts by page size: {counts}")
+
+        # And no more than the bare-array endpoint plus the paginator's COUNT,
+        # so a few extra queries in the paged path alone are caught too.
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(f"/api/v1/groups/{self.root.id}/descendant-boards/")
+        self.assertLessEqual(
+            counts[50], len(ctx.captured_queries) + 1,
+            msg=f"paged {counts}, bare {len(ctx.captured_queries)}",
+        )
 
 
 class DescendantBoardsSchemaTests(SimpleTestCase):
