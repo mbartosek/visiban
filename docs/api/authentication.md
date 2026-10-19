@@ -593,9 +593,6 @@ not accept the same body — but since 1.2 they enforce the same rules.
     `/auth/change-password/`; a request authenticated with a token is refused
     with `403 Forbidden` in that case.
 
-- The generated OpenAPI schema (`/api/v1/schema/`) documents this request body,
-  including the required `old_password` (#1781). Earlier 1.2 pre-releases
-  omitted the body from the schema; runtime behavior was unaffected.
 - **Minimum 12 characters** (changed in 1.2, #1258). Previously this endpoint
   accepted 8, Django's default. The minimum now comes from the instance-wide
   password policy, so it matches every other password-set path.
