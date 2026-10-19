@@ -2099,6 +2099,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#stability-and-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stability and versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-the-two-surfaces-fit-together" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4019,6 +4030,20 @@ cursor instead of holding a WebSocket open and hoping it never drops.</p>
 The socket is how you learn about a change <em>now</em>; the feed is how you find out
 what happened while you were not listening. Both carry the same payloads, so one
 handler serves both.</p>
+<hr />
+<h2 id="stability-and-versioning">Stability and versioning<a class="headerlink" href="#stability-and-versioning" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>The change feed is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is <strong>not</strong> experimental.</p>
+<ul>
+<li><strong>The endpoint, its <code>after</code> and <code>limit</code> parameters, and the response envelope</strong> (<code>results</code> and <code>next</code>) are never removed or renamed in a minor or patch release. The cursor semantics (<code>after</code> is exclusive, ordering is by <code>id</code>, <code>next</code> is <code>null</code> once a page comes back short) and the <code>400</code>, <code>404</code>, and <code>410</code> error behavior described below do not change.</li>
+<li><strong>Row fields</strong> (<code>id</code>, <code>event</code>, <code>data</code>, <code>actor_id</code>, <code>actor</code>, <code>created_at</code>) only gain fields; an existing field keeps its name and type and is never removed.</li>
+<li><strong>Event types and payloads</strong> carry the same <code>{event, data}</code> payloads as the WebSocket, so the same rules apply: an event type is never removed, a payload field is never removed, and new event types and payload fields can appear in any minor release. Clients should ignore event types and fields they do not recognize. Retiring an event follows the process in <a href="../../development/websocket-event-contract/#retiring-an-event">Retiring an event</a>.</li>
+<li><strong>Per-reader fields are the exception.</strong> The fields documented under <a href="#fields-that-depend-on-who-is-reading">Fields that depend on who is reading</a> are per-reader and may be withheld from recipients who lack access, including when the rule is tightened for security reasons (as in 1.2). Clients must treat them as optional.</li>
+<li>A part of the feed that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.</li>
+<li><strong>Not covered:</strong> how long history is kept. The retention window is an operator setting (<code>BOARD_EVENT_RETENTION_DAYS</code>), so a consumer must handle <code>410 Gone</code> rather than assume any particular depth of history. See <a href="#retention">Retention</a>.</li>
+</ul>
 <hr />
 <h2 id="how-the-two-surfaces-fit-together">How the two surfaces fit together<a class="headerlink" href="#how-the-two-surfaces-fit-together" title="Permanent link">&para;</a></h2>
 <ol>
