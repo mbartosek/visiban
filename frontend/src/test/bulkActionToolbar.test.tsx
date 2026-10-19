@@ -781,12 +781,22 @@ describe('BulkActionToolbar — partial failure reporting (#1733)', () => {
     expect(await screen.findByText(/2 of 2 cards could not be updated — for more than one reason/)).toBeInTheDocument()
   })
 
-  it('assign and priority clear selection when all succeed', async () => {
+  it('priority clears selection when all succeed', async () => {
     const user = userEvent.setup()
     mockUpdateCard.mockResolvedValue(makeBoard().cards[0])
     const { onClearSelection } = renderToolbar()
     await user.click(screen.getByText('Priority...'))
     await user.click(screen.getByText(/high/i))
+    await waitFor(() => expect(onClearSelection).toHaveBeenCalled())
+    expect(screen.queryByText(/could not be/)).not.toBeInTheDocument()
+  })
+
+  it('assign clears selection when all succeed', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockResolvedValue(makeBoard().cards[0])
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Assign to...'))
+    await user.click(screen.getByText('Jane Doe'))
     await waitFor(() => expect(onClearSelection).toHaveBeenCalled())
     expect(screen.queryByText(/could not be/)).not.toBeInTheDocument()
   })
