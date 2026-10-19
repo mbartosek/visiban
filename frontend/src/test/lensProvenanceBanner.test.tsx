@@ -33,6 +33,12 @@ describe('LensProvenanceBanner', () => {
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
   })
 
+  it('renders the repo as plain text, with no link, when url is unsafe', () => {
+    render(<LensProvenanceBanner {...base} url="javascript:alert(1)" />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.getByText('acme/widgets')).toBeInTheDocument()
+  })
+
   it('carries the freshness control, not the Row-2 toolbar', () => {
     render(<LensProvenanceBanner {...base} />)
     expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()

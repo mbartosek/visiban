@@ -1,5 +1,6 @@
 import Avatar from "../../Common/Avatar";
 import type { NormalizedIssue } from "../../../types";
+import { isSafeHttpUrl } from "../../../utils/safeUrl";
 
 interface Props {
   issue: NormalizedIssue;
@@ -31,7 +32,10 @@ export default function LensIssueCard({ issue, laneCount = 1, compact = false }:
   const extraAssignees = issue.assignees.length - MAX_AVATARS;
   const ev = issue.pipeline_evidence;
 
-  const openIssue = () => window.open(issue.url, "_blank", "noopener,noreferrer");
+  // Provider-supplied URL: fail closed on anything but http(s) (#1087).
+  const openIssue = () => {
+    if (isSafeHttpUrl(issue.url)) window.open(issue.url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     // role="button" (not <button>) so the pipeline MR chip can be a nested <a> —
@@ -116,7 +120,13 @@ export default function LensIssueCard({ issue, laneCount = 1, compact = false }:
                 <span className="truncate font-mono">{ev.branch}</span>
               </span>
             )}
-            {ev?.mr_number != null && ev.mr_url && (
+            {ev?.mr_number != null && ev.mr_url && !isSafeHttpUrl(ev.mr_url) && (
+              <span className="flex items-center gap-0.5 shrink-0 text-fg-tertiary">
+                <span aria-hidden="true">{ev.mr_closes ? "⮰" : "↗"}</span>
+                <span className="font-mono">!{ev.mr_number}</span>
+              </span>
+            )}
+            {ev?.mr_number != null && isSafeHttpUrl(ev.mr_url) && (
               <a
                 href={ev.mr_url}
                 target="_blank"
