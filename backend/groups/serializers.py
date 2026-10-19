@@ -375,11 +375,9 @@ class GroupSerializer(serializers.ModelSerializer):
     # caller's own flag) stay: the sidebar tree and breadcrumbs use them.
     # ``owner`` (BoardUserSerializer: id, username, display_name, avatar_url;
     # no email) stays because the client's ``Group`` type requires it, and an
-    # ancestor's owner normally also holds an admin membership there, so they
-    # already appear as an inherited member of the caller's own group. The
-    # exception: an admin can remove the owner's membership row
-    # (``update_member`` DELETE has no owner guard), and then the owner's
-    # public profile fields are visible here without that membership.
+    # ancestor's owner normally holds an admin membership there (member
+    # removal and demotion now refuse the owner), so they already appear as an
+    # inherited member of the caller's own group.
     # ``default_board_member_role`` stays too: it is a
     # required enum in the client contract (no empty value of its type
     # exists), it is deprecated with no effect (#1430), and it is
