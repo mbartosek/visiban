@@ -387,6 +387,13 @@ After rolling back, restart the backend container with the previous image versio
     or add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the wildcard. Origin matching
     behavior is unchanged in 1.2.
 
+!!! note "`is_starred` omitted from WebSocket board and group events"
+    `board.created`, `board.updated`, `group.created` and `group.updated` payloads now carry
+    `is_starred` only for the user who made the change; every other subscriber receives the
+    payload without the key. REST responses still always include it. Custom WebSocket clients
+    must treat the key as optional and keep their local value when it is absent. See the
+    [WebSocket API](../api/websockets.md).
+
 !!! note "Superuser accounts normalized"
     `manage.py migrate` runs a one-time data migration (`accounts/0036`). On upgrade, existing
     superuser accounts are set to site admin with all-content access, matching how the
