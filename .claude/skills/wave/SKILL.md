@@ -262,7 +262,9 @@ named. Include:
 
 Tell each agent explicitly:
 
-- **Do not re-delegate.** A subagent must execute, not spawn more agents.
+- **Do not re-delegate.** A subagent executes; the only agents it spawns are the pre-MR
+  gate batch named in its brief. It never spawns `completeness-check` (you do, Step 5.4)
+  and never an implementer or research agent of its own.
 - **Do not run the full test suite.** Scoped test commands only (see above).
 - **Batch independent tool calls** into one message.
 - **Stop and report** if blocked after two attempts at the same failure, rather
@@ -427,7 +429,7 @@ Do not merge anything. Do not start another wave without being asked.
   behavior — never the whole branch twice, never a loop.
 - **Apply only the gates the diff earns** — `CLAUDE.md`'s fast-path table is
   authoritative. A bugfix with a known root cause does not need `architect`.
-- **No re-delegation** from inside an agent.
+- **No re-delegation** from inside an agent, beyond the implementer's pre-MR gate batch.
 - **Two-strike rule**: an agent stuck on the same failure twice stops and
   reports.
 - **Long-running work goes to the background**, not to a polling loop.
