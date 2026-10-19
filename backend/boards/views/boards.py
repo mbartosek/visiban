@@ -3,7 +3,7 @@
 import logging
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Q
 from django.urls import reverse
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -36,7 +36,7 @@ from ..serializers import (
 from ..services.notifications import create_notifications
 from ..utils import create_template_columns, resolve_board_template
 from ._helpers import (
-    CONTAINER_CHANGED_409, get_board_for_user, get_accessible_boards_queryset,
+    CONTAINER_CHANGED_409, annotate_board_counts, get_board_for_user, get_accessible_boards_queryset,
     lock_board_row_or_404, lock_container_cascade, require_present_or_404,
 )
 from .analytics import BoardAnalyticsMixin
@@ -223,10 +223,7 @@ class BoardViewSet(
             group_related = "__".join(["group"] + ["parent"] * 6)
         else:
             group_related = "group"
-        return qs.select_related("owner", group_related).annotate(
-            _member_count=Count("memberships", distinct=True),
-            _card_count=Count("cards", filter=Q(cards__archived_at__isnull=True), distinct=True),
-            _archived_card_count=Count("cards", filter=Q(cards__archived_at__isnull=False), distinct=True),
+        return annotate_board_counts(qs.select_related("owner", group_related)).annotate(
             _is_starred=Exists(
                 BoardFavorite.objects.filter(board=OuterRef("pk"), user=user)
             ),

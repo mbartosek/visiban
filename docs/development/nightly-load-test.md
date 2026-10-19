@@ -47,6 +47,12 @@ python manage.py seed_demo_data --force --scale 20 --with-notifications
   see its docstring). The board is named **"Visiban Load Test Board"**, distinct from
   `"Visiban Demo Board"`, so this job can never collide with or overwrite the
   manual `seed-demo-data` job's data, in CI or on the shared demo environment.
+- **20 members** on that board (the 5 demo users plus 15 `loadtest*` filler accounts with
+  unusable passwords, `--scale > 1` only). Members x cards is the shape that made the board
+  list's count annotations expensive (two multi-valued joins multiplying, #1723), and a
+  5-member fixture could not expose it; with ~2,400 cards it now exercises that endpoint.
+  `GET /api/v1/boards/` computes `member_count` / `card_count` / `archived_card_count` as
+  independent correlated subqueries, so latency no longer scales with the product.
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
   the 50-row cap `NotificationListView` / `NotificationUnreadCountView` apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.

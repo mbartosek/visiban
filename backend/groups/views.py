@@ -871,17 +871,13 @@ class GroupViewSet(viewsets.ModelViewSet):
             # Annotations mirror BoardViewSet.get_queryset() so BoardSerializer
             # can use the cached values instead of issuing 3 extra queries per board.
             from boards.models import BoardFavorite
-            boards = (
-                Board.objects.filter(group=group)
-                .select_related("owner")
-                .annotate(
-                    _member_count=Count("memberships", distinct=True),
-                    _card_count=Count("cards", filter=Q(cards__archived_at__isnull=True), distinct=True),
-                    _archived_card_count=Count("cards", filter=Q(cards__archived_at__isnull=False), distinct=True),
-                    _is_starred=Exists(
-                        BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
-                    ),
-                )
+            from boards.views._helpers import annotate_board_counts
+            boards = annotate_board_counts(
+                Board.objects.filter(group=group).select_related("owner")
+            ).annotate(
+                _is_starred=Exists(
+                    BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
+                ),
             )
             return Response(BoardSerializer(boards, many=True, context={"request": request}).data)
 
@@ -953,12 +949,9 @@ class GroupViewSet(viewsets.ModelViewSet):
             # Re-fetch with annotations so BoardSerializer.get_member_count / card_count /
             # is_starred reads from annotation fast-paths instead of issuing 3 fallback queries
             # — both for the broadcast payload below and for the response.
-            from django.db.models import Q as _Q
             from boards.models import BoardFavorite as _BoardFavorite
-            board = Board.objects.select_related("owner", "group").annotate(
-                _member_count=Count("memberships", distinct=True),
-                _card_count=Count("cards", filter=_Q(cards__archived_at__isnull=True), distinct=True),
-                _archived_card_count=Count("cards", filter=_Q(cards__archived_at__isnull=False), distinct=True),
+            from boards.views._helpers import annotate_board_counts
+            board = annotate_board_counts(Board.objects.select_related("owner", "group")).annotate(
                 _is_starred=Exists(_BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)),
             ).get(pk=board.pk)
 
@@ -1014,6 +1007,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         """
         from boards.models import Board, BoardFavorite
         from boards.serializers import BoardSerializer
+        from boards.views._helpers import annotate_board_counts
         from .models import get_accessible_group_ids, _GROUP_TRAVERSAL_MAX_DEPTH
 
         group = self.get_object()
@@ -1053,14 +1047,11 @@ class GroupViewSet(viewsets.ModelViewSet):
             # #845 adds ancestors via a dedicated bulk map, but parent_name
             # is a separate field path that has its own N+1 if not joined here.
             .select_related("owner", "group", "group__parent")
-            .annotate(
-                _member_count=Count("memberships", distinct=True),
-                _card_count=Count("cards", filter=Q(cards__archived_at__isnull=True), distinct=True),
-                _archived_card_count=Count("cards", filter=Q(cards__archived_at__isnull=False), distinct=True),
-                _is_starred=Exists(
-                    BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
-                ),
-            )
+        )
+        boards = annotate_board_counts(boards).annotate(
+            _is_starred=Exists(
+                BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
+            ),
         )
 
         # Build a one-query ancestor map for every group we may need to resolve

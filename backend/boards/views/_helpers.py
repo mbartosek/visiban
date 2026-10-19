@@ -220,6 +220,38 @@ class BoundedDateTimeFilter(DateTimeFilter):
         return built
 
 
+def _count_subquery(model, filt=None):
+    """Correlated ``COUNT(*)`` of ``model`` rows per outer board, 0 when none."""
+    rows = model.objects.filter(board=OuterRef("pk"))
+    if filt is not None:
+        rows = rows.filter(filt)
+    return Coalesce(
+        Subquery(
+            rows.order_by().values("board").annotate(c=Count("pk")).values("c"),
+            output_field=IntegerField(),
+        ),
+        0,
+        output_field=IntegerField(),
+    )
+
+
+def annotate_board_counts(qs):
+    """Annotate ``_member_count`` / ``_card_count`` / ``_archived_card_count``.
+
+    Correlated subqueries, not ``Count("memberships") + Count("cards")``: two
+    multi-valued joins in one query multiply (members x cards rows per board
+    before DISTINCT collapses them), so latency scaled with the product on the
+    most-used list endpoint while the query count stayed flat (#1723). Each
+    count is now computed independently. Values and types are unchanged:
+    non-negative ints, 0 (never null) for an empty board.
+    """
+    return qs.annotate(
+        _member_count=_count_subquery(BoardMembership),
+        _card_count=_count_subquery(Card, Q(archived_at__isnull=True)),
+        _archived_card_count=_count_subquery(Card, Q(archived_at__isnull=False)),
+    )
+
+
 def get_accessible_boards_queryset(user):
     """Return the Board queryset `user` may access: owned, directly a member of,
     inherited via group ancestry, or — for `can_access_all_content` users — every

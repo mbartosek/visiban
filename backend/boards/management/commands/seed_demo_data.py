@@ -144,6 +144,10 @@ SEED_ANCHOR_DATE = datetime.date(2026, 4, 1)
 
 # ── Demo users ────────────────────────────────────────────────────────────────
 
+# Total members on the --scale > 1 load-test board (#1723): realistic for a busy
+# team and enough that a members x cards join blow-up is measurable.
+LOAD_TEST_MEMBER_COUNT = 20
+
 DEMO_USERS = [
     {"username": "demo1", "email": "demo1@visiban.example", "first_name": "Alex",   "last_name": "Rivera"},
     {"username": "demo2", "email": "demo2@visiban.example", "first_name": "Sam",    "last_name": "Chen"},
@@ -750,6 +754,8 @@ class Command(BaseCommand):
             self._create_swimlane_custom_fields(board, swimlanes)
         labels = self._create_labels(board)
         self._add_members(board, users)
+        if scale > 1:
+            self._add_load_test_members(board)
         cards = self._create_cards(board, columns, swimlanes, labels, users)
         n_archived = self._archive_some_cards(cards)
 
@@ -1288,6 +1294,40 @@ class Command(BaseCommand):
         BoardMembership.objects.create(board=board, user=users[0], role=BoardMembership.Role.ADMIN)
         for user in users[1:]:
             BoardMembership.objects.create(board=board, user=user, role=BoardMembership.Role.MEMBER)
+
+    def _add_load_test_members(self, board, total=LOAD_TEST_MEMBER_COUNT):
+        """Pad the --scale board up to ``total`` members (#1723).
+
+        Board-list latency used to scale with members x cards (two multi-valued
+        joins multiplying), which a 5-member fixture could not expose. Fillers
+        are plain MEMBERs with unusable passwords, created only for --scale > 1
+        so the default demo board is unchanged. They are deliberately NOT added
+        to the ``users`` list the card generator draws from, so the seeded card
+        corpus is identical to before.
+        """
+        existing = board.memberships.count()
+        extra = max(0, total - existing)
+        if not extra:
+            return
+        fillers = []
+        for i in range(1, extra + 1):
+            f = User(
+                username=f"loadtest{i:02d}",
+                email=f"loadtest{i:02d}@visiban.example",
+                first_name="Load",
+                last_name=f"Tester {i}",
+            )
+            f.set_unusable_password()
+            fillers.append(f)
+        User.objects.bulk_create(fillers, ignore_conflicts=True)
+        names = [f.username for f in fillers]
+        BoardMembership.objects.bulk_create(
+            [
+                BoardMembership(board=board, user=u, role=BoardMembership.Role.MEMBER)
+                for u in User.objects.filter(username__in=names)
+            ],
+            ignore_conflicts=True,
+        )
 
     def _create_cards(self, board, columns, swimlanes, labels, users):
         today = SEED_ANCHOR_DATE
