@@ -102,6 +102,12 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         # Admin and site_admin members see contact_email and notes; all others get the
         # public serializer which omits those fields to prevent viewer-role PII exposure.
+        if getattr(self, "swagger_fake_view", False):
+            # drf-spectacular has no request or board_pk (#1788). Without this
+            # the lookup below raised KeyError and the schema lost every
+            # swimlane request body. Writes are admin-only, so the admin
+            # serializer is the one whose fields the write bodies document.
+            return SwimlaneAdminSerializer
         _, role = self._board_and_role()
         if role in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             return SwimlaneAdminSerializer
@@ -123,6 +129,8 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
+        if getattr(self, "swagger_fake_view", False):
+            return ctx  # schema generation: no board_pk to resolve (#1788)
         # SwimlaneCustomFieldValuesField resolves submitted definition ids
         # scoped to this board and fails closed without it (#1140).
         ctx["board"] = self._board()
@@ -135,6 +143,8 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         # whether a non-admin may see it. Ordering lives in the Prefetch
         # queryset rather than Meta.ordering so only the read path pays the
         # join — same reasoning as _card_queryset().
+        if getattr(self, "swagger_fake_view", False):
+            return Swimlane.objects.none()  # schema generation (#1788)
         return Swimlane.objects.filter(board=self._board()).prefetch_related(
             _swimlane_custom_field_prefetch()
         )

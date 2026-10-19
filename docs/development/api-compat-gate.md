@@ -128,6 +128,11 @@ an entry whose finding still fires turns the job red, whether the finding is dri
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added,
 except for the #1781 replacement described above.
 
+Two temporary `key` entries under `#1788` cover `NEW_REQUIRED_REQUEST_BODY` on `POST swimlanes/`
+and `PUT swimlanes/{id}/`. The v1.1.0 baseline lacks those bodies because `SwimlaneViewSet`
+crashed during schema generation; #1788 fixes the schema, and the endpoints always accepted the
+body. Delete both entries when the baseline is rolled at the v1.2.0 GA.
+
 The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
 as the new baseline. Several hand-written actions still document a fallback serializer today,
 for example `POST groups/{id}/star/`, `PATCH groups/{id}/members/{user_id}/`, and analytics
