@@ -74,10 +74,12 @@ class ImportBoardCountsTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.data)
         self.assertEqual((r.data["card_count"], r.data["archived_card_count"]), (0, 0))
 
-    def test_views_use_helper_not_joined_counts(self, *_):
+    def test_views_use_helper_for_board_refetch(self, *_):
+        # Narrow guard: the Board re-fetch annotations must not come back as
+        # joined Count()s (#1723/#1765). Behavior tests above and in
+        # test_trello_import.py cover the values.
         src = inspect.getsource(import_export)
         self.assertNotIn('Count("memberships"', src)
-        self.assertNotIn('Count("cards"', src)
         self.assertGreaterEqual(src.count("annotate_board_counts("), 3)
 
     def test_refetch_sql_has_no_join_on_memberships_or_cards(self, *_):
