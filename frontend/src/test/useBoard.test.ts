@@ -529,6 +529,32 @@ describe('useBoard', () => {
     expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'The card or board no longer exists, so the board was refreshed.' })
   })
 
+  it('a later successful move clears a stale move_failed toast (#1761)', async () => {
+    const board = makeBoard()
+    mockGetBoardFull.mockResolvedValue(board)
+    mockMoveCard.mockRejectedValueOnce(Object.assign(new Error('Network Error'), { isAxiosError: true }))
+    mockMoveCard.mockResolvedValueOnce({ card: { ...board.cards[0], column: 11 } })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    expect(result.current.moveError?.code).toBe('move_failed')
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    expect(result.current.moveError).toBeNull()
+  })
+
+  it('forceMoveCard raises move_failed on a network error (#1761)', async () => {
+    const board = makeBoard()
+    mockGetBoardFull.mockResolvedValue(board)
+    mockMoveCard.mockRejectedValueOnce({ response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'X', current_count: 1, wip_limit: 1 } } })
+    mockMoveCard.mockRejectedValueOnce(Object.assign(new Error('Network Error'), { isAxiosError: true }))
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    await act(async () => { await result.current.forceMoveCard() })
+    expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'A network error occurred.' })
+    expect(result.current.board!.cards[0].column).toBe(10)
+  })
+
   it('moveCard does not replace a specific 409 limit toast with move_failed (#1761)', async () => {
     mockGetBoardFull.mockResolvedValue(makeBoard())
     mockMoveCard.mockRejectedValue({ response: { status: 409, data: { code: 'wip_limit_exceeded', column_name: 'X', current_count: 1, wip_limit: 1 } } })

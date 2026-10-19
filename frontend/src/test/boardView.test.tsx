@@ -1017,11 +1017,12 @@ describe('BoardView', () => {
       expect(screen.getByText("Card 'Test Card' moved to column 'Done', swimlane 'Customer A'")).toBeInTheDocument()
     })
 
-    it('announces a failed move with its cause instead of success', async () => {
+    it('does not announce success or repeat the toast cause in the status region on failure', async () => {
       const err = Object.assign(new Error('Network Error'), { isAxiosError: true })
       await dropOnCell(vi.fn().mockResolvedValue({ ok: false, error: err }))
-      expect(screen.getByText("Card 'Test Card' could not be moved — a network error occurred")).toBeInTheDocument()
+      // The role="alert" toast owns the failure announcement; the status region stays blank.
       expect(screen.queryByText(/moved to column/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/could not be moved/)).not.toBeInTheDocument()
     })
   })
 

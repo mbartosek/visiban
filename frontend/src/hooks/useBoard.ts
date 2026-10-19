@@ -19,6 +19,16 @@ export type MoveBlockedError =
   // card snaps back with no explanation (#1761).
   | { code: "move_failed"; detail: string };
 
+/** Generic toast for a failed move that no specific code covered (#1761). The
+ * title is "Move failed", so the body is just the capitalized cause. */
+function genericMoveFailure(err: unknown): MoveBlockedError {
+  const status = (err as { response?: { status?: number } } | null)?.response?.status;
+  const reason = status === 404
+    ? "the card or board no longer exists, so the board was refreshed"
+    : failureReason(err);
+  return { code: "move_failed", detail: `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.` };
+}
+
 interface PendingMove {
   cardId: number;
   columnId: number;
@@ -167,6 +177,8 @@ export function useBoard() {
         if (!b) return b;
         return { ...b, cards: b.cards.map((c) => (c.id === cardId ? card : c)) };
       });
+      // A stale "Move failed" / limit toast must not outlive a later success (#1761).
+      clearMoveError();
       return { ok: true };
     } catch (err: unknown) {
       // Roll back the optimistic update unconditionally.
@@ -209,17 +221,13 @@ export function useBoard() {
       // Every failure gets a visible message; the branches above only cover the
       // limit/permission/maintenance/conflict codes (#1761).
       if (!surfaced) {
-        // Title is "Move failed", so the body is just the cause, capitalized.
-        const reason = axiosErr?.response?.status === 404
-          ? "the card or board no longer exists, so the board was refreshed"
-          : failureReason(err);
-        setMoveError({ code: "move_failed", detail: `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.` });
+        setMoveError(genericMoveFailure(err));
       }
       // Surface the failure to the caller (#1761). Drag-and-drop ignores it;
       // CardDetail uses it to roll back its local copy and name the cause.
       return { ok: false, error: err };
     }
-  }, [boardId, load]);
+  }, [boardId, load, clearMoveError]);
 
   // Admin-only: retry the last blocked move with force=true, bypassing the WIP limit.
   const forceMoveCard = useCallback(async () => {
@@ -258,8 +266,13 @@ export function useBoard() {
       const axiosErr = err as { response?: { status?: number; data?: unknown } };
       if (axiosErr?.response?.data) {
         const data = axiosErr.response.data as MoveBlockedError;
-        if (data?.code) setMoveError(data);
+        if (data?.code) {
+          setMoveError(data);
+          return;
+        }
       }
+      // No structured body (network error, bare 5xx): still say so (#1761).
+      setMoveError(genericMoveFailure(err));
     }
   }, [boardId, clearMoveError]);
 
