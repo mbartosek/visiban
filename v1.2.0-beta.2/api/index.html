@@ -3971,6 +3971,78 @@
 <li>Permission errors return <code>403 Forbidden</code>; missing resources return <code>404 Not Found</code></li>
 <li><em>(1.2+)</em> Board-scoped routes answer <code>404 Not Found</code> to a caller with no access to the board, the same as for a board that does not exist. <code>403 Forbidden</code> means the caller can see the board but their role is too low for the action</li>
 </ul>
+<h3 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h3>
+<p>Most list endpoints return the <strong>standard paginated envelope</strong>. A client must read the list from <code>results</code>, not from the top level of the response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">123</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"page_size"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Query parameter</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>offset</code></td>
+<td><code>0</code></td>
+<td>Zero-based number of rows to skip</td>
+</tr>
+<tr>
+<td><code>page_size</code></td>
+<td><code>50</code></td>
+<td>Rows per page. Values above <code>200</code> are clamped to <code>200</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>count</code> is the total number of rows across all pages. The envelope carries <strong>no</strong> <code>next</code> or <code>previous</code> links: walk the list by increasing <code>offset</code> by <code>page_size</code> until <code>offset + page_size &gt;= count</code>.</p>
+<p>The following list endpoints use the standard envelope and accept <code>offset</code> and <code>page_size</code>:</p>
+<ul>
+<li><code>GET /boards/</code>, <code>GET /groups/</code></li>
+<li><code>GET /boards/{id}/columns/</code>, <code>swimlanes/</code>, <code>labels/</code>, <code>custom-fields/</code>, <code>swimlane-custom-fields/</code>, and <code>export-history/</code></li>
+<li><code>GET /admin/users/</code>, <code>GET /admin/action-log/</code>, and <code>GET /admin/board-invite-links/</code> (see the <a href="admin/">Admin API</a>)</li>
+</ul>
+<p>Some list endpoints deliberately <strong>do not</strong> use it. Check the endpoint's own page before parsing the response:</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Shape</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /cards/</code></td>
+<td>Cursor pagination: <code>{results, next_cursor}</code>. See <a href="cards/">Cards API</a></td>
+</tr>
+<tr>
+<td><code>GET /boards/{id}/cards/</code></td>
+<td>Bare array, capped at 200 rows, with <code>X-Total-Count</code> / <code>X-Truncated</code> headers and optional <code>limit</code> / <code>offset</code>. See <a href="cards/">Cards API</a></td>
+</tr>
+<tr>
+<td><code>GET /boards/{id}/movements/</code> and <code>GET /boards/{id}/cards/archived/</code></td>
+<td>The standard envelope, but the page size is fixed at <code>50</code> and <code>page_size</code> is ignored; only <code>offset</code> pages</td>
+</tr>
+<tr>
+<td><code>GET /boards/{id}/cards/{card_id}/timeline/</code></td>
+<td><code>limit</code> (default 50, max 200) and <code>offset</code>, with <code>next</code> / <code>previous</code> links. See <a href="cards/">Cards API</a></td>
+</tr>
+<tr>
+<td><code>GET /boards/{id}/events/</code></td>
+<td><code>{results, next}</code> cursor feed. See <a href="events/">Change Feed</a></td>
+</tr>
+<tr>
+<td>Small, bounded lists (group members, subgroups, boards, labels, and invite links of a group; board invite links and saved filters; <code>GET /admin/invite-links/</code>; <code>GET /users/search/</code> (capped at 10 rows); sample boards and templates; notifications; personal access tokens; connected accounts; a card's comments, attachments, checklist, and relations)</td>
+<td>Bare JSON array, not paginated</td>
+</tr>
+</tbody>
+</table>
 <h3 id="maintenance-mode-503">Maintenance mode (503)<a class="headerlink" href="#maintenance-mode-503" title="Permanent link">&para;</a></h3>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
@@ -3978,7 +4050,7 @@
 <p>While a site admin has <a href="admin/#maintenance-mode">maintenance mode</a> turned on, <strong>any</strong>
 non-safe-method request (anything other than <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code>, <code>TRACE</code>) from a non-site-admin
 caller — on any endpoint documented in this reference — is rejected with <code>503 Service Unavailable</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"maintenance_mode"</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Upgrading to 1.2 — back by 14:00 UTC."</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"maintenance_mode"</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Upgrading to 1.2 — back by 14:00 UTC."</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p>The response carries <code>Retry-After: 120</code> so clients back off rather than retry immediately.
 <code>detail</code> is the operator's configured notice, or a built-in default when they left it blank.

@@ -4039,7 +4039,7 @@
 </table>
 <p>These rules are enforced by code review and are documented in <code>CLAUDE.md</code> so they apply to every contribution.</p>
 <h2 id="pagination-shape">Pagination shape<a class="headerlink" href="#pagination-shape" title="Permanent link">&para;</a></h2>
-<p>All paginated list endpoints return a consistent envelope:</p>
+<p>Most paginated list endpoints return a consistent envelope:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
@@ -4047,7 +4047,7 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
 </code></pre></div>
-<p>Query parameters: <code>?offset=0&amp;page_size=50</code> (max <code>200</code>). This shape is stable for the lifetime of <code>v1</code>.</p>
+<p>Query parameters: <code>?offset=0&amp;page_size=50</code> (max <code>200</code>). This shape is stable for the lifetime of <code>v1</code>. A few endpoints deliberately use another shape (cursor <code>{results, next_cursor}</code> on <code>/cards/</code>, <code>next</code>/<code>previous</code> links on a card timeline, <code>{results, next}</code> on the board events feed, and bare arrays for small bounded lists); see <a href="../../api/#pagination">Pagination</a> for the full list.</p>
 <h2 id="how-deprecation-works">How deprecation works<a class="headerlink" href="#how-deprecation-works" title="Permanent link">&para;</a></h2>
 <p>When a field or endpoint needs to be removed in a future release:</p>
 <ol>

@@ -5032,8 +5032,17 @@
 <td><code>?expand=group</code></td>
 <td>Populate <code>group_detail</code> on each board with a <code>GroupBrief</code> object (see <code>GET /api/v1/boards/{id}/full/</code> for the shape). Without this parameter <code>group_detail</code> is <code>null</code>. Triggers a one-query ancestor bulk-fetch — safe to use on list responses.</td>
 </tr>
+<tr>
+<td><code>?offset=&lt;n&gt;</code></td>
+<td>Zero-based row offset (default <code>0</code>)</td>
+</tr>
+<tr>
+<td><code>?page_size=&lt;n&gt;</code></td>
+<td>Rows per page (default <code>50</code>, max <code>200</code>)</td>
+</tr>
 </tbody>
 </table>
+<p><strong>Response</strong> — the standard <a href="../#pagination">paginated envelope</a>: <code>{ "count", "offset", "page_size", "results": [ ...boards ] }</code>. Read the boards from <code>results</code>; the response is not a bare array.</p>
 <h3 id="post-apiv1boards"><code>POST /api/v1/boards/</code><a class="headerlink" href="#post-apiv1boards" title="Permanent link">&para;</a></h3>
 <blockquote>
 <p><strong>Changed in 1.2</strong></p>
@@ -5661,7 +5670,7 @@
 <h3 id="get-apiv1boardsidmovements"><code>GET /api/v1/boards/{id}/movements/</code><a class="headerlink" href="#get-apiv1boardsidmovements" title="Permanent link">&para;</a></h3>
 <p>Board-level movement history for all cards on the board, sorted newest first. Requires any board membership (viewer and above).</p>
 <p><strong>Permissions:</strong> any board member (<code>viewer</code> and above).</p>
-<p><strong>Pagination:</strong> fixed page size of 50 results. Use <code>offset</code> to page through results.</p>
+<p><strong>Pagination:</strong> the standard <a href="../#pagination">envelope</a>, but the page size is fixed at 50 results and <code>page_size</code> is ignored. Use <code>offset</code> to page through results.</p>
 <p><strong>Query parameters:</strong></p>
 <table>
 <thead>
@@ -6062,11 +6071,12 @@ caller below <code>admin</code> — the same role gate this export already appli
 </code></pre></div>
 <h3 id="get-apiv1boardsidexport-history"><code>GET /api/v1/boards/{id}/export-history/</code><a class="headerlink" href="#get-apiv1boardsidexport-history" title="Permanent link">&para;</a></h3>
 <p>Return recent successful board exports for audit purposes (#842). Requires board <code>admin</code> or <code>site_admin</code> role — the board owner always resolves to <code>admin</code> even with no explicit membership row, so only <code>member</code>, <code>collaborator</code>, and <code>viewer</code> roles are actually turned away, with <code>403 Forbidden</code> and body <code>{"detail": "Export history is restricted to board admins."}</code>. Failed exports (permission denied, rate limited) are not logged.</p>
-<p><strong>Response</strong> (paginated — standard DRF envelope with <code>count</code>, <code>next</code>, <code>previous</code>, <code>results</code>; ordered newest-first)</p>
+<p><strong>Query parameters:</strong> <code>offset</code> (default <code>0</code>) and <code>page_size</code> (default <code>50</code>, max <code>200</code>).</p>
+<p><strong>Response</strong> (paginated — the standard <a href="../#pagination">envelope</a> with <code>count</code>, <code>offset</code>, <code>page_size</code>, <code>results</code>; ordered newest-first. There are no <code>next</code> / <code>previous</code> links.)</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">"next"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">"previous"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">"page_size"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="p">{</span>
 <a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">      </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
@@ -7414,6 +7424,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <p>Column objects include a <code>uid</code> field — a stable 16-character hex identifier that does not change when the column is renamed or reordered. The <code>uid</code> is read-only; any <code>uid</code> value sent in a request body is ignored.</p>
 <h3 id="get-apiv1boardsidcolumns"><code>GET /api/v1/boards/{id}/columns/</code><a class="headerlink" href="#get-apiv1boardsidcolumns" title="Permanent link">&para;</a></h3>
 <p>List all columns on the board in position order. Available to all board members.</p>
+<p>Paginated: returns the standard <a href="../#pagination">envelope</a> <code>{ "count", "offset", "page_size", "results" }</code> and accepts <code>?offset</code> and <code>?page_size</code> (default <code>50</code>, max <code>200</code>).</p>
 <h3 id="get-apiv1boardsidcolumnscol_id"><code>GET /api/v1/boards/{id}/columns/{col_id}/</code><a class="headerlink" href="#get-apiv1boardsidcolumnscol_id" title="Permanent link">&para;</a></h3>
 <p>Get a single column. Available to all board members.</p>
 <h3 id="post-apiv1boardsidcolumns"><code>POST /api/v1/boards/{id}/columns/</code><a class="headerlink" href="#post-apiv1boardsidcolumns" title="Permanent link">&para;</a></h3>
@@ -7498,6 +7509,7 @@ rule as checklist-item reorder, #1292.)</em></p>
 <p><strong><code>custom_field_values</code> visibility (since 1.2):</strong> unlike <code>contact_email</code>/<code>notes</code>, visibility of a row's custom field values is gated <strong>per definition</strong>, not per role. Every board role receives <code>custom_field_values</code>, but each entry is present only if its <a href="#swimlane-custom-fields-since-12">definition</a> has <code>is_admin_only: false</code> — the default is <code>true</code>. Board admins and site admins always see every value regardless of <code>is_admin_only</code>. A share-link visitor (<code>GET /api/share/{token}/</code>) never receives <code>custom_field_values</code> at all — see <a href="#public-share-endpoint">Public share endpoint</a>.</p>
 <h3 id="get-apiv1boardsidswimlanes"><code>GET /api/v1/boards/{id}/swimlanes/</code><a class="headerlink" href="#get-apiv1boardsidswimlanes" title="Permanent link">&para;</a></h3>
 <p>List all swimlanes on the board in position order. Available to all board members. <code>admin</code> and <code>site_admin</code> roles see <code>contact_email</code> and <code>notes</code>; all other roles receive swimlane objects without those fields.</p>
+<p>Paginated: returns the standard <a href="../#pagination">envelope</a> <code>{ "count", "offset", "page_size", "results" }</code> and accepts <code>?offset</code> and <code>?page_size</code> (default <code>50</code>, max <code>200</code>).</p>
 <h3 id="get-apiv1boardsidswimlanesswimlane_id"><code>GET /api/v1/boards/{id}/swimlanes/{swimlane_id}/</code><a class="headerlink" href="#get-apiv1boardsidswimlanesswimlane_id" title="Permanent link">&para;</a></h3>
 <p>Get a single swimlane. Same role-gated field rules as the list endpoint.</p>
 <h3 id="post-apiv1boardsidswimlanes"><code>POST /api/v1/boards/{id}/swimlanes/</code><a class="headerlink" href="#post-apiv1boardsidswimlanes" title="Permanent link">&para;</a></h3>
@@ -7638,6 +7650,7 @@ same rule as checklist-item reorder, #1292.)</em></p>
 <p>Label objects include a <code>uid</code> field — stable across renames, read-only.</p>
 <h3 id="get-apiv1boardsidlabels"><code>GET /api/v1/boards/{id}/labels/</code><a class="headerlink" href="#get-apiv1boardsidlabels" title="Permanent link">&para;</a></h3>
 <p>List board labels. Available to all board members.</p>
+<p>Paginated: returns the standard <a href="../#pagination">envelope</a> <code>{ "count", "offset", "page_size", "results" }</code> and accepts <code>?offset</code> and <code>?page_size</code> (default <code>50</code>, max <code>200</code>).</p>
 <h3 id="get-apiv1boardsidlabelslabel_id"><code>GET /api/v1/boards/{id}/labels/{label_id}/</code><a class="headerlink" href="#get-apiv1boardsidlabelslabel_id" title="Permanent link">&para;</a></h3>
 <p>Get a single label. Available to all board members.</p>
 <h3 id="post-apiv1boardsidlabels"><code>POST /api/v1/boards/{id}/labels/</code><a class="headerlink" href="#post-apiv1boardsidlabels" title="Permanent link">&para;</a></h3>
