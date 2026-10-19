@@ -49,7 +49,7 @@ from boards.services.errors import (
     BoardNotFound, CardNotFound, CardServiceError,
 )
 from boards.utils import _get_assignable_member_ids
-from boards.views._helpers import get_accessible_boards_queryset
+from boards.views._helpers import _count_subquery, get_accessible_boards_queryset
 from visiban.request_shape import MAX_OFFSET
 
 from .context import get_current_user
@@ -94,18 +94,17 @@ def list_boards():
 
     qs = get_accessible_boards_queryset(user)
 
-    # distinct=True on every Count is load-bearing, not defensive. columns,
-    # swimlanes and cards are three INDEPENDENT one-to-many children of Board,
-    # so the three LEFT OUTER JOINs cross-multiply before aggregation: without
-    # it a board with 5 columns, 3 swimlanes and 10 cards reports 150 for all
-    # three counts. card_count excludes archived cards to match the count the
-    # REST board list reports.
+    # Correlated per-board subqueries, not Count() over columns/swimlanes/cards.
+    # Those are three INDEPENDENT one-to-many children of Board, so joining them
+    # side by side multiplies rows (columns x swimlanes x cards per board) before
+    # aggregation; distinct=True kept the values right but not the cost (#1768,
+    # same class as #1723). Each count is computed independently instead.
+    # card_count excludes archived cards to match the count the REST board list
+    # reports.
     qs = qs.select_related(GROUP_ANCESTOR_SELECT_RELATED).annotate(
-        _column_count=Count("columns", distinct=True),
-        _swimlane_count=Count("swimlanes", distinct=True),
-        _card_count=Count(
-            "cards", filter=Q(cards__archived_at__isnull=True), distinct=True
-        ),
+        _column_count=_count_subquery(Column),
+        _swimlane_count=_count_subquery(Swimlane),
+        _card_count=_count_subquery(Card, Q(archived_at__isnull=True)),
     )
 
     boards = list(qs)
