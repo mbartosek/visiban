@@ -186,7 +186,8 @@ export async function searchAllCards(
       const e = err as { name?: string };
       const aborted = e?.name === "CanceledError" || e?.name === "AbortError" || signal?.aborted;
       if (page === 0 || aborted) throw err;
-      return { cards, truncated: true, total: Math.max(total, cards.length) };
+      // A truncated result has more matches than were loaded, even if the total header was missing.
+      return { cards, truncated: true, total: Math.max(total, cards.length + 1) };
     }
     cards.push(...r.data);
     const headerTotal = Number(r.headers?.["x-total-count"]);

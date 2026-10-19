@@ -71,4 +71,32 @@ describe('searchAllCards', () => {
       .mockRejectedValueOnce(Object.assign(new Error('canceled'), { name: 'CanceledError' }))
     await expect(searchAllCards(1, 'x')).rejects.toThrow('canceled')
   })
+
+  it('rejects when the signal was aborted between pages, whatever the error', async () => {
+    const controller = new AbortController()
+    get
+      .mockImplementationOnce(async () => {
+        const r = resp(rows(1, 200), true, 450)
+        controller.abort()
+        return r
+      })
+      .mockRejectedValueOnce(new Error('generic'))
+    await expect(searchAllCards(1, 'x', controller.signal)).rejects.toThrow('generic')
+  })
+
+  it('rejects on an AbortError after page 1 succeeded', async () => {
+    get
+      .mockResolvedValueOnce(resp(rows(1, 200), true, 450))
+      .mockRejectedValueOnce(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+    await expect(searchAllCards(1, 'x')).rejects.toThrow('aborted')
+  })
+
+  it('reports total greater than shown on a late failure when X-Total-Count is missing', async () => {
+    get
+      .mockResolvedValueOnce({ data: rows(1, 200), headers: { 'x-truncated': 'true' } })
+      .mockRejectedValueOnce(new Error('429'))
+    const r = await searchAllCards(1, 'x')
+    expect(r.truncated).toBe(true)
+    expect(r.total).toBeGreaterThan(r.cards.length)
+  })
 })
