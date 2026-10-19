@@ -4149,7 +4149,7 @@
 <tr>
 <td>Board snapshot</td>
 <td><code>board://{board_id}</code></td>
-<td>Full read-only board snapshot: metadata, columns, swimlanes, active cards, and labels — one round trip instead of three <code>list_*</code> calls. Any board role.</td>
+<td>Read-only board snapshot: metadata, columns, swimlanes, up to 200 active cards, and labels — one round trip instead of three <code>list_*</code> calls. <code>cards_total</code> and <code>cards_truncated</code> flag a board with more than 200 active cards. Any board role.</td>
 </tr>
 <tr>
 <td>Card detail</td>
