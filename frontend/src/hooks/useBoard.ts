@@ -209,7 +209,11 @@ export function useBoard() {
       // Every failure gets a visible message; the branches above only cover the
       // limit/permission/maintenance/conflict codes (#1761).
       if (!surfaced) {
-        setMoveError({ code: "move_failed", detail: `The card was not moved — ${failureReason(err)}.` });
+        // Title is "Move failed", so the body is just the cause, capitalized.
+        const reason = axiosErr?.response?.status === 404
+          ? "the card or board no longer exists, so the board was refreshed"
+          : failureReason(err);
+        setMoveError({ code: "move_failed", detail: `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.` });
       }
       // Surface the failure to the caller (#1761). Drag-and-drop ignores it;
       // CardDetail uses it to roll back its local copy and name the cause.

@@ -22,7 +22,7 @@ import ModalWrapper from "../shared/ModalWrapper";
 import CustomFieldEditRow from "./CustomFieldEditRow";
 import CardRelationsSection from "./CardRelationsSection";
 import CardExternalRefSection from "./CardExternalRefSection";
-import { failureReason } from "../../utils/moveFailure";
+import { failureReason, isLimitFailure } from "../../utils/moveFailure";
 import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON } from "../../constants/demoCopy";
@@ -283,7 +283,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   const moveFailureMessage = (err: unknown): string => {
     const reason = failureReason(err);
     const body = (err as { response?: { data?: { column_name?: unknown } } } | null)?.response?.data;
-    if (reason === "a column limit was reached" && typeof body?.column_name === "string") {
+    if (isLimitFailure(err) && typeof body?.column_name === "string") {
       return `Card could not be moved — "${body.column_name}" has reached its limit.`;
     }
     return `Card could not be moved — ${reason}.`;

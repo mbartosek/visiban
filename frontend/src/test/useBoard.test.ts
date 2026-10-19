@@ -517,7 +517,16 @@ describe('useBoard', () => {
     const { result } = renderHook(() => useBoard())
     await waitFor(() => expect(result.current.board).not.toBeNull())
     await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
-    expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'The card was not moved — a network error occurred.' })
+    expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'A network error occurred.' })
+  })
+
+  it('moveCard explains a 404 and refreshes the board (#1761)', async () => {
+    mockGetBoardFull.mockResolvedValue(makeBoard())
+    mockMoveCard.mockRejectedValue({ response: { status: 404, data: {} } })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    await act(async () => { await result.current.moveCard(100, 11, 20, 0) })
+    expect(result.current.moveError).toEqual({ code: 'move_failed', detail: 'The card or board no longer exists, so the board was refreshed.' })
   })
 
   it('moveCard does not replace a specific 409 limit toast with move_failed (#1761)', async () => {
