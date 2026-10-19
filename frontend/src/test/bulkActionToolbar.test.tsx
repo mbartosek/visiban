@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import BulkActionToolbar from '../components/Board/BulkActionToolbar'
-import type { BoardFull } from '../types'
+import type { BoardFull, Card } from '../types'
 
 vi.mock('../api/cards', () => ({
   moveCard: vi.fn(),
@@ -724,5 +724,95 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
       />
     )
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  })
+
+  const renderToolbar = (over: object = {}) => {
+    const props = { onCardsUpdated: vi.fn<(cards: Card[]) => void>(), onClearSelection: vi.fn<() => void>(), ...over }
+    render(
+      <BulkActionToolbar
+        board={makeBoard()}
+        selectedCardIds={new Set([100, 101])}
+        onCardsUpdated={props.onCardsUpdated}
+        onCardsDeleted={vi.fn()}
+        onCardsArchived={vi.fn()}
+        onClearSelection={props.onClearSelection}
+      />
+    )
+    return props
+  }
+
+  const axiosErr = (status: number, data: unknown = {}) =>
+    Object.assign(new Error('x'), { isAxiosError: true, response: { status, data } })
+
+  it('assign partial failure keeps selection, applies fulfilled, shows error', async () => {
+    const user = userEvent.setup()
+    const ok = { ...makeBoard().cards[0], assignee: makeBoard().members[0].user }
+    mockUpdateCard.mockResolvedValueOnce(ok).mockRejectedValueOnce(axiosErr(403))
+    const { onCardsUpdated, onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Assign to...'))
+    await user.click(screen.getByText('Jane Doe'))
+    expect(await screen.findByText(/1 of 2 cards could not be assigned — you do not have permission/)).toBeInTheDocument()
+    expect(onCardsUpdated).toHaveBeenCalledWith([ok])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('priority partial failure keeps selection and reports a network error', async () => {
+    const user = userEvent.setup()
+    const ok = { ...makeBoard().cards[0], priority: 'high' }
+    mockUpdateCard.mockResolvedValueOnce(ok).mockRejectedValueOnce(new Error('Network Error'))
+    const { onCardsUpdated, onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    expect(await screen.findByText(/1 of 2 cards could not be updated — a network error occurred/)).toBeInTheDocument()
+    expect(onCardsUpdated).toHaveBeenCalledWith([ok])
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('mixed failure reasons are reported as such', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockRejectedValueOnce(axiosErr(404)).mockRejectedValueOnce(axiosErr(500))
+    renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    expect(await screen.findByText(/2 of 2 cards could not be updated — for more than one reason/)).toBeInTheDocument()
+  })
+
+  it('assign and priority clear selection when all succeed', async () => {
+    const user = userEvent.setup()
+    mockUpdateCard.mockResolvedValue(makeBoard().cards[0])
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Priority...'))
+    await user.click(screen.getByText(/high/i))
+    await waitFor(() => expect(onClearSelection).toHaveBeenCalled())
+    expect(screen.queryByText(/could not be/)).not.toBeInTheDocument()
+  })
+
+  it('move failure that is not a limit does not blame WIP', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(409, { code: 'version_conflict' }))
+    const { onClearSelection } = renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/2 of 2 cards could not be moved — they were changed by someone else/)).toBeInTheDocument()
+    expect(screen.queryByText(/WIP/)).not.toBeInTheDocument()
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('move failure from a WIP limit keeps the WIP message', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(axiosErr(409, { code: 'wip_limit_exceeded' }))
+    renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/could not be moved — blocked by a WIP or weight limit/)).toBeInTheDocument()
+  })
+
+  it('move failure with no response reports a network error', async () => {
+    const user = userEvent.setup()
+    mockMoveCard.mockRejectedValue(new Error('Network Error'))
+    renderToolbar()
+    await user.click(screen.getByText('Move to...'))
+    await user.click(screen.getByText('Done'))
+    expect(await screen.findByText(/could not be moved — a network error occurred/)).toBeInTheDocument()
   })
 })
