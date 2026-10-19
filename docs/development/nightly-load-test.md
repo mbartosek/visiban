@@ -52,7 +52,11 @@ python manage.py seed_demo_data --force --scale 20 --with-notifications
   list's count annotations expensive (two multi-valued joins multiplying, #1723), and a
   5-member fixture could not expose it; with ~2,400 cards it now exercises that endpoint.
   `GET /api/v1/boards/` computes `member_count` / `card_count` / `archived_card_count` as
-  independent correlated subqueries, so the members x cards intermediate-row blow-up is gone.
+  independent correlated subqueries, so the members x cards intermediate-row blow-up is gone. The job now times that endpoint as the
+  `board_list` scenario. It has **no budget** in `backend/nightly-load-test-baseline.json` until
+  [#1233](https://gitlab.com/visiban/visiban/-/issues/1233) re-derives baselines, so it is
+  recorded in the results artifact but cannot fail the job (a scenario without a baseline entry is
+  measure-only).
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
   the 50-row cap `NotificationListView` / `NotificationUnreadCountView` apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.

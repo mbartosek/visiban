@@ -13,6 +13,7 @@ show up before a customer notices it.
 Covers the endpoints boards/migrations 0030 (trigram GIN search indexes) and
 0045 (activity/comment composite indexes) exist to keep fast as data volume
 grows:
+  - board_list              GET  /api/v1/boards/                    (#1723, no budget yet)
   - board_full              GET  /api/v1/boards/{id}/full/
   - card_search             GET  /api/v1/cards/?search=...          (0030)
   - card_timeline           GET  /api/v1/boards/{id}/cards/{id}/timeline/  (0045)
@@ -125,6 +126,14 @@ def _self_test():
     if not _check_budget(1000, 1000):
         failures.append("boundary case failed: p95 == budget must be within budget (<=)")
 
+    # --- board_list (#1723) is measured, and a scenario with no baseline entry is
+    # measure-only (budgets.get(name, {}).get("budget_p95_ms") is None) ---
+    eps = _endpoints("http://x", 1, 2)
+    if eps.get("board_list") != "http://x/api/v1/boards/":
+        failures.append("board_list scenario missing from _endpoints()")
+    if {}.get("board_list", {}).get("budget_p95_ms") is not None:
+        failures.append("a scenario without a baseline entry must have no budget")
+
     if failures:
         print("SELF-TEST FAILED:", file=sys.stderr)
         for f in failures:
@@ -132,6 +141,23 @@ def _self_test():
         return 1
     print("SELF-TEST OK: percentile calculation and budget comparison both fire correctly.")
     return 0
+
+
+def _endpoints(base_url, board_id, sample_card_id):
+    """The measured scenarios, name -> URL.
+
+    ``board_list`` (#1723) has no entry in the baseline file until #1233
+    re-derives baselines; run() treats a scenario with no budget as
+    measure-only (recorded, never a violation), so adding it cannot fail the job.
+    """
+    return {
+        "board_list": f"{base_url}/api/v1/boards/",
+        "board_full": f"{base_url}/api/v1/boards/{board_id}/full/",
+        "card_search": f"{base_url}/api/v1/cards/?search=the",
+        "card_timeline": f"{base_url}/api/v1/boards/{board_id}/cards/{sample_card_id}/timeline/",
+        "notifications_list": f"{base_url}/api/v1/notifications/",
+        "notifications_unread": f"{base_url}/api/v1/notifications/unread-count/",
+    }
 
 
 def _find_board(session, base_url, board_name):
@@ -204,13 +230,7 @@ def run(args):
     }
     print(f"Fixture: {fixture}")
 
-    endpoints = {
-        "board_full": f"{base_url}/api/v1/boards/{board_id}/full/",
-        "card_search": f"{base_url}/api/v1/cards/?search=the",
-        "card_timeline": f"{base_url}/api/v1/boards/{board_id}/cards/{sample_card_id}/timeline/",
-        "notifications_list": f"{base_url}/api/v1/notifications/",
-        "notifications_unread": f"{base_url}/api/v1/notifications/unread-count/",
-    }
+    endpoints = _endpoints(base_url, board_id, sample_card_id)
 
     budgets = {}
     if args.budget_file and not args.measure_only:

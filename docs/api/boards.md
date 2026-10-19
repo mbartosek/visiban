@@ -49,7 +49,7 @@ Get board summary. Response includes:
 | `owner` | object | Owner user object |
 | `group`, `group_name` | integer / null, string / null | Group ID and name (null for personal boards) |
 | `group_detail` | object / null | Populated with a `GroupBrief` object when `?expand=group` is appended to the request; `null` otherwise. `GroupBrief` shape: `{ id, name, parent, parent_name, ancestors }` where `parent` is the parent group FK ID (or `null`) and `ancestors` is a root-first `[{ id, name }]` chain. |
-| `member_count` | integer | Number of direct board members |
+| `member_count` | integer | Number of direct board members. Reported as the true total for every viewer, including non-owner members (before 1.2 a direct member who was not the owner saw `1` on `GET /api/v1/boards/`). `card_count` and `archived_card_count` are likewise true totals for every viewer. |
 | `card_count` | integer | Number of active (non-archived) cards |
 | `archived_card_count` | integer | Number of archived cards. Reported separately because `card_count` excludes them, yet `DELETE /api/v1/boards/{id}/` deletes them too. Clients that confirm a board delete should treat `card_count + archived_card_count` as the number of cards at stake. Also present on `GET /api/v1/boards/`, `GET /api/v1/groups/{id}/boards/`, and `/full/`. Added in 1.2 (#1289). |
 | `staleness_threshold_days` | integer | Days without movement before a card is considered stale (default: 7) |

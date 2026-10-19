@@ -107,3 +107,25 @@ class BoardListCountsTests(TestCase):
         self.assertEqual(
             (got["member_count"], got["card_count"], got["archived_card_count"]), (3, 4, 2)
         )
+
+    def test_group_inherited_viewer_sees_true_totals(self):
+        # Reaches the board only via membership in a PARENT group (board is in a
+        # subgroup): no direct board membership, not the owner.
+        from groups.models import Group, GroupMembership
+
+        parent = Group.objects.create(name="parent", owner=self.user)
+        sub = Group.objects.create(name="sub", owner=self.user, parent=parent)
+        board = _board(self.user, "inh", members=3, cards=4, archived=1)
+        board.group = sub
+        board.save()
+        viewer = User.objects.create_user(username="grp-viewer", password="x")
+        GroupMembership.objects.create(group=parent, user=viewer, role="member")
+        self.assertFalse(BoardMembership.objects.filter(board=board, user=viewer).exists())
+        client = APIClient()
+        client.force_authenticate(viewer)
+        r = client.get("/api/v1/boards/")
+        data = r.data["results"] if isinstance(r.data, dict) and "results" in r.data else r.data
+        got = {b["name"]: b for b in data}["inh"]
+        self.assertEqual(
+            (got["member_count"], got["card_count"], got["archived_card_count"]), (3, 4, 1)
+        )
