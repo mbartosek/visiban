@@ -1,12 +1,14 @@
 """CardQueryViewSet — read-only, paginated, filterable cross-board card query (#1112).
 
-`GET /api/v1/boards/{board_id}/cards/` is capped at 200 rows per request (it
-gained offset paging and count/truncation headers in #1724, but keeps a bare
-array and a single-board scope), and `GET /api/v1/boards/{board_id}/full/` returns every active card
-unpaginated — neither can page through a large board, filter by more than a
-handful of fields, or answer "what changed since I last synced" across boards.
-This module adds `GET /api/v1/cards/` alongside them, unpaginated endpoints
-unchanged, to serve large-board table/list views and incremental sync.
+`GET /api/v1/boards/{board_id}/cards/` returns a bare array of at most 200
+rows per request; since #1724 it reports the total in X-Total-Count /
+X-Truncated and offset-pages with limit/offset, but it is single-board, has a
+fixed filter set, and offset paging can skip or repeat rows under concurrent
+writes. `GET /api/v1/boards/{board_id}/full/` returns every active card in one
+unpaginated response. Neither answers "what changed since I last synced"
+across boards. This module adds the cursor-paginated `GET /api/v1/cards/`
+alongside them, leaving both response shapes unchanged, to serve large-board
+table/list views and incremental sync.
 
 Deliberately kept out of cards.py: a concurrent MR (#1106) is editing
 CardViewSet.update()/CardSerializer in that file, so this endpoint lives in its

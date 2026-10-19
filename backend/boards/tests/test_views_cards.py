@@ -847,6 +847,21 @@ class CardListTruncationSignalTests(TestCase):
         self.assertEqual(r.status_code, 404)
         self.assertNotIn("X-Total-Count", r)
 
+    def test_cors_exposes_count_headers(self):
+        # Browsers hide non-safelisted response headers from cross-origin JS
+        # unless the server exposes them; without this the headers are useless
+        # to a cross-origin client.
+        from django.test import override_settings
+
+        self._seed(2)
+        origin = "https://app.example.com"
+        with override_settings(CORS_ALLOWED_ORIGINS=[origin]):
+            r = self.client.get(self.url, HTTP_ORIGIN=origin)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Access-Control-Allow-Origin"], origin)
+        exposed = {h.strip() for h in r["Access-Control-Expose-Headers"].split(",")}
+        self.assertTrue({"X-Total-Count", "X-Truncated"} <= exposed, exposed)
+
     def test_access_is_checked_before_param_validation(self):
         # A non-member (or a nonexistent board) gets the same 404 whatever the
         # query string; only a member ever sees the param 400.

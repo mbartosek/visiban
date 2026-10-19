@@ -96,13 +96,8 @@ Rows are ordered by `ordering` with the card ID as a tiebreaker, so a walk over 
 
 | Parameter | Description |
 |---|---|
-| `?limit=<n>` | Maximum cards to return. Default and maximum `200`; a larger value is clamped to `200`. `0` returns `[]` with the headers set (a count-only request) |
-| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]` |
-
-**Query parameters**
-
-| Parameter | Description |
-|---|---|
+| `?limit=<n>` | Maximum cards to return. Default and maximum `200`; a larger value is clamped to `200`. `0` returns `[]` with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns `400` |
+| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value returns `400` |
 | `?search=<q>` | Filter by title and description (partial, case-insensitive) |
 | `?assignee=<id>` | Filter by assignee user ID |
 | `?unassigned=true` | Return only cards with no assignee |

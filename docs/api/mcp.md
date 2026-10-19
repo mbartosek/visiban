@@ -332,7 +332,7 @@ Lists a board's swimlanes, ordered by position. All board roles may call it.
 
 ### `list_cards`
 
-Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Capped at 200 rows, like the REST card list endpoint.
+Lists a board's cards, ordered by column then swimlane then position. All board roles may call it. Returns at most 200 cards, with no signal when more match and no way to page past them (tracked in #1762). The REST `GET /api/v1/boards/{board_id}/cards/` has the same 200-row default but reports the total in `X-Total-Count` / `X-Truncated` and pages with `limit`/`offset`; use it, or `GET /api/v1/boards/{board_id}/full/`, when a board may hold more than 200 matching cards.
 
 **Arguments:** `board_id` (integer, required); `column_id`, `swimlane_id` (integers), `assignee` (username, case-insensitive), `priority`, `label` (name) — all optional filters, ANDed together; `include_archived` (boolean, default `false`).
 
@@ -399,7 +399,7 @@ A full read-only board snapshot: metadata, columns, swimlanes, active cards, and
 | `updated_at` | string | ISO 8601 timestamp. |
 | `columns` | array | Same shape as `list_columns`'s return above. |
 | `swimlanes` | array | Same shape as `list_swimlanes`'s return above, including the admin/site_admin-only `contact_email` rule. |
-| `cards` | array | Same shape as `list_cards`'s return above, unfiltered and excluding archived cards. |
+| `cards` | array | Same shape as `list_cards`'s return above, unfiltered and excluding archived cards. Subject to the same 200-card cap as `list_cards`, with no truncation signal (#1762). |
 | `labels` | array | `{id, name, color}` objects, one per label defined on the board. |
 
 !!! note
