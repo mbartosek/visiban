@@ -2047,3 +2047,66 @@ describe('CardDetail — custom fields (#371, #1236)', () => {
     })
   })
 })
+
+describe('CardDetail focus trap (#1732)', () => {
+  it('panel is an aria-modal dialog and Tab wraps inside it', () => {
+    render(<CardDetail {...defaultProps()} />)
+    const panel = screen.getByRole('dialog', { name: /./ })
+    expect(panel).toHaveAttribute('aria-modal', 'true')
+    const focusables = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href]'))
+    const last = focusables[focusables.length - 1]
+    last.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(panel.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).toBe(focusables[0])
+  })
+
+  it('restores focus to the opener when the panel closes', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { unmount } = render(<CardDetail {...defaultProps()} />)
+    expect(opener).not.toHaveFocus()
+    unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+
+  it('bulk-add overlay is a labelled modal dialog, traps Tab, and returns focus to Bulk on close', async () => {
+    const user = userEvent.setup()
+    render(<CardDetail {...defaultProps()} />)
+    const bulk = screen.getByText('Bulk')
+    bulk.focus()
+    await user.click(bulk)
+    const overlay = screen.getByRole('dialog', { name: 'Add checklist items' })
+    expect(overlay).toHaveAttribute('aria-modal', 'true')
+    const buttons = overlay.querySelectorAll<HTMLElement>('button')
+    const focusables = overlay.querySelectorAll<HTMLElement>('button, textarea')
+    buttons[buttons.length - 1].focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    // fireEvent does not move focus itself, so this only holds if the trap wrapped it.
+    expect(document.activeElement).toBe(focusables[0])
+    await user.keyboard('{Escape}')
+    expect(screen.queryByText('Add checklist items')).not.toBeInTheDocument()
+    expect(bulk).toHaveFocus()
+  })
+
+  it('keyboard users can reach the Move popover from the trapped panel', async () => {
+    const user = userEvent.setup()
+    render(<CardDetail {...defaultProps()} onMoveCard={vi.fn().mockResolvedValue(undefined)} />)
+    const trigger = screen.getByRole('button', { name: /Move card to different column or swimlane/ })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const moveTo = screen.getByText('Move to')
+    const popover = moveTo.parentElement as HTMLElement
+    const panel = screen.getByRole('dialog', { name: /./ })
+    expect(panel.contains(popover)).toBe(true)
+    // Tab through the whole panel: the popover's controls must be visited.
+    const seen = new Set<Element>()
+    for (let i = 0; i < 200; i++) {
+      await user.tab()
+      if (document.activeElement) seen.add(document.activeElement)
+    }
+    expect(Array.from(seen).some((el) => popover.contains(el))).toBe(true)
+  })
+})

@@ -279,3 +279,38 @@ describe('BoardSelector — delete confirmation and archived cards (#1289)', () 
     expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
   })
 })
+
+describe('BoardSelector delete dialog focus management (#1732)', () => {
+  const ownedBoard = { id: 1, uid: 'my-board', name: 'My Board', description: '', owner: fakeUser, group: null, group_name: null, member_count: 1, card_count: 0, staleness_threshold_days: 14, stale_warning_pct: 50, allowed_priorities: [], enforce_wip_limits: false, enforce_wip_hard: false, enforce_weight_limits: false, export_min_role: 'member' as const, is_starred: false, created_at: '', updated_at: '' }
+
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('Tab stays inside the dialog and wraps Cancel to Delete', async () => {
+    mockListBoards.mockResolvedValue([ownedBoard])
+    render(<BoardSelector user={fakeUser} onSelect={vi.fn()} />)
+    const user = userEvent.setup()
+    await screen.findByText('My Board')
+    await user.click(screen.getByTitle('Delete board'))
+    const dialog = screen.getByRole('dialog')
+    for (let i = 0; i < 6; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    for (let i = 0; i < 6; i++) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  })
+
+  it('restores focus to the Delete trigger when the dialog is canceled', async () => {
+    mockListBoards.mockResolvedValue([ownedBoard])
+    render(<BoardSelector user={fakeUser} onSelect={vi.fn()} />)
+    const user = userEvent.setup()
+    await screen.findByText('My Board')
+    const trigger = screen.getByTitle('Delete board')
+    await user.click(trigger)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+})

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ArchivedCardsPanel from '../components/Board/ArchivedCardsPanel'
@@ -329,5 +330,49 @@ describe('ArchivedCardsPanel — backdrop keyboard operation (#1376)', () => {
       // already loaded is the whole of the first page now.
       await waitFor(() => expect(mockGetArchivedCards).toHaveBeenLastCalledWith(1, 1))
     })
+  })
+})
+
+describe('ArchivedCardsPanel focus management (#1732)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetArchivedCards.mockResolvedValue(makePage([archivedCard]))
+  })
+
+  function Host() {
+    const [open, setOpen] = useState(false)
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>Open archive</button>
+        {open && <ArchivedCardsPanel board={fakeBoard} onClose={() => setOpen(false)} onUnarchived={vi.fn()} />}
+      </>
+    )
+  }
+
+  it('Tab cycles within the panel and never reaches the board behind it', async () => {
+    const user = userEvent.setup()
+    render(<Host />)
+    await user.click(screen.getByText('Open archive'))
+    const dialog = await screen.findByRole('dialog', { name: 'Archived cards' })
+    await screen.findByText('Old feature')
+    for (let i = 0; i < 8; i++) {
+      await user.tab()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+    for (let i = 0; i < 8; i++) {
+      await user.tab({ shift: true })
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  })
+
+  it('restores focus to the opener on close', async () => {
+    const user = userEvent.setup()
+    render(<Host />)
+    const opener = screen.getByText('Open archive')
+    await user.click(opener)
+    await screen.findByRole('dialog')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
   })
 })

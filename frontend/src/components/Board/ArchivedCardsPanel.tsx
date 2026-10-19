@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import type { BoardFull, Card, User } from "../../types";
 import { getArchivedCards } from "../../api/cards";
 import { unarchiveCard } from "../../api/cards";
@@ -27,6 +28,8 @@ export default function ArchivedCardsPanel({ board, onClose, onUnarchived, curre
 
   useEscapeStack(onClose, 30);
 
+  // #1732 — aria-modal panel: trap Tab, restore focus to the opener on close.
+  useFocusTrap(panelRef, true);
   useEffect(() => {
     panelRef.current?.focus();
   }, []);

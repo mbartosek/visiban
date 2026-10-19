@@ -504,6 +504,27 @@ describe('AdminPage — Users tab', () => {
     errorSpy.mockRestore()
   })
 
+  it('confirm dialog starts on Cancel, traps Tab, and returns focus to the row kebab (#1732)', async () => {
+    renderAdminPage()
+    fireEvent.click(screen.getByText('Users'))
+    await waitFor(() => screen.getByText('@alice'))
+    await openRowMenu('Admin User')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear lockout' }))
+    const dialog = await screen.findByRole('dialog')
+    const cancel = within(dialog).getByText('Cancel')
+    const confirm = within(dialog).getByText('Confirm')
+    expect(cancel).toHaveFocus()
+    confirm.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(cancel).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(confirm).toHaveFocus()
+    fireEvent.click(cancel)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    // The opener (a menu item) unmounted with its menu; focus returns to the row kebab.
+    expect(screen.getByRole('button', { name: 'More actions for Admin User' })).toHaveFocus()
+  })
+
   it('calls clearAdminUserLockout after confirming the clear-lockout action (#1203)', async () => {
     mockClearAdminUserLockout.mockResolvedValue(fakeAdminUsers[1])
     renderAdminPage()
