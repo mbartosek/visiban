@@ -1036,7 +1036,7 @@ Send the confirmation email again for an address awaiting verification.
 | `400 Bad Request` | The `email` value is not a valid address |
 | `429 Too Many Requests` | Too many requests from this IP (`resend_email` throttle scope) |
 
-> **Added in 1.3** (#1552) — scoped rate limit for this endpoint.
+> **Added in 1.2** (#1552) — scoped rate limit for this endpoint.
 
 ---
 

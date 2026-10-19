@@ -68,6 +68,7 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 - All endpoints return `application/json`
 - Write endpoints (`POST`, `PUT`, `PATCH`, `DELETE`) require a valid CSRF token or use token-based auth
 - Dates are ISO 8601 strings: `"2026-04-01"`
+- Requests with no valid credentials (no session, or a missing, invalid, or expired token) return `401 Unauthorized` with a `WWW-Authenticate: Token` header. A credential that is valid but not allowed to perform the action returns `403 Forbidden`. Re-authenticating fixes a `401`; it never fixes a `403`
 - Permission errors return `403 Forbidden`; missing resources return `404 Not Found`
 - *(1.2+)* Board-scoped routes answer `404 Not Found` to a caller with no access to the board, the same as for a board that does not exist. `403 Forbidden` means the caller can see the board but their role is too low for the action
 

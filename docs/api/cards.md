@@ -635,7 +635,7 @@ Delete a comment. **Minimum role: Collaborator.** Collaborators may only delete 
 ### `GET /api/v1/boards/{board_id}/cards/{id}/attachments/`
 List attachments. Response fields per attachment: `id`, `filename`, `size` (bytes), `url` (absolute URL — scheme + host + path, built from the request), `uploaded_by` (user object, or `null` if the uploader has since been deleted), `uploaded_at`.
 
-To download an attachment file, fetch its `url` URL with the same `Authorization` header used for API requests — attachments are served via the authenticated `/media/<path>` route. Unauthenticated requests return `403 Forbidden`; requests from users without board membership return `404 Not Found`.
+To download an attachment file, fetch its `url` URL with the same `Authorization` header used for API requests — attachments are served via the authenticated `/media/<path>` route. Unauthenticated requests return `401 Unauthorized`; requests from users without board membership return `404 Not Found`.
 
 ```bash
 curl -O -J http://localhost:8000/media/attachments/abc123.pdf \
