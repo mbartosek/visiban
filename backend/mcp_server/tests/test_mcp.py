@@ -433,8 +433,9 @@ class ListBoardsTests(McpTestCase):
     def test_counts_are_not_inflated_by_join_fan_out(self):
         """Three independent reverse relations must not cross-multiply.
 
-        Without distinct=True on each Count, the three LEFT OUTER JOINs
-        multiply and every count reports 2*3*4 = 24.
+        Each count is an independent correlated subquery, so the three child
+        tables must not cross-multiply (a join-based count would report
+        2*3*4 = 24 for every count).
         """
         board = _make_board(self.user, name="Counted")
         columns = [_make_column(board, name=f"C{i}", order=i) for i in range(2)]
