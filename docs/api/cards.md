@@ -10,8 +10,9 @@ Cards and everything attached to one — moves, comments, attachments, checklist
 
 Paginated, filterable card query across every board the requesting user can access — for
 table/list views over large boards and for incremental sync (`?updated_since=`). This is
-additive: it does not change `GET /api/v1/boards/{board_id}/cards/` or `GET
-/api/v1/boards/{board_id}/full/` below, both of which keep their existing (unpaginated) shape.
+additive: it does not change `GET /api/v1/boards/{board_id}/cards/` (a bare array of up to 200
+cards per request, offset-paged with optional `limit`/`offset`) or `GET
+/api/v1/boards/{board_id}/full/` (every active card, unpaginated) below.
 
 **Access scoping:** identical to `GET /api/v1/boards/` — boards you own, are a direct member
 of, or have via group-ancestry inheritance, or every board if you have `can_access_all_content`.
