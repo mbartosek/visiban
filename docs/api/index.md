@@ -72,6 +72,43 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 - Permission errors return `403 Forbidden`; missing resources return `404 Not Found`
 - *(1.2+)* Board-scoped routes answer `404 Not Found` to a caller with no access to the board, the same as for a board that does not exist. `403 Forbidden` means the caller can see the board but their role is too low for the action
 
+### Pagination
+
+Most list endpoints return the **standard paginated envelope**. A client must read the list from `results`, not from the top level of the response:
+
+```json
+{
+  "count": 123,
+  "offset": 0,
+  "page_size": 50,
+  "results": [ ... ]
+}
+```
+
+| Query parameter | Default | Description |
+|---|---|---|
+| `offset` | `0` | Zero-based number of rows to skip |
+| `page_size` | `50` | Rows per page. Values above `200` are clamped to `200` |
+
+`count` is the total number of rows across all pages. The envelope carries **no** `next` or `previous` links: walk the list by increasing `offset` by `page_size` until `offset + page_size >= count`.
+
+The following list endpoints use the standard envelope and accept `offset` and `page_size`:
+
+- `GET /boards/`, `GET /groups/`
+- `GET /boards/{id}/columns/`, `swimlanes/`, `labels/`, `custom-fields/`, `swimlane-custom-fields/`, and `export-history/`
+- `GET /admin/users/`, `GET /admin/action-log/`, and `GET /admin/board-invite-links/` (see the [Admin API](admin.md))
+
+Some list endpoints deliberately **do not** use it. Check the endpoint's own page before parsing the response:
+
+| Endpoint | Shape |
+|---|---|
+| `GET /cards/` | Cursor pagination: `{results, next_cursor}`. See [Cards API](cards.md) |
+| `GET /boards/{id}/cards/` | Bare array, capped at 200 rows, with `X-Total-Count` / `X-Truncated` headers and optional `limit` / `offset`. See [Cards API](cards.md) |
+| `GET /boards/{id}/movements/` and `GET /boards/{id}/cards/archived/` | The standard envelope, but the page size is fixed at `50` and `page_size` is ignored; only `offset` pages |
+| `GET /boards/{id}/cards/{card_id}/timeline/` | `limit` (default 50, max 200) and `offset`, with `next` / `previous` links. See [Cards API](cards.md) |
+| `GET /boards/{id}/events/` | `{results, next}` cursor feed. See [Change Feed](events.md) |
+| Small, bounded lists (group members, subgroups, boards, labels, and invite links of a group; board invite links and saved filters; sample boards and templates; notifications; personal access tokens; connected accounts; a card's comments, attachments, checklist, and relations) | Bare JSON array, not paginated |
+
 ### Maintenance mode (503)
 
 > **Added in 1.2**

@@ -5,7 +5,9 @@ Groups organize boards into a hierarchy — subgroups, shared members, shared la
 ## Groups
 
 ### `GET /api/v1/groups/`
-List all groups accessible to the current user: groups they belong to, their subgroups, and the ancestors of those groups (so a client can render the path to a subgroup). A group the user has no access to itself (no membership in it or in one of its ancestors), returned only so navigation (tree, breadcrumbs) keeps working — typically an ancestor of one of their groups — is returned navigation-only, with its fields withheld: each such row has `navigation_only: true`, `description: ""`, `member_count`, `board_count` and `subgroup_count` of `0`, and empty `shared_labels` and `allowed_priorities` — see [Ancestor groups](#ancestor-groups-navigation-only). For example, a user whose only membership is the subgroup `Platform` receives its parent like this:
+List all groups accessible to the current user: groups they belong to, their subgroups, and the ancestors of those groups (so a client can render the path to a subgroup). A group the user has no access to itself (no membership in it or in one of its ancestors), returned only so navigation (tree, breadcrumbs) keeps working — typically an ancestor of one of their groups — is returned navigation-only, with its fields withheld: each such row has `navigation_only: true`, `description: ""`, `member_count`, `board_count` and `subgroup_count` of `0`, and empty `shared_labels` and `allowed_priorities` — see [Ancestor groups](#ancestor-groups-navigation-only). For example, a user whose only membership is the subgroup `Platform` receives its parent like this (one element of `results`):
+
+**Response** — the standard [paginated envelope](index.md#pagination) `{ "count", "offset", "page_size", "results": [ ...groups ] }`. It accepts `?offset` (default `0`) and `?page_size` (default `50`, max `200`); read the groups from `results`, not from the top level.
 
 ```json
 {
