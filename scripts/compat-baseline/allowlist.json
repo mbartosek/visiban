@@ -2919,6 +2919,11 @@
    "operation": "POST /api/v1/auth/choose-username/",
    "issue": "#1783",
    "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "operation": "POST /api/v1/auth/registration/resend-email/",
+   "issue": "#1783",
+   "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
   }
  ]
 }

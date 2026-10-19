@@ -609,7 +609,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         # Schema only (#1783): the view reads `role` alone, not the inherited
         # GroupRequest. A raw schema rather than a serializer because
         # drf-spectacular renders every PATCH serializer as partial, and `role`
-        # is required here (a body without it is a 400).
+        # is required here (a body without it is a 400). A dict schema never
+        # marks the body itself required, so the path is also listed in
+        # visiban.schema_hooks._REQUIRED_PATCH_BODIES.
         request={
             media_type: _GROUP_MEMBER_ROLE_REQUEST
             for media_type in ("application/json", "application/x-www-form-urlencoded", "multipart/form-data")

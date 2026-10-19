@@ -17,6 +17,7 @@ import jsonschema
 from django.test import TestCase
 from django.utils import timezone
 from drf_spectacular.generators import SchemaGenerator
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -208,6 +209,12 @@ class ActionSchemaDeclarationTests(TestCase):
 
     def test_member_role_update_requires_only_role(self):
         path = "/api/v1/groups/{id}/members/{user_id}/"
+        # The body itself is required too (a PATCH without `role` is a 400);
+        # set by visiban.schema_hooks.require_declared_request_bodies.
+        self.assertIs(self._op("patch", path)["requestBody"].get("required"), True)
+        group = self._group()
+        resp = self.client.patch(f"/api/v1/groups/{group.pk}/members/{self.owner.pk}/", {}, format="json")
+        self.assertEqual(resp.status_code, 400)
         for media_type in _BODY_MEDIA_TYPES:
             with self.subTest(media_type=media_type):
                 schema = self._request_schema("patch", path, media_type)
@@ -221,8 +228,7 @@ class ActionSchemaDeclarationTests(TestCase):
         # list-only), so PATCH documents its own component without them.
         ref = self._op("patch", path)["responses"]["200"]["content"][_JSON]["schema"]["$ref"]
         self.assertEqual(set(self._component(ref)["properties"]), {"id", "user", "role", "joined_at"})
-        group = self._group()
-        other = User.objects.create_user(username="member1783", password="pw")
+        other =User.objects.create_user(username="member1783", password="pw")
         GroupMembership.objects.create(group=group, user=other, role=GroupMembership.Role.MEMBER)
         resp = self.client.patch(
             f"/api/v1/groups/{group.pk}/members/{other.pk}/", {"role": "viewer"}, format="json",
@@ -286,6 +292,28 @@ class ActionSchemaDeclarationTests(TestCase):
         resp = self.client.patch(path, {"display_name": "Owner 1783"}, format="json")
         self.assertEqual(resp.status_code, 200)
         self._assert_matches("patch", path, 200, resp.json())
+
+    def test_ws_ticket_documents_201_ticket_and_no_body(self):
+        path = "/api/v1/auth/ws-ticket/"
+        self._assert_no_request_body("post", path)
+        # Was a bodiless 200; the view has always answered 201 with the ticket.
+        self.assertEqual(self._success_statuses("post", path), ["201"])
+        token = Token.objects.create(user=self.owner)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        resp = client.post(path)
+        self.assertEqual(resp.status_code, 201)
+        self._assert_matches("post", path, 201, resp.json())
+
+    def test_resend_email_documents_200_detail(self):
+        path = "/api/v1/auth/registration/resend-email/"
+        # dj-rest-auth's view answers 200; the bundled extension left the
+        # CreateAPIView default of 201 in the schema.
+        self.assertEqual(self._success_statuses("post", path), ["200"])
+        self.assertTrue(self._request_schema("post", path)["$ref"].endswith("/ResendEmailVerificationRequest"))
+        resp = APIClient().post(path, {"email": "nobody-1783@example.com"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self._assert_matches("post", path, 200, resp.json())
 
     def test_notification_mark_read_documents_optional_body(self):
         path = "/api/v1/notifications/mark-read/"

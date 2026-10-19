@@ -1242,6 +1242,21 @@ class WSTicketView(APIView):
     ]
     throttle_classes = [WSTicketThrottle]
 
+    # Schema only (#1783): a plain APIView gave drf-spectacular nothing to
+    # infer, so the schema showed a bodiless 200. The view reads no body and
+    # answers 201 with the ticket.
+    @extend_schema(
+        request=None,
+        responses={
+            201: inline_serializer(
+                name="WSTicket",
+                fields={
+                    "ticket": serializers.CharField(),
+                    "expires_at": serializers.DateTimeField(),
+                },
+            ),
+        },
+    )
     def post(self, request):
         # The ticket is bound to the credential that asked for it, so a socket
         # opened with it closes once that credential is revoked (#1483). A

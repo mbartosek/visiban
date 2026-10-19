@@ -7,6 +7,7 @@ class AccountsConfig(AppConfig):
 
     def ready(self):
         from . import checks  # noqa: F401 — registers the #1337 system check
+        from . import schema_extensions  # noqa: F401 — registers OpenAPI view extensions (#1783)
 
         from .signals import _connect_user_signals
         _connect_user_signals()

@@ -206,6 +206,7 @@ def pin_named_enums(result, generator, request, public):
 _REQUIRED_PATCH_BODIES = (
     "/api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/",
     "/api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
+    "/api/v1/groups/{id}/members/{user_id}/",
 )
 
 

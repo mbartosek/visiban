@@ -1887,7 +1887,7 @@ def _csv_cell(definition: dict, value: str) -> str:
 
 
 def _write_csv(path: str, data: dict) -> None:
-    """Write the board in the exact column layout ``GET /export/?format=csv`` emits.
+    """Write the board in the exact column layout the CSV ``GET /export/`` emits (no ``format``).
 
     So the CSV is importable through the same Import dialog (the importer
     reads Title, Description, Column, Swimlane, Priority, Assignee, Labels,
