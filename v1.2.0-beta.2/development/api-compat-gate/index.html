@@ -4092,18 +4092,49 @@ it yields findings that look like documentation corrections rather than runtime 
 </ul>
 <p>The same comparison found no serializer field and no URL route removed between v1.1.0 and
 <code>main</code> (the <code>dj_rest_auth</code> <code>include()</code> became explicit routes, and five declarations were
-rewritten as same-name <code>SerializerMethodField</code>s). <strong>All other entries remain unverified.</strong></p>
-<p>Those findings are therefore frozen as exact per-finding <code>key</code> entries under <code>#1695</code>, the burn-down tracker,
-(generated once from the gate's own output with an empty allow-list, sorted for stable
-diffs). The snapshot is closed: anything not already in it, including a further change to an
-operation that has entries, fails the job. Never add to it to get a pipeline green; a new
-finding is a real break or needs its own issue-referenced entry.</p>
-<p><strong>Burn-down workflow</strong> (tracked in #1695). Pick an operation, check its v1.1.0 behavior against the current
-runtime (serializer, status code, response shape). If it is only a documentation correction,
-delete that operation's entries and confirm the job stays green (a deleted entry that still
-matches a finding turns the job red, which is the signal that the break is real and needs a
-fix or a properly justified entry). Entries should only ever be deleted, never added. The next
-GA baseline is generated from a corrected schema and does not carry this debt.</p>
+rewritten as same-name <code>SerializerMethodField</code>s).</p>
+<p>Those findings are therefore frozen as exact per-finding <code>key</code> entries (generated once from
+the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
+closed: anything not already in it, including a further change to an operation that has
+entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
+or needs its own issue-referenced entry.</p>
+<p><strong>Burn-down result</strong> (#1695). Every one of the 51 operations with entries was checked against
+the v1.1.0 <em>view code</em> (<code>git show v1.1.0:backend/...</code>), not the v1.1.0 schema, and each entry's
+<code>reason</code> now records what v1.1.0 actually read and returned. The outcome:</p>
+<ul>
+<li><strong>556 entries under <code>#1695</code> are documentation-only.</strong> The v1.1.0 schema showed a fallback
+  serializer for hand-written <code>@action</code>s and <code>APIView</code>s (a card serializer for <code>move/</code>,
+  <code>checklist/</code>, <code>comments/</code>, <code>attachments/</code>, <code>status/</code>, <code>timeline/</code>, <code>archived/</code>; a board
+  serializer for <code>share/</code>, <code>members/</code>, <code>movements/</code>, <code>export-history/</code>; a group serializer for
+  the group <code>labels/</code>, <code>members/</code>, <code>star/</code>, <code>invite-links/</code>, <code>boards/</code> actions), echoed the
+  request serializer as the response for the dj-rest-auth subclasses (<code>login/</code>,
+  <code>password/reset/</code>, <code>password/reset/confirm/</code>, <code>registration/</code>), and documented <code>200</code> where
+  the view returned <code>201</code> (or <code>204</code> where <code>DELETE share/</code> returned <code>200</code>). None of the listed
+  fields or statuses was ever on the wire.</li>
+<li><strong>4 entries under <code>#1302</code> are a real, deliberate runtime change</strong>, already announced in
+  <code>CHANGELOG.md</code>: <code>columns/reorder/</code> and <code>swimlanes/reorder/</code> used to treat a missing <code>order</code> as
+  a <code>200</code> no-op and now answer <code>400</code> unless <code>order</code> is the board's full ID list. The
+  upgrade-guide note for this is tracked in #1782.</li>
+<li><strong>3 <code>REMOVED_REQUEST_MEDIA_TYPE</code> entries on <code>POST /auth/password/change/</code> are a HEAD
+  schema defect, not a removal</strong> (#1781). The endpoint still accepts JSON, form, and multipart
+  bodies, but HEAD's schema has no request body at all, because
+  <code>VisibanPasswordChangeSerializer.__init__</code> calls <code>has_usable_password()</code> on <code>AnonymousUser</code>
+  during schema generation. When #1781 is fixed, the gate stops reporting these three findings
+  and instead reports <code>old_password</code> as a new required request field, which is the deliberate
+  <code>#1257</code> security break. The MR that fixes #1781 replaces the three <code>REMOVED_REQUEST_MEDIA_TYPE</code>
+  entries with three <code>NEW_REQUIRED_REQUEST_FIELD ... .old_password</code> entries under <code>#1257</code>. This
+  is the one stated exception to the no-additions rule below.</li>
+</ul>
+<p>These entries stay in the file because the drift lives in the frozen baseline itself: deleting
+an entry whose finding still fires turns the job red, whether the finding is drift or a real
+break. Entries are only ever deleted (when one goes stale) or re-justified, never added,
+except for the #1781 replacement described above.</p>
+<p>The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
+as the new baseline. Several hand-written actions still document a fallback serializer today,
+for example <code>POST groups/{id}/star/</code>, <code>PATCH groups/{id}/members/{user_id}/</code>, and analytics
+actions. Those errors would be carried into the next baseline and produce the same kind of drift
+against the following release. Fixing them is tracked in #1783 and should land before the
+baseline is rolled.</p>
 <h2 id="running-it-locally">Running it locally<a class="headerlink" href="#running-it-locally" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
