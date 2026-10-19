@@ -4539,6 +4539,14 @@ or add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to ac
 behavior is unchanged in 1.2.</p>
 </div>
 <div class="admonition note">
+<p class="admonition-title"><code>is_starred</code> omitted from WebSocket board and group events</p>
+<p><code>board.created</code>, <code>board.updated</code>, <code>group.created</code> and <code>group.updated</code> payloads now carry
+<code>is_starred</code> only for the user who made the change; every other subscriber receives the
+payload without the key. REST responses still always include it. Custom WebSocket clients
+must treat the key as optional and keep their local value when it is absent. See the
+<a href="../../api/websockets/">WebSocket API</a>.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Superuser accounts normalized</p>
 <p><code>manage.py migrate</code> runs a one-time data migration (<code>accounts/0036</code>). On upgrade, existing
 superuser accounts are set to site admin with all-content access, matching how the
