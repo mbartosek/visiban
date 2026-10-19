@@ -989,6 +989,43 @@ describe('BoardView', () => {
     expect(ctx.moveCard).not.toHaveBeenCalled()
   })
 
+  describe('drag-and-drop outcome announcement (#1761)', () => {
+    const dropOnCell = async (moveCard: BoardContextType['moveCard']) => {
+      const card = {
+        id: 228, uid: 'carduid00228', column: 10, swimlane: 20, title: 'Test Card',
+        description: '', priority: 'medium' as const, assignee: null,
+        labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: "user1", display_name: "User 1", avatar_url: "" },
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+        last_moved_at: null, attachment_count: 0, checklist_total: 0,
+        checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+        custom_field_values: [],
+        blocker_count: 0, external_ref: null,
+      }
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }), moveCard })
+      render(<BoardView {...defaultProps()} />)
+      const event = {
+        active: { id: 228, data: { current: {} }, rect: { current: { translated: null, initial: null } } },
+        over: { id: 'cell:11:20', data: { current: {} }, rect: { top: 0, left: 0, bottom: 10, right: 10, width: 10, height: 10 } },
+        delta: { x: 0, y: 0 },
+        activatorEvent: new MouseEvent('mousedown'),
+      } as unknown as DragEndEvent
+      await act(async () => { capturedOnDragEnd!(event) })
+    }
+
+    it('announces success only after the move succeeds', async () => {
+      await dropOnCell(vi.fn().mockResolvedValue({ ok: true }))
+      expect(screen.getByText("Card 'Test Card' moved to column 'Done', swimlane 'Customer A'")).toBeInTheDocument()
+    })
+
+    it('does not announce success or repeat the toast cause in the status region on failure', async () => {
+      const err = Object.assign(new Error('Network Error'), { isAxiosError: true })
+      await dropOnCell(vi.fn().mockResolvedValue({ ok: false, error: err }))
+      // The role="alert" toast owns the failure announcement; the status region stays blank.
+      expect(screen.queryByText(/moved to column/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/could not be moved/)).not.toBeInTheDocument()
+    })
+  })
+
   // --- Focus mode tests (#340) ---
 
   it('clicking focus button sets ?focus= param and shows banner', async () => {

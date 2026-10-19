@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getBoardFull, patchBoard as apiPatchBoard, reorderColumns as apiReorderColumns, reorderSwimlanes as apiReorderSwimlanes, deleteSwimlane as apiDeleteSwimlane, deleteColumn as apiDeleteColumn } from "../api/boards";
 import { moveCard as apiMoveCard } from "../api/cards";
+import { failureReason } from "../utils/moveFailure";
 import type { BoardFull, BoardMembership, Card, EffectiveBoardMember, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
+
+/** Result of useBoard.moveCard: it never rejects, so callers must check `ok`. */
+export type MoveOutcome = { ok: true } | { ok: false; error: unknown };
 
 export type MoveBlockedError =
   | { code: "wip_limit_exceeded"; column_name: string; current_count: number; wip_limit: number }
@@ -10,7 +14,27 @@ export type MoveBlockedError =
   | { code: "weight_limit_exceeded"; column_name: string; current_weight: number; weight_limit: number; card_weight: number }
   | { code: "version_conflict"; detail: string; current_version: number }
   | { code: "permission_denied"; detail: string }
-  | { code: "maintenance_mode"; detail: string };
+  | { code: "maintenance_mode"; detail: string }
+  // Any other failure (network, 5xx, 404, unrecognized 409/503): without this the
+  // card snaps back with no explanation (#1761).
+  | { code: "move_failed"; detail: string };
+
+// Codes the toast has copy for; anything else (a throttle or validation code)
+// would render as "undefined weight ... NaN", so it falls to the generic toast.
+const KNOWN_MOVE_ERROR_CODES = new Set<string>([
+  "wip_limit_exceeded", "wip_hard_blocked", "weight_limit_exceeded",
+  "version_conflict", "permission_denied", "maintenance_mode", "move_failed",
+]);
+
+/** Generic toast for a failed move that no specific code covered (#1761). The
+ * title is "Move failed", so the body is just the capitalized cause. */
+function genericMoveFailure(err: unknown): MoveBlockedError {
+  const status = (err as { response?: { status?: number } } | null)?.response?.status;
+  const reason = status === 404
+    ? "the card or board no longer exists, so the board was refreshed"
+    : failureReason(err);
+  return { code: "move_failed", detail: `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.` };
+}
 
 interface PendingMove {
   cardId: number;
@@ -131,8 +155,8 @@ export function useBoard() {
     columnId: number,
     swimlaneId: number,
     position: number
-  ) => {
-    if (!boardRef.current) return;
+  ): Promise<MoveOutcome> => {
+    if (!boardRef.current) return { ok: false, error: new Error("board not loaded") };
 
     // Optimistic update — capture current cards for rollback via the ref
     // so this callback does not depend on the `board` state value.
@@ -160,14 +184,18 @@ export function useBoard() {
         if (!b) return b;
         return { ...b, cards: b.cards.map((c) => (c.id === cardId ? card : c)) };
       });
+      // A stale "Move failed" / limit toast must not outlive a later success (#1761).
+      clearMoveError();
+      return { ok: true };
     } catch (err: unknown) {
       // Roll back the optimistic update unconditionally.
       setBoard((b) => b ? { ...b, cards: prev } : b);
       // On 409, surface a structured error for the UI to display.
+      let surfaced = false;
       const axiosErr = err as { response?: { status?: number; data?: unknown } };
       if (axiosErr?.response?.status === 403) {
         const data = axiosErr.response.data as { code?: string; detail?: string };
-        setMoveError({ code: "permission_denied", detail: data?.detail ?? "You do not have permission to move this card." });
+        surfaced = true; setMoveError({ code: "permission_denied", detail: data?.detail ?? "You do not have permission to move this card." });
       } else if (axiosErr?.response?.status === 404) {
         // The card or board is gone, or access to the board was lost: a
         // caller with no access gets 404, not 403. Reload so the board either
@@ -181,24 +209,32 @@ export function useBoard() {
         // vanishes.
         const data = axiosErr.response.data as { code?: string; detail?: string };
         if (data?.code === "maintenance_mode") {
-          setMoveError({ code: "maintenance_mode", detail: data.detail ?? "Maintenance mode is active." });
+          surfaced = true; setMoveError({ code: "maintenance_mode", detail: data.detail ?? "Maintenance mode is active." });
         }
       } else if (axiosErr?.response?.status === 409) {
         const data = axiosErr.response.data as MoveBlockedError;
         if (data?.code === "version_conflict") {
           // Another user modified this card — reload the board to get fresh state.
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
           load();
         } else if (data?.code === "wip_limit_exceeded" || data?.code === "weight_limit_exceeded") {
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
           setPendingMove({ cardId, columnId, swimlaneId, position });
         } else if (data?.code === "wip_hard_blocked") {
           // Hard-blocked moves have no retry path — never set pendingMove.
-          setMoveError(data);
+          surfaced = true; setMoveError(data);
         }
       }
+      // Every failure gets a visible message; the branches above only cover the
+      // limit/permission/maintenance/conflict codes (#1761).
+      if (!surfaced) {
+        setMoveError(genericMoveFailure(err));
+      }
+      // Surface the failure to the caller (#1761). Drag-and-drop ignores it;
+      // CardDetail uses it to roll back its local copy and name the cause.
+      return { ok: false, error: err };
     }
-  }, [boardId, load]);
+  }, [boardId, load, clearMoveError]);
 
   // Admin-only: retry the last blocked move with force=true, bypassing the WIP limit.
   const forceMoveCard = useCallback(async () => {
@@ -237,8 +273,13 @@ export function useBoard() {
       const axiosErr = err as { response?: { status?: number; data?: unknown } };
       if (axiosErr?.response?.data) {
         const data = axiosErr.response.data as MoveBlockedError;
-        if (data?.code) setMoveError(data);
+        if (data?.code && KNOWN_MOVE_ERROR_CODES.has(data.code)) {
+          setMoveError(data);
+          return;
+        }
       }
+      // No structured body (network error, bare 5xx): still say so (#1761).
+      setMoveError(genericMoveFailure(err));
     }
   }, [boardId, clearMoveError]);
 

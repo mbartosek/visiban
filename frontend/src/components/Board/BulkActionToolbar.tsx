@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import axios from "axios";
 import { PRIORITY_COLORS } from "../../constants/colors";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import type { BoardFull, Card, Column, User } from "../../types";
 import { userDisplayName } from "../../types";
 import { moveCard, updateCard, deleteCard, archiveCard } from "../../api/cards";
+import { failureReason } from "../../utils/moveFailure";
 import ModalWrapper from "../shared/ModalWrapper";
 import { MENU_ITEM_FOCUS_RING } from "../Common/menuItemFocusRing";
 
@@ -19,22 +19,6 @@ interface Props {
 }
 
 type Dropdown = "move" | "assign" | "priority" | null;
-
-const LIMIT_CODES = new Set(["wip_limit_exceeded", "wip_hard_blocked", "weight_limit_exceeded"]);
-
-/** Why one bulk request failed, as a clause for "could not be X — {reason}".
- * The WIP/weight wording is used only when the server's `code` says so; a
- * network or permission failure must not be blamed on a column limit (#1733). */
-function failureReason(err: unknown, forbidden = "you do not have permission"): string {
-  if (!axios.isAxiosError(err) || !err.response) return "a network error occurred";
-  const data = err.response.data as { code?: unknown } | undefined;
-  if (typeof data?.code === "string" && LIMIT_CODES.has(data.code)) return "a column limit was reached";
-  // Number-neutral wording: the same clause follows "1 of 1 card" and "2 of 5 cards".
-  if (err.response.status === 403) return forbidden;
-  if (err.response.status === 404) return "not found";
-  if (err.response.status === 409) return "someone else changed a card";
-  return "something went wrong";
-}
 
 const plural = (n: number) => `card${n !== 1 ? "s" : ""}`;
 

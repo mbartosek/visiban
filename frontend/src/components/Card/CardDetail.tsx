@@ -22,6 +22,8 @@ import ModalWrapper from "../shared/ModalWrapper";
 import CustomFieldEditRow from "./CustomFieldEditRow";
 import CardRelationsSection from "./CardRelationsSection";
 import CardExternalRefSection from "./CardExternalRefSection";
+import { failureReason, isLimitFailure } from "../../utils/moveFailure";
+import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON } from "../../constants/demoCopy";
 
@@ -32,7 +34,7 @@ interface Props {
   onDeleted: (id: number) => void;
   onUpdated: (card: Card) => void;
   onArchived: (cardId: number) => void;
-  onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<void>;
+  onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome | void>;
   userDateFormat?: string;
   userTimeFormat?: string;
   userTimezone?: string;
@@ -276,6 +278,17 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     }
   };
 
+  // Names the column for limit refusals (the 409 body carries column_name);
+  // the shared failureReason stays generic for the bulk toolbar.
+  const moveFailureMessage = (err: unknown): string => {
+    const reason = failureReason(err);
+    const body = (err as { response?: { data?: { column_name?: unknown } } } | null)?.response?.data;
+    if (isLimitFailure(err) && typeof body?.column_name === "string") {
+      return `Card could not be moved — "${body.column_name}" has reached its limit.`;
+    }
+    return `Card could not be moved — ${reason}.`;
+  };
+
   const handleMoveSubmit = async () => {
     if (!onMoveCard || moveTargetColumn === null || moveTargetSwimlane === null) return;
     // No-op if the card is already in this location.
@@ -287,11 +300,18 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setMovePopoverError(null);
     try {
       // position 9999 appends the card to the end of the target cell.
-      await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
+      // useBoard.moveCard never rejects; it reports failure in its result. Only
+      // commit the new location to localCard on success, and name the real cause
+      // (limit wording only for limit codes, #1761).
+      const result = await onMoveCard(localCard.id, moveTargetColumn, moveTargetSwimlane, 9999);
+      if (result && result.ok === false) {
+        setMovePopoverError(moveFailureMessage(result.error));
+        return;
+      }
       setLocalCard((c) => ({ ...c, column: moveTargetColumn, swimlane: moveTargetSwimlane }));
       setShowMovePopover(false);
-    } catch {
-      setMovePopoverError("Move blocked — check WIP or weight limits.");
+    } catch (err) {
+      setMovePopoverError(moveFailureMessage(err));
     } finally {
       setMoveSubmitting(false);
     }
@@ -1473,7 +1493,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               onChange={(v) => setMoveTargetColumn(Number(v))}
             />
           </div>
-          <p className="text-xs h-4">
+          <p role="alert" className="text-xs min-h-4">
             {movePopoverError && <span className="text-danger">{movePopoverError}</span>}
           </p>
           <div className="flex gap-3 justify-end">

@@ -1,3 +1,4 @@
+import type { MoveOutcome } from '../hooks/useBoard'
 import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -1417,21 +1418,77 @@ describe('CardDetail', () => {
       })
     })
 
-    it('shows error message when onMoveCard rejects', async () => {
-      const onMoveCard = vi.fn().mockRejectedValue(new Error('WIP limit'))
+    // useBoard.moveCard never rejects — it reports failure as { ok: false, error } (#1761).
+    const submitMove = async (onMoveCard: (...a: number[]) => Promise<MoveOutcome | void>) => {
       const board = makeBoardWithTwoCols()
       const user = userEvent.setup()
       const { container } = render(<CardDetail {...defaultProps()} board={board} onMoveCard={onMoveCard} />)
       await user.click(screen.getByRole('button', { name: /Move card to different column or swimlane/ }))
-
       const popover = container.querySelector('[class*="w-64"]')!
       const colTrigger = Array.from(popover.querySelectorAll('button')).find((b) => b.textContent?.includes('To Do'))!
       await user.click(colTrigger)
       await user.click(screen.getByText('In Progress'))
       await user.click(screen.getByRole('button', { name: 'Move' }))
+      return container
+    }
+    // localCard must not adopt the target: the Move button is disabled only when
+    // the target equals the card's current location, so "enabled" proves rollback.
+    const expectNotMoved = () => expect(screen.getByRole('button', { name: 'Move' })).not.toBeDisabled()
+    const axiosFailure = (status: number, data: unknown = {}) =>
+      Object.assign(new Error('fail'), { isAxiosError: true, response: { status, data } })
 
+    it('names a network error and keeps the card in place when the move fails without a response', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: Object.assign(new Error('Network Error'), { isAxiosError: true }) })
+      await submitMove(onMoveCard)
       await waitFor(() => {
-        expect(screen.getByText(/Move blocked/)).toBeInTheDocument()
+        expect(screen.getByRole('alert')).toHaveTextContent('Card could not be moved — a network error occurred.')
+      })
+      expect(screen.queryByText(/limit/)).not.toBeInTheDocument()
+      // Popover stays open and the breadcrumb still shows the original column.
+      expect(screen.getByText('Move to')).toBeInTheDocument()
+      expectNotMoved()
+    })
+
+    it('names a permission failure, not a limit, on 403', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(403, { detail: 'no' }) })
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.getByText('Card could not be moved — you do not have permission.')).toBeInTheDocument()
+      })
+      expectNotMoved()
+    })
+
+    it('uses limit wording only for a limit code', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded' }) })
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.getByText('Card could not be moved — a column limit was reached.')).toBeInTheDocument()
+      })
+      expectNotMoved()
+    })
+
+    it('names the column when the limit body carries column_name', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: false, error: axiosFailure(409, { code: 'wip_limit_exceeded', column_name: 'In Progress' }) })
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.getByText('Card could not be moved — "In Progress" has reached its limit.')).toBeInTheDocument()
+      })
+    })
+
+    it('does not blame a limit when onMoveCard rejects with a plain error', async () => {
+      const onMoveCard = vi.fn().mockRejectedValue(new Error('boom'))
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.getByText('Card could not be moved — a network error occurred.')).toBeInTheDocument()
+      })
+      expectNotMoved()
+    })
+
+    it('closes the popover on a successful move result', async () => {
+      const onMoveCard = vi.fn().mockResolvedValue({ ok: true })
+      await submitMove(onMoveCard)
+      await waitFor(() => {
+        expect(screen.queryByText('Move to')).not.toBeInTheDocument()
       })
     })
 
