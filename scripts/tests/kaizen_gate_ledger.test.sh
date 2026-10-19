@@ -175,7 +175,7 @@ PYEOF
 )"
 
 # `completeness-check/fix-diff` (the fix-diff re-check's ledger label, see
-# .claude/skills/batch/SKILL.md Step 4) must parse as its OWN gate, distinct from
+# .claude/skills/wave/SKILL.md Step 5.7) must parse as its OWN gate, distinct from
 # `completeness-check`, so the two yields can be measured separately. A label with
 # a space or parenthesis (`completeness-check (fix-diff)`) does not match the gate
 # name pattern and would be silently dropped from the tally.

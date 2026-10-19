@@ -167,7 +167,7 @@ every other number in the report if left unmentioned:
    round-2 audit earns its agent (its total counts only what round 1 missed;
    consistently high `overlap k/N` means it adds little), and sum the `causes:`
    tallies across both rounds — a real share of `requirement-unclear` supports an
-   acceptance-criteria check in `/batch` Step 2; near zero means up-front
+   acceptance-criteria check in `/wave` Step 2; near zero means up-front
    questions would not have prevented the findings.
 2. **Self-inconsistent reporting.** A gate reported both numerically and as
    a deliverable across different MRs (see `test-scaffold` above) — the

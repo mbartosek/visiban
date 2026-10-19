@@ -30,7 +30,7 @@ deliberately (the agent must never auto-merge — see the git workflow rules in
 `CLAUDE.md`). The agent therefore *cannot* call `/mr` through the Skill tool, and
 must not try.
 
-When an agent needs to open an MR as part of automated work (e.g. a `/batch` wave),
+When an agent needs to open an MR as part of automated work (e.g. a `/wave` run),
 it **reproduces Steps 2–4 below directly** with `glab mr create` — same description
 structure, same heredoc, same `Closes #NNN` rule. Guidance elsewhere that says
 "always use `/mr`" means *produce the MR the `/mr` way*, not *call the skill*. This
@@ -248,7 +248,7 @@ After this merges, reap the worktree:
   scripts/wt prune
 ```
 Nothing reaps a worktree automatically after a GitLab merge — `wt prune` must be
-run by hand (or as part of the next `/mr`/`/batch` run) once the merge lands.
+run by hand (or as part of the next `/mr`/`/wave` run) once the merge lands.
 
 ---
 

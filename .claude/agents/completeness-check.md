@@ -39,7 +39,7 @@ What it caught, by class — use these as the checklist, they are the ones that 
 - **Every source-touching branch, before `git push`**, after the pre-MR gate batch has run
   and its fixes are committed. It runs *after* the batch, not in it, because it audits the
   branch those fixes produced. Docs-only branches too — docs claims are checked against code.
-- In `/batch`, implementers commit and stop before pushing; the orchestrator runs this
+- In `/wave`, implementers commit and stop before pushing; the orchestrator runs this
   check, then tells the implementer to push.
 - **Precondition: the branch is committed and not yet pushed, working tree clean.** If it
   isn't — nothing committed, or uncommitted changes sitting on top — **stop and report that**
@@ -57,7 +57,7 @@ What it caught, by class — use these as the checklist, they are the ones that 
 Spawn it as a **fresh** agent — never the implementing agent, never via `SendMessage` to it.
 
 - **Model:** Sonnet by default (this file's frontmatter). Use **Opus** only when the branch
-  meets one of `/batch`'s escalation criteria — unknown root cause, a cross-stack contract
+  meets one of `/wave`'s escalation criteria — unknown root cause, a cross-stack contract
   change, subtle invariants (broadcast semantics, git-lens derivation), or a design /
   backward-compatibility judgment the issue did not settle. Record which one on the ledger
   line. "It is important" is not a criterion.
@@ -168,7 +168,7 @@ which checklist step found it:
 
 Format: `- **BLOCKER** [class-missed] — <finding> — file:line — why`. The tags exist to
 answer one question with data: would asking for requirement clarification *before*
-implementation (`/batch` Step 2) prevent a real share of these findings? Only
+implementation (`/wave` Step 2) prevent a real share of these findings? Only
 `requirement-unclear` would. Tag honestly — a `requirement-missed` filed as
 `requirement-unclear` makes the upstream fix look cheaper than it is. The ledger line
 carries the tally (see Recording it).
