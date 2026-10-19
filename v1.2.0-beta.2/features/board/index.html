@@ -4999,7 +4999,7 @@
 <tbody>
 <tr>
 <td>Search</td>
-<td>Matches card title, description, assignee name, and label names</td>
+<td>Matches card title, description, assignee name, and label names. Search runs on the server and fetches every match in pages of 200 (up to 5,000); if a very broad search exceeds that, a notice above the board says "Showing the first N of M matches" so cards are never hidden silently. The same notice appears if a later page fails to load (for example, when rate limited), showing the matches loaded so far</td>
 </tr>
 <tr>
 <td><strong>My cards</strong></td>
