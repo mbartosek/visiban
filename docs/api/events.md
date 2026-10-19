@@ -14,6 +14,20 @@ handler serves both.
 
 ---
 
+## Stability and versioning
+
+> **Added in 1.2**
+
+The change feed is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is **not** experimental.
+
+- **The endpoint, its `after` and `limit` parameters, and the response envelope** (`results` and `next`) are never removed or renamed in a minor or patch release. The cursor semantics (`after` is exclusive, ordering is by `id`, `next` is `null` when caught up) and the `400`, `404`, and `410` error behavior described below do not change.
+- **Row fields** (`id`, `event`, `data`, `actor_id`, `actor`, `created_at`) only gain fields; an existing field keeps its name and type and is never removed.
+- **Event types and payloads** follow the [WebSocket compatibility rules](websockets.md#event-reference), because the feed carries the same `{event, data}` payloads: an event type is never removed, a payload field is never removed or retyped, and new event types and payload fields can appear in any minor release. Clients should ignore event types and fields they do not recognize.
+- A part of the feed that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.
+- **Not covered:** how long history is kept. The retention window is an operator setting (`BOARD_EVENT_RETENTION_DAYS`), so a consumer must handle `410 Gone` rather than assume any particular depth of history. See [Retention](#retention).
+
+---
+
 ## How the two surfaces fit together
 
 1. Open the board WebSocket and process frames as they arrive.
