@@ -3967,6 +3967,7 @@
 <li>All endpoints return <code>application/json</code></li>
 <li>Write endpoints (<code>POST</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>) require a valid CSRF token or use token-based auth</li>
 <li>Dates are ISO 8601 strings: <code>"2026-04-01"</code></li>
+<li>Requests with no valid credentials (no session, or a missing, invalid, or expired token) return <code>401 Unauthorized</code> with a <code>WWW-Authenticate: Token</code> header. A credential that is valid but not allowed to perform the action returns <code>403 Forbidden</code>. Re-authenticating fixes a <code>401</code>; it never fixes a <code>403</code></li>
 <li>Permission errors return <code>403 Forbidden</code>; missing resources return <code>404 Not Found</code></li>
 <li><em>(1.2+)</em> Board-scoped routes answer <code>404 Not Found</code> to a caller with no access to the board, the same as for a board that does not exist. <code>403 Forbidden</code> means the caller can see the board but their role is too low for the action</li>
 </ul>

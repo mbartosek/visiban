@@ -4133,7 +4133,7 @@
 </table>
 <p>Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.</p>
 <p>The feature is flag-gated: all endpoints below return <code>404 Not Found</code> unless the server is started with <code>GIT_LENS_ENABLED=true</code>.</p>
-<p>All endpoints require authentication (<code>Authorization: Token &lt;value&gt;</code>). Unauthenticated requests receive <code>403 Forbidden</code>.</p>
+<p>All endpoints require authentication (<code>Authorization: Token &lt;value&gt;</code>). Unauthenticated requests receive <code>401 Unauthorized</code> (with a <code>WWW-Authenticate: Token</code> header).</p>
 <hr />
 <h2 id="object-reference">Object reference<a class="headerlink" href="#object-reference" title="Permanent link">&para;</a></h2>
 <h3 id="lensconnection">LensConnection<a class="headerlink" href="#lensconnection" title="Permanent link">&para;</a></h3>

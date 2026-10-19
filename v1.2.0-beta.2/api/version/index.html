@@ -3924,10 +3924,10 @@
 calling anything else — see the stability commitment below.</p>
 <h2 id="get-apiv1version"><code>GET /api/v1/version/</code><a class="headerlink" href="#get-apiv1version" title="Permanent link">&para;</a></h2>
 <p>Returns the running server version string. Authentication is required.</p>
-<p><strong>Authentication:</strong> requires a valid session or personal access token (<code>IsAuthenticated</code>). Unauthenticated requests receive <code>403 Forbidden</code>.</p>
+<p><strong>Authentication:</strong> requires a valid session or personal access token (<code>IsAuthenticated</code>). Unauthenticated requests receive <code>401 Unauthorized</code> (with a <code>WWW-Authenticate: Token</code> header).</p>
 <p><strong>Response</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.1.0"</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.2.0"</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">}</span>
 </code></pre></div>
 <table>
@@ -3942,13 +3942,13 @@ calling anything else — see the stability commitment below.</p>
 <tr>
 <td><code>version</code></td>
 <td>string</td>
-<td>Semantic version string matching the release tag (e.g. <code>"1.1.0"</code>)</td>
+<td>Semantic version string matching the release tag (e.g. <code>"1.2.0"</code>)</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Stability commitment:</strong> this endpoint and its <code>version</code> field are part of the public 1.x API contract. The field will never be removed or renamed in a minor/patch release. The value follows <a href="https://semver.org/">Semantic Versioning</a> — clients may parse the string to compare against a minimum required server version.</p>
-<p>The <code>APP_VERSION</code> environment variable that provides this value is set as the release tag operators pin (e.g. <code>v1.1.0</code> — see <a href="../../administration/configuration/">Configuration</a>). The server strips only a leading <code>v</code>, so this field is bare semver (<code>1.1.0</code>) whenever <code>APP_VERSION</code> is pinned to a release tag. A non-release value such as <code>latest</code> or <code>dev</code> has no leading <code>v</code> to strip and is served back verbatim.</p>
-<p><strong>Errors:</strong> none. The endpoint always returns <code>200 OK</code> when the server is running.</p>
+<p>The <code>APP_VERSION</code> environment variable that provides this value is set as the release tag operators pin (e.g. <code>v1.2.0</code> — see <a href="../../administration/configuration/">Configuration</a>). The server strips only a leading <code>v</code>, so this field is bare semver (<code>1.2.0</code>) whenever <code>APP_VERSION</code> is pinned to a release tag. A non-release value such as <code>latest</code> or <code>dev</code> has no leading <code>v</code> to strip and is served back verbatim.</p>
+<p><strong>Errors:</strong> <code>401 Unauthorized</code> when the request carries no valid session or token; <code>429 Too Many Requests</code> when the throttle is exceeded. Otherwise the endpoint returns <code>200 OK</code> while the server is running.</p>
 
 
 
