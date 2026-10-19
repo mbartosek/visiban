@@ -3,9 +3,6 @@ import axios from "axios";
 /** Server `code` values that mean a column limit refused the move. */
 export const LIMIT_CODES = new Set(["wip_limit_exceeded", "wip_hard_blocked", "weight_limit_exceeded"]);
 
-/** Why one move/update request failed, as a clause for "could not be X — {reason}".
- * The WIP/weight wording is used only when the server's `code` says so; a
- * network or permission failure must not be blamed on a column limit (#1733, #1761). */
 /** True when the server's `code` says a column limit refused the request. */
 export function isLimitFailure(err: unknown): boolean {
   if (!axios.isAxiosError(err)) return false;
@@ -13,6 +10,9 @@ export function isLimitFailure(err: unknown): boolean {
   return typeof code === "string" && LIMIT_CODES.has(code);
 }
 
+/** Why one move/update request failed, as a clause for "could not be X — {reason}".
+ * The WIP/weight wording is used only when the server's `code` says so; a
+ * network or permission failure must not be blamed on a column limit (#1733, #1761). */
 export function failureReason(err: unknown, forbidden = "you do not have permission"): string {
   if (!axios.isAxiosError(err) || !err.response) return "a network error occurred";
   const data = err.response.data as { code?: unknown } | undefined;

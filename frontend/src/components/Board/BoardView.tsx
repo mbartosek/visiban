@@ -1,4 +1,3 @@
-import { failureReason } from "../../utils/moveFailure";
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { stripPerUserBoardFields } from "../../utils/boardEventPayload";
 import { computeAutoSwimlaneWidth } from "../../utils/swimlaneAutoWidth";
@@ -1703,7 +1702,9 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     // reader users a failed move had succeeded (#1761).
     void Promise.resolve(onMoveCard(cardId, targetColumnId, targetSwimlaneId, siblings.length)).then((outcome) => {
       if (outcome && outcome.ok === false) {
-        setDndAnnouncement(`Card '${card.title}' could not be moved — ${failureReason(outcome.error)}`);
+        // The move_failed / limit toast is role="alert" and already announces the
+        // cause; blank this status region so the failure is read once (#1761).
+        setDndAnnouncement("");
       } else if (targetCol && targetSwim) {
         setDndAnnouncement(`Card '${card.title}' moved to column '${targetCol.name}', swimlane '${targetSwim.name}'`);
       }
