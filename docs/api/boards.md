@@ -285,7 +285,7 @@ Board health summary — per-swimlane card counts, stage distribution, and veloc
 
 > **Added in 1.2** (#1770)
 
-Each entry of `extension_panels` is returned verbatim from an `ANALYTICS_EXTENSIONS` callable (`boards/hooks.py`). The web UI renders two panel types, `stats` and `table`. This shape is a public contract: existing types only ever gain optional fields, and an incompatible shape gets a new `type` name. There is no version field.
+Each entry of `extension_panels` comes from an `ANALYTICS_EXTENSIONS` callable (`boards/hooks.py`) and is returned after JSON normalization by the API encoder: tuples become lists, date, time and UUID values become strings, and `Decimal` values become numbers. The web UI renders two panel types, `stats` and `table`. This shape is a public contract: existing types only ever gain optional fields, and an incompatible shape gets a new `type` name. There is no version field.
 
 | Field | Required | Rule |
 |---|---|---|
