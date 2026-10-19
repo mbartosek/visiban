@@ -51,7 +51,7 @@ from ..serializers import (
     _run_custom_field_validator_hooks, _swimlane_custom_field_values,
 )
 from ..services import trello_import as _trello
-from ._helpers import get_accessible_boards_queryset, get_board_for_user
+from ._helpers import annotate_board_counts, get_accessible_boards_queryset, get_board_for_user
 
 # #843: rank of each BoardMembership.Role for the export-threshold comparison.
 # Owner and site_admin are not ranked here — they always bypass the threshold
@@ -1822,11 +1822,8 @@ class BoardImportExportMixin:
             # Register the broadcast inside the atomic block so a rollback does
             # not fire a phantom board.created event for a board that never
             # committed (#815).
-            from django.db.models import Count, Exists, OuterRef, Q
-            board = Board.objects.select_related("owner", "group").annotate(
-                _member_count=Count("memberships", distinct=True),
-                _card_count=Count("cards", filter=Q(cards__archived_at__isnull=True), distinct=True),
-                _archived_card_count=Count("cards", filter=Q(cards__archived_at__isnull=False), distinct=True),
+            from django.db.models import Exists, OuterRef
+            board = annotate_board_counts(Board.objects.select_related("owner", "group")).annotate(
                 _is_starred=Exists(BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)),
             ).get(pk=board.pk)
             board_data = BoardSerializer(board, context={"request": request}).data
@@ -1958,20 +1955,11 @@ class BoardImportExportMixin:
         ``on_commit`` so a rollback cannot announce a board that never
         existed (#815).
         """
-        from django.db.models import Count, Exists, IntegerField, OuterRef, Subquery
-        # Correlated subquery counts rather than Count() over two joined
-        # relations: an import can create thousands of cards and (with the
-        # member opt-in) many memberships, and joining both onto the board row
-        # multiplies them (members × cards) inside the import transaction.
-        def _count(qs):
-            return Subquery(
-                qs.filter(board=OuterRef("pk")).order_by().values("board").annotate(c=Count("pk")).values("c"),
-                output_field=IntegerField(),
-            )
-        board = Board.objects.select_related("owner", "group").annotate(
-            _member_count=_count(BoardMembershipModel.objects.all()),
-            _card_count=_count(Card.objects.filter(archived_at__isnull=True)),
-            _archived_card_count=_count(Card.objects.filter(archived_at__isnull=False)),
+        from django.db.models import Exists, OuterRef
+        # Correlated-subquery counts (annotate_board_counts), not Count() over
+        # two joined relations: joining members and cards multiplies them
+        # inside the import transaction (#1723, #1765).
+        board = annotate_board_counts(Board.objects.select_related("owner", "group")).annotate(
             _is_starred=Exists(BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)),
         ).get(pk=board.pk)
         board_data = BoardSerializer(board, context={"request": request}).data
@@ -2448,11 +2436,8 @@ class BoardImportExportMixin:
             # Register the broadcast inside the atomic block so a rollback does
             # not fire a phantom board.created event for a board that never
             # committed (#815).
-            from django.db.models import Count, Exists, OuterRef, Q
-            board = Board.objects.select_related("owner", "group").annotate(
-                _member_count=Count("memberships", distinct=True),
-                _card_count=Count("cards", filter=Q(cards__archived_at__isnull=True), distinct=True),
-                _archived_card_count=Count("cards", filter=Q(cards__archived_at__isnull=False), distinct=True),
+            from django.db.models import Exists, OuterRef
+            board = annotate_board_counts(Board.objects.select_related("owner", "group")).annotate(
                 _is_starred=Exists(BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)),
             ).get(pk=board.pk)
             board_data = BoardSerializer(board, context={"request": request}).data

@@ -132,6 +132,25 @@ class TrelloImportConfirmTests(TrelloImportBase):
         self.assertEqual(board.cards.count(), 3)
         self.assertFalse(board.cards.filter(title="Frozen card").exists())
 
+    def test_response_counts_are_ints_with_cards(self):
+        # Counts come from annotate_board_counts (#1765).
+        resp = self.confirm()
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        b = resp.data["board"]
+        self.assertEqual((b["member_count"], b["card_count"], b["archived_card_count"]), (1, 2, 1))
+
+    def test_empty_import_reports_zero_counts_not_null(self):
+        # The old uncoalesced Subquery serialized null for a board with no
+        # cards; the shared helper Coalesces to 0 (#1765).
+        data = load_fixture()
+        data["cards"] = []
+        resp = self.post("confirm", data=data)
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        b = resp.data["board"]
+        self.assertEqual(b["card_count"], 0)
+        self.assertEqual(b["archived_card_count"], 0)
+        self.assertIsInstance(b["card_count"], int)
+
     def test_cards_labels_checklists_and_attachments(self):
         board = Board.objects.get(pk=self.confirm().data["board"]["id"])
         card = board.cards.get(title="Write launch plan")
