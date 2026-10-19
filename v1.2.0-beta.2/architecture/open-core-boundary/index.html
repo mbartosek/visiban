@@ -4162,7 +4162,7 @@
 </tr>
 <tr>
 <td>Outgoing webhooks (per-board, signed, best-effort)</td>
-<td>OSS</td>
+<td>OSS (planned, not yet implemented; open in #863, milestone 1.3)</td>
 <td>Minimum integration surface for a team tool; delivered from the change feed with no task queue. Reversed from Enterprise on 2026-04-15</td>
 <td>#863</td>
 </tr>
@@ -4488,15 +4488,15 @@
 <blockquote>
 <p><strong>Reconciling with <code>AdminActionLog</code> / <code>BoardExportLog</code> (#1248).</strong> "Admin actions" in the paragraph above describes the enterprise product's <em>configurable, system-wide</em> scope, not a rule that any record of an admin action belongs in enterprise. The two OSS tables above are deliberately narrow — a closed set of control-plane toggles, and board exports, respectively — with no retention configuration and no SIEM export; that narrowness, not the mere existence of an admin-action record, is what keeps them in OSS. If either table ever grows configurable retention, arbitrary diffing, or SIEM export, revisit this ruling — until then they are the OSS side of the split this section describes, not candidates for it.</p>
 </blockquote>
-<p><strong>OSS extension points required</strong> (before the enterprise audit log can be built):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># boards/signals.py — OSS fires these; enterprise subscribes</span>
+<p><strong>OSS extension points required</strong> (before the enterprise audit log can be built; none of the signals or the setting below exist in <code>boards/signals.py</code> or settings yet):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># boards/signals.py — PLANNED, not yet implemented. OSS is to fire these; enterprise subscribes</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">post_board_created</span>    <span class="c1"># sender=Board, kwargs: board, actor</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">post_board_deleted</span>    <span class="c1"># sender=Board, kwargs: board_id, name, actor</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">post_member_added</span>     <span class="c1"># sender=BoardMembership, kwargs: board, user, role, actor</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">post_member_removed</span>   <span class="c1"># sender=BoardMembership, kwargs: board, user, actor</span>
 </code></pre></div>
-<p>A <code>VISIBAN_AUDIT_BACKEND</code> setting (defaulting to <code>NullAuditBackend</code>) must be defined in OSS settings so enterprise can register its audit recorder without modifying OSS files.</p>
-<p><strong>Issue:</strong> OSS extension points tracked in #350 (transferred to enterprise repo; OSS signal work tracked separately).</p>
+<p>A <code>VISIBAN_AUDIT_BACKEND</code> setting (defaulting to <code>NullAuditBackend</code>) is planned and not yet implemented; it must be defined in OSS settings so enterprise can register its audit recorder without modifying OSS files.</p>
+<p><strong>Issue:</strong> OSS extension points tracked in #350 (transferred to enterprise repo; OSS signal and <code>VISIBAN_AUDIT_BACKEND</code> work tracked in #367, milestone 1.7).</p>
 <hr />
 <h3 id="wip-enforcement-oss">WIP enforcement (OSS)<a class="headerlink" href="#wip-enforcement-oss" title="Permanent link">&para;</a></h3>
 <p>WIP limits (<code>wip_limit</code> field on Column) exist in OSS. The enforcement mode — soft (advisory toast) vs hard (blocked move) — is a board-level setting that belongs in OSS. A small team using WIP limits cannot manage capacity effectively with soft-only enforcement.</p>
@@ -4505,22 +4505,25 @@
 <hr />
 <h3 id="movement-history-view-oss-vs-export-enterprise">Movement history: view (OSS) vs export (Enterprise)<a class="headerlink" href="#movement-history-view-oss-vs-export-enterprise" title="Permanent link">&para;</a></h3>
 <p>The board-level movement history view — filterable by swimlane, column, date range, and assignee — is OSS. Without it, teams cannot query their own audit trail.</p>
-<p>Structured delivery report export (CSV/PDF, formatted for client or QBR presentation) is enterprise. The OSS view must expose a <code>movement_history_export</code> signal/hook so enterprise can attach export formatters without modifying OSS view code.</p>
+<p>Structured delivery report export (CSV/PDF, formatted for client or QBR presentation) is enterprise. The OSS view exposes the <code>MOVEMENT_EXPORT_BACKENDS</code> hook list (<code>boards/hooks.py</code>) so enterprise can attach export formatters without modifying OSS view code.</p>
 <p><strong>Issue:</strong> #342</p>
 <hr />
 <h3 id="per-swimlane-analytics-basic-oss-vs-advanced-enterprise">Per-swimlane analytics: basic (OSS) vs advanced (Enterprise)<a class="headerlink" href="#per-swimlane-analytics-basic-oss-vs-advanced-enterprise" title="Permanent link">&para;</a></h3>
 <p>Basic per-swimlane analytics — cards in flight, average cycle time, cards moved to Done in the last 30 days — is OSS. Teams managing work per client/swimlane need row-level visibility.</p>
 <p>Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.</p>
-<p>The OSS analytics page must expose an <code>ANALYTICS_EXTENSIONS</code> registration point so enterprise can add panels without modifying OSS view files.</p>
+<p>The OSS analytics summary exposes an <code>ANALYTICS_EXTENSIONS</code> registration point (<code>boards/hooks.py</code>) so enterprise can add panels without modifying OSS view files. This is backend only today: the summary returns the panels in <code>extension_panels</code>, but the web UI does not render <code>extension_panels</code>.</p>
 <p><strong>Issue:</strong> #341</p>
 <hr />
 <h3 id="outgoing-webhooks-oss-vs-webhook-operations-enterprise">Outgoing webhooks (OSS) vs webhook operations (Enterprise)<a class="headerlink" href="#outgoing-webhooks-oss-vs-webhook-operations-enterprise" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Status.</strong> The OSS ruling is decided, but the feature is <strong>planned and not yet implemented</strong>: #863 is open on the 1.3 milestone and no webhook model, view, or dispatch command exists in the codebase.</p>
+</blockquote>
 <p>Basic outgoing webhooks are OSS: per-board subscriptions, HMAC-signed, delivered in order from the <a href="../../api/events/">board change feed</a> by a scheduled command, with best-effort retry. This reverses the original Enterprise ruling. On 2026-04-15 enterprise #39 was closed in favor of an OSS implementation (#740, consolidated into #863 on 2026-09-14). Webhooks are the minimum integration surface a team tool is evaluated on, and self-hosted alternatives commonly ship them free.</p>
 <p>The operations layer is Enterprise: guaranteed delivery on a durable queue, a delivery log with replay, account-wide subscriptions, and a delivery audit trail. These make webhooks supportable at hosted or large-operator scale. A small team works without them, and consumers that need exact delivery can poll the change feed directly.</p>
 <p><strong>OSS extension points:</strong></p>
 <ul>
 <li><strong>The change feed</strong> (#1114, shipped in 1.2) is the delivery source. It is durable, ordered, and replayable by cursor, and it covers every board event type. The Enterprise dispatcher reads it exactly as the OSS one does.</li>
-<li><strong><code>BOARD_EVENT_HOOKS</code></strong> (<code>boards/hooks.py</code>, planned in #863) is a list-append hook called on commit from <code>record_board_event()</code> with <code>(board_id, event_type, event_id)</code>. It is a nudge only ("check the feed now"), so a missed call self-heals from the cursor.</li>
+<li><strong><code>BOARD_EVENT_HOOKS</code></strong> (<code>boards/hooks.py</code>; <strong>planned, not yet implemented</strong>, tracked in #863) will be a list-append hook called on commit from <code>record_board_event()</code> with <code>(board_id, event_type, event_id)</code>. It is a nudge only ("check the feed now"), so a missed call self-heals from the cursor.</li>
 </ul>
 <p>The earlier design, <code>post_card_created/moved/closed/updated</code> signals plus a <code>VISIBAN_WEBHOOK_BACKEND</code> setting, is <strong>superseded and will not be built</strong>. The change feed covers far more than four card events. For in-process card lifecycle reactions (such as automation), use <code>CARD_MUTATION_HOOKS</code>.</p>
 <p><strong>Issue:</strong> OSS webhooks in #863. Enterprise operations layer in enterprise #44. Slack/Teams channel apps are separate — see <a href="#transactional-email-notifications-oss-vs-channel-integrations-enterprise">Transactional email notifications vs channel integrations</a>.</p>
@@ -4591,9 +4594,9 @@
 <td>✅ Implemented. <strong>Stable.</strong> Authenticates a WebSocket upgrade from a <code>?ticket=</code> parameter. Must be nested <em>inside</em> <code>AuthMiddlewareStack</code> (<code>AuthMiddlewareStack(TicketAuthMiddleware(URLRouter(...)))</code>); see its docstring for why, and <a href="../../api/websockets/">WebSockets</a> for the handshake</td>
 </tr>
 <tr>
-<td><code>accounts.E001</code>–<code>E007</code> and <code>accounts.W001</code> system checks (<code>accounts/checks.py</code>)</td>
+<td><code>accounts.E001</code>–<code>E008</code> and <code>accounts.W001</code>–<code>W002</code> system checks (<code>accounts/checks.py</code>)</td>
 <td>Startup guard rails for the extension surface above</td>
-<td>✅ Implemented. <strong>Stable IDs.</strong> <code>E001</code> reset-token generator lost the address binding (#1337), <code>E002</code> allauth by-code password reset enabled (#1314, #1337), <code>W001</code> session engine cannot support WebSocket credential revocation (#1483), <code>E003</code> <code>FRONTEND_URL</code> under a gated path (#1551), <code>E004</code> malformed <code>PENDING_ACTION_EXTRA_GATED_PREFIXES</code> entry, <code>E005</code> pending-action middleware missing from <code>MIDDLEWARE</code> or placed before <code>AuthenticationMiddleware</code> (#1561), <code>E006</code> malformed <code>PENDING_ACTION_EXTRA_EXEMPT_VIEWS</code> entry, <code>E007</code> exempt view that is OSS-gated (#1589, #1593). IDs are never reused or renumbered, so <code>SILENCED_SYSTEM_CHECKS</code> entries keep working</td>
+<td>✅ Implemented. <strong>Stable IDs.</strong> <code>E001</code> reset-token generator lost the address binding (#1337), <code>E002</code> allauth by-code password reset enabled (#1314, #1337), <code>W001</code> session engine cannot support WebSocket credential revocation (#1483), <code>E003</code> <code>FRONTEND_URL</code> under a gated path (#1551), <code>E004</code> malformed <code>PENDING_ACTION_EXTRA_GATED_PREFIXES</code> entry, <code>E005</code> pending-action middleware missing from <code>MIDDLEWARE</code> or placed before <code>AuthenticationMiddleware</code> (#1561), <code>E006</code> malformed <code>PENDING_ACTION_EXTRA_EXEMPT_VIEWS</code> entry, <code>E007</code> exempt view that is OSS-gated (#1589, #1593), <code>E008</code> <code>changepassword</code> command no longer provided by <code>operator_commands</code> (<a href="../../development/security-invariants/">security invariants</a> Rule 3), <code>W002</code> <code>ALLOWED_HOSTS</code> contains a wildcard entry (#1697). IDs are never reused or renumbered, so <code>SILENCED_SYSTEM_CHECKS</code> entries keep working</td>
 </tr>
 <tr>
 <td>Enterprise WebSocket routing extension point (<code>enterprise.routing.enterprise_websocket_urlpatterns</code>)</td>
@@ -4603,12 +4606,12 @@
 <tr>
 <td><code>post_board_created/deleted/member_added/removed</code> signals</td>
 <td>Enterprise audit log (enterprise #28)</td>
-<td>Not yet implemented</td>
+<td>Not yet implemented — tracked in #367</td>
 </tr>
 <tr>
 <td><code>VISIBAN_AUDIT_BACKEND</code> setting</td>
 <td>Enterprise audit log</td>
-<td>Not yet implemented</td>
+<td>Not yet implemented — tracked in #367</td>
 </tr>
 <tr>
 <td><code>post_card_created/moved/closed/updated</code> signals (superseded)</td>
@@ -4648,7 +4651,7 @@
 <tr>
 <td><code>ANALYTICS_EXTENSIONS</code> list (<code>boards/hooks.py</code>)</td>
 <td>Enterprise advanced analytics (#341 enterprise)</td>
-<td>✅ Implemented — <code>boards/hooks.py</code></td>
+<td>Backend only; the web UI does not render <code>extension_panels</code> — <code>boards/hooks.py</code>, consumed by <code>boards/views/analytics.py</code> into the summary's <code>extension_panels</code>. The web UI does not render <code>extension_panels</code> (no hits in <code>frontend/src</code>), so registered panels are not displayed</td>
 </tr>
 <tr>
 <td><code>TEMPLATE_PROVIDERS</code> list (<code>boards/hooks.py</code>)</td>

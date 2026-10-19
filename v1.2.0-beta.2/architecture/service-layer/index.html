@@ -3938,7 +3938,7 @@
 <li>The MCP tool scaffold carried its own copy of the board-role precedence ladder, with a comment saying it "must be kept in step with" the original. Nothing enforced that.</li>
 <li>A <code>PATCH</code> that changed a card's <code>column</code> bypassed WIP enforcement and the movement audit trail entirely, because only the move endpoint evaluated them.</li>
 </ul>
-<p>The API now has several writers in view — a second front end, MCP write tools, import, and webhooks — so the invariants need a home that is not a request handler.</p>
+<p>The API now has several writers in view — a second front end, MCP write tools, import, and webhooks (planned, #863) — so the invariants need a home that is not a request handler.</p>
 <h2 id="what-a-service-function-owns">What a service function owns<a class="headerlink" href="#what-a-service-function-owns" title="Permanent link">&para;</a></h2>
 <p>For one state transition:</p>
 <table>
