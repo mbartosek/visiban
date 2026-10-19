@@ -88,7 +88,7 @@ Then filter, in this order:
    MR, or a worktree in `scripts/wt list`. `scripts/wt new` refuses a checked-out issue
    (see `scripts/wt help`), and `scripts/check-issue-collision.sh` backstops it at push
    time — but check first so you are not selecting work you cannot start. To exclude
-   claimed issues up front, add `--not-label status::wip` to the list command. Read the
+   claimed issues up front, add `--not-label status::wip` (or `$WT_LOCK_LABEL`) to the list command. Read the
    check-out comment (`🔒 checked out …`) before assuming a label is stale: it names the
    branch and worktree holding the issue. A label with no live worktree behind it is a
    stale lock — ask the user before taking it over; never `--force` it on your own.
@@ -359,7 +359,7 @@ Every agent finishes by, in order:
    with `completeness-check/fix-diff — n/a`). `0 findings` is a real
    outcome; never omit a zero, and never conflate `n/a` with `skipped`. A fix round
    that did not trigger the re-check records `completeness-check/fix-diff — n/a`;
-   one that triggered it and the user declined records `skipped`. If Step 5
+   one that triggered it and the user declined records `skipped`. If Step 5.5
    found a stale base, note the rebase and what was re-verified in the MR's
    `## Notes` section.
 8. **Never merge.** Hand back the MR URL and stop.
