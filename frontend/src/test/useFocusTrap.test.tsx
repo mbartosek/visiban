@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+import { StrictMode } from 'react'
 import { useRef, useState } from 'react'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -190,5 +191,66 @@ describe('useFocusTrap focus restore and nesting (#1732)', () => {
     getByTestId('inner-last').focus()
     fireEvent.keyDown(document, { key: 'Tab' })
     expect(document.activeElement).toBe(getByTestId('inner-first'))
+  })
+
+  it('restores focus under React StrictMode (simulated unmount must not drop the opener)', () => {
+    // A panel that mounts already-active (CardDetail style): StrictMode runs
+    // its effect, a simulated cleanup, then the effect again, without a re-render.
+    function Panel({ onClose }: { onClose: () => void }) {
+      const ref = useRef<HTMLDivElement>(null)
+      useFocusTrap(ref, true)
+      return (
+        <div ref={ref}>
+          <button data-testid="inner" autoFocus onClick={onClose}>close</button>
+        </div>
+      )
+    }
+    function Host() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button data-testid="opener" onClick={() => setOpen(true)}>open</button>
+          {open && <Panel onClose={() => setOpen(false)} />}
+        </>
+      )
+    }
+    const { getByTestId, queryByTestId } = render(
+      <StrictMode>
+        <Host />
+      </StrictMode>,
+    )
+    const opener = getByTestId('opener')
+    opener.focus()
+    fireEvent.click(opener)
+    expect(document.activeElement).toBe(getByTestId('inner'))
+    fireEvent.click(getByTestId('inner'))
+    expect(queryByTestId('inner')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('falls back to restoreTarget when the opener unmounts', () => {
+    function Fallback() {
+      const [open, setOpen] = useState(false)
+      const ref = useRef<HTMLDivElement>(null)
+      const targetRef = useRef<HTMLButtonElement>(null)
+      useFocusTrap(ref, open, targetRef.current)
+      return (
+        <>
+          <button ref={targetRef} data-testid="kebab">kebab</button>
+          {!open && <button data-testid="item" onClick={() => setOpen(true)}>item</button>}
+          {open && (
+            <div ref={ref}>
+              <button data-testid="inner" autoFocus onClick={() => setOpen(false)}>x</button>
+            </div>
+          )}
+        </>
+      )
+    }
+    const { getByTestId } = render(<Fallback />)
+    const item = getByTestId('item')
+    item.focus()
+    fireEvent.click(item)
+    fireEvent.click(getByTestId('inner'))
+    expect(document.activeElement).toBe(getByTestId('kebab'))
   })
 })

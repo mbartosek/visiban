@@ -27,7 +27,14 @@ const trapStack: symbol[] = [];
 export function useFocusTrap(
   containerRef: React.RefObject<HTMLElement | null>,
   active: boolean,
+  /**
+   * Fallback restore target for when the opener unmounts on its own (e.g. a
+   * menu item that closes its menu). Used only if the opener is gone.
+   */
+  restoreTarget?: HTMLElement | null,
 ) {
+  const restoreTargetRef = useRef<HTMLElement | null>(null);
+  restoreTargetRef.current = restoreTarget ?? null;
   const openerRef = useRef<HTMLElement | null>(null);
   const wasActiveRef = useRef(false);
   if (active && !wasActiveRef.current) {
@@ -78,12 +85,18 @@ export function useFocusTrap(
       const i = trapStack.indexOf(id);
       if (i !== -1) trapStack.splice(i, 1);
 
-      const opener = openerRef.current;
-      openerRef.current = null;
-      if (!opener || !opener.isConnected || opener === document.body) return;
+      // Do not clear openerRef here: React StrictMode simulates an unmount
+      // (running this cleanup) and re-runs the effect without re-rendering,
+      // so a cleared opener would never be re-captured. The next activation
+      // overwrites it during render.
+      let target = openerRef.current;
+      if (!target || !target.isConnected || target === document.body) {
+        target = restoreTargetRef.current;
+      }
+      if (!target || !target.isConnected || target === document.body) return;
       const current = document.activeElement;
       // Focus is "lost" once the focused node unmounts: the browser drops it to body.
-      if (!current || current === document.body) opener.focus();
+      if (!current || current === document.body) target.focus();
     };
   }, [active, containerRef]);
 }

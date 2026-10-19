@@ -2061,6 +2061,17 @@ describe('CardDetail focus trap (#1732)', () => {
     expect(document.activeElement).toBe(focusables[0])
   })
 
+  it('restores focus to the opener when the panel closes', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { unmount } = render(<CardDetail {...defaultProps()} />)
+    expect(opener).not.toHaveFocus()
+    unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+
   it('bulk-add overlay is a labelled modal dialog, traps Tab, and returns focus to Bulk on close', async () => {
     const user = userEvent.setup()
     render(<CardDetail {...defaultProps()} />)
