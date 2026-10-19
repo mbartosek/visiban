@@ -264,15 +264,25 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   moveSubmittingRef.current = moveSubmitting;
   const moveTargetRef = useRef({ column: moveTargetColumn, swimlane: moveTargetSwimlane });
   moveTargetRef.current = { column: moveTargetColumn, swimlane: moveTargetSwimlane };
+  const localLocationRef = useRef({ column: localCard.column, swimlane: localCard.swimlane });
+  localLocationRef.current = { column: localCard.column, swimlane: localCard.swimlane };
   useEffect(() => {
-    if (lastSeenVersionRef.current === card.version) return;
+    // Only a version that goes UP is a change. useBoard's rollback of a failed
+    // move restores the snapshot taken before the request, whose version can
+    // be older than one a socket event delivered meanwhile; that is not a
+    // remote change and must not close the popover or erase its error.
+    if (card.version <= lastSeenVersionRef.current) return;
     lastSeenVersionRef.current = card.version;
     // Our own save, or our own move: handleMoveSubmit and save() apply their
     // results themselves. Just keep the version current. A bump that lands while
     // one of our saves or moves is still in flight is treated as ours too: the
     // board's socket echo of our own PATCH can arrive before the HTTP response
-    // has registered its version in ownVersionsRef.
-    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current || ownSavesInFlightRef.current > 0) {
+    // has registered its version in ownVersionsRef. A save never changes the
+    // location though, so a bump that comes with a different location is
+    // remote even while a save is in flight (a move is guarded unconditionally:
+    // useBoard relocates the card optimistically).
+    const sameLocation = localLocationRef.current.column === card.column && localLocationRef.current.swimlane === card.swimlane;
+    if (ownVersionsRef.current.delete(card.version) || moveSubmittingRef.current || (ownSavesInFlightRef.current > 0 && sameLocation)) {
       setLocalCard((c) => (c.version === card.version ? c : { ...c, version: card.version }));
       return;
     }
@@ -291,7 +301,6 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     const landedOnTarget = target.column === card.column && target.swimlane === card.swimlane;
     setMoveNotice(wasOpen && !landedOnTarget ? "This card was changed elsewhere. Its current location is shown." : "");
     setShowMovePopover(false);
-    setMovePopoverError(null);
     // Closing unmounts the focused control: hand focus back to the Move button,
     // but only when the popover was open and focus was inside it (or lost to
     // body). A version bump while the popover is closed must never move focus.
@@ -308,7 +317,6 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   useEscapeStack(() => {
     if (!showMovePopover) return false;
     setShowMovePopover(false);
-    setMovePopoverError(null);
   }, 36);
   // Bulk-add overlay is a modal over the panel: Escape closes it first (priority 37, above
   // the move popover) instead of closing the whole card panel (#1376).
@@ -1190,10 +1198,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                 // `onUpdated`. The board store is updated by the authoritative
                 // `card.updated` frame the server broadcasts for both ends of
                 // the relation. Pushing `localCard` instead would write a stale
-                // card: it is seeded at mount and never re-synced, so any
-                // field changed by someone else while the panel was open (a
-                // move, a retitle) would be silently reverted by adding a
-                // relation. The count is taken from the updater's argument
+                // card: only its version and location are re-synced after
+                // mount (#1773), so any other field changed by someone else
+                // while the panel was open (a retitle, say) would be silently
+                // reverted by adding a relation. The count is taken from the updater's argument
                 // rather than the render closure so two rapid clicks cannot
                 // both read the same pre-click value.
                 onBlockerCountChange={(delta) =>
@@ -1598,7 +1606,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
           </p>
           <div className="flex gap-3 justify-end">
             <button
-              onClick={() => { setShowMovePopover(false); setMovePopoverError(null); }}
+              onClick={() => setShowMovePopover(false)}
               className="text-sm text-fg-tertiary hover:text-fg px-3 py-1.5 transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded"
             >Cancel</button>
             <button
