@@ -34,7 +34,7 @@ These steps apply to a single-server Docker Compose deployment.
 Always take a snapshot before upgrading. If a migration fails partway through, you will need this to recover.
 
 ```bash
-docker compose -f docker-compose.prod.yml exec db \
+docker compose -f docker-compose.prod.yml exec -T db \
   pg_dump -U visiban visiban > visiban-backup-$(date +%Y%m%d%H%M%S).sql
 ```
 
@@ -345,11 +345,11 @@ kubectl -n <namespace> exec -i <release>-postgresql-0 -- \
 helm -n <namespace> history <release>
 helm -n <namespace> rollback <release> <revision>
 
-# 4. Bring the backend back (rollback does not undo a manual scale-down)
+# 4. Scale explicitly to the intended count (helm rollback may already have done so)
 kubectl -n <namespace> scale deployment/<release>-visiban-backend --replicas=<backendReplicaCount>
 ```
 
-The Deployment is named `<fullname>-backend`; if your release name already contains `visiban`, `<fullname>` is just the release name (run `kubectl get deploy` to confirm). The user and database name above are the chart defaults (`postgresql.auth.username` and `postgresql.auth.database`). With an external database (`postgresql.enabled=false`), run the same `dropdb`, `createdb` and `psql` commands from a host that can reach it, using `psql -h <host> -U <user>` and the `externalDatabase` values. In both cases the rolled-back backend pods run the `migrate` init container against the restored database, which finds nothing to apply.
+The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (plus `-visiban`, unless the release name already contains `visiban`), or `fullnameOverride`/`nameOverride` if you set either (run `kubectl get deploy` to confirm). The PostgreSQL StatefulSet is always `<release>-postgresql`. The user and database name above are the chart defaults (`postgresql.auth.username` and `postgresql.auth.database`). With an external database (`postgresql.enabled=false`), run the same `dropdb`, `createdb` and `psql` commands from a host that can reach it, using `psql -h <host> -U <user>` and the `externalDatabase` values. In both cases the rolled-back backend pods run the `migrate` init container against the restored database, which finds nothing to apply.
 
 ---
 
