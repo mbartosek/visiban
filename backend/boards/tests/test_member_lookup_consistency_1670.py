@@ -1,5 +1,6 @@
 """Member lookups match active users only and board routes 404 for non-members (#1670)."""
 from django.test import TestCase
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -183,7 +184,7 @@ class NestedRouteAccessTests(TestCase):
 
     def test_anonymous_caller_is_unauthorized(self):
         r = APIClient().post(self.url, {"user_id": self.target.id}, format="json")
-        self.assertIn(r.status_code, (401, 403))
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertNotEqual(r.status_code, 404)
 
     def test_site_admin_without_all_content_access_gets_404_on_a_board_they_cannot_see(self):

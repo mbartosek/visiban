@@ -529,10 +529,7 @@ class PendingConnectProviderFieldTests(TestCase):
         self.assertEqual(self.client.delete(PENDING_URL).status_code, status.HTTP_200_OK)
 
     def test_dismiss_requires_authentication(self):
-        self.assertIn(
-            APIClient().delete(PENDING_URL).status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(APIClient().delete(PENDING_URL).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_survives_password_login(self):
         """The stash is written to an anonymous session during the OAuth
@@ -585,10 +582,7 @@ class ConnectedAccountsEndpointTests(TestCase):
         self.assertFalse(rows["github"]["connected"])
 
     def test_list_requires_authentication(self):
-        self.assertIn(
-            APIClient().get(LIST_URL).status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(APIClient().get(LIST_URL).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_disconnect_removes_and_fires_signal(self):
         SocialAccount.objects.create(user=self.user, provider="github", uid="gh-1", extra_data={})
@@ -642,7 +636,4 @@ class ConnectedAccountsEndpointTests(TestCase):
         self.assertTrue(SocialAccount.objects.filter(user=bob).exists())
 
     def test_disconnect_requires_authentication(self):
-        self.assertIn(
-            APIClient().delete(f"{LIST_URL}github/").status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(APIClient().delete(f"{LIST_URL}github/").status_code, status.HTTP_401_UNAUTHORIZED)

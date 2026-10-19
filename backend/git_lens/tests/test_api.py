@@ -115,10 +115,7 @@ class LensConnectionRBACTests(TestCase):
 
     def test_unauthenticated_denied(self):
         resp = APIClient().get(self.url)  # no force_authenticate
-        self.assertIn(
-            resp.status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_path_injection_repo_slug_rejected(self):
         # ".." segments must be rejected so the slug can't collapse to a

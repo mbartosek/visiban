@@ -34,7 +34,7 @@ class IsSiteAdminPermissionTests(TestCase):
 
     def test_unauthenticated_rejected(self):
         r = self.client.get("/api/v1/admin/settings/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_regular_user_rejected(self):
         user = make_user(username="reg")
@@ -1257,7 +1257,7 @@ class AdminUserClearLockoutViewTests(TestCase):
 
     def test_unauthenticated_gets_401_or_403(self):
         r = self.client.post(f"/api/v1/admin/users/{self.target.pk}/clear-lockout/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_unknown_user_returns_404(self):
         self.client.force_authenticate(self.admin)

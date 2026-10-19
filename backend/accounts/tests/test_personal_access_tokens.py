@@ -112,7 +112,7 @@ class PATListCreateTests(APITestCase):
         """Explicit permission_classes on the view must reject unauthenticated GET (#376)."""
         anon = APIClient()
         r = anon.get(self.url)
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class PATDeleteTests(APITestCase):
@@ -144,7 +144,7 @@ class PATDeleteTests(APITestCase):
         pat, _ = PersonalAccessToken.generate(self.user, "ci")
         anon = APIClient()
         r = anon.delete(f"/api/v1/auth/tokens/{pat.id}/")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue(PersonalAccessToken.objects.filter(pk=pat.id).exists())
 
 
@@ -184,7 +184,7 @@ class PATAuthenticationTests(APITestCase):
         r = self.client.get("/api/v1/auth/me/", **self._auth_header("someothertoken123"))
         # Falls through to other authenticators; unauthenticated = 403 (not 401 which
         # would be PATAuthentication raising AuthenticationFailed directly).
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_successful_auth_updates_last_used_at(self):
         pat, raw = PersonalAccessToken.generate(self.user, "ci")
@@ -220,4 +220,4 @@ class PATPasswordResetRevocationTests(APITestCase):
         })
         unauthenticated = APIClient()
         r = unauthenticated.get("/api/v1/auth/me/", HTTP_AUTHORIZATION=f"Token {raw}")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -11,6 +11,7 @@ Covers:
 import datetime
 
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 from django.test import TestCase
 
@@ -90,7 +91,7 @@ class TestArchivePermissions(CardArchivingSetup):
 
     def test_unauthenticated_cannot_archive(self):
         r = APIClient().post(self._archive_url())
-        self.assertIn(r.status_code, [401, 403])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class TestUnarchivePermissions(CardArchivingSetup):
@@ -266,7 +267,7 @@ class TestArchivedListPermissions(CardArchivingSetup):
 
     def test_unauthenticated_cannot_list_archived_cards(self):
         r = APIClient().get(self._archived_list_url())
-        self.assertIn(r.status_code, [401, 403])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class TestColumnDeletionWithArchivedCards(CardArchivingSetup):

@@ -539,7 +539,7 @@ class BoardJoinTests(_BoardFixture, TestCase):
     def test_join_unknown_404_and_anonymous_refused(self):
         self.assertEqual(self._join("vbnb_" + "0" * 40, self.newcomer).status_code, status.HTTP_404_NOT_FOUND)
         _link, raw = self.make_invite()
-        self.assertIn(APIClient().post(join_url(raw)).status_code, (401, 403))
+        self.assertEqual(APIClient().post(join_url(raw)).status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_join_410_codes(self):
         used, used_raw = self.make_invite()

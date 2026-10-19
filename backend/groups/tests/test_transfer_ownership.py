@@ -114,7 +114,7 @@ class TransferOwnershipTests(TestCase):
             "new_owner_id": self.admin_member.id,
             "confirmation": self.group.name,
         })
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @patch("groups.broadcast.broadcast_group_event")
     @patch("groups.views.transaction.on_commit", side_effect=lambda fn: fn())

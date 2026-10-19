@@ -165,7 +165,7 @@ class SavedFilterListCreateTests(TestCase):
     def test_create_unauthenticated_returns_401_or_403(self):
         anon = APIClient()
         r = anon.post(self.url, {"name": "Anon", "state_json": SIMPLE_STATE}, format="json")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class SavedFilterDeleteTests(TestCase):
@@ -208,7 +208,7 @@ class SavedFilterDeleteTests(TestCase):
         )
         anon = APIClient()
         r = anon.delete(self._delete_url(sf.pk))
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class SavedFilterStateVersionTests(TestCase):

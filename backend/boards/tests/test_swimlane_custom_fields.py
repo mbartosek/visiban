@@ -1396,7 +1396,7 @@ class SwimlaneCustomFieldNumberFormatTests(SwimlaneCustomFieldTestBase):
         anonymous = APIClient()
         for label, client, expected in (
             ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
-            ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
+            ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED,)),
         ):
             with self.subTest(client=label):
                 self.assertIn(
@@ -1651,7 +1651,7 @@ class SwimlaneCustomFieldChoiceColorTests(SwimlaneCustomFieldTestBase):
         anonymous = APIClient()
         for label, client, expected in (
             ("outsider", outsider, (status.HTTP_404_NOT_FOUND,)),
-            ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)),
+            ("anonymous", anonymous, (status.HTTP_401_UNAUTHORIZED,)),
         ):
             with self.subTest(client=label):
                 self.assertIn(

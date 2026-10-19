@@ -320,10 +320,8 @@ class NoLockoutTests(MaintenanceModeBaseTest):
         r = self.client.patch(
             "/api/v1/admin/settings/", {"maintenance_mode": False}, format="json"
         )
-        self.assertIn(
-            r.status_code,
-            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
-        )
+        # Authenticated but not a site admin: 403, not 401.
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(SiteSetting.get().maintenance_mode)
 
 

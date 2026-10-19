@@ -52,7 +52,7 @@ class ServeMediaNonMemberTests(TestCase):
         """Unauthenticated requests must be rejected."""
         anon = APIClient()
         r = anon.get(f"/media/{self.attachment.file.name}")
-        self.assertIn(r.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_board_member_can_access(self):
         """A board member should be able to access the attachment."""

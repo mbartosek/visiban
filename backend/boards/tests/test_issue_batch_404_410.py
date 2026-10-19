@@ -377,7 +377,7 @@ class BoardMovementsEndpointTests(TestCase):
     def test_unauthenticated_cannot_access_movements(self):
         anon = APIClient()
         resp = anon.get(f"/api/v1/boards/{self.board.id}/movements/")
-        self.assertIn(resp.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class BoardTemplateEndpointTests(TestCase):
