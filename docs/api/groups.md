@@ -213,6 +213,38 @@ List all boards in this group and all of its descendant subgroups that the reque
 
 **Errors:** `403 Forbidden` if the caller is not a group member; `404 Not Found` if the group does not exist.
 
+This endpoint is never paginated: it returns the whole subtree in one array, and `offset` / `page_size` in the query string are ignored. For a root group in a large organization that can be every board the caller can see; use the paged variant below to fetch it in bounded pages.
+
+### `GET /api/v1/groups/{id}/descendant-boards/paged/`
+
+*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership.
+
+**Query parameters**
+
+| Param | Notes |
+|---|---|
+| `offset` | Zero-based row offset (default `0`). An invalid or negative value is treated as `0`. |
+| `page_size` | Rows per page (default `50`, max `200`). An invalid, zero or negative value uses the default; a larger value is capped at `200`. |
+
+Boards are ordered by `id`, oldest first. The order never changes when a board is edited, and a board created during a walk is added at the end, so a client paging with `offset` neither misses a board nor sees it twice. A board deleted during a walk shifts later rows back by one, as with every offset-paginated endpoint.
+
+**Response** — the standard `{count, offset, page_size, results}` envelope (the same shape as every other paginated endpoint), where `results` is an array of board objects:
+
+```json
+{
+  "count": 137,
+  "offset": 50,
+  "page_size": 50,
+  "results": [
+    {"id": 412, "name": "Q3 Roadmap", "group": 7, "group_name": "Platform", "group_detail": {"id": 7, "name": "Platform", "ancestors": [{"id": 1, "name": "Engineering"}]}, "...": "..."}
+  ]
+}
+```
+
+Fetch the next page with `offset + page_size` until it reaches `count`.
+
+**Errors:** the same as `GET /api/v1/groups/{id}/descendant-boards/`.
+
 ---
 
 ## Invite links

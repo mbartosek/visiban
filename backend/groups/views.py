@@ -16,6 +16,7 @@ from accounts.permissions import TokenHasScope
 from visiban.authorization import invite_creator_is_valid, principal_is_active
 from visiban.permissions import MustNotHavePendingPasswordChange, MustNotHavePendingUsernameChange
 from visiban.request_shape import coerce_int_id, optional_text, require_json_object
+from visiban.pagination import OffsetCountPagination
 from visiban.utils import get_client_ip
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -999,32 +1000,25 @@ class GroupViewSet(viewsets.ModelViewSet):
     # Descendant boards
     # ------------------------------------------------------------------
 
-    # pagination_class=None: returns the full descendant board list in one payload, never paginated.
-    @extend_schema(
-        summary="List boards in a group and all its descendant subgroups",
-        responses=_BoardSerializer(many=True),
-    )
-    @action(detail=True, methods=["get"], url_path="descendant-boards", pagination_class=None)
-    def descendant_boards(self, request, pk=None):
-        """Return all boards in this group and all its descendants that the user can access.
+    def _descendant_boards_queryset(self, request, group):
+        """Return ``(boards, serializer_context)`` for the descendant-boards actions.
 
-        This endpoint answers the question "what boards live anywhere inside this group
-        subtree?" — including boards in deeply nested subgroups.  It powers the GroupDetail
-        page's board list and the sidebar's auto-expand logic for deeply nested boards.
+        Shared by ``descendant_boards`` (the full bare list) and
+        ``descendant_boards_paged`` (#1317, the opt-in paginated sibling) so the
+        two can never disagree on which boards a caller sees or on the shape of
+        each board: the paged endpoint is a windowed view of exactly this set,
+        not a re-implementation of it.
 
         The visible set is intersected with get_group_ids_for_board_access(),
         the group set the board list uses, so for boards with valid stored
         roles a board listed here is one on which get_board_role() resolves a
         role; that function's descendant reach matches the role ladder's
-        ancestor reach.
+        ancestor reach. The returned queryset carries no explicit ordering —
+        each caller decides (the bare list keeps ``Board.Meta.ordering``).
         """
         from boards.models import Board, BoardFavorite
-        from boards.serializers import BoardSerializer
         from boards.views._helpers import annotate_board_counts
         from .models import get_group_ids_for_board_access, _GROUP_TRAVERSAL_MAX_DEPTH
-
-        group = self.get_object()
-        _require_group_member(request.user, group)
 
         # Collect the groups whose boards this user may access, then filter to
         # only those that are descendants of the target group (including the
@@ -1071,7 +1065,10 @@ class GroupViewSet(viewsets.ModelViewSet):
         # Build a one-query ancestor map for every group we may need to resolve
         # while serializing — the descendants plus any ancestor of the target
         # group. Without this, GroupBriefSerializer.get_ancestors would walk
-        # parent pointers per board (#845 N+1 mitigation).
+        # parent pointers per board (#845 N+1 mitigation). Sized by the
+        # subtree's group count, not its board count, so the paged endpoint
+        # builds the same map rather than a per-page one: a board's
+        # ``ancestors`` chain then reads identically from both endpoints.
         ancestor_ids = {g.pk for g in group.ancestors()}
         map_ids = visible_descendant_ids | ancestor_ids | {group.pk}
         group_ancestor_map = {
@@ -1089,7 +1086,88 @@ class GroupViewSet(viewsets.ModelViewSet):
             "_force_expand": {"group"},
             "group_ancestor_map": group_ancestor_map,
         }
+        return boards, context
+
+    # pagination_class=None: returns the full descendant board list in one
+    # payload, never paginated. It stays that way: the bare array is the 1.0
+    # contract existing callers parse, so a client that needs bounded pages
+    # uses the additive ``descendant-boards/paged/`` sibling below (#1317)
+    # rather than a query param that would switch this operation's response
+    # type between an array and an envelope.
+    @extend_schema(
+        summary="List boards in a group and all its descendant subgroups",
+        description=(
+            "Returns every accessible board in the subtree as one array. For a large "
+            "group tree, page through the same set with "
+            "`GET /api/v1/groups/{id}/descendant-boards/paged/` instead."
+        ),
+        responses=_BoardSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"], url_path="descendant-boards", pagination_class=None)
+    def descendant_boards(self, request, pk=None):
+        """Return all boards in this group and all its descendants that the user can access.
+
+        This endpoint answers the question "what boards live anywhere inside this group
+        subtree?" — including boards in deeply nested subgroups.  It powers the GroupDetail
+        page's board list and the sidebar's auto-expand logic for deeply nested boards.
+        See ``_descendant_boards_queryset`` for how the visible set is computed.
+        """
+        from boards.serializers import BoardSerializer
+
+        group = self.get_object()
+        _require_group_member(request.user, group)
+
+        boards, context = self._descendant_boards_queryset(request, group)
         return Response(BoardSerializer(boards, many=True, context=context).data)
+
+    # Paginated with the project-standard {count, offset, page_size, results}
+    # envelope (OffsetCountPagination, pinned here rather than inherited so a
+    # change to the viewset default cannot silently reshape this response).
+    # A separate operation, not a ``?page_size`` switch on descendant-boards/,
+    # because OpenAPI cannot type a response by query param: the switch would
+    # have to publish descendant-boards/ as ``oneOf[array, envelope]``, which
+    # changes the generated client type every existing caller compiles against
+    # (#1317).
+    @extend_schema(
+        summary="Page through boards in a group and all its descendant subgroups",
+        description=(
+            "Same board set and per-board shape as "
+            "`GET /api/v1/groups/{id}/descendant-boards/`, returned in pages. "
+            "Ordered by board `id` ascending, so a board created or edited while "
+            "a client walks the pages never shifts the boards already returned."
+        ),
+        responses=_BoardSerializer(many=True),
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="descendant-boards/paged",
+        url_name="descendant-boards-paged",
+        pagination_class=OffsetCountPagination,
+        # No filter backends: the action never calls filter_queryset() and
+        # always orders by ``id`` (see docstring), so the viewset's ``ordering``
+        # param must not be published for an operation that would ignore it.
+        filter_backends=[],
+    )
+    def descendant_boards_paged(self, request, pk=None):
+        """Paginated view of ``descendant_boards`` for large group trees (#1317).
+
+        The access gate and visible set are exactly ``descendant_boards``'s
+        (shared helper); pagination only windows the already-filtered queryset,
+        so no page can reach a board the full list would not return. Ordering
+        is by ``id`` rather than ``Board.Meta.ordering`` (``-updated_at``):
+        offset pagination over a key that changes on every edit would move a
+        board between pages mid-walk, duplicating or skipping it, while new
+        boards only ever append at the end of an ascending ``id`` order.
+        """
+        from boards.serializers import BoardSerializer
+
+        group = self.get_object()
+        _require_group_member(request.user, group)
+
+        boards, context = self._descendant_boards_queryset(request, group)
+        page = self.paginate_queryset(boards.order_by("id"))
+        return self.get_paginated_response(BoardSerializer(page, many=True, context=context).data)
 
     # ------------------------------------------------------------------
     # Ownership transfer
