@@ -19,7 +19,7 @@ Everything else on this page (the REST endpoints, query parameters, and the issu
 
 The feature is flag-gated: all endpoints below return `404 Not Found` unless the server is started with `GIT_LENS_ENABLED=true`.
 
-All endpoints require authentication (`Authorization: Token <value>`). Unauthenticated requests receive `403 Forbidden`.
+All endpoints require authentication (`Authorization: Token <value>`). Unauthenticated requests receive `401 Unauthorized` (with a `WWW-Authenticate: Token` header).
 
 ---
 
