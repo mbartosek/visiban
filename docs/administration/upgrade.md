@@ -298,6 +298,59 @@ After rolling back, restart the backend container with the previous image versio
 !!! warning
     If the migration sequence includes any irreversible operation (a destructive `RunPython`, a column drop, or a `NOT NULL` constraint on existing data), Django will raise `django.db.migrations.exceptions.IrreversibleError` and abort. In that case the only recovery path is to restore the database from the backup taken before the upgrade.
 
+### Restoring from backup
+
+A database that a newer release has migrated cannot be run by the older release, so a restore always goes together with rolling the image tag back to the version the backup was taken on. The backup from [step 1](#1-back-up-the-database) is a plain SQL file, so it is restored with `psql`, not `pg_restore`. It contains no `DROP` statements, so restore into a freshly created, empty database. This is a minimal procedure; the full backup and restore playbook is tracked in [#861](https://gitlab.com/visiban/visiban/-/issues/861).
+
+!!! danger "This replaces the live database"
+    Everything written since the backup is lost, including cards moved and comments added after the upgrade. Keep a copy of the backup file, and take a fresh `pg_dump` of the current state first if there is any chance you will want it.
+
+**Docker Compose**
+
+```bash
+# 1. Stop everything that writes to the database (nginx and the db stay up)
+docker compose -f docker-compose.prod.yml stop backend scheduler
+
+# 2. Drop and recreate the database (connect to the "postgres" maintenance database)
+docker compose -f docker-compose.prod.yml exec db \
+  dropdb -U visiban --force --if-exists visiban
+docker compose -f docker-compose.prod.yml exec db \
+  createdb -U visiban visiban
+
+# 3. Load the backup
+docker compose -f docker-compose.prod.yml exec -T db \
+  psql -U visiban -d visiban -v ON_ERROR_STOP=1 < visiban-backup-<timestamp>.sql
+
+# 4. In .env set APP_VERSION back to the version the backup was taken on, then
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Use `-T` on the `psql` step so Compose does not allocate a TTY, which would break the `<` redirect.
+
+**Helm** (bundled PostgreSQL StatefulSet, `postgresql.enabled=true`)
+
+```bash
+# 1. Stop the backend (and suspend any scheduledJobs CronJobs if you enabled them)
+kubectl -n <namespace> scale deployment/<release>-visiban-backend --replicas=0
+
+# 2. Drop, recreate and load. The StatefulSet is named <release>-postgresql
+kubectl -n <namespace> exec <release>-postgresql-0 -- \
+  dropdb -U visiban --force --if-exists visiban
+kubectl -n <namespace> exec <release>-postgresql-0 -- createdb -U visiban visiban
+kubectl -n <namespace> exec -i <release>-postgresql-0 -- \
+  psql -U visiban -d visiban -v ON_ERROR_STOP=1 < visiban-backup-<timestamp>.sql
+
+# 3. Roll the chart back to the revision that ran the backed-up version
+helm -n <namespace> history <release>
+helm -n <namespace> rollback <release> <revision>
+
+# 4. Bring the backend back (rollback does not undo a manual scale-down)
+kubectl -n <namespace> scale deployment/<release>-visiban-backend --replicas=<backendReplicaCount>
+```
+
+The Deployment is named `<fullname>-backend`; if your release name already contains `visiban`, `<fullname>` is just the release name (run `kubectl get deploy` to confirm). The user and database name above are the chart defaults (`postgresql.auth.username` and `postgresql.auth.database`). With an external database (`postgresql.enabled=false`), run the same `dropdb`, `createdb` and `psql` commands from a host that can reach it, using `psql -h <host> -U <user>` and the `externalDatabase` values. In both cases the rolled-back backend pods run the `migrate` init container against the restored database, which finds nothing to apply.
+
 ---
 
 ## Release-specific upgrade notes
