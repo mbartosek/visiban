@@ -227,7 +227,7 @@ def _count_subquery(model, filt=None):
         rows = rows.filter(filt)
     return Coalesce(
         Subquery(
-            rows.order_by().values("board").annotate(c=Count("pk")).values("c"),
+            rows.order_by().values("board").annotate(c=Count("*")).values("c"),
             output_field=IntegerField(),
         ),
         0,
@@ -242,8 +242,11 @@ def annotate_board_counts(qs):
     multi-valued joins in one query multiply (members x cards rows per board
     before DISTINCT collapses them), so latency scaled with the product on the
     most-used list endpoint while the query count stayed flat (#1723). Each
-    count is now computed independently. Values and types are unchanged:
-    non-negative ints, 0 (never null) for an empty board.
+    count is now computed independently. Types are unchanged (non-negative
+    ints, 0 never null for an empty board). Values are now true totals: the old
+    ``Count("memberships")`` was annotated after the access filter on
+    ``memberships__user`` and reused that filtered join, so a user who reached
+    a board only via direct membership saw ``member_count`` 1.
     """
     return qs.annotate(
         _member_count=_count_subquery(BoardMembership),
@@ -391,7 +394,7 @@ def get_board_for_user(board_id, user, *, slim=False, with_archived_card_count=F
                     Card.objects.filter(board=OuterRef("pk"), archived_at__isnull=False)
                     .order_by()
                     .values("board")
-                    .annotate(c=Count("pk"))
+                    .annotate(c=Count("*"))
                     .values("c"),
                     output_field=IntegerField(),
                 ),

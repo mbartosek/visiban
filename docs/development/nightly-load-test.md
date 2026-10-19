@@ -52,7 +52,7 @@ python manage.py seed_demo_data --force --scale 20 --with-notifications
   list's count annotations expensive (two multi-valued joins multiplying, #1723), and a
   5-member fixture could not expose it; with ~2,400 cards it now exercises that endpoint.
   `GET /api/v1/boards/` computes `member_count` / `card_count` / `archived_card_count` as
-  independent correlated subqueries, so latency no longer scales with the product.
+  independent correlated subqueries, so the members x cards intermediate-row blow-up is gone.
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
   the 50-row cap `NotificationListView` / `NotificationUnreadCountView` apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.

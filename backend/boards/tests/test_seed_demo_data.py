@@ -529,6 +529,13 @@ class SeedScaleTests(TestCase):
         # 200 swimlanes x 11-13 cards each is comfortably > 152 unique titles.
         self.assertGreater(board.cards.count(), 2000)
 
+    def test_scale_n_board_has_20_members_default_board_5(self):
+        """#1723: the load-test board is padded to 20 members; the default stays at 5."""
+        _seed(scale=2)
+        self.assertEqual(Board.objects.get(name="Visiban Load Test Board").memberships.count(), 20)
+        _seed()
+        self.assertEqual(Board.objects.get(name="Visiban Demo Board").memberships.count(), 5)
+
     def test_scale_below_one_is_rejected(self):
         with self.assertRaises(CommandError) as ctx:
             _seed(scale=0)

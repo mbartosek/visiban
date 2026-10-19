@@ -72,7 +72,7 @@ class BoardListCountsTests(TestCase):
             self._list()
         board_sql = [
             q["sql"].lower() for q in ctx.captured_queries
-            if q["sql"].startswith("SELECT DISTINCT") and "_card_count" in q["sql"]
+            if q["sql"].lstrip().upper().startswith("SELECT") and '"_card_count"' in q["sql"]
         ]
         self.assertTrue(board_sql, [q["sql"][:400] for q in ctx.captured_queries])
         sql = board_sql[0]
@@ -91,4 +91,19 @@ class BoardListCountsTests(TestCase):
             outer = outer[:start] + "<sub>" + outer[i:]
         self.assertNotIn('join "cards"', outer)
         self.assertNotIn("group by", outer)
-        self.assertGreaterEqual(sql.count("count("), 3)
+        self.assertGreaterEqual(sql.count("count(*)"), 3)
+
+    def test_direct_member_sees_true_totals(self):
+        # Old Count("memberships") reused the access filter's join, so a
+        # non-owner direct member saw member_count 1 instead of the real total.
+        board = _board(self.user, "shared", members=3, cards=4, archived=2)
+        viewer = User.objects.get(username="shared-m0")
+        self.assertNotEqual(board.owner_id, viewer.pk)
+        client = APIClient()
+        client.force_authenticate(viewer)
+        r = client.get("/api/v1/boards/")
+        data = r.data["results"] if isinstance(r.data, dict) and "results" in r.data else r.data
+        got = {b["name"]: b for b in data}["shared"]
+        self.assertEqual(
+            (got["member_count"], got["card_count"], got["archived_card_count"]), (3, 4, 2)
+        )
