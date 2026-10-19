@@ -1091,7 +1091,7 @@ describe('useBoard', () => {
     expect(result.current.board!.cards[0].column).toBe(11)
   })
 
-  it('forceMoveCard rolls back and surfaces a structured error when the retry itself fails', async () => {
+  it('forceMoveCard rolls back and surfaces a generic move_failed when the retry fails with an unknown code', async () => {
     const board = makeBoard()
     mockGetBoardFull.mockResolvedValue(board)
     mockMoveCard.mockRejectedValueOnce({
@@ -1113,7 +1113,8 @@ describe('useBoard', () => {
 
     // Rolled back to the original column, and the retry's own error is surfaced.
     expect(result.current.board!.cards[0].column).toBe(10)
-    expect(result.current.moveError).toMatchObject({ code: 'server_error' })
+    // An unknown code can't render in the limit toast, so it becomes move_failed (#1761).
+    expect(result.current.moveError?.code).toBe('move_failed')
   })
 
   // ─── reorderColumns / reorderSwimlanes — failure paths ──────────────────────
