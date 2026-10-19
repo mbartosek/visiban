@@ -499,7 +499,7 @@ def _columns_payload(board):
     Split out of ``list_columns`` so ``board_snapshot`` (#513) can reuse the
     identical query without re-resolving/re-authorizing the board a second
     time — a board snapshot composes this, ``_swimlanes_payload``, and
-    ``_cards_payload`` on ONE resolved board rather than calling three public
+    ``_cards_page`` on ONE resolved board rather than calling three public
     tools that would each pay their own ``_resolve_board`` query.
     """
     columns = (
@@ -653,11 +653,6 @@ def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,
     ordered = qs.order_by("column__position", "swimlane__position", "position", "id")
     rows = [_serialize_card(card) for card in ordered[offset:offset + limit]]
     return rows, total
-
-
-def _cards_payload(board, **kwargs):
-    """The bare ``list_cards`` row list for *board* (no total)."""
-    return _cards_page(board, **kwargs)[0]
 
 
 def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
@@ -899,7 +894,7 @@ def board_snapshot(*, board_id):
     Equivalent in content to ``GET /api/v1/boards/{id}/full/``
     (``BoardFullSerializer``), but deliberately NOT built from that
     serializer. Composed instead from ``_columns_payload``/
-    ``_swimlanes_payload``/``_cards_payload`` — the same query logic
+    ``_swimlanes_payload``/``_cards_page`` — the same query logic
     ``list_columns``/``list_swimlanes``/``list_cards`` already use and are
     already query-count-tested — resolving and authorizing the board exactly
     ONCE rather than once per section. ``BoardFullSerializer`` also carries
