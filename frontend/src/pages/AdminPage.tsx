@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useEscapeStack } from "../hooks/useEscapeStack";
 import { useConfirmFocusReturn } from "../hooks/useConfirmFocusReturn";
 import {
@@ -57,38 +58,24 @@ function formatDate(iso: string): string {
 
 interface ConfirmDialogProps {
   message: string;
+  /** Surviving element to return focus to when the opener (a menu item) unmounts. */
+  returnFocusTo?: HTMLElement | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-function ConfirmDialog({ message, onConfirm, onCancel }: ConfirmDialogProps) {
+function ConfirmDialog({ message, returnFocusTo, onConfirm, onCancel }: ConfirmDialogProps) {
   useEscapeStack(onCancel, 40);
   const modalRef = useRef<HTMLDivElement>(null);
+  // #1732 — shared trap (Tab wrap + focus restore) instead of a hand-rolled copy.
+  useFocusTrap(modalRef, true, returnFocusTo);
   useEffect(() => {
-    const el = modalRef.current;
-    if (!el) return;
-    const focusable = Array.from(
-      el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(el => !el.hasAttribute('disabled'));
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      } else {
-        if (document.activeElement === last) { e.preventDefault(); first?.focus(); }
-      }
-    };
-    el.addEventListener('keydown', trap);
-    return () => el.removeEventListener('keydown', trap);
+    // Safe default: land on Cancel (first button), not the destructive action.
+    modalRef.current?.querySelector<HTMLElement>("button")?.focus();
   }, []);
   return (
     <div className="fixed inset-0 bg-backdrop/60 z-50 flex items-center justify-center p-4">
-      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message" className="bg-surface border border-line rounded-lg shadow-xl p-6 max-w-sm w-full">
+      <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message" tabIndex={-1} className="bg-surface border border-line rounded-lg shadow-xl p-6 max-w-sm w-full">
         <p id="confirm-dialog-message" className="text-sm text-fg-secondary mb-6">{message}</p>
         <div className="flex justify-end gap-3">
           <button
@@ -505,27 +492,11 @@ interface OffboardingModalProps {
 
 function OffboardingModal({ user, onDeactivated, onClose }: OffboardingModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  // ModalWrapper owns the Tab trap; this only picks the first focus target.
   useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const focusable = Array.from(
-      el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(el => !el.hasAttribute('disabled'));
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last?.focus(); }
-      } else {
-        if (document.activeElement === last) { e.preventDefault(); first?.focus(); }
-      }
-    };
-    el.addEventListener('keydown', trap);
-    return () => el.removeEventListener('keydown', trap);
+    contentRef.current
+      ?.querySelector<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+      ?.focus();
   }, []);
   // Per-board transfer map: board id → selected user id
   const [transfers, setTransfers] = useState<Record<number, number | null>>(
@@ -993,6 +964,8 @@ function SettingsTab({ currentUser }: { currentUser: User }) {
 interface ConfirmState {
   message: string;
   onConfirm: () => void;
+  /** The row kebab that opened the menu item; it outlives the menu. */
+  returnFocusTo: HTMLElement | null;
 }
 
 function UsersTab({ currentUser }: { currentUser: User }) {
@@ -1076,7 +1049,17 @@ function UsersTab({ currentUser }: { currentUser: User }) {
   };
 
   const confirmAndRun = (message: string, fn: () => Promise<void>) => {
+    // Row actions are chosen from a portaled menu whose items unmount on
+    // select, so the focused opener is gone by the time the dialog closes.
+    // Resolve the menu's trigger (aria-controls -> menu id) while it is open.
+    const menuId = document.activeElement?.closest('[role="menu"]')?.id;
+    const returnFocusTo = menuId
+      ? Array.from(document.querySelectorAll<HTMLElement>("[aria-controls]")).find(
+          (el) => el.getAttribute("aria-controls") === menuId,
+        ) ?? null
+      : null;
     setConfirm({
+      returnFocusTo,
       message,
       onConfirm: async () => {
         setConfirm(null);
@@ -1437,6 +1420,7 @@ function UsersTab({ currentUser }: { currentUser: User }) {
       {confirm && (
         <ConfirmDialog
           message={confirm.message}
+          returnFocusTo={confirm.returnFocusTo}
           onConfirm={confirm.onConfirm}
           onCancel={() => setConfirm(null)}
         />

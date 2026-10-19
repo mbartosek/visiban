@@ -281,3 +281,23 @@ describe('ModalWrapper — keyboard operation of the presentational backdrop (#1
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('ModalWrapper initial focus (#1732)', () => {
+  it('moves focus to the panel when no child takes it', () => {
+    render(
+      <ModalWrapper open onClose={vi.fn()} title="Plain">
+        <button>Action</button>
+      </ModalWrapper>,
+    )
+    expect(screen.getByRole('dialog')).toHaveFocus()
+  })
+
+  it('does not steal focus from an autofocused child', () => {
+    render(
+      <ModalWrapper open onClose={vi.fn()} title="Auto">
+        <input aria-label="Name" autoFocus />
+      </ModalWrapper>,
+    )
+    expect(screen.getByLabelText('Name')).toHaveFocus()
+  })
+})

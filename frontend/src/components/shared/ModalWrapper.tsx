@@ -64,7 +64,8 @@ export default function ModalWrapper({
 
   // Move focus into the panel on open; trap focus while modal is open
   useEffect(() => {
-    if (open) {
+    // Skip when a child (autoFocus) already took focus inside the panel.
+    if (open && !panelRef.current?.contains(document.activeElement)) {
       panelRef.current?.focus();
     }
   }, [open]);

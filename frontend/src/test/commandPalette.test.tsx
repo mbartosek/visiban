@@ -253,3 +253,38 @@ describe("CommandPalette — starred-first ranking", () => {
     expect(boardLabels.some((l) => l.includes("Revoked Board"))).toBe(false);
   });
 });
+
+describe("CommandPalette dialog semantics and focus (#1732)", () => {
+  it("is a labelled modal dialog and keeps Tab inside it", async () => {
+    renderPalette();
+    const dialog = await screen.findByRole("dialog", { name: "Command palette" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    await screen.findByRole("combobox");
+    const input = screen.getByRole("combobox");
+    input.focus();
+    const tabbables = dialog.querySelectorAll<HTMLElement>("input, button");
+    const last = tabbables[tabbables.length - 1];
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(tabbables[0]);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("restores focus to the element that opened it", async () => {
+    const trigger = document.createElement("button");
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const { rerender } = renderPalette();
+    await screen.findByRole("dialog");
+    rerender(
+      <MemoryRouter>
+        <CommandPalette {...defaultProps} open={false} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+});
