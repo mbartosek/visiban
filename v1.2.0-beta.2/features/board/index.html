@@ -4875,7 +4875,7 @@
 </tbody>
 </table>
 <p>Press <strong>Escape</strong> or click the <strong>×</strong> button to clear the selection. Selection is also cleared when starting a drag or opening a card detail panel. Bulk operations are only available to users with the <strong>member</strong> role or above.</p>
-<p>Each bulk action calls the existing individual card API endpoints, so partial failures are handled gracefully. Assign, Priority, Archive, and Delete fire their requests concurrently via <code>Promise.allSettled</code>; <strong>Move to...</strong> runs sequentially instead, to avoid database deadlocks from concurrent position-reorder transactions.</p>
+<p>Each bulk action calls the existing individual card API endpoints, so each card succeeds or fails on its own. When some cards fail, a message in the toolbar says how many failed and why, and the selection stays so you can retry the action; this applies to Move, Assign, Priority, Archive, and Delete. Assign, Priority, Archive, and Delete fire their requests concurrently via <code>Promise.allSettled</code>; <strong>Move to...</strong> runs sequentially instead, to avoid database deadlocks from concurrent position-reorder transactions.</p>
 <h2 id="right-click-to-add">Right-click to add<a class="headerlink" href="#right-click-to-add" title="Permanent link">&para;</a></h2>
 <p>Right-click any board cell to open an inline card creation input directly in that column + swimlane.</p>
 <h2 id="keyboard-shortcuts">Keyboard shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permanent link">&para;</a></h2>
