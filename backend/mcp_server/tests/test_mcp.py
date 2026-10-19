@@ -32,7 +32,7 @@ from accounts.models import (
     PersonalAccessToken,
 )
 from boards.models import (
-    BoardMembership, CardActivity, CardChecklist, CardComment, CardMovement, Label,
+    BoardMembership, Card, CardActivity, CardChecklist, CardComment, CardMovement, Label,
 )
 from boards.tests.conftest import (
     _make_board, _make_card, _make_column, _make_membership, _make_swimlane,
@@ -578,7 +578,7 @@ class BoardResourceTests(McpTestCase):
         self.assertEqual(
             set(data),
             {"id", "name", "description", "created_at", "updated_at",
-             "columns", "swimlanes", "cards", "labels"},
+             "columns", "swimlanes", "cards", "cards_total", "cards_truncated", "labels"},
         )
         self.assertEqual(data["id"], board.id)
         self.assertEqual(data["name"], "Snapshot")
@@ -631,6 +631,33 @@ class BoardResourceTests(McpTestCase):
             _make_membership(board, self.user, role=role)
             data = self._read_board(board.id)
             self.assertEqual(data["name"], f"Board {role}")
+
+
+class BoardSnapshotTruncationTests(McpTestCase):
+    """#1762: a capped snapshot is detectable via cards_total/cards_truncated."""
+
+    def _snapshot(self, n):
+        board = _make_board(self.user, name="Big")
+        column = _make_column(board, name="Doing")
+        swimlane = _make_swimlane(board, name="Lane")
+        Card.objects.bulk_create([
+            Card(board=board, column=column, swimlane=swimlane, title=f"C{i}",
+                 position=i, created_by=self.user)
+            for i in range(n)
+        ])
+        status, body = self._read_resource(f"board://{board.id}", self.raw_token)
+        self.assertEqual(status, 200)
+        return json.loads(_parse_sse(body)["result"]["contents"][0]["text"])
+
+    def test_over_cap_is_flagged(self):
+        data = self._snapshot(205)
+        self.assertEqual(len(data["cards"]), 200)
+        self.assertEqual(data["cards_total"], 205)
+        self.assertTrue(data["cards_truncated"])
+
+    def test_under_cap_is_complete(self):
+        data = self._snapshot(3)
+        self.assertEqual((data["cards_total"], data["cards_truncated"]), (3, False))
 
 
 class CardResourceTests(McpTestCase):

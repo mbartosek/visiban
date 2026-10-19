@@ -34,11 +34,13 @@ import functools
 import logging
 from typing import Annotated
 
+import pydantic_core
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp_types import CallToolResult, TextContent
 from pydantic import Field
 
 from accounts.models import SCOPE_MCP_WRITE, get_maintenance_message, get_maintenance_state
@@ -311,7 +313,12 @@ def build_mcp_server():
         description=(
             "List a board's cards, optionally filtered by column_id, swimlane_id, assignee "
             "(username), priority, or label (name); include_archived defaults to false. "
-            "Users are identified by username and display_name, matching the REST API."
+            "Users are identified by username and display_name, matching the REST API. "
+            "Returns at most 200 cards as an array. When more match, the result "
+            "carries an extra text block (\"Showing N of M cards; call again with "
+            "offset=K\") and _meta {\"visiban/total\", \"visiban/truncated\"}; page "
+            "with limit (max 200) / offset. include_meta=true returns "
+            "{cards, total, truncated, limit, offset} instead of an array."
         ),
     )
     @_throttled(compute=True)
@@ -323,11 +330,45 @@ def build_mcp_server():
         priority: str | None = None,
         label: str | None = None,
         include_archived: bool = False,
-    ) -> _TOOL_OUTPUT:
-        return await sync_to_async(tools.list_cards, thread_sensitive=True)(
+        limit: int | None = None,
+        offset: int | None = None,
+        include_meta: bool = False,
+    ) -> Annotated[CallToolResult, _TOOL_OUTPUT]:
+        # Ask tools for the meta envelope always, then shape it here: a bare
+        # array has nowhere to carry a truncation signal, so a truncated plain
+        # call is signaled in-band (extra text block + _meta) while its
+        # structuredContent stays the unchanged {"result": [...]} (#1762).
+        # An untruncated call returns the plain list, which the SDK renders
+        # byte-identically to before.
+        out = await sync_to_async(tools.list_cards, thread_sensitive=True)(
             board_id=board_id, column_id=column_id, swimlane_id=swimlane_id,
             assignee=assignee, priority=priority, label=label,
-            include_archived=include_archived,
+            include_archived=include_archived, limit=limit, offset=offset,
+            include_meta=True,
+        )
+        if "error" in out or include_meta:
+            # An error payload, or the explicit envelope: pass through unchanged.
+            return out
+        rows = out["cards"]
+        # limit=0 is an explicit total-only request (use include_meta); a
+        # "call again with offset=0" hint there would loop with no progress.
+        if not out["truncated"] or not rows:
+            return rows
+        shown, total = len(rows), out["total"]
+        # Same per-card rendering the SDK applies to a returned list (indent=2
+        # JSON, one block per card); a test asserts byte-identity against the
+        # SDK's own helper so an SDK bump that changes it is caught.
+        content = [
+            TextContent(type="text", text=pydantic_core.to_json(row, fallback=str, indent=2).decode())
+            for row in rows
+        ] + [TextContent(
+            type="text",
+            text=f"Showing {shown} of {total} cards; call again with offset={out['offset'] + shown}",
+        )]
+        return CallToolResult(
+            content=content,
+            structured_content={"result": rows},
+            meta={"visiban/total": total, "visiban/truncated": True},
         )
 
     # ── Resources (#513) — board:// and card://, all board roles ──
@@ -346,10 +387,12 @@ def build_mcp_server():
         name="board",
         mime_type="application/json",
         description=(
-            "Full read-only board snapshot: metadata, columns, swimlanes, "
-            "active cards, and labels — equivalent to list_columns + "
-            "list_swimlanes + list_cards in one read. All board roles may "
-            "read it."
+            "Read-only board snapshot: metadata, columns, swimlanes, up to 200 "
+            "active cards, and labels — like list_columns + list_swimlanes + "
+            "list_cards in one read. If the board has more than 200 active "
+            "cards, cards_truncated is true and cards_total gives the real "
+            "count; fetch the rest with list_cards (limit/offset). All board "
+            "roles may read it."
         ),
     )
     @_throttled(compute=True, as_resource=True)

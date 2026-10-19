@@ -33,7 +33,7 @@ top-level ``"error"`` key, and a failure is ALWAYS a dict with exactly that
 key — that split is the whole contract, and it is now part of the tools'
 public (agent-facing) shape, so do not change it without a major version bump.
 """
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Window
 from rest_framework.exceptions import ValidationError as _DRFValidationError
 
 from accounts.models import User
@@ -50,6 +50,7 @@ from boards.services.errors import (
 )
 from boards.utils import _get_assignable_member_ids
 from boards.views._helpers import get_accessible_boards_queryset
+from visiban.request_shape import MAX_OFFSET
 
 from .context import get_current_user
 
@@ -498,7 +499,7 @@ def _columns_payload(board):
     Split out of ``list_columns`` so ``board_snapshot`` (#513) can reuse the
     identical query without re-resolving/re-authorizing the board a second
     time — a board snapshot composes this, ``_swimlanes_payload``, and
-    ``_cards_payload`` on ONE resolved board rather than calling three public
+    ``_cards_page`` on ONE resolved board rather than calling three public
     tools that would each pay their own ``_resolve_board`` query.
     """
     columns = (
@@ -578,20 +579,51 @@ def list_swimlanes(*, board_id):
     return _swimlanes_payload(board, role)
 
 
-# Hard cap on list_cards rows, matching CardViewSet.list()'s existing
-# `_LIST_MAX_ROWS` (boards/views/cards.py) — targeted lookups must bound their
-# response the same way REST's do, not return an unbounded payload.
+# Hard cap on list_cards rows, matching CardViewSet.list()'s `_LIST_MAX_ROWS`
+# (boards/views/cards.py) — targeted lookups must bound their response the
+# same way REST's do, not return an unbounded payload. Unlike before #1762 the
+# cap is no longer silent: ``include_meta`` reports ``total``/``truncated`` and
+# ``limit``/``offset`` page past it, mirroring REST's #1724 semantics.
 _LIST_CARDS_MAX_ROWS = 200
 
 
-def _cards_payload(board, *, column_id=None, swimlane_id=None, assignee=None,
-                    priority=None, label=None, include_archived=False):
-    """Build the ``list_cards`` shape for an already-resolved *board*.
+def _parse_paging(limit, offset):
+    """Validate list_cards ``limit``/``offset`` like REST's ``_parse_card_list_param``.
 
-    Split out of ``list_cards`` for the same reuse reason as
-    ``_columns_payload`` — ``board_snapshot`` calls this with no filters
-    (its own contract is "all active cards") without paying a second
-    ``_resolve_board`` query.
+    Strict on purpose (a bad value is a clean ``validation_error``, never a
+    500 or a silently-ignored param): negatives are rejected. As in REST,
+    ``limit`` is clamped to the cap BEFORE any range check, so an oversized
+    limit is a reasonable request, not an error, while an ``offset`` above
+    ``MAX_OFFSET`` is rejected. Over the MCP transport the tool's input schema
+    has already coerced the argument to an int (or rejected it); the
+    non-int branch only guards direct Python callers.
+    """
+    errors = {}
+    values = {}
+    for name, raw, default in (("limit", limit, _LIST_CARDS_MAX_ROWS), ("offset", offset, 0)):
+        if raw is None:
+            values[name] = default
+        elif not isinstance(raw, int) or raw < 0:
+            errors[name] = ["Must be a non-negative integer."]
+        else:
+            values[name] = min(raw, _LIST_CARDS_MAX_ROWS) if name == "limit" else raw
+            if values[name] > MAX_OFFSET:
+                errors[name] = ["Must be a valid integer offset."]
+    if errors:
+        raise ValidationFailed(errors)
+    return values["limit"], values["offset"]
+
+
+def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,
+                priority=None, label=None, include_archived=False,
+                limit=_LIST_CARDS_MAX_ROWS, offset=0):
+    """Return ``(rows, total)`` for an already-resolved *board*.
+
+    ``total`` counts every matching card ignoring ``limit``/``offset`` so a
+    caller can tell a capped page from a complete one (#1762). Split out of
+    ``list_cards`` for the same reuse reason as ``_columns_payload`` —
+    ``board_snapshot`` calls this with no filters (its own contract is "all
+    active cards") without paying a second ``_resolve_board`` query.
     """
     qs = (
         Card.objects.filter(board=board)
@@ -615,28 +647,63 @@ def _cards_payload(board, *, column_id=None, swimlane_id=None, assignee=None,
         # board+name), but stays for defense-in-depth and because it costs
         # nothing extra with an already-selective board+name filter.
         qs = qs.filter(labels__name=label).distinct()
-    qs = qs.order_by("column__position", "swimlane__position", "position")[:_LIST_CARDS_MAX_ROWS]
-    return [_serialize_card(card) for card in qs]
+    # `id` makes the order total: position repeats across cells, and offset
+    # paging over a non-total order can skip or repeat a card at a boundary.
+    ordered = qs.order_by("column__position", "swimlane__position", "position", "id")
+    # Window COUNT rides the page query (the same pattern as REST's card list,
+    # boards/views/cards.py), so the total costs no extra query and always
+    # agrees with the rows returned: a separate COUNT could be stale by the
+    # time the page is read and report truncated=false with cards missing.
+    cards = list(ordered.annotate(_total=Window(Count("id")))[offset:offset + limit])
+    if cards:
+        total = cards[0]._total
+    elif offset == 0 and limit > 0:
+        total = 0
+    else:
+        # Empty window past the end, or limit=0: no row carries the window
+        # value, so count separately. Never hit by a no-param call on a
+        # non-empty board.
+        total = qs.order_by().count()
+    return [_serialize_card(card) for card in cards], total
 
 
 def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
-                priority=None, label=None, include_archived=False):
+                priority=None, label=None, include_archived=False,
+                limit=None, offset=None, include_meta=False):
     """List a board's cards, optionally filtered, ordered by board position.
 
     All filters are optional and compose with AND. ``assignee`` matches by
     username (case-insensitive), consistent with how ``create_card``/
     ``update_card`` accept an assignee and how cards report one — never an
     internal user id.
+
+    The default return is a bare array (the 1.0 contract), capped at 200 rows.
+    A bare array has nowhere to carry a truncation signal without breaking
+    existing callers, so the signal is opt-in: ``include_meta=True`` returns
+    ``{cards, total, truncated, limit, offset}`` instead (#1762), mirroring
+    REST's ``X-Total-Count``/``X-Truncated``. ``limit``/``offset`` page past
+    the cap with REST's semantics (limit clamped to 200, both non-negative).
     """
     user = get_current_user()
     try:
         board, _role = _resolve_board(user, board_id)
-    except CardServiceError as exc:
+        page_limit, page_offset = _parse_paging(limit, offset)
+    except (CardServiceError, ValidationFailed) as exc:
         return _error_payload(exc)
-    return _cards_payload(
+    rows, total = _cards_page(
         board, column_id=column_id, swimlane_id=swimlane_id, assignee=assignee,
         priority=priority, label=label, include_archived=include_archived,
+        limit=page_limit, offset=page_offset,
     )
+    if not include_meta:
+        return rows
+    return {
+        "cards": rows,
+        "total": total,
+        "truncated": page_offset + len(rows) < total,
+        "limit": page_limit,
+        "offset": page_offset,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -834,12 +901,14 @@ def archive_card(*, card_id):
 # ---------------------------------------------------------------------------
 
 def board_snapshot(*, board_id):
-    """Full read-only board snapshot for the ``board://{board_id}`` MCP resource.
+    """Read-only board snapshot (at most 200 active cards) for ``board://{board_id}``.
 
-    Equivalent in content to ``GET /api/v1/boards/{id}/full/``
-    (``BoardFullSerializer``), but deliberately NOT built from that
+    Similar in content to ``GET /api/v1/boards/{id}/full/``
+    (``BoardFullSerializer``) except that ``cards`` lists at most 200 active
+    cards (``/full/`` has no cap); ``cards_total``/``cards_truncated`` flag a
+    partial list (#1762). Deliberately NOT built from that
     serializer. Composed instead from ``_columns_payload``/
-    ``_swimlanes_payload``/``_cards_payload`` — the same query logic
+    ``_swimlanes_payload``/``_cards_page`` — the same query logic
     ``list_columns``/``list_swimlanes``/``list_cards`` already use and are
     already query-count-tested — resolving and authorizing the board exactly
     ONCE rather than once per section. ``BoardFullSerializer`` also carries
@@ -857,6 +926,7 @@ def board_snapshot(*, board_id):
     except CardServiceError as exc:
         raise ValueError(exc.body()["detail"]) from None
 
+    cards, cards_total = _cards_page(board)
     return {
         "id": board.id,
         "name": board.name,
@@ -865,7 +935,12 @@ def board_snapshot(*, board_id):
         "updated_at": board.updated_at.isoformat(),
         "columns": _columns_payload(board),
         "swimlanes": _swimlanes_payload(board, role),
-        "cards": _cards_payload(board),
+        "cards": cards,
+        # The snapshot is capped at 200 cards like list_cards; these two
+        # additive keys make a partial snapshot detectable (#1762). Fetch the
+        # rest with list_cards(limit/offset) when `cards_truncated` is true.
+        "cards_total": cards_total,
+        "cards_truncated": len(cards) < cards_total,
         "labels": [_serialize_label(label) for label in board.labels.all()],
     }
 

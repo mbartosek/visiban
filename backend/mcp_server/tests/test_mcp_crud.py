@@ -219,6 +219,193 @@ class ListCardsTests(CrudToolsTestCase):
         self.assertEqual(result, [])
 
 
+class ListCardsPagingTests(CrudToolsTestCase):
+    """#1762: the 200-row cap is detectable and pageable, mirroring REST's #1724."""
+
+    def _seed(self, n):
+        Card.objects.bulk_create([
+            Card(board=self.board, column=self.column, swimlane=self.swimlane,
+                 title=f"C{i}", position=i, created_by=self.user)
+            for i in range(n)
+        ])
+
+    def test_truncated_default_call_signals_in_band(self):
+        self._seed(205)
+        result = self._raw_call()
+        self.assertEqual(len(result["structuredContent"]["result"]), 200)
+        texts = [c["text"] for c in result["content"]]
+        self.assertEqual(len(texts), 201)  # 200 per-card blocks + the notice
+        self.assertEqual(texts[-1], "Showing 200 of 205 cards; call again with offset=200")
+        self.assertEqual(
+            result["_meta"], {"visiban/total": 205, "visiban/truncated": True},
+        )
+        # The per-card blocks are byte-identical to what the SDK renders for
+        # the same rows (the server inlines that formatting).
+        from mcp.server.mcpserver.utilities.func_metadata import _convert_to_content
+        sdk_blocks = [b.text for b in _convert_to_content(result["structuredContent"]["result"])]
+        self.assertEqual(texts[:-1], sdk_blocks)
+
+    def test_untruncated_default_call_has_no_notice_or_meta(self):
+        self._seed(3)
+        result = self._raw_call()
+        self.assertEqual(len(result["content"]), 3)
+        self.assertEqual(len(result["structuredContent"]["result"]), 3)
+        self.assertNotIn("_meta", result)
+        self.assertFalse(any("Showing" in c["text"] for c in result["content"]))
+
+    def test_output_schema_is_unchanged_by_the_calltoolresult_annotation(self):
+        status, body = self.client_.post(
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, token=self.raw_token,
+        )
+        self.assertEqual(status, 200)
+        tools = {t["name"]: t for t in _parse_sse(body)["result"]["tools"]}
+        # list_columns still uses the plain list|dict annotation.
+        strip = lambda schema: {k: v for k, v in schema.items() if k != "title"}  # noqa: E731 - title is per-tool
+        self.assertEqual(
+            strip(tools["list_cards"]["outputSchema"]), strip(tools["list_columns"]["outputSchema"]),
+        )
+
+    def test_exactly_cap_is_not_flagged_truncated(self):
+        self._seed(200)
+        result = self._raw_call()
+        self.assertEqual(len(result["content"]), 200)
+        self.assertNotIn("_meta", result)
+
+    def test_plain_limit_zero_has_no_looping_continuation_notice(self):
+        self._seed(4)
+        result = self._raw_call(limit=0)
+        self.assertEqual(result["content"], [])
+        self.assertEqual(result["structuredContent"]["result"], [])
+        self.assertNotIn("_meta", result)
+
+    def test_offset_beyond_total_reports_real_total(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=99)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 4, False))
+
+    def test_empty_board_total_is_zero(self):
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 0, False))
+
+    def test_notice_next_offset_follows_offset_and_limit(self):
+        self._seed(30)
+        result = self._raw_call(limit=5, offset=10)
+        self.assertEqual(
+            result["content"][-1]["text"], "Showing 5 of 30 cards; call again with offset=15",
+        )
+        self.assertEqual(result["_meta"]["visiban/total"], 30)
+
+    def test_include_meta_has_no_in_band_notice(self):
+        self._seed(205)
+        result = self._raw_call(include_meta=True)
+        self.assertNotIn("_meta", result)
+        self.assertEqual(result["structuredContent"]["result"]["total"], 205)
+        self.assertFalse(any(c["text"].startswith("Showing") for c in result["content"]))
+
+    def test_id_tiebreaker_orders_ties_and_pages_without_gap(self):
+        # Identical column/swimlane/position: only `id` makes the order total.
+        self._seed_ties = Card.objects.bulk_create([
+            Card(board=self.board, column=self.column, swimlane=self.swimlane,
+                 title=f"T{i}", position=0, created_by=self.user)
+            for i in range(7)
+        ])
+        expected = sorted(Card.objects.filter(board=self.board).values_list("id", flat=True))
+        got = []
+        for offset in (0, 3, 6):
+            page = self._call(
+                "list_cards", self.raw_token, board_id=self.board.id,
+                include_meta=True, limit=3, offset=offset,
+            )
+            got += [c["id"] for c in page["cards"]]
+        self.assertEqual(got, expected)
+
+    def test_numeric_string_args_are_coerced_by_the_schema(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit="2")
+        self.assertEqual(len(result["cards"]), 2)
+
+    def test_huge_limit_is_clamped_not_rejected(self):
+        self._seed(2)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=2**63)
+        self.assertEqual((result["limit"], len(result["cards"])), (200, 2))
+
+    def _raw_call(self, **arguments):
+        status, body = self._tools_call("list_cards", self.raw_token, {"board_id": self.board.id, **arguments})
+        self.assertEqual(status, 200, body)
+        return _parse_sse(body)["result"]
+
+    def test_default_is_bare_array_capped_at_200(self):
+        self._seed(205)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id)
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 200)
+
+    def test_include_meta_reports_total_and_truncated(self):
+        self._seed(205)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual(len(result["cards"]), 200)
+        self.assertEqual(result["total"], 205)
+        self.assertTrue(result["truncated"])
+        self.assertEqual((result["limit"], result["offset"]), (200, 0))
+
+    def test_include_meta_not_truncated_when_complete(self):
+        self._seed(3)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        self.assertEqual((result["total"], result["truncated"], len(result["cards"])), (3, False, 3))
+
+    def test_offset_pages_past_the_cap_without_overlap(self):
+        self._seed(205)
+        first = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True)
+        second = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=200,
+        )
+        self.assertEqual(len(second["cards"]), 5)
+        self.assertFalse(second["truncated"])
+        ids = [c["id"] for c in first["cards"]] + [c["id"] for c in second["cards"]]
+        self.assertEqual(len(set(ids)), 205)
+
+    def test_limit_is_clamped_to_200(self):
+        self._seed(205)
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=5000,
+        )
+        self.assertEqual((len(result["cards"]), result["limit"]), (200, 200))
+
+    def test_limit_zero_returns_total_only(self):
+        self._seed(4)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, limit=0)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 4, True))
+
+    def test_offset_past_end_is_empty_not_error(self):
+        self._seed(2)
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=50)
+        self.assertEqual((result["cards"], result["total"], result["truncated"]), ([], 2, False))
+
+    def test_total_respects_filters(self):
+        self._seed(3)
+        _make_card(self.other_column, self.swimlane, title="Other")
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True,
+            column_id=self.column.id,
+        )
+        self.assertEqual(result["total"], 3)
+
+    def test_negative_paging_is_a_validation_error(self):
+        for arg in ("limit", "offset"):
+            with self.subTest(arg=arg):
+                result = self._call("list_cards", self.raw_token, board_id=self.board.id, **{arg: -1})
+                self.assertEqual(result["error"]["code"], "validation_error")
+                self.assertIn(arg, result["error"]["errors"])
+
+    def test_oversized_offset_is_a_validation_error(self):
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, offset=2**63)
+        self.assertEqual(result["error"]["code"], "validation_error")
+
+    def test_non_integer_paging_is_rejected_cleanly(self):
+        result = self._raw_call(limit="abc")
+        self.assertTrue(result["isError"])
+
+
 class CreateCardTests(CrudToolsTestCase):
     def test_admin_can_create_card_with_from_column_null_movement(self):
         result = self._call(
