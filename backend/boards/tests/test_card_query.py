@@ -7,6 +7,7 @@ query-count guard. Card mutation and the existing per-board endpoints
 touched by this endpoint.
 """
 import datetime
+import re
 
 from django.db import connection
 from django.test import TestCase
@@ -456,7 +457,9 @@ class CardQueryCountTests(TestCase):
 
     # Measured minimum is 6 (accessible-boards lookup + main card select +
     # labels/attachments/checklist_items/movements prefetches); budget is 2x
-    # that, matching the headroom convention in test_query_counts.py.
+    # that, matching the headroom convention in test_query_counts.py. Since
+    # #1805 the accessible board ids are their own query (see
+    # test_access_filter_is_a_literal_id_list), which this budget absorbs.
     BUDGET = 12
 
     def setUp(self):
@@ -513,6 +516,76 @@ class CardQueryCountTests(TestCase):
             baseline, scaled,
             f"cards/ query count grew from {baseline} to {scaled} when boards were added.",
         )
+
+    def test_access_filter_is_a_literal_id_list(self):
+        """#1805: the card SELECT filters on the accessible board ids as a
+        literal list, never on get_accessible_boards_queryset() as a subquery.
+
+        A query-count guard cannot catch this: the subquery form issues one
+        query fewer and is still the slower one. As a subquery, PostgreSQL pulls the boards/memberships
+        predicate into the card SELECT's join, and planning that join cost
+        more than running it (about 20ms a request on the nightly-load-test
+        fixture, against about 5ms with literal ids). That moved card_search's
+        nightly p95. Pinned on the SQL shape, since a latency check in a unit
+        test would be flaky.
+        """
+        other = User.objects.create_user(username="other-1805", password="x")
+        other_board, other_col, other_swim = _make_board(other, name="Not mine")
+        _make_card(other_board, other_col, other_swim, other, title="Card hidden")
+        extra_board, _, _ = _make_board(self.user, name="Second board")
+
+        with CaptureQueriesContext(connection) as ctx:
+            r = self.client.get(URL, {"search": "Card"})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        # Scoping is unchanged: only the caller's cards come back.
+        self.assertEqual(
+            {row["board"] for row in r.data["results"]}, {self.board.id},
+        )
+
+        self.assertEqual(
+            self._card_select_board_ids(ctx), {self.board.id, extra_board.id},
+        )
+
+    def test_access_filter_is_a_literal_id_list_for_site_admin(self):
+        """The can_access_all_content branch (Board.objects.all()) takes the
+        same literal-list path. That list is the longest one the view builds."""
+        admin = User.objects.create_user(
+            username="admin-1805", password="x", can_access_all_content=True,
+        )
+        other = User.objects.create_user(username="other-admin-1805", password="x")
+        other_board, _, _ = _make_board(other, name="Someone else's")
+
+        client = APIClient()
+        client.force_authenticate(admin)
+        with CaptureQueriesContext(connection) as ctx:
+            r = client.get(URL)
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._card_select_board_ids(ctx), set(Board.objects.values_list("id", flat=True)),
+        )
+        self.assertIn(other_board.id, self._card_select_board_ids(ctx))
+
+    def _card_select_board_ids(self, ctx):
+        """Return the board ids inlined into the card SELECT's IN list.
+
+        Asserts that the WHERE clause holds no boards or memberships subquery.
+        The regex relies on Django rendering the list as literals. psycopg 3
+        (client-side binding, the default) and SQLite both do. If
+        server_side_binding is ever turned on, this helper fails and prints
+        the SQL, and it needs updating then.
+        """
+        card_selects = [
+            q["sql"] for q in ctx.captured_queries
+            if q["sql"].lstrip().upper().startswith("SELECT")
+            and 'FROM "cards"' in q["sql"] and '"cards"."title"' in q["sql"]
+        ]
+        self.assertEqual(len(card_selects), 1, card_selects)
+        where = card_selects[0].split(" WHERE ", 1)[1]
+        self.assertNotIn('FROM "boards"', where)
+        self.assertNotIn('"board_memberships"', where)
+        in_list = re.search(r'"cards"\."board_id" IN \(([^)]*)\)', where)
+        self.assertIsNotNone(in_list, where[:400])
+        return {int(x) for x in in_list.group(1).replace("'", "").split(",")}
 
 
 class CardQuerySerializerFieldParityTests(TestCase):

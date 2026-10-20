@@ -23,7 +23,7 @@ see that class of regression; this job can.
 |---|---|---|
 | Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
-| Card search | `GET /api/v1/cards/?search=...` | Exercises the `pg_trgm` GIN indexes added in migration `0030_card_trigram_search_indexes` |
+| Card search | `GET /api/v1/cards/?search=...` | The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does **not** use the `pg_trgm` GIN indexes from migration `0030_card_trigram_search_indexes`, because `icontains` renders as `UPPER(col) LIKE`, which they cannot serve ([#1809](https://gitlab.com/visiban/visiban/-/issues/1809)). It runs as a one-board user, so only the single-board plan is measured ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810); see [#1805](#the-october-2026-card_search-and-notifications_unread-drift-1805)) |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
 | Notifications list | `GET /api/v1/notifications/` | The highest-QPS authenticated endpoint in the product — the frontend polls it every 15-30s |
 | Notifications unread count | `GET /api/v1/notifications/unread-count/` | Same polling cadence as the list endpoint |
@@ -220,8 +220,10 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     [The October 2026 `board_full` drift](#the-october-2026-board_full-drift-1800) below. The
     unattributed remainder of that step is tracked in
     [#1807](https://gitlab.com/visiban/visiban/-/issues/1807). The rises on `card_search`,
-    `card_timeline`, `notifications_list` and `notifications_unread` are tracked in
-    [#1805](https://gitlab.com/visiban/visiban/-/issues/1805). The previous derivation ran
+    `card_timeline`, `notifications_list` and `notifications_unread` were investigated in
+    [#1805](https://gitlab.com/visiban/visiban/-/issues/1805). See
+    [The October 2026 `card_search` and `notifications_unread` drift](#the-october-2026-card_search-and-notifications_unread-drift-1805)
+    below. The previous derivation ran
     on `gitlab-runner-nuc-2-visiban`; both are NUC-class
     (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
 
@@ -366,10 +368,12 @@ that includes this fix. Never hand-edit it.
   `runner-04-NUC`) and `notifications_unread` show no driver effect locally: psycopg2,
   psycopg 3 and psycopg 3 with the backport measured within noise of each other. Their
   smaller rise is not the timestamptz loader. Locally, `card_search` was also about 14%
-  slower on current code than on `7dee839ca` with the same 8 queries. That comparison spans
-  two separately seeded databases and was not taken further here.
-  [#1805](https://gitlab.com/visiban/visiban/-/issues/1805) tracks these two, and also the
-  `card_timeline` and `notifications_list` rises that the #1767 re-derivation absorbed.
+  slower on current code than on `7dee839ca`, with the same queries on both. (Measured with
+  token auth, as in the load test, that is 10 queries. The token lookup and the token
+  `last_used_at` update account for the extra two.) That comparison spans two separately
+  seeded databases and was not taken further here. #1805 explains these two, and also the
+  `card_timeline` and `notifications_list` rises that the #1767 re-derivation absorbed. See
+  [the #1805 section](#the-october-2026-card_search-and-notifications_unread-drift-1805) below.
 - The job installs `backend/requirements.txt`, not the hash-pinned `requirements.lock`, and
   its `python:3.12-slim` and `postgres:17-alpine` images are floating tags. Transitive
   dependency and base-image versions can therefore change between two runs on the same
@@ -377,6 +381,178 @@ that includes this fix. Never hand-edit it.
   investigation did not rule them out from the CI data. The local measurement reproduces a
   step of the observed size from the driver alone. When attributing a future drift, check
   them.
+
+## The October 2026 `card_search` and `notifications_unread` drift — #1805
+
+**Verdict: three separate effects. One was a code regression, now fixed. One was a runner
+change. The third is unattributed, sits inside the budget headroom, and was not pursued.**
+
+1. **`card_search` on Oct 20 was a regression in the code.**
+   [#1723](https://gitlab.com/visiban/visiban/-/issues/1723) rewrote the board access
+   filter (merged Oct 19) and made the cross-board card query slower to *plan*. The
+   query count and the payload stayed the same. #1805 fixes it in
+   `CardQueryViewSet.get_queryset()`.
+2. **All four light endpoints on Oct 20 ran on a different runner.** That run was the first
+   scheduled run on `runner-04-NUC`. On endpoints whose code did not change, it measured 6-10%
+   slower than the other two NUC runners. This is one sample.
+3. **All four light endpoints stepped up 2-6% at p50 at the Oct 4/5 boundary**, on both
+   NUC runners. That is 0.8-2.1ms on the three lightest and 3.2-4.4ms on `card_search`. It is
+   the same boundary as the `board_full` step above. A local driver A/B did not reproduce
+   it, so it is **unattributed**. It sits inside the 1.4x budget headroom and was not
+   pursued.
+
+`card_timeline` and `notifications_list`, which the #1767 re-derivation also moved up, rose
+only through effects 2 and 3. The budgets were **not** re-derived here, because no NUC run has
+measured the fix yet. That is tracked in
+[#1808](https://gitlab.com/visiban/visiban/-/issues/1808). Until #1808 lands, the
+`card_search` budget stays at 155ms, against a local p95 of about 57ms with the fix.
+
+### What the scheduled runs show
+
+This uses the same 25 scheduled jobs and the same per-runner p50 method as #1800 above. The
+dell-01 job is excluded, and so is job 16796278537 (Sep 29, retried), where
+`notifications_unread`, `notifications_list` and `card_timeline` were 50-60% slower than in
+every other job. Each cell gives the median p50 across that runner's jobs:
+
+| Endpoint | `gitlab-runner-nuc-2-visiban` before / after Oct 5 (5 / 6 jobs) | `Runner-03-NUC` before / after Oct 5 (3 / 8 jobs) | `runner-04-NUC` Oct 20 (1 job) |
+|---|---|---|---|
+| `card_search` | 81.0 / 84.2ms (+4%) | 80.3 / 84.7ms (+5%) | 100.7ms |
+| `notifications_unread` | 23.8 / 24.9ms (+4%) | 24.5 / 25.8ms (+5%) | 28.1ms |
+| `notifications_list` | 32.3 / 33.5ms (+4%) | 32.9 / 35.0ms (+6%) | 36.3ms |
+| `card_timeline` | 32.3 / 33.1ms (+2%) | 32.5 / 34.4ms (+6%) | 36.7ms |
+
+On the Oct 20 run, the light endpoints were above both other runners' post-Oct-5 medians
+(84.2, 25.5, 34.3 and 33.5ms): `card_search` by 20%, `notifications_unread` by 10%,
+`card_timeline` by 9% and `notifications_list` by 6%. `board_full` was not: 1136ms against a
+1151ms median. That run is also the first after #1723 and #1721 merged (`37ad2d8e0` to
+`b1f1cf76b`), so the CI data alone cannot separate the runner from the code. The local A/B
+below does.
+
+### `card_search`: the access-filter rewrite (#1723)
+
+Measured locally on one scale-20 database (PostgreSQL 17, `DEBUG=True` and no
+`CONN_MAX_AGE`, as in CI). The method was 6 interleaved rounds of 40 timed requests per
+endpoint, with the servers for both commits running against that same database. This
+answers the open question #1800 left: its 14% difference spanned two separately seeded
+databases.
+
+- **Only `card_search` moved.** From `37ad2d8e0` (Oct 19 run) to `b1f1cf76b` (Oct 20 run),
+  the median per-round p50 went from 69.1ms to 77.6ms, slower in every round, and p95 went
+  from 72.9ms to 106.7ms. `notifications_unread`, `notifications_list` and `card_timeline`
+  were unchanged within 1ms. All four returned byte-identical JSON on both commits.
+- **Same queries, slower planning.** Both commits ran 10 queries with token auth (8 without
+  the token lookup and its `last_used_at` update). Only the main card SELECT
+  got slower, 25ms to 33ms. `EXPLAIN ANALYZE` on that statement:
+  - Execution: unchanged (15.2ms and 15.1ms).
+  - Planning: 11-15ms before, 19-23ms after, in fresh and warm sessions alike.
+- **Mechanism.** The view filters cards with `board_id__in=get_accessible_boards_queryset(user)`.
+  Before #1723 that subquery was `SELECT DISTINCT ... LEFT JOIN board_memberships`. #1723
+  replaced it with `owner = ... OR EXISTS(...)`. PostgreSQL pulls the subquery up into the
+  card SELECT's 7-table join (cards, board, column, swimlane, two users, external ref). With
+  the `OR EXISTS` form, the planner spends longer on that join than the executor spends
+  running it. #1723's `Exists()` alone accounts for the rise (planning 19-20ms).
+  [#1721](https://gitlab.com/visiban/visiban/-/issues/1721)'s role filter added nothing
+  measurable.
+
+**The fix.** `get_queryset()` now evaluates the accessible board ids as a list (one small
+extra query) and passes the literal list to `board_id__in`. The access rule itself is
+untouched: the same `get_accessible_boards_queryset()` decides which ids are in the list.
+On the same statement:
+
+| Access filter in the card SELECT | Planning | Execution |
+|---|---|---|
+| Subquery, before #1723 | 11-15ms | 15ms |
+| Subquery, after #1723 | 19-23ms | 15ms |
+| Literal list, 1 board (this fixture) | 4.5ms | 0.65ms |
+| Literal list, 200 ids | 5ms | 13.5ms |
+| Literal list, 20,000 ids | 15-17ms | 14-15ms |
+
+With this fixture's single board, the planner can also walk `card_board_updated_idx` in
+cursor order and stop at the 51st row instead of sorting every match. With 200 ids it went
+back to the old scan-and-sort, at the old execution time. Even 20,000 ids plan faster than
+the subquery did after #1723.
+
+End to end, with all three servers on one database (6 interleaved rounds, median per-round
+p50 / p95):
+
+| Code | `card_search` p50 | `card_search` p95 |
+|---|---|---|
+| `37ad2d8e0` (before #1723) | 67.9ms | 85.8ms |
+| `b1f1cf76b` (Oct 20 run) | 74.3ms | 106.8ms |
+| `b1f1cf76b` with the #1805 fix | 48.0ms | 57.2ms |
+
+The other three endpoints were unchanged within noise in all three arms. The response
+was byte-identical, and the request now runs 11 queries instead of 10.
+`CardQueryCountTests.test_access_filter_is_a_literal_id_list` in
+`boards/tests/test_card_query.py` pins the shape. It fails if the card SELECT's `WHERE`
+contains a `boards` or `board_memberships` subquery, or if the inlined ids are not exactly
+the caller's accessible boards. `test_access_filter_is_a_literal_id_list_for_site_admin`
+pins the same shape for a `can_access_all_content` user, whose list holds every board. Like
+the #1800 regression, this one left the query count unchanged, so a query-count guard would
+not have caught it.
+
+**What the `card_search` scenario now measures, and what it does not.**
+
+- **It measures only the single-board plan.** The scenario runs as `demo2`, who can access
+  one board, so after the fix it times the single-board index walk on
+  `card_board_updated_idx`. The plan most multi-board users get (scan and sort, 13.5ms
+  execution at 200 ids in the table above) is not measured nightly. A budget derived from
+  this scenario cannot see a regression on that path. Adding a multi-board scenario is
+  tracked in [#1810](https://gitlab.com/visiban/visiban/-/issues/1810).
+- **It never exercised the trigram indexes.** Django's `icontains` renders as
+  `UPPER(col) LIKE UPPER('%term%')`. The `card_title_trgm_idx` and `card_desc_trgm_idx`
+  indexes from migration 0030 are on the bare columns, so PostgreSQL cannot use them for
+  that expression:
+  - Before the fix the plan is a sequential scan on `cards`.
+  - After the fix it is the index walk above.
+  - With a selective term and `enable_seqscan=off`, the planner picks `cards_board_id_*`
+    and filters, still without the trigram indexes. They are used only by `ILIKE`, which
+    no card query issues.
+
+  Neither search site (`boards/views/cards.py` or `boards/views/card_query.py`) can use the
+  indexes, yet they still cost a GIN update on every card write. This defect is tracked in
+  [#1809](https://gitlab.com/visiban/visiban/-/issues/1809).
+
+  So the scenario measures the access filter, the per-card serialization of one 51-row page,
+  and the substring filter applied row by row.
+
+### `runner-04-NUC`: one slower run
+
+Locally, the `37ad2d8e0` to `b1f1cf76b` change did not move `notifications_unread`,
+`notifications_list` or `card_timeline`. So their Oct 20 rise (6-10% over the other NUC
+runners' medians, above) is not the code. `runner-04-NUC` is `nuc`-tagged and was correctly
+eligible, but this was its first scheduled `nightly-load-test` run, and there is no second
+sample yet. `card_search`'s 20% on that run fits both causes together: about 10% from #1723
+and about 10% from the runner.
+
+Do not treat `runner-04-NUC` as interchangeable with the other two NUC runners until more
+runs land on it. When a budget fails on that runner, first compare its p50 with the other
+runners' recent runs, as above. The current baseline was derived from this run, so its light
+endpoint budgets carry the runner's extra 6-10%.
+
+### The Oct 4/5 step on the light endpoints
+
+All four light endpoints rose 2-6% (0.8-2.1ms at p50, 3.2-4.4ms on `card_search`) between the
+Oct 4 run on `7dee839ca` and the runs from Oct 5 on, on both NUC runners. That is the
+boundary where #1800 found the `board_full` step. Per #1800, the only lock changes in that
+window are psycopg 3 (#1252) and the MCP SDK, and the MCP SDK is not imported in the job. The
+settings changes in the window add no per-request work.
+
+The driver does not reproduce it locally. On `b1f1cf76b`, with one database and 8
+interleaved rounds, psycopg 3 was not slower than psycopg2 on any of these endpoints. On the
+three lightest it was 1.4-2.2ms faster at p50, and `card_search` measured 77.5ms against
+77.9ms. That commit predates #1800's backport, so psycopg 3 was still parsing `timestamptz`
+in Python and was still not slower. psycopg2 was forced by shadowing the `psycopg` import,
+so Django fell back to psycopg2 2.9.11. A new
+connection per request (`CONN_MAX_AGE` unset) is part of both arms. The development machine
+is macOS on arm64, while CI is `python:3.12-slim` on x86_64. This test does not cover a
+platform-specific driver cost, nor the unpinned transitive dependencies and floating images
+#1800 lists.
+
+This step is therefore **unattributed**. It is 0.8-2.1ms per request on the three lightest
+endpoints and 3.2-4.4ms on `card_search`, which is 2-6% and well inside the 1.4x budget factor,
+so it was not pursued. If it grows, run the same driver A/B on a NUC runner rather than on a
+development machine.
 
 ## Failure notifications
 
