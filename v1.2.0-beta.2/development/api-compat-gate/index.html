@@ -4097,7 +4097,7 @@ rewritten as same-name <code>SerializerMethodField</code>s).</p>
 the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
 closed: anything not already in it, including a further change to an operation that has
 entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
-or needs its own issue-referenced entry. The temporary <code>#1788</code> and <code>#1783</code> entries described
+or needs its own issue-referenced entry. The temporary <code>#1788</code>, <code>#1783</code> and <code>#1792</code> entries described
 below are such entries; none of them is part of the burn-down count above.
 The exception is an operation covered by an <code>operation</code> entry (the <code>#1783</code> ones): every finding
 under it passes, including a new one. That is why those entries must be deleted at the v1.2.0
@@ -4130,7 +4130,7 @@ the v1.1.0 <em>view code</em> (<code>git show v1.1.0:backend/...</code>), not th
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
-The temporary #1783 entries below are a third exception.</p>
+The temporary #1783 entries below are a third exception, and the #1792 entry a fourth.</p>
 <p>Four temporary <code>key</code> entries under <code>#1788</code> cover <code>NEW_REQUIRED_REQUEST_BODY</code> on <code>POST swimlanes/</code>,
 <code>PUT swimlanes/{id}/</code>, and <code>PATCH swimlanes/{id}/set-collapsed/</code> and <code>set_collapsed/</code>. The v1.1.0
 baseline lacks those bodies because <code>SwimlaneViewSet</code> crashed during schema generation; #1788
@@ -4143,11 +4143,14 @@ whose schema showed a fallback serializer, no body, or a wrong status (for examp
 <code>auth/change-password/</code>, <code>auth/choose-username/</code> and <code>auth/registration/resend-email/</code>).
 The v1.1.0 baseline holds those wrong shapes, so each correction reads as a removal; no runtime
 behavior changed. Delete all sixteen when the baseline is rolled at the v1.2.0 GA.</p>
+<p>One temporary <code>key</code> entry under <code>#1792</code> covers <code>REQUEST_BODY_BECAME_REQUIRED</code> on <code>POST boards/import/</code>: the
+baseline published the multipart upload body as optional, but the view has always answered 400 without
+<code>file</code>. Delete it when the baseline is rolled at the v1.2.0 GA.</p>
 <p>The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
 as the new baseline, so an operation that still documents a fallback serializer at the tag
 carries that error into the next baseline. #1783 corrected the cases its sweep confirmed. The
-board import endpoints' request bodies are tracked in #1792 and other hand-written <code>GET</code>s that
-publish no response body in #1793; any found later needs the same fix before the following roll.</p>
+board import request bodies were corrected in #1792; hand-written <code>GET</code>s that
+publish no response body are tracked in #1793; any found later needs the same fix before the following roll.</p>
 <h2 id="running-it-locally">Running it locally<a class="headerlink" href="#running-it-locally" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
