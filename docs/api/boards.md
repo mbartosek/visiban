@@ -116,12 +116,12 @@ Board change feed — committed board mutations in ascending `id` order, so an o
 See [Change Feed](events.md) for the full contract, retention, and the reconnect flow.
 
 ### `POST /api/v1/boards/{id}/star/`
-Star (favorite) a board. Returns `200 OK` with the updated board object (whether or not the board was already starred).
+Star (favorite) a board. Takes no request body. Returns `200 OK` with the updated board object (whether or not the board was already starred).
 
 **Permissions:** requires authentication and board access (any role). Sends `board.star_changed` to the requesting user's own WebSocket sessions only (#1677).
 
 ### `DELETE /api/v1/boards/{id}/star/`
-Unstar a board. Sends `board.star_changed` to the requesting user's own WebSocket sessions only.
+Unstar a board. Returns `200 OK` with the updated board object (`is_starred: false`), the same as `POST`, not `204 No Content`. The OpenAPI schema documented a bodiless `204` until 1.2 (#1783); the endpoint has always answered `200` with the board. Sends `board.star_changed` to the requesting user's own WebSocket sessions only.
 
 **Permissions:** requires authentication and board access (any role).
 
@@ -137,7 +137,9 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 *(1.2+)* A move-group, board `PATCH`/`PUT` that sets `group`, board create with a `group`, or [`POST /api/v1/groups/{id}/boards/`](groups.md) that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer `404`, as for an unknown group; board create and `PATCH`/`PUT` answer `400` with `{"group": ["Unknown group, or you are not an admin of it."]}`, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).
 
-**Request** `{ "group_id": 5 }` or `{ "group_id": null }`
+**Request** `{ "group_id": 5 }` or `{ "group_id": null }`. `group_id` is the only key read; omitting it is the same as `null` (move to personal).
+
+**Response** `200 OK` with the updated board object.
 
 **Errors**
 
@@ -544,7 +546,9 @@ Export the board. Append `?format=json` for a JSON dump; omit for CSV (the defau
 
 | Parameter | Values | Default | Description |
 |---|---|---|---|
-| `format` | `json` | _(omit for CSV)_ | Response format. Omit or set to anything other than `json` for CSV. |
+| `format` | `json` | _(omit for CSV)_ | Response format. Omit it for CSV. `json` is the only documented value; other values such as `csv` or `xml` return `404 Not Found` from the API's format negotiation, so do not send `format=csv`. |
+
+Both formats are file downloads (`Content-Disposition: attachment`): CSV as `text/csv`, JSON as `application/json`.
 
 **Rate limit:** 20 exports/hour per authenticated user (scope: `board_export`). Exceeding the limit returns `429 Too Many Requests`.
 

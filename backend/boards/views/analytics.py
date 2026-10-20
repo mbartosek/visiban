@@ -7,7 +7,7 @@ import statistics
 
 from django.db.models import Count, Min, OuterRef, Prefetch, Q, Subquery, Window
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
@@ -22,9 +22,97 @@ from ._helpers import get_board_for_user
 _logger = logging.getLogger(__name__)
 
 
+# Response schemas for summary/ and analytics/ (#1783). Both actions return a
+# hand-built dict, so without these the schema showed the viewset's Board
+# serializer, a shape neither has ever returned. Schema only: each mirrors the
+# dict the view builds below, field for field, and changes nothing at runtime.
+# Per-column maps are keyed by column name.
+_BOARD_SUMMARY_RESPONSE = inline_serializer(
+    name="BoardSummary",
+    fields={
+        "swimlanes": inline_serializer(
+            name="BoardSummarySwimlane",
+            many=True,
+            fields={
+                "id": serializers.IntegerField(),
+                "name": serializers.CharField(),
+                "color": serializers.CharField(),
+                "total_cards": serializers.IntegerField(),
+                "stage_distribution": serializers.DictField(
+                    child=serializers.IntegerField(),
+                    help_text="Active card count per column, keyed by column name (every column, zeros included).",
+                ),
+                "velocity_7d": serializers.IntegerField(),
+                "velocity_30d": serializers.IntegerField(),
+                "active_cards": serializers.IntegerField(),
+                "done_30d": serializers.IntegerField(),
+                "avg_cycle_days": serializers.FloatField(allow_null=True),
+            },
+        ),
+        "extension_panels": serializers.ListField(
+            child=serializers.DictField(),
+            help_text="Panels from the ANALYTICS_EXTENSIONS hook; empty in OSS.",
+        ),
+    },
+)
+
+_BOARD_ANALYTICS_RESPONSE = inline_serializer(
+    name="BoardAnalytics",
+    fields={
+        "days": serializers.IntegerField(),
+        "columns": serializers.ListField(child=serializers.CharField()),
+        "done_columns": serializers.ListField(child=serializers.CharField()),
+        "board_medians": serializers.DictField(
+            child=serializers.FloatField(allow_null=True),
+            help_text="Median dwell days per active column, keyed by column name. Kept for backward compatibility.",
+        ),
+        "swimlanes": inline_serializer(
+            name="BoardAnalyticsSwimlane",
+            many=True,
+            fields={
+                "id": serializers.IntegerField(),
+                "name": serializers.CharField(),
+                "avg_days_per_column": serializers.DictField(
+                    child=serializers.FloatField(allow_null=True),
+                    help_text="Deprecated: use throughput_avg_days_per_column.",
+                ),
+                "is_outlier": serializers.DictField(child=serializers.BooleanField()),
+                "age_avg_days_per_column": serializers.DictField(child=serializers.FloatField(allow_null=True)),
+                "age_is_outlier": serializers.DictField(child=serializers.BooleanField()),
+                "throughput_avg_days_per_column": serializers.DictField(
+                    child=serializers.FloatField(allow_null=True),
+                ),
+                "throughput_card_count_per_column": serializers.DictField(child=serializers.IntegerField()),
+                "throughput_is_outlier": serializers.DictField(child=serializers.BooleanField()),
+                "deal_velocity_days": serializers.FloatField(allow_null=True),
+                "stalled_cards": inline_serializer(
+                    name="BoardAnalyticsStalledCard",
+                    many=True,
+                    fields={
+                        "id": serializers.IntegerField(),
+                        "uid": serializers.CharField(),
+                        "title": serializers.CharField(),
+                        "days_since_move": serializers.IntegerField(),
+                    },
+                ),
+            },
+        ),
+        "stalled_threshold_days": serializers.IntegerField(),
+        "staleness_threshold_days": serializers.IntegerField(),
+        "stale_warning_pct": serializers.IntegerField(),
+    },
+)
+
+_ANALYTICS_400 = OpenApiResponse(
+    description="`days` or `stalled_days` is not an integer or is out of range.",
+    response=inline_serializer(name="BoardAnalyticsBadRequest", fields={"detail": serializers.CharField()}),
+)
+
+
 class BoardAnalyticsMixin:
     """Mixin providing summary and analytics @action methods for BoardViewSet."""
 
+    @extend_schema(responses={200: _BOARD_SUMMARY_RESPONSE})
     @action(detail=True, methods=["get"])
     def summary(self, request, pk=None):
         """Per-swimlane card counts, stage distribution, velocity, and cycle-time metrics.
@@ -155,6 +243,24 @@ class BoardAnalyticsMixin:
                 )
         return Response({"swimlanes": result, "extension_panels": extension_panels})
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="days", type={"type": "integer", "minimum": 1, "maximum": 365},
+                location=OpenApiParameter.QUERY, required=False,
+                description="Analysis window in days, 1-365 (default 30).",
+            ),
+            OpenApiParameter(
+                name="stalled_days", type={"type": "integer", "minimum": 1, "maximum": 90},
+                location=OpenApiParameter.QUERY, required=False,
+                description=(
+                    "Stalled-card threshold in days, 1-90, for this request only. "
+                    "Omit to use the board's staleness_threshold_days."
+                ),
+            ),
+        ],
+        responses={200: _BOARD_ANALYTICS_RESPONSE, 400: _ANALYTICS_400},
+    )
     @action(detail=True, methods=["get"])
     def analytics(self, request, pk=None):
         """Time-in-stage heatmap with outlier detection and stalled cards.

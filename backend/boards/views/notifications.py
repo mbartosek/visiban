@@ -1,6 +1,6 @@
 """Notification views — list, mark-read, and unread-count endpoints."""
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -149,6 +149,23 @@ class NotificationMarkReadView(APIView):
         TokenHasScope,
     ]
 
+    # Schema only (#1783): the body and the response were undocumented. Both
+    # keys are optional; an empty object marks nothing.
+    @extend_schema(
+        request=inline_serializer(
+            name="NotificationMarkRead",
+            fields={
+                "all": serializers.BooleanField(
+                    required=False, help_text="When true, marks every unread notification read; `ids` is ignored.",
+                ),
+                "ids": serializers.ListField(
+                    child=serializers.IntegerField(), required=False,
+                    help_text="Ids of the requesting user's notifications to mark read.",
+                ),
+            },
+        ),
+        responses={200: inline_serializer(name="NotificationMarkReadResponse", fields={"ok": serializers.BooleanField()})},
+    )
     def post(self, request):
         body = require_json_object(request)
         if body.get("all"):

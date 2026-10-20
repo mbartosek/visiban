@@ -37,7 +37,7 @@ from .models import (
 )
 from .serializers import (
     GroupSerializer, GroupDetailSerializer, GroupLabelSerializer, GroupMembershipSerializer,
-    full_group_access,
+    GroupBoardDefaultsSerializer, GroupMemberRoleUpdateSerializer, full_group_access,
     GroupInviteLinkSerializer, GroupInviteLinkCreateSerializer, GroupInviteLinkEmailSerializer,
     _ALLOWED_PRIORITY_SLUGS, _MAX_ALLOWED_PRIORITIES_LENGTH,
 )
@@ -51,6 +51,16 @@ from .serializers import (
 from boards.serializers import BoardSerializer as _BoardSerializer
 
 logger = logging.getLogger(__name__)
+
+# Request body of PATCH groups/{id}/members/{user_id}/ (#1783). Schema only:
+# update_member validates `role` by hand against the same choices.
+_GROUP_MEMBER_ROLE_REQUEST = {
+    "type": "object",
+    "properties": {
+        "role": {"type": "string", "enum": list(GroupMembership.Role.values)},
+    },
+    "required": ["role"],
+}
 
 
 def _sanitize_group_allowed_priorities(value):
@@ -594,7 +604,21 @@ class GroupViewSet(viewsets.ModelViewSet):
 
         return Response(result)
 
-    @extend_schema(summary="Update a member's role", methods=["PATCH"], responses=GroupMembershipSerializer)
+    @extend_schema(
+        summary="Update a member's role", methods=["PATCH"],
+        # Schema only (#1783): the view reads `role` alone, not the inherited
+        # GroupRequest. A raw schema rather than a serializer because
+        # drf-spectacular renders every PATCH serializer as partial, and `role`
+        # is required here (a body without it is a 400). A dict schema never
+        # marks the body itself required, so the path is also listed in
+        # visiban.schema_hooks._REQUIRED_PATCH_BODIES.
+        request={
+            media_type: _GROUP_MEMBER_ROLE_REQUEST
+            for media_type in ("application/json", "application/x-www-form-urlencoded", "multipart/form-data")
+        },
+        # The membership row without the list-only is_inherited/inherited_from.
+        responses=GroupMemberRoleUpdateSerializer,
+    )
     @extend_schema(summary="Remove a member", methods=["DELETE"], responses={204: None})
     @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
     def update_member(self, request, pk=None, user_id=None):
@@ -1181,6 +1205,23 @@ class GroupViewSet(viewsets.ModelViewSet):
     # Ownership transfer
     # ------------------------------------------------------------------
 
+    # Schema only (#1783): the view reads these two keys, not a GroupRequest.
+    # Both are required in practice: a missing new_owner_id answers 400 ("must
+    # already be a member") and a missing confirmation never matches the name.
+    @extend_schema(
+        request=inline_serializer(
+            name="GroupTransferOwnership",
+            fields={
+                "new_owner_id": drf_serializers.IntegerField(
+                    help_text="User id of the new owner; must already be a direct admin of the group.",
+                ),
+                "confirmation": drf_serializers.CharField(
+                    help_text="Must exactly match the group's name (case-sensitive).",
+                ),
+            },
+        ),
+        responses={200: GroupSerializer},
+    )
     @action(detail=True, methods=["post"], url_path="transfer-ownership")
     def transfer_ownership(self, request, pk=None):
         from rest_framework.exceptions import PermissionDenied
@@ -1615,6 +1656,9 @@ class GroupViewSet(viewsets.ModelViewSet):
             transaction.on_commit(_broadcast_label_updated)
         return Response(label_data)
 
+    # Schema only (#1783): the view keeps just these two keys of the body and
+    # drops the rest, so the inherited GroupRequest overstated it.
+    @extend_schema(request=GroupBoardDefaultsSerializer, responses={200: GroupSerializer})
     @action(detail=True, methods=["patch"], url_path="board-defaults")
     def board_defaults(self, request, pk=None):
         """PATCH group board defaults: default_board_member_role, allowed_priorities."""
@@ -1686,12 +1730,18 @@ class GroupViewSet(viewsets.ModelViewSet):
         # this override drf-spectacular infers the viewset's GroupSerializer for
         # every action, which schemathesis correctly flags as a schema violation
         # (#1120: "board_count" is a required property, ...).
+        # Per method and with no request body (#1783): POST answers 201 when it
+        # creates the favorite and 200 when it already existed; DELETE always
+        # answers 204. One shared declaration documented all three statuses on
+        # both methods and inherited a required GroupRequest body on POST.
+        methods=["POST"],
+        request=None,
         responses={
             200: inline_serializer("GroupStarred", {"starred": drf_serializers.BooleanField()}),
             201: inline_serializer("GroupStarredCreated", {"starred": drf_serializers.BooleanField()}),
-            204: None,
         },
     )
+    @extend_schema(methods=["DELETE"], responses={204: None})
     @action(detail=True, methods=["post", "delete"], url_path="star")
     def star(self, request, pk=None):
         group = self.get_object()

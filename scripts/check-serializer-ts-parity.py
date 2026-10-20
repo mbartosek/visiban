@@ -201,8 +201,10 @@ EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_USAGE = 2
 
-# Schema component -> TypeScript interface. Confirmed against the generated schema:
-# there is no `User` component (the /api/v1/auth/me/ shape is `CurrentUser`).
+# Schema component -> TypeScript interface. The TypeScript `User` interface is the
+# /api/v1/auth/me/ shape, the `CurrentUser` component. The schema's `User`
+# component (UserSerializer, the POST /auth/choose-username/ response since
+# #1783) is a different, narrower shape and is deliberately not mapped to it.
 #
 # #1137 published `/full/` as its own `BoardFull` component, with `members`
 # items as `EffectiveBoardMember` — the effective roster, whose synthesized rows

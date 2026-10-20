@@ -94,9 +94,11 @@ Those findings are therefore frozen as exact per-finding `key` entries (generate
 the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
 closed: anything not already in it, including a further change to an operation that has
 entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
-or needs its own issue-referenced entry. The temporary `#1788` entries described below are
-such entries, and any `#1783` entries are too if that issue adds them; none of them is part of
-the burn-down count above.
+or needs its own issue-referenced entry. The temporary `#1788` and `#1783` entries described
+below are such entries; none of them is part of the burn-down count above.
+The exception is an operation covered by an `operation` entry (the `#1783` ones): every finding
+under it passes, including a new one. That is why those entries must be deleted at the v1.2.0
+roll.
 
 **Burn-down result** (#1695). Every one of the 51 operations with entries was checked against
 the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, and each entry's
@@ -126,7 +128,7 @@ These entries stay in the file because the drift lives in the frozen baseline it
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
-The #1783 entries are a third exception if that issue adds them.
+The temporary #1783 entries below are a third exception.
 
 Four temporary `key` entries under `#1788` cover `NEW_REQUIRED_REQUEST_BODY` on `POST swimlanes/`,
 `PUT swimlanes/{id}/`, and `PATCH swimlanes/{id}/set-collapsed/` and `set_collapsed/`. The v1.1.0
@@ -134,12 +136,19 @@ baseline lacks those bodies because `SwimlaneViewSet` crashed during schema gene
 fixes the schema, and the endpoints always required the body. Delete all four entries when the
 baseline is rolled at the v1.2.0 GA.
 
+Sixteen temporary `operation` entries under `#1783` cover hand-written actions and `APIView`s
+whose schema showed a fallback serializer, no body, or a wrong status (for example `star/`,
+`move-group/`, `saved-filters/`, card `archive/` and `unarchive/`, `summary/`, `analytics/`,
+`export/`, the group `members/{user_id}/`, `transfer-ownership/` and `board-defaults/` actions,
+`auth/change-password/`, `auth/choose-username/` and `auth/registration/resend-email/`).
+The v1.1.0 baseline holds those wrong shapes, so each correction reads as a removal; no runtime
+behavior changed. Delete all sixteen when the baseline is rolled at the v1.2.0 GA.
+
 The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
-as the new baseline. Several hand-written actions still document a fallback serializer today,
-for example `POST groups/{id}/star/`, `PATCH groups/{id}/members/{user_id}/`, and analytics
-actions. Those errors would be carried into the next baseline and produce the same kind of drift
-against the following release. Fixing them is tracked in #1783 and should land before the
-baseline is rolled.
+as the new baseline, so an operation that still documents a fallback serializer at the tag
+carries that error into the next baseline. #1783 corrected the cases its sweep confirmed. The
+board import endpoints' request bodies are tracked in #1792 and other hand-written `GET`s that
+publish no response body in #1793; any found later needs the same fix before the following roll.
 
 ## Running it locally
 

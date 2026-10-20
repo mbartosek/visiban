@@ -202,10 +202,11 @@ def pin_named_enums(result, generator, request, public):
 
 # PATCH actions whose view answers 400 without the body. drf-spectacular marks a
 # request body required only for serializers, and a dict schema never is, so
-# these have to be set here (#1788).
+# these have to be set here (shared by #1788 and #1783).
 _REQUIRED_PATCH_BODIES = (
     "/api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/",
     "/api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
+    "/api/v1/groups/{id}/members/{user_id}/",
 )
 
 
@@ -213,7 +214,7 @@ def require_declared_request_bodies(result, generator, request, public):
     """Mark the request body of ``_REQUIRED_PATCH_BODIES`` as required.
 
     Without this the schema says the body is optional, and correcting it after
-    the v1.2.0 baseline freezes would be a breaking change (#1788).
+    the v1.2.0 baseline freezes would be a breaking change (#1788, #1783).
     """
     for path in _REQUIRED_PATCH_BODIES:
         body = result.get("paths", {}).get(path, {}).get("patch", {}).get("requestBody")

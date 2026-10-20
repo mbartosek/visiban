@@ -746,6 +746,21 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "role", "joined_at", "is_inherited", "inherited_from"]
 
 
+class GroupMemberRoleUpdateSerializer(GroupMembershipSerializer):
+    """Response of ``PATCH groups/{id}/members/{user_id}/`` (#1783).
+
+    Schema only. ``update_member`` serializes the real membership row with
+    :class:`GroupMembershipSerializer`, and on a real row ``is_inherited`` and
+    ``inherited_from`` are skipped (they exist only on the rows the ``members``
+    list builds), while the shared component documents both as always
+    present. Restricting the fields here publishes what PATCH returns without
+    touching the list's component.
+    """
+
+    class Meta(GroupMembershipSerializer.Meta):
+        fields = ["id", "user", "role", "joined_at"]
+
+
 @extend_schema_serializer(deprecate_fields=["default_board_member_role"])
 class GroupDetailSerializer(GroupSerializer):
     """Extended serializer for the group retrieve endpoint.
@@ -767,6 +782,32 @@ class GroupDetailSerializer(GroupSerializer):
         # ancestors() returns [immediate_parent, grandparent, …, root].
         # Reverse so the breadcrumb renders root-first (left-to-right).
         return [{"id": g.id, "name": g.name} for g in reversed(obj.ancestors())]
+
+
+@extend_schema_serializer(deprecate_fields=["default_board_member_role"])
+class GroupBoardDefaultsSerializer(serializers.ModelSerializer):
+    """Request body of ``PATCH groups/{id}/board-defaults/`` (#1783).
+
+    Schema only: ``GroupViewSet.board_defaults`` keeps just these two keys of
+    the body and validates them through :class:`GroupSerializer`, so this
+    class never runs at request time. The two fields are declared with the
+    same kwargs as on ``GroupSerializer`` so the published request matches
+    what that serializer accepts.
+    """
+
+    allowed_priorities = AllowedPrioritiesField(
+        required=False,
+        help_text=field_enforcement.GROUP_ALLOWED_PRIORITIES,
+    )
+
+    class Meta:
+        model = Group
+        fields = ["default_board_member_role", "allowed_priorities"]
+        extra_kwargs = {
+            "default_board_member_role": {
+                "help_text": field_enforcement.GROUP_DEFAULT_BOARD_MEMBER_ROLE,
+            },
+        }
 
 
 class GroupInviteLinkSerializer(serializers.ModelSerializer):
