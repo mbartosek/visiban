@@ -50,6 +50,18 @@ return it at all** (it doesn't exist, or it's confidential and not visible to th
 anonymous request used). An open issue passes silently. A plain `-- reason` suppression with no
 marker is never touched.
 
+The same job also scans `backend/nightly-load-test-baseline.json` for pending budgets (#1812).
+An `endpoints` entry with `"budget_p95_ms": null` and `"pending_budget": "#NNNN"` is measured
+nightly but not gated (see [Pending budgets](nightly-load-test.md#pending-budgets)), which makes
+it a temporary exemption exactly like a `SUPPRESSED-UNTIL` marker. The check applies the same
+rules: it fails, naming the endpoint and the issue, when the cited issue is closed or not
+returned by the tracker, and fails open on an inconclusive lookup. The marker shape matches
+`_pending_budget()` in `scripts/nightly_load_test.py`: an entry whose budget is not null is gated
+normally, so a leftover `pending_budget` on it is ignored, and so is a value that is not `#NNNN`
+(the load-test self-test rejects that case). A missing or unparseable baseline file fails the
+check instead of reporting a clean scan. When it fires, assign the budget and delete
+`pending_budget` in the whole-file NUC re-derivation, or re-point it at a new tracked issue.
+
 This job runs on **merge requests, `main`, and scheduled pipelines** — deliberately not
 MR-only. The triggering event is "an issue closed," not "a commit landed": the commit that
 added the marker may have merged long before the cited issue closes, so a job that only ran on
@@ -101,7 +113,8 @@ never-send-`JOB-TOKEN` guarantee, and the 401-falls-back-to-anonymous behavior) 
 ## Scope
 
 The marker convention and this check apply to `frontend/src` (eslint-disable) and `backend/`
-(pytest `skip`/`skipif`/`xfail`). Coverage `omit` entries in `backend/.coveragerc` are plain
+(pytest `skip`/`skipif`/`xfail`), plus the `pending_budget` entries in
+`backend/nightly-load-test-baseline.json` described above. Coverage `omit` entries in `backend/.coveragerc` are plain
 path globs — `configparser` (the INI format `.coveragerc` uses) has no syntax for an inline
 trailing comment on a list item, only a full-line `#` comment above it, so `SUPPRESSED-UNTIL(#N)`
 doesn't read naturally there and `check-suppression-issues.sh` does not scan this file today. A

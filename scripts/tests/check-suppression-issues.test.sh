@@ -230,6 +230,86 @@ check "real fetch path: exactly one HTTP call made (batched, not per-marker)" \
 check "real fetch path: JOB-TOKEN was never sent even though CI_JOB_TOKEN was set" \
   "$(grep -q 'JOB-TOKEN' "$REAL_CALL_LOG" && echo 1 || echo 0)"
 
+# === PENDING BUDGETS (#1812) ================================================
+# run_pending_scan reads backend/nightly-load-test-baseline.json-shaped files
+# and applies the same closed/missing/fail-open policy as run_scan.
+mkdir -p "$TMP/pb"
+write_baseline() { printf '%s' "$2" > "$TMP/pb/$1.json"; }
+write_baseline pending '{"endpoints":{"card_search_multi_board":{"budget_p95_ms":null,"pending_budget":"#7001"},"card_timeline":{"budget_p95_ms":60}}}'
+write_baseline none '{"endpoints":{"card_timeline":{"budget_p95_ms":60}}}'
+write_baseline gated '{"endpoints":{"card_timeline":{"budget_p95_ms":60,"pending_budget":"#7001"}}}'
+write_baseline badref '{"endpoints":{"x":{"budget_p95_ms":null,"pending_budget":"7001"}}}'
+printf '%s' '{not json' > "$TMP/pb/broken.json"
+
+run_pb() { # run_pb <mock-closed-csv> <fixture-name>
+  set +e
+  CASE_OUT="$(CHECK_SUPPRESSION_MOCK_CLOSED="$1" run_pending_scan "$TMP/pb/$2.json" 2>&1)"
+  CASE_RC=$?
+  set -e
+}
+
+run_pb "7001" pending
+check "pending_budget citing a closed issue blocks" "$([ "$CASE_RC" -eq 1 ] && echo 0 || echo 1)"
+check "pending_budget failure names the entry" "$(echo "$CASE_OUT" | grep -q "card_search_multi_board" && echo 0 || echo 1)"
+check "pending_budget failure names the issue and says CLOSED" \
+  "$(echo "$CASE_OUT" | grep -q "#7001" && echo "$CASE_OUT" | grep -q "CLOSED" && echo 0 || echo 1)"
+check "pending_budget failure does not name the gated entry" "$(echo "$CASE_OUT" | grep -q "card_timeline" && echo 1 || echo 0)"
+
+run_pb "9" pending
+check "pending_budget citing an open issue passes" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+
+run_pb "7001" none
+check "baseline with no pending_budget passes" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+
+run_pb "7001" gated
+check "pending_budget on an entry with a non-null budget is not pending (ignored)" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+
+run_pb "7001" badref
+check "pending_budget without a #NNNN shape is not pending (ignored, as nightly_load_test.py)" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+
+run_pb "7001" broken
+check "unparseable baseline blocks rather than reporting clean" "$([ "$CASE_RC" -eq 1 ] && echo 0 || echo 1)"
+run_pb "7001" nonexistent
+check "missing baseline blocks rather than reporting clean" "$([ "$CASE_RC" -eq 1 ] && echo 0 || echo 1)"
+
+# Real fetch path: closed blocks, an issue the tracker did not return blocks,
+# an inconclusive lookup (HTTP 500) fails open.
+pb_curl() { # pb_curl <dir> <body-json> <status>
+  install_fake_curl "$1" "
+printf '%s' '$2'
+printf '\\nHTTPSTATUS:$3'
+"
+}
+pb_real() { # pb_real <fake-curl-dir>
+  set +e
+  CASE_OUT="$(
+    unset CHECK_SUPPRESSION_MOCK_CLOSED GITLAB_API_TOKEN ISSUES_API_TOKEN
+    export CALL_LOG="$TMP/pb-calls.log"
+    PATH="$1:$PATH" run_pending_scan "$TMP/pb/pending.json" 2>&1
+  )"
+  CASE_RC=$?
+  set -e
+}
+: > "$TMP/pb-calls.log"
+pb_curl "$TMP/pb-curl-closed" '[{"iid":7001,"state":"closed"}]' 200
+pb_real "$TMP/pb-curl-closed"
+check "real fetch: closed pending_budget issue blocks" "$([ "$CASE_RC" -eq 1 ] && echo 0 || echo 1)"
+check "real fetch: looked up iid 7001" "$(grep -q 'iids\[\]=7001' "$TMP/pb-calls.log" && echo 0 || echo 1)"
+pb_curl "$TMP/pb-curl-open" '[{"iid":7001,"state":"opened"}]' 200
+pb_real "$TMP/pb-curl-open"
+check "real fetch: open pending_budget issue passes" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+pb_curl "$TMP/pb-curl-missing" '[]' 200
+pb_real "$TMP/pb-curl-missing"
+check "real fetch: pending_budget issue the tracker did not return blocks" "$([ "$CASE_RC" -eq 1 ] && echo 0 || echo 1)"
+pb_curl "$TMP/pb-curl-500" '' 500
+pb_real "$TMP/pb-curl-500"
+check "real fetch: inconclusive lookup fails open (exit 0)" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
+check "real fetch: inconclusive lookup warns" "$(echo "$CASE_OUT" | grep -q "WARNING" && echo 0 || echo 1)"
+
+# The real baseline in this repo parses and yields its known pending entry.
+check "repo baseline: card_search_multi_board is detected as pending" \
+  "$(pending_budget_entries "$REPO_ROOT/backend/nightly-load-test-baseline.json" | grep -q '^card_search_multi_board' && echo 0 || echo 1)"
+
 echo ""
 if [[ "$fail" -eq 0 ]]; then
   echo "check-suppression-issues.test.sh: all $pass checks passed"

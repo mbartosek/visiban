@@ -167,8 +167,9 @@ never produce a violation. When the issue assigns the budget, replace `budget_p9
 `pending_budget` in the same whole-file re-derivation. Currently pending:
 `card_search_multi_board` ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810) added the
 scenario; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns the budget).
-Nothing yet fails if the cited issue closes while the entry is still pending; that check is
-tracked in [#1812](https://gitlab.com/visiban/visiban/-/issues/1812).
+The `suppressions-check` CI job fails, naming the entry and the issue, if the cited issue
+closes while the entry is still pending ([#1812](https://gitlab.com/visiban/visiban/-/issues/1812);
+see [Suppression markers](suppressions.md#what-ci-enforces)).
 
 ## The schedule
 
