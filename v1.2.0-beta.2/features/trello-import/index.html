@@ -1060,6 +1060,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#comment-authors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comment authors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4069,7 +4080,7 @@
 </tr>
 <tr>
 <td>Comments</td>
-<td>Comments, with their original timestamps. Comments over 10,000 characters are shortened; card descriptions over 50,000 characters are too. The preview warns when this happens.</td>
+<td>Comments, with their original timestamps, posted under your name with the Trello author's name kept beside it. See <a href="#comment-authors">Comment authors</a>. Comments over 10,000 characters are shortened; card descriptions over 50,000 characters are too. The preview warns when this happens.</td>
 </tr>
 <tr>
 <td>Attachments</td>
@@ -4091,10 +4102,21 @@
 </div>
 <p><strong>Add matched members to this board</strong> is off by default.</p>
 <ul>
-<li><strong>On:</strong> matched users become board members with the Member role. They are assigned to their cards (the first matched Trello member on each card), and their comments keep them as the author, starting with "(imported from Trello)" so it is clear the comment came from the import.</li>
-<li><strong>Off</strong>, and for unmatched people: cards are unassigned, and comments are posted by you, starting with "Name (imported from Trello):".</li>
+<li><strong>On:</strong> matched users become board members with the Member role. They are assigned to their cards (the first matched Trello member on each card).</li>
+<li><strong>Off:</strong> cards are unassigned.</li>
 </ul>
-<p>Importing never sends notifications.</p>
+<p>Either way, comments are attributed to you (see below). Importing never sends notifications.</p>
+<h2 id="comment-authors">Comment authors<a class="headerlink" href="#comment-authors" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1702)</p>
+</blockquote>
+<p>Every imported comment is posted under your name, the person who ran the import, whether or not its Trello author matched a Visiban user. This matches how a <a href="../board/#import">JSON import</a> records comments and <a href="../card-history/#imported-history">card history</a>. Each comment:</p>
+<ul>
+<li>keeps its original Trello time;</li>
+<li>keeps the Trello author's name as text in <code>imported_from_username</code>, shown after the time in the card's comment list, for example "imported, originally Ada Lovelace". The name is never matched to an account;</li>
+<li>starts with the plain-text line "(imported from Trello)", which names where the comment came from.</li>
+</ul>
+<p>Because the comments are yours, you can delete them like any comment you posted. Comments imported by earlier versions are unchanged: they kept the matched user as the author (when <strong>Add matched members</strong> was on) or started with "Name (imported from Trello):", and carry <code>imported_from_username: null</code>.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

@@ -4623,11 +4623,13 @@ the names resolve only against active users the importer can already see: the
 importer, co-members of their boards and groups, and the target group (a site
 admin or an all-content user matches every active user). A name outside that
 pool is dropped, so a file cannot assign work to an arbitrary account.</p>
-<p>Imported history rows (JSON movement <code>moved_by</code>, activity <code>actor</code>) are not
-resolved at all, inside the pool or out of it: each row is recorded under the
-importer and keeps the file's name as text in <code>imported_from_username</code> (#1675),
-which the timeline, History view and exports display. A new import path that
-writes history rows applies the same rule rather than linking them to accounts.</p>
+<p>Imported history rows (JSON movement <code>moved_by</code>, activity <code>actor</code>) and imported
+comments (JSON comment <code>author</code>, Trello comment authors) are not resolved at
+all, inside the pool or out of it: each row is recorded under the importer and
+keeps the source's name as text in <code>imported_from_username</code> (#1675, #1702),
+which the timeline, comment list, History view and exports display. A new import
+path that writes history rows or comments applies the same rule rather than
+linking them to accounts.</p>
 <p>Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, direct and group-inherited members whose role is not viewer, and users with <code>can_access_all_content</code>. A viewer role alone never makes a user assignable. REST card create and update and the MCP <code>create_card</code> and <code>update_card</code> username lookup all use this set (<code>_get_assignable_member_ids</code>).</p>
 <p>Scope of this rule: the surfaces in the table below. Comment mentions are
 validated against board membership by their own check (<code>boards/utils.py</code>,
@@ -4648,7 +4650,7 @@ the status filter and the uniform response, not scope.</p>
 <tr>
 <td>JSON import</td>
 <td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin._import_json</code></td>
-<td><code>_resolve_import_users</code> (assignee); history rows use the importer plus <code>_imported_from_username</code></td>
+<td><code>_resolve_import_users</code> (assignee); history rows and comments use the importer plus <code>_imported_from_username</code></td>
 </tr>
 <tr>
 <td>CSV import</td>
@@ -4658,7 +4660,7 @@ the status filter and the uniform response, not scope.</p>
 <tr>
 <td>Trello import</td>
 <td><code>boards/views/import_export.py</code> <code>BoardImportExportMixin.import_trello</code></td>
-<td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code> (card members and comment authors; Trello import writes no movement or activity rows)</td>
+<td><code>boards/services/trello_import.py</code> <code>visible_users</code>, <code>match_members</code> (card members only; comments use the importer and keep the author name in <code>imported_from_username</code>; Trello import writes no movement or activity rows)</td>
 </tr>
 <tr>
 <td>User search</td>

@@ -4853,7 +4853,7 @@
 <tr>
 <td><code>comments</code></td>
 <td>array</td>
-<td><code>{id, body, author, created_at, updated_at}</code> objects, oldest first.</td>
+<td><code>{id, body, author, created_at, updated_at, imported_from_username}</code> objects, oldest first. <code>imported_from_username</code> is <code>null</code> except on a comment created by a board import (since 1.2), where it holds the author name the source named and <code>author</code> is the user who imported it.</td>
 </tr>
 </tbody>
 </table>
