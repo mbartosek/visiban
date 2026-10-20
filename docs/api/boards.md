@@ -1109,7 +1109,7 @@ In `mapping.columns`, `position` is `null` for a list that will not be imported 
 | `checklists_flattened` | Cards with several named checklists get one combined checklist with prefixed item text. |
 | `invalid_due_dates` | Due dates that could not be read will be left empty. |
 | `descriptions_truncated` | Card descriptions longer than 50,000 characters (including the appended attachment links) will be shortened to 50,000. |
-| `comments_truncated` | Comments longer than 10,000 characters (including the attribution prefix) will be shortened to 10,000. |
+| `comments_truncated` | Comments longer than 10,000 characters (including the `(imported from Trello)` line) will be shortened to 10,000. |
 | `unknown_labels` | Label references missing from the export will be ignored. |
 | `comments_may_be_incomplete` | The export hit Trello's 1,000-action limit, so older comments may be missing. |
 | `matched_members_not_added` | Members matched but `add_matched_members` is `false`. Only present when `false`. |
