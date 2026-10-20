@@ -477,6 +477,10 @@ a regression (#1715: `mcp` 1.x installed against the `mcp==2.3.0` pin). Run
 `backend/.venv/bin/pip install -r backend/requirements.txt`. The check is covered by
 `scripts/tests/wt-doctor-drift.test.sh`.
 
+Every `glab`/`gh` call in `scripts/wt` is bounded by `WT_FORGE_TIMEOUT` (a positive integer, default 20
+seconds). A stalled call degrades to a warning instead of hanging, and `scripts/wt release <issue>` clears a
+lock left behind. `scripts/tests/wt-forge-timeout.test.sh` covers this.
+
 ## Git hooks
 
 `scripts/wt` (see its `--help`) applies a `status::wip` GitLab label when you create a
