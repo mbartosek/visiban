@@ -619,7 +619,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         # The membership row without the list-only is_inherited/inherited_from.
         responses=GroupMemberRoleUpdateSerializer,
     )
-    @extend_schema(summary="Remove a member", methods=["DELETE"], responses={204: None})
+    @extend_schema(
+        summary="Remove a member",
+        methods=["DELETE"],
+        responses={
+            204: None,
+            400: inline_serializer(name="GroupMemberRemoveRefused", fields={"detail": drf_serializers.CharField()}),
+        },
+    )
     @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
     def update_member(self, request, pk=None, user_id=None):
         from rest_framework.exceptions import NotFound
@@ -696,8 +703,19 @@ class GroupViewSet(viewsets.ModelViewSet):
 
             removed_user_id = target_user.id
 
+            from .services import (
+                MembershipChangeRefused,
+                lock_membership_for_removal_or_demotion,
+            )
+
             with transaction.atomic():
-                GroupMembership.objects.filter(group=group, user=target_user).delete()
+                try:
+                    locked = lock_membership_for_removal_or_demotion(group.pk, target_user.pk)
+                except MembershipChangeRefused as exc:
+                    return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+                if locked is None:
+                    raise NotFound
+                GroupMembership.objects.filter(pk=locked.pk).delete()
                 # A removed admin's links must not linger as active (#1510).
                 _revoke_lapsed_admin_invite_links(target_user, group)
 
@@ -769,7 +787,10 @@ class GroupViewSet(viewsets.ModelViewSet):
         role = require_json_object(request).get("role")
         if role not in GroupMembership.Role.values:
             return Response({"detail": f"Must be one of: {', '.join(GroupMembership.Role.values)}"}, status=status.HTTP_400_BAD_REQUEST)
-        from .services import lock_group_for_child_write
+        from .services import (
+            MembershipChangeRefused,
+            lock_membership_for_removal_or_demotion,
+        )
 
         with transaction.atomic():
             # Group row, then the membership row (#1719). A role change that
@@ -783,14 +804,18 @@ class GroupViewSet(viewsets.ModelViewSet):
             # landing in between can let this one change through, accepted
             # because invite senders' standing is re-checked at preview and
             # redemption.
-            if not lock_group_for_child_write(group.pk):
-                raise NotFound
-            membership = (
-                GroupMembership.objects.select_for_update(no_key=True, of=("self",))
-                .select_related("user")
-                .filter(pk=membership.pk, group=group)
-                .first()
-            )
+            # The helper takes the group row first (``FOR NO KEY UPDATE``, which
+            # also queues behind a group delete and then finds the group gone,
+            # so a missing group answers 404) and refuses to demote the owner
+            # or the last admin, judged under the same locks as the write.
+            # Taking a weaker group lock first would risk a lock-upgrade
+            # deadlock against an ownership transfer.
+            try:
+                membership = lock_membership_for_removal_or_demotion(
+                    group.pk, target_user.pk, new_role=role,
+                )
+            except MembershipChangeRefused as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             if membership is None:
                 raise NotFound
             membership.role = role

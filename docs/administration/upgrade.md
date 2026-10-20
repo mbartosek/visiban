@@ -440,6 +440,12 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     or add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the wildcard. Origin matching
     behavior is unchanged in 1.2.
 
+!!! note "Group owners and last admins cannot be removed or demoted"
+    Removing a group member, or changing their role, now answers `400 Bad Request` when the
+    member is the group's owner or its last admin. Transfer ownership first, or make another
+    member an admin. Clients that remove or demote members should show the response's
+    `detail` message. See the [Groups API](../api/groups.md#members).
+
 !!! note "`is_starred` omitted from WebSocket board and group events"
     `board.created`, `board.updated`, `group.created` and `group.updated` payloads now carry
     `is_starred` only for the user who made the change; every other subscriber receives the

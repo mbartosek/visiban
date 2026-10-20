@@ -34,7 +34,7 @@ A board invite never adds the person to the board's group. The emailed invite ne
 
 ## Group membership
 
-Group admins can change or remove members from the group detail page or the API.
+Group admins can change or remove members from the group detail page or the API. A group's owner and its last admin cannot be removed or demoted: transfer ownership first, or make another member an admin.
 
 ```http
 PATCH /api/v1/groups/{group_id}/members/42/

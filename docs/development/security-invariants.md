@@ -430,6 +430,30 @@ user-bearing keys and card keys to the REST serializers for the lowest role, and
 `test_web_only_fields_are_never_exposed`), `boards/tests/test_consumer_role_refresh.py`,
 and the Rule 8 tests.
 
+## Rule 11: A group keeps its owner as an admin member and at least one admin
+
+**Rule.** A group's owner keeps a membership with the `admin` role, and a group
+keeps at least one admin. A request that would remove or demote the owner, or
+remove or demote the last admin, is refused. The owner leaves through ownership
+transfer or by deleting the group.
+
+**Why.** A group with no admin can only be repaired by its owner. Both checks
+are judged under the group row lock, so two concurrent requests that each change
+a different admin cannot both pass.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Group member role change and removal (REST) | `groups/views.py` `GroupViewSet.update_member` | `groups/services.py` `lock_membership_for_removal_or_demotion`: group row `FOR NO KEY UPDATE`, then the admin rows and the target row in one pk-ordered statement; refused with `400` |
+| Group ownership transfer (REST) | `groups/views.py` `GroupViewSet.transfer_ownership` | `groups/services.py` `transfer_group_ownership`: the new owner must already be an admin and the previous owner stays an admin; the group row is locked `FOR UPDATE`, which queues with the member-change lock |
+| Group ownership transfer (Django admin) | `groups/admin.py` `GroupAdmin` transfer action | The same `transfer_group_ownership` function |
+| User delete (Django admin) | `accounts/admin.py` `VisibanUserAdmin` delete | `user_deletion_refusals` refuses deleting a group owner |
+
+Coverage: `groups/tests/test_group_member_guards.py` (owner and last-admin
+refusals on both methods, a demotion queued behind an ownership transfer, and
+`GroupMembershipEntryPointTests`, which scans the backend for a function that
+deletes or demotes a `GroupMembership` and requires it to call
+`lock_membership_for_removal_or_demotion` or be allowlisted with a reason).
+
 ## How to add a rule
 
 1. Write the rule as a statement of behavior, not an implementation: what must

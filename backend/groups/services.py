@@ -6,6 +6,7 @@ Keeping the ownership-transfer rules in one function means the REST endpoint
 """
 
 from django.db import transaction
+from django.db.models import Q
 
 from .models import Group, GroupMembership
 
@@ -128,7 +129,7 @@ def lock_group_for_child_write(group_id) -> bool:
 
     The same lock as ``lock_group_for_board_placement``, for the group-owned
     rows other than boards (#1719): group label create and ``PATCH``, group
-    star, and a member role change. Each inserts or updates a row whose
+    star. Each inserts or updates a row whose
     deferred ``group`` foreign key otherwise takes ``FOR KEY SHARE`` only at
     COMMIT, so a writer that raced a group delete failed that check (a 500),
     and an ``UPDATE`` that queued behind the delete's cascade matched no row
@@ -242,3 +243,63 @@ def transfer_group_ownership(
             defaults={"role": GroupMembership.Role.ADMIN},
         )
         return group
+
+
+class MembershipChangeRefused(Exception):
+    """A membership removal or demotion was refused; ``str(exc)`` is the user-facing message."""
+
+
+OWNER_MEMBERSHIP_MESSAGE = (
+    "The group owner's membership cannot be removed or demoted. "
+    "Transfer ownership first."
+)
+LAST_ADMIN_MESSAGE = "A group must keep at least one admin."
+
+
+def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
+    """Lock and return the membership of ``user_id``, refusing a change that would strand the group.
+
+    ``new_role=None`` means the membership is being removed; otherwise it is the
+    role being written. Returns ``None`` when the group or the membership is
+    gone. Raises ``MembershipChangeRefused`` when the change would remove or
+    demote the group's owner, or remove or demote the group's last admin.
+    Must run inside ``transaction.atomic()``, and the caller must write the
+    change in that same transaction.
+
+    Why: an owner holds the admin role, and a group with no admin can only be
+    repaired by its owner (transfer or delete), so both rules protect the
+    invariant "the owner is a member and the group has an admin". The checks
+    are judged under locks, not on a read taken before the write. The group
+    row (``FOR NO KEY UPDATE``) is what serializes callers of this function
+    with each other and with ``transfer_group_ownership``: without it, two
+    requests that each remove a different one of two admins would each count
+    two admins, both pass, and leave none. The admin and target membership
+    rows are then locked in pk order as defense in depth, for a writer that
+    changes a membership row without taking the group lock first.
+    """
+    locked_group = (
+        Group.objects.select_for_update(no_key=True).filter(pk=group_id)
+        .values_list("owner_id", flat=True)
+    )
+    owner_ids = list(locked_group)
+    if not owner_ids:
+        return None
+    owner_id = owner_ids[0]
+    # One statement locks every admin row and the target's row, in pk order.
+    rows = list(
+        GroupMembership.objects.select_for_update(of=("self",))
+        .select_related("user")
+        .filter(Q(role=GroupMembership.Role.ADMIN) | Q(user_id=user_id), group_id=group_id)
+        .order_by("pk")
+    )
+    admin_count = sum(1 for m in rows if m.role == GroupMembership.Role.ADMIN)
+    membership = next((m for m in rows if m.user_id == user_id), None)
+    if membership is None:
+        return None
+    if user_id == owner_id and new_role != GroupMembership.Role.ADMIN:
+        # An owner "demoted" to admin is a no-op, so only a real change is refused.
+        raise MembershipChangeRefused(OWNER_MEMBERSHIP_MESSAGE)
+    is_admin = membership.role == GroupMembership.Role.ADMIN
+    if is_admin and new_role != GroupMembership.Role.ADMIN and admin_count <= 1:
+        raise MembershipChangeRefused(LAST_ADMIN_MESSAGE)
+    return membership
