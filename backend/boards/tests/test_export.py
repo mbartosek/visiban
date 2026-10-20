@@ -312,5 +312,33 @@ class ExportFormatNegotiation1790Tests(TestCase):
         self.client.force_authenticate(viewer)
         r = self.client.get(self.url, {"format": "csv"})
         self.assertEqual(r.status_code, 403)
+        self.assertEqual(r["Content-Type"], "application/json")
         body = json.loads(r.content)
         self.assertEqual(body["code"], "export_restricted")
+
+    def test_errors_under_format_csv_are_json_like_format_json(self):
+        self.client.force_authenticate(None)
+        a = self.client.get(self.url, {"format": "csv"})
+        b = self.client.get(self.url, {"format": "json"})
+        self.assertEqual(a.status_code, 401)
+        self.assertEqual(a["Content-Type"], b["Content-Type"])
+        self.assertEqual(a.content, b.content)
+
+    def test_accept_json_with_format_csv_still_returns_csv(self):
+        r = self.client.get(self.url, {"format": "csv"}, HTTP_ACCEPT="application/json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "text/csv")
+
+    def test_accept_text_csv_without_format_stays_406(self):
+        # Pinned: no renderer serves text/csv, as before #1790.
+        r = self.client.get(self.url, HTTP_ACCEPT="text/csv")
+        self.assertEqual(r.status_code, 406)
+
+    def test_throttled_under_format_csv_is_json_429(self):
+        from unittest import mock
+        from boards.views.import_export import BoardExportThrottle
+        with mock.patch.object(BoardExportThrottle, "allow_request", return_value=False), \
+                mock.patch.object(BoardExportThrottle, "wait", return_value=1):
+            r = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(r["Content-Type"], "application/json")

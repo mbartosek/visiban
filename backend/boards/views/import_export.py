@@ -29,7 +29,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import MultiPartParser
-from rest_framework.renderers import BaseRenderer
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.throttling import UserRateThrottle
@@ -100,28 +100,19 @@ def _can_export_at_min_role(board, user, role):
 logger = logging.getLogger(__name__)
 
 
-class CsvExportRenderer(BaseRenderer):
-    """Registers ``csv`` with DRF's format negotiation for the board export.
+class CsvExportRenderer(JSONRenderer):
+    """Lets ``?format=csv`` pass DRF's ``URL_FORMAT_OVERRIDE`` negotiation.
 
-    DRF's ``URL_FORMAT_OVERRIDE`` (``?format=``) returns 404 for any value no
-    renderer claims, so ``?format=csv`` failed even though CSV is the export's
-    default (#1790). The export view builds its own ``HttpResponse``, so this
-    renderer never serializes anything; it only makes ``csv`` a negotiable
-    format. It is appended after the defaults so ``format=json``, ``format=api``
-    and an omitted ``format`` negotiate exactly as before.
+    DRF 404s any ``?format=`` value no renderer claims, so ``format=csv`` failed
+    even though CSV is the export's default (#1790). The export view builds its
+    own CSV ``HttpResponse`` and never reaches a renderer, so this class only
+    exists to claim ``csv``. It stays a JSON renderer (``application/json``) so
+    DRF-built errors (401/403/404/429) under ``format=csv`` are byte-identical
+    to ``format=json`` and match the OpenAPI schema. It is appended after the
+    defaults so ``json``, ``api`` and an omitted ``format`` negotiate as before.
     """
 
-    media_type = "text/csv"
     format = "csv"
-    charset = "utf-8"
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        # Only reached for DRF-built responses (401/403/404/429 error bodies on
-        # a csv request). Keep the structured error body (``code``,
-        # ``min_role``) as JSON so clients parsing ``export_restricted`` still can.
-        if data is None:
-            return b""
-        return json.dumps(data, default=str).encode(self.charset)
 
 
 class BoardImportThrottle(UserRateThrottle):
@@ -2500,9 +2491,9 @@ class BoardImportExportMixin:
             status=status.HTTP_201_CREATED,
         )
 
-    # Schema only (#1783). The action is a file download (Content-Disposition:
-    # attachment): CSV by default (also ?format=csv), the JSON export with ?format=json. Without
-    # this the schema showed the viewset's Board serializer as a JSON body.
+    # Schema only (#1783). The action is a file download
+    # (Content-Disposition: attachment): CSV by default (also ?format=csv),
+    # the JSON export with ?format=json. Without this the schema showed the viewset's Board serializer as a JSON body.
     # The JSON variant is described by its top-level keys; the nested entries
     # are documented in docs/api/boards.md and keyed by name, not id.
     @extend_schema(

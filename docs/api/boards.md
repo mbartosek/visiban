@@ -540,7 +540,7 @@ Delete a saved filter preset. Only the owning user can delete their own filters 
 ## Export & Import
 
 ### `GET /api/v1/boards/{id}/export/`
-Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV as omitting `format`.
+Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV as omitting `format`. Error responses (`401`, `403`, `404`, `429`) are always JSON, so the `Accept` header must allow `application/json` or `*/*`.
 
 **Query parameters**
 
