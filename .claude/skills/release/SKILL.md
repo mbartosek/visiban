@@ -95,29 +95,6 @@ Before running the script:
       non-merge commits, have passed without a tag, say so in the pre-flight summary — a cut
       that large carries untested publish-path changes and a large diff surface at once.
       Informational only; it does not block the cut.
-- [ ] **Roll the API compatibility baseline forward (GA tags only).** Regenerate
-      `scripts/compat-baseline/<tag>/` and repoint `BASELINE_SCHEMA` / `BASELINE_ENV` in
-      `scripts/check-api-compat.py`, per `docs/development/api-compat-gate.md`, so the next
-      cycle's `api-compat-check` diffs against this release.
-- [ ] **Clear the API allow-list (GA tags only).** Every entry is a diff against the v1.1.0
-      baseline, so against the freshly rolled baseline all of them go stale and fail
-      `api-compat-check`. Run `python3 scripts/check-api-compat.py`, delete every entry it
-      reports as stale from `scripts/compat-baseline/allowlist.json` (expected: the whole list,
-      leaving `{"allow": []}`), and re-run until it prints OK with no stale entries. Safety net
-      for the temporary entries (reason starts with `temporary:`; issues #1783, #1788, #1789,
-      #1792); after deleting, it must print nothing:
-      `python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"`
-- [ ] **Prune the six fuzz-baseline ids (GA tags only).** Remove them from
-      `backend/schemathesis-baseline.json` per #1791 (its body names four; its comment adds
-      `72c48f` and `a9fe64`), only after the nightly deep run lists each as unobserved (#1582
-      rule, `docs/api/openapi.md`): `0420cf` DELETE boards/{id}/star, `c32635` analytics,
-      `d2f3d8` export, `3c0458` summary, `72c48f` resend-email, `a9fe64` ws-ticket.
-- [ ] **Remove the temporary-entry prose (GA tags only).** In
-      `docs/development/api-compat-gate.md` delete every paragraph describing temporary
-      entries (#1788, #1783, and any #1789/#1792 adds), the sentence beginning "The temporary
-      `#1788` and `#1783` entries described below", and the two sentences beginning "The
-      exceptions are the #1781 replacement" and "The temporary #1783 entries below"; restore
-      the rule to "entries are only ever deleted or re-justified, never added".
 
 ## Step 1b — Documentation audit
 
@@ -232,3 +209,33 @@ that is the tag-only job flagged in Step 1's pre-flight inventory if it changed 
       `cosign verify ghcr.io/visiban/charts/visiban:<chart-version> --certificate-identity-regexp '^https://gitlab\.com/visiban/visiban//\.gitlab-ci\.yml@refs/tags/v[0-9][^/]*$' --certificate-oidc-issuer https://gitlab.com`
       It must print the verified claims and exit 0. If it fails, the documented command in
       `docs/administration/image-verification.md` has drifted from what the job signs.
+
+- [ ] **Roll the API compatibility baseline forward (GA tags only; needs the tag, so it runs
+      here, after Step 2).** Regenerate `scripts/compat-baseline/<tag>/` from the tag and
+      repoint `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`, per
+      `docs/development/api-compat-gate.md`, so the next cycle's `api-compat-check` diffs
+      against this release. Land it as a branch and MR, never on `main`.
+- [ ] **Clear the API allow-list (v1.2.0 roll only).** Every entry is a diff against the v1.1.0
+      baseline, so against the freshly rolled baseline all of them go stale and fail
+      `api-compat-check`. Run `python3 scripts/check-api-compat.py`, delete every entry it
+      reports as stale from `scripts/compat-baseline/allowlist.json` (expected: the whole list,
+      leaving `{"allow": []}`), and re-run until it prints OK with no stale entries. Safety net
+      for the temporary entries (reason starts with `temporary:`; issues #1783, #1788, #1789,
+      #1792); after deleting, it must print nothing:
+      `python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"`
+- [ ] **Prune the six fuzz-baseline ids (v1.2.0 roll only).** Remove them from
+      `backend/schemathesis-baseline.json` per #1791 (its body names four; its comment adds
+      `72c48f` and `a9fe64`), only after both an MR-style fuzz run and the deep nightly list
+      the entry as unobserved (#1582 rule, `docs/api/openapi.md`): `0420cf` DELETE
+      boards/{id}/star, `c32635` analytics, `d2f3d8` export, `3c0458` summary, `72c48f`
+      resend-email, `a9fe64` ws-ticket.
+- [ ] **Remove the temporary-entry prose (v1.2.0 roll only).** In
+      `docs/development/api-compat-gate.md`, delete every sentence or paragraph that describes
+      temporary entries or counts exceptions to the "never added" rule (including any added
+      for #1789 or #1792); keep the existing "never added" sentence as is.
+- [ ] **Revise the baseline-drift prose (v1.2.0 roll only).** Revise the doc prose that
+      describes the v1.1.0 baseline drift and allow-list burn-down (the section "Frozen
+      snapshot of the v1.1.0 baseline drift", the #1080 catch-all mentions, the `v1.1.0/`
+      paths, and the allow-list paragraph in "Regenerating the baseline") to the new baseline.
+- [ ] **Delete the v1.2.0-only items above from this skill** (or generalize them) so v1.3.0
+      does not inherit stale issue numbers.

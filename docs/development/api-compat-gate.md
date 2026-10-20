@@ -199,13 +199,13 @@ python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e 
 ```
 
 A temporary entry left behind fails the roll MR loudly. Then prune the six ids in
-`backend/schemathesis-baseline.json` per #1791, only after the nightly deep run lists them
-unobserved. Finally remove every paragraph describing temporary entries (the #1788 and #1783
-ones, and any #1789 or #1792 adds), the sentence "The temporary `#1788` and `#1783` entries
-described below..." in the frozen-snapshot section, and the exception sentences "The exceptions
-are the #1781 replacement above and the temporary #1788 entries below." and "The temporary
-#1783 entries below are a third exception." Restore the rule to read: entries are only ever
-deleted or re-justified, never added.
+`backend/schemathesis-baseline.json` per #1791, only after both an MR-style fuzz run and the
+deep nightly list each entry as unobserved (#1582). Finally, in this file, delete every sentence
+or paragraph that describes temporary entries or counts exceptions to the "never added" rule
+(including any added for #1789 or #1792), keeping the existing "never added" sentence as is, and
+revise the prose that describes the v1.1.0 baseline drift and allow-list burn-down (the
+"Frozen snapshot of the v1.1.0 baseline drift" section, the `#1080` catch-all mentions, the
+`v1.1.0/` paths, and the paragraph above) to the new baseline.
 
 ## Not covered
 
