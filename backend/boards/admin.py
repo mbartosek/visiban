@@ -322,6 +322,16 @@ class CardAdmin(admin.ModelAdmin):
         with transaction.atomic():
             self._lock_cell_entry(obj, change)
             super().save_model(request, obj, form, change)
+            if change:
+                # This form can move a card to another board (the API cannot).
+                # A movement's ``board`` is what History reads and what a board
+                # delete cascades through (#1469), so keep the card's history
+                # attached to the board the card is on now. A queryset update,
+                # so the append-only guard on CardMovement.save() is not hit;
+                # it matches no row unless the board changed.
+                CardMovement.objects.filter(card=obj).exclude(board_id=obj.board_id).update(
+                    board_id=obj.board_id,
+                )
         board = obj.board
         event = _broadcast.EVT_CARD_UPDATED if change else _broadcast.EVT_CARD_CREATED
         card_data = _refetched_card_data_or_none(obj, request, board)

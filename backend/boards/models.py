@@ -601,6 +601,37 @@ class Card(models.Model):
         return self.title
 
 
+def set_null_keeping_board(collector, field, sub_objs, using):
+    """``on_delete`` for ``CardMovement.card``: SET_NULL that keeps the row reachable (#1469).
+
+    A movement written by an older release during a rolling upgrade has no
+    ``board`` or card snapshot yet. Plain SET_NULL would leave such a row with
+    neither a card nor a board: hidden from the board's History and never
+    removed with the board. So, before the card goes, fill ``board`` and the
+    snapshot on exactly those rows, from the card being deleted, then defer to
+    SET_NULL. For every row written by this release the extra UPDATE matches
+    nothing (one indexed statement per deleted batch of cards).
+
+    Skipped for the admin's ``NestedObjects``, which runs the collector only
+    to list what a delete would remove (on a GET) and must not write.
+    Python-level only: ``on_delete`` emits no SQL, like SET_NULL.
+    """
+    from django.contrib.admin.utils import NestedObjects
+
+    if not isinstance(collector, NestedObjects):
+        card = Card.objects.using(using).filter(pk=models.OuterRef("card_id"))
+        sub_objs.filter(board__isnull=True).update(
+            board_id=models.Subquery(card.values("board_id")[:1]),
+            card_uid=models.Subquery(card.values("uid")[:1]),
+            card_title=models.Subquery(card.values("title")[:1]),
+        )
+    models.SET_NULL(collector, field, sub_objs, using)
+
+
+# Like SET_NULL: the collector need not evaluate sub_objs before calling this.
+set_null_keeping_board.lazy_sub_objs = True
+
+
 class AppendOnlyViolation(Exception):
     """An application write tried to change or delete a ``CardMovement`` (#1469)."""
 
@@ -642,9 +673,11 @@ class CardMovement(models.Model):
 
     # SET_NULL, not CASCADE (#1469): a hard-deleted card keeps its history.
     # The row then reads its identity from card_uid / card_title below.
+    # set_null_keeping_board is SET_NULL plus filling board and the snapshot
+    # on rows that lack them (rows an older release wrote mid-upgrade).
     card = models.ForeignKey(
         Card,
-        on_delete=models.SET_NULL,
+        on_delete=set_null_keeping_board,
         null=True,
         blank=True,  # pragma: no mutate -- schema constant (migration-check)
         related_name="movements",  # pragma: no mutate -- schema constant (migration-check)

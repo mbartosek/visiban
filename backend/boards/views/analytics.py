@@ -656,12 +656,15 @@ class BoardAnalyticsMixin:
 
         # Read by the movement's own board (#1469), not card__board: a
         # hard-deleted card's retained history (card NULL) still belongs to
-        # this board's History. For live cards the two are the same rows —
-        # a card never changes board. select_related on the nullable card FK
-        # is a LEFT JOIN, so those rows are kept and serialize from their
-        # card_uid / card_title snapshot. Served by movement_board_moved_idx.
-        # Rows an older release wrote during a rolling upgrade, after the
-        # 0080 backfill, carry no board and do not appear here.
+        # this board's History. For live cards the two select the same rows:
+        # the API never moves a card between boards, and the Django admin,
+        # which can, re-points the card's movements (CardAdmin.save_model).
+        # select_related on the nullable card FK is a LEFT JOIN, so retained
+        # rows are kept and serialize from their card_uid / card_title
+        # snapshot. Served by movement_board_moved_idx. Rows an older release
+        # wrote during a rolling upgrade, after the 0080 backfill, carry no
+        # board and do not appear here until backfill_card_movement_snapshots
+        # runs (or their card is deleted: set_null_keeping_board fills them).
         qs = (
             CardMovement.objects
             .filter(board=board)
@@ -740,7 +743,7 @@ class BoardAnalyticsMixin:
             # Live cards only (#1469): the hook's queryset has always held only
             # rows with a card, and a backend may read ``mv.card``. Retained
             # history of hard-deleted cards is not handed to it until the
-            # extension-point contract says rows may have ``card=None``.
+            # extension-point contract says rows may have ``card=None`` (#1796).
             export_qs = qs.filter(card__isnull=False)
             response = backend(board, export_qs, request)
             # Audit only exports that actually produced data (like the board

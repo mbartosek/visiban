@@ -7,16 +7,19 @@
 # row against cards while holding ACCESS EXCLUSIVE on card_movements and
 # SHARE ROW EXCLUSIVE on cards — every card write blocks for the whole scan.
 # The change actually needed is only DROP NOT NULL, which is catalog-only and
-# leaves the existing constraint in place. ``on_delete`` emits no SQL at all
-# (it is enforced by Django's deletion collector).
+# leaves the existing constraint in place. ``on_delete`` (SET_NULL, plus
+# filling board/snapshot on rows that lack them: boards.models.
+# set_null_keeping_board) emits no SQL at all; Django's deletion collector
+# enforces it.
 #
 # Other backends (SQLite in development and tests) take the normal
 # AlterField path: SQLite rebuilds the table, which is fine there.
 # See docs/development/database-migrations.md, "Changing an existing foreign
 # key's nullability".
 
-import django.db.models.deletion
 from django.db import migrations, models
+
+import boards.models
 
 
 class DropNotNullKeepingForeignKey(migrations.AlterField):
@@ -73,7 +76,7 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(
                 blank=True,
                 null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
+                on_delete=boards.models.set_null_keeping_board,
                 related_name="movements",
                 to="boards.card",
             ),

@@ -492,7 +492,7 @@ ALTER TABLE "card_movements" ADD CONSTRAINT "..." FOREIGN KEY ("card_id") REFERE
 
 The re-`ADD` validates every row against the referenced table, holding `ACCESS EXCLUSIVE` on
 the referencing table (the migration is atomic) and `SHARE ROW EXCLUSIVE` on the referenced
-one for the whole scan. Neither checker flags it.
+one for the whole scan. Neither checker flags it yet (#1798).
 
 The change that is actually needed is only `ALTER COLUMN ... DROP NOT NULL`, which is
 catalog-only and leaves the existing constraint in place. `boards/0079_cardmovement_card_nullable`

@@ -395,6 +395,8 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     and title; deleting the whole board still removes them. In the Django admin, movement
     records can now only be viewed — add, edit and delete are gone. Summary and Analytics
     numbers are unchanged. See [Card History](../features/card-history.md#deleted-cards-keep-their-history) (#1469).
+    A deleted card's title and movement notes now stay visible to the board's members until
+    the board is deleted; a purge command is tracked in #1797.
 
     Migrations `boards/0078`–`0081` add three columns to `card_movements`, make `card_id`
     nullable without rebuilding its foreign key, backfill the new columns in committed batches
@@ -407,8 +409,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     view until it is backfilled. Once the rollout completes, run
     `python manage.py backfill_card_movement_snapshots` once. It is idempotent. Single-instance
     Docker Compose installs stop the old release before migrating and do not need it. If such a
-    card is hard-deleted before the command runs, that move's record has neither a card nor a
-    board: it stays hidden from History and is not removed when the board is deleted.
+    card is hard-deleted by the new release before the command runs, the delete fills in the
+    record itself, so nothing is left behind. A card deleted by a pod still on the previous
+    release takes its history with it, as before the upgrade.
 
     **Rolling back past `boards/0079`** is refused while any deleted card's history exists,
     because restoring `card_id NOT NULL` would mean deleting that history. The error message

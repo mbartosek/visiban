@@ -373,6 +373,92 @@ class UserAdminDeleteWithHistoryTests(_BoardFixture):
         self.assertNotIn("card movement", text.lower())
 
 
+class AdminCardMoveBetweenBoardsTests(_BoardFixture):
+    """The card admin can move a card to another board; its history follows."""
+
+    def test_history_follows_the_card_to_its_new_board(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from boards.admin import CardAdmin
+        from boards.tests.test_admin_broadcast import _DummyForm
+
+        card = self._card("Travels")
+        self._move(card, self.col_done)
+        b2 = Board.objects.create(name="B2", owner=self.owner)
+        BoardMembership.objects.create(board=b2, user=self.owner, role="admin")
+        col2 = Column.objects.create(board=b2, name="X", position=0)
+        swim2 = Swimlane.objects.create(board=b2, name="Y", position=0)
+        root = User.objects.create_superuser(
+            username="root1469m", email="root1469m@example.com", password=PW,
+        )
+        request = RequestFactory().post("/admin/")
+        request.user = root
+        card.board, card.column, card.swimlane = b2, col2, swim2
+        with self.captureOnCommitCallbacks(execute=True):
+            CardAdmin(Card, AdminSite()).save_model(request, card, _DummyForm(), change=True)
+
+        self.assertEqual(
+            list(CardMovement.objects.filter(card=card).values_list("board_id", flat=True)), [b2.pk],
+        )
+        b2_rows = self.client.get(f"/api/v1/boards/{b2.pk}/movements/").data
+        self.assertEqual([r["card_uid"] for r in b2_rows["results"]], [card.uid])
+        self.assertEqual(self._history()["count"], 0)
+        # Deleting the old board leaves the live card's history alone.
+        self.assertEqual(self.client.delete(f"/api/v1/boards/{self.board.pk}/").status_code, 204)
+        self.assertEqual(CardMovement.objects.filter(card=card, board=b2).count(), 1)
+
+
+class RollingUpgradeRowOnCardDeleteTests(_BoardFixture):
+    """A row an older release wrote (no board, no snapshot) whose card is then
+    hard-deleted is filled from the card, not left unreachable."""
+
+    def test_card_delete_fills_board_and_snapshot_on_rows_missing_them(self):
+        card = self._card("Mid-upgrade")
+        self._move(card, self.col_done)
+        CardMovement.objects.filter(card=card).update(board=None, card_uid="", card_title="")
+        uid = card.uid
+        self._delete_card(card)
+        row = CardMovement.objects.get()
+        self.assertEqual(
+            (row.card_id, row.board_id, row.card_uid, row.card_title),
+            (None, self.board.pk, uid, "Mid-upgrade"),
+        )
+        self.assertEqual(
+            [(r["card_uid"], r["card_title"]) for r in self._history()["results"]],
+            [(uid, "Mid-upgrade")],
+        )
+        # ...and now leaves with its board.
+        self.client.delete(f"/api/v1/boards/{self.board.pk}/")
+        self.assertEqual(CardMovement.objects.count(), 0)
+
+    def test_board_delete_removes_rows_missing_board(self):
+        card = self._card()
+        self._move(card, self.col_done)
+        CardMovement.objects.filter(card=card).update(board=None, card_uid="", card_title="")
+        self.client.delete(f"/api/v1/boards/{self.board.pk}/")
+        self.assertEqual(CardMovement.objects.count(), 0)
+
+    def test_column_delete_fills_rows_missing_board(self):
+        card = self._card("In column")
+        self._move(card, self.col_done)
+        CardMovement.objects.filter(card=card).update(board=None, card_uid="", card_title="")
+        self.col_done.delete()
+        self.assertEqual(
+            CardMovement.objects.values_list("card_id", "board_id", "card_title").get(),
+            (None, self.board.pk, "In column"),
+        )
+
+    def test_admin_delete_confirmation_page_writes_nothing(self):
+        from django.contrib.admin.utils import NestedObjects
+
+        card = self._card()
+        self._move(card, self.col_done)
+        CardMovement.objects.filter(card=card).update(board=None, card_uid="", card_title="")
+        NestedObjects(using="default").collect([card])
+        self.assertTrue(CardMovement.objects.filter(board__isnull=True).exists())
+
+
 class BackfillTests(_BoardFixture):
     """Migration 0080's function, run against the live registry (same models)."""
 
