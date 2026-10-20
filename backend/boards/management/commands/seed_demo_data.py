@@ -53,6 +53,13 @@ Usage:
         poll endpoints have realistic data. Used by the nightly-load-test CI
         job (see docs/development/nightly-load-test.md).
 
+    python manage.py seed_demo_data --force --scale 20 --extra-boards 199 --with-notifications
+        Also seed 199 small extra boards owned by 'demo3' (#1810), so demo3
+        can access 200 boards (these plus the load-test board). The nightly
+        load test runs its card_search_multi_board scenario as demo3 to
+        measure the many-board access-filter plan. Requires --scale > 1; no
+        other user's board list or access changes.
+
     python manage.py seed_demo_data --force --wipe --demo-site
         Hosted demo instance (#1034, try.visiban.com). In addition to the
         normal demo board, seeds seven showcase boards, each with a different
@@ -90,6 +97,7 @@ from django.core.management import call_command
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
@@ -136,6 +144,12 @@ BOARD_NAME = "Visiban Demo Board"
 # job must keep operating on BOARD_NAME regardless of what other scale this
 # command has ever been invoked with elsewhere.
 LOAD_TEST_BOARD_NAME = "Visiban Load Test Board"
+# Name prefix for the --extra-boards fixture (#1810). --wipe deletes by this
+# prefix so a re-seed with a different count never leaves stale extras behind.
+LOAD_TEST_EXTRA_BOARD_PREFIX = "Visiban Load Test Extra Board"
+# Cards on each extra board: enough that a literal id list spanning them all
+# makes the card SELECT scan-and-sort, small enough to seed 200 boards quickly.
+LOAD_TEST_EXTRA_BOARD_CARDS = 8
 DEMO_GROUP_NAME = "Visiban Demo Workspace"
 RANDOM_SEED = 42
 # Fixed reference date for due-date calculations — keeps the seeded card corpus
@@ -548,6 +562,17 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
+            "--extra-boards",
+            type=int,
+            default=0,
+            help=(
+                "Also seed N small extra boards owned by 'demo3' (#1810) so one user "
+                "can access many boards, for the nightly load test's multi-board "
+                "card_search scenario. Requires --scale > 1. 0 (default) seeds none, "
+                "so default output is unchanged."
+            ),
+        )
+        parser.add_argument(
             "--demo-site",
             action="store_true",
             help=(
@@ -712,11 +737,21 @@ class Command(BaseCommand):
         if scale < 1:
             raise CommandError("--scale must be >= 1.")
         board_name = BOARD_NAME if scale == 1 else LOAD_TEST_BOARD_NAME
+        extra_boards = options["extra_boards"]
+        if extra_boards < 0:
+            raise CommandError("--extra-boards must be >= 0.")
+        if extra_boards and scale == 1:
+            raise CommandError("--extra-boards requires --scale > 1.")
 
         if options["wipe"]:
             # With the container-delete locks (#1602): the demo cronjob runs
             # --wipe against a live instance.
-            deleted, _ = delete_boards_locked(Board.objects.filter(name=board_name))
+            wipe_qs = Board.objects.filter(name=board_name)
+            if board_name == LOAD_TEST_BOARD_NAME:
+                wipe_qs = Board.objects.filter(
+                    Q(name=board_name) | Q(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX)
+                )
+            deleted, _ = delete_boards_locked(wipe_qs)
             if board_name == BOARD_NAME:
                 # Board.group uses on_delete=SET_NULL, so deleting the board does
                 # NOT cascade to the demo Group created by _create_demo_group()
@@ -784,6 +819,13 @@ class Command(BaseCommand):
             n_notifications = len(self._create_notifications(board, cards, users))
         else:
             n_notifications = 0
+
+        if extra_boards:
+            self._create_extra_boards(users[2], extra_boards)
+            self.stdout.write(
+                f"Seeded {extra_boards} extra boards owned by '{users[2].username}' "
+                f"({extra_boards + 1} accessible boards)."
+            )
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -1329,6 +1371,42 @@ class Command(BaseCommand):
             ],
             ignore_conflicts=True,
         )
+
+    def _create_extra_boards(self, owner, count):
+        """Create ``count`` small boards owned by ``owner`` (#1810).
+
+        The card list filters on a literal list of the caller's accessible board
+        ids, and PostgreSQL plans that differently with one id (walk the
+        board/updated index, stop at the first page) than with many (scan the
+        matching cards and sort). The nightly load test needs a user on the
+        many-board side. The owner is demo3, not demo1 or demo2: demo1's board
+        list is the board_list scenario and demo2 is the one-board user, so
+        giving either extra boards would silently change a committed scenario.
+
+        Uses its own Random so the main fixture's seeded stream is untouched,
+        and runs after every other seeding step for the same reason.
+        """
+        rng = random.Random(f"extra-boards-{count}")
+        for i in range(1, count + 1):
+            board = Board.objects.create(
+                name=f"{LOAD_TEST_EXTRA_BOARD_PREFIX} {i:03d}",
+                description="Extra board for the nightly load test's multi-board scenario (#1810).",
+                owner=owner,
+                staleness_threshold_days=7,
+            )
+            BoardMembership.objects.create(board=board, user=owner, role=BoardMembership.Role.ADMIN)
+            columns = self._create_columns(board)
+            lane = Swimlane.objects.create(board=board, position=0, **SWIMLANES[0])
+            for pos in range(LOAD_TEST_EXTRA_BOARD_CARDS):
+                Card.objects.create(
+                    board=board,
+                    column=columns[0],
+                    swimlane=lane,
+                    title=rng.choice(CARD_TITLES),
+                    description=rng.choice(CARD_DESCRIPTIONS),
+                    position=pos,
+                    created_by=owner,
+                )
 
     def _create_cards(self, board, columns, swimlanes, labels, users):
         today = SEED_ANCHOR_DATE

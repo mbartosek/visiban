@@ -18,6 +18,7 @@ measures the access filter and one cursor page, as a one-board user (#1805).
   - board_list              GET  /api/v1/boards/                    (#1723, budget: #1767)
   - board_full              GET  /api/v1/boards/{id}/full/
   - card_search             GET  /api/v1/cards/?search=...          (#1805)
+  - card_search_multi_board GET  /api/v1/cards/?search=...          (#1810, as demo3, 200 boards)
   - card_timeline           GET  /api/v1/boards/{id}/cards/{id}/timeline/  (0045)
   - notifications_list      GET  /api/v1/notifications/
   - notifications_unread    GET  /api/v1/notifications/unread-count/
@@ -27,6 +28,7 @@ Usage (CI — nightly-load-test job in .gitlab-ci.yml):
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
         --owner-token-file /tmp/visiban_load_test_owner_token \\
+        --multi-board-token-file /tmp/visiban_load_test_multi_board_token \\
         --budget-file backend/nightly-load-test-baseline.json \\
         --output nightly-load-test-results.json
 
@@ -36,6 +38,7 @@ docs/development/nightly-load-test.md):
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
         --owner-token-file /tmp/visiban_load_test_owner_token \\
+        --multi-board-token-file /tmp/visiban_load_test_multi_board_token \\
         --output nightly-load-test-results.json
     # Then recompute the WHOLE baseline from that artifact with the documented
     # formula budget_p95_ms = ceil(p95_ms * 1.4 / 5) * 5 (see the "Budget
@@ -45,12 +48,24 @@ docs/development/nightly-load-test.md):
 --owner-token-file (the board owner, demo1) is REQUIRED for a meaningful
 board_list scenario: its 55ms budget was derived as the owner, whose access
 query spans all 20 board memberships. Without it the scenario would run as the
-plain member demo2 and silently measure a cheaper path.
+plain member demo2 and silently measure a cheaper path. Likewise
+--multi-board-token-file (demo3, who owns the --extra-boards fixture) is
+REQUIRED for card_search_multi_board: as demo2 it would measure the one-board
+plan again (#1810).
+
+Pending budgets (#1810): a scenario whose baseline entry has
+"budget_p95_ms": null AND a "pending_budget" issue reference ("#NNNN") is
+measured and recorded but not gated, and the run prints a loud PENDING BUDGET
+line for it (and a summary at the end) every time. This exists because a
+budget may only come from a NUC run (see the doc), so a new scenario can land
+before its budget can. The self-test rejects a null budget with no issue
+reference, so "pending" can never be a silent default.
 """
 
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -94,6 +109,24 @@ def _check_budget(p95_ms, budget_ms):
     server (#1093's house rule — see docs/development/ci-gates.md).
     """
     return p95_ms <= budget_ms
+
+
+_PENDING_REF = re.compile(r"^#\d+$")
+
+
+def _pending_budget(name, budgets):
+    """Return the issue reference when *name* has an explicit pending budget.
+
+    Pending means the baseline entry exists, has ``budget_p95_ms: null`` and a
+    ``pending_budget`` of the form "#NNNN". Anything else returns None, which
+    callers treat as a normal scenario (a missing/None budget with no valid
+    reference is caught by the self-test, not tolerated here).
+    """
+    entry = budgets.get(name)
+    if not isinstance(entry, dict) or entry.get("budget_p95_ms") is not None:
+        return None
+    ref = entry.get("pending_budget")
+    return ref if isinstance(ref, str) and _PENDING_REF.match(ref) else None
 
 
 def _self_test():
@@ -143,6 +176,8 @@ def _self_test():
     eps = _endpoints("http://x", 1, 2)
     if eps.get("board_list") != "http://x/api/v1/boards/":
         failures.append("board_list scenario missing from _endpoints()")
+    if eps.get("card_search_multi_board") != eps.get("card_search") or not eps.get("card_search"):
+        failures.append("card_search_multi_board must hit the same URL as card_search (#1810)")
     # Guard (#1767): every measured scenario must have a committed budget, so a
     # new scenario cannot silently stay measure-only (it could never fail the job).
     # Resolved from this file, not the cwd, so it works wherever the self-test runs.
@@ -159,12 +194,48 @@ def _self_test():
         failures.append("committed baseline has no (or an empty) 'endpoints' mapping")
         committed = {}
     for name in eps:
-        if not isinstance(committed.get(name), dict) or committed[name].get("budget_p95_ms") is None:
-            failures.append(f"scenario {name!r} has no budget_p95_ms in nightly-load-test-baseline.json")
+        if not isinstance(committed.get(name), dict):
+            failures.append(f"scenario {name!r} has no entry in nightly-load-test-baseline.json")
+        elif committed[name].get("budget_p95_ms") is None and _pending_budget(name, committed) is None:
+            failures.append(
+                f"scenario {name!r} has no budget_p95_ms in nightly-load-test-baseline.json "
+                "and no explicit pending_budget issue reference (#1810)"
+            )
     # run()'s budget branch: no baseline entry => measure-only, never a violation,
     # even at an absurd p95; an entry over budget is still flagged.
     if _evaluate_budget("board_list", 10**9, {"board_full": {"budget_p95_ms": 1}}) != (None, None, None):
         failures.append("a scenario without a baseline entry must be measure-only")
+    # Pending budgets (#1810): explicit, never a violation, and only valid with an
+    # issue reference. A bare null budget, a malformed reference and a budgeted
+    # scenario must NOT count as pending.
+    _pend = {"s": {"budget_p95_ms": None, "pending_budget": "#1808"}}
+    if _pending_budget("s", _pend) != "#1808":
+        failures.append("a null budget with a '#NNNN' pending_budget must be pending")
+    if _evaluate_budget("s", 10**9, _pend) != (None, None, None):
+        failures.append("a pending-budget scenario must never produce a violation")
+    for bad in (
+        {"s": {"budget_p95_ms": None}},
+        {"s": {"budget_p95_ms": None, "pending_budget": "soon"}},
+        {"s": {"budget_p95_ms": 50, "pending_budget": "#1808"}},
+        {},
+    ):
+        if _pending_budget("s", bad) is not None:
+            failures.append(f"{bad!r} must not count as a pending budget")
+    # Multi-board guards (#1810): a missing token and a shrunken fixture must both raise.
+    for label, fn, ok_args, bad_args in (
+        ("missing multi-board token", _require_multi_board_session,
+         ({"card_search_multi_board": object()},), ({"board_list": object()},)),
+        ("too few multi-board boards", _check_multi_board_count, (200, 200), (199, 200)),
+    ):
+        try:
+            fn(*ok_args)
+        except RuntimeError:
+            failures.append(f"{label}: guard raised on a valid input")
+        try:
+            fn(*bad_args)
+            failures.append(f"{label}: guard did not raise on a bad input")
+        except RuntimeError:
+            pass
     _b, _w, _msg = _evaluate_budget("board_full", 2000, {"board_full": {"budget_p95_ms": 1000}})
     if _w is not False or not _msg:
         failures.append("_evaluate_budget did not flag an over-budget scenario")
@@ -181,8 +252,10 @@ def _self_test():
 def _evaluate_budget(name, p95, budgets):
     """Return (budget_ms, within_budget, violation_msg) for one scenario.
 
-    A scenario with no baseline entry is
-    measure-only (none currently; the self-test requires every scenario to have one): budget_ms is None and it can never produce a violation.
+    A scenario with no baseline entry, or a null budget (see _pending_budget), is
+    measure-only: budget_ms is None and it can never produce a violation. The
+    self-test requires every scenario to have a budget or an explicit pending
+    reference, so measure-only is never silent.
     """
     budget_ms = budgets.get(name, {}).get("budget_p95_ms")
     if budget_ms is None:
@@ -197,12 +270,16 @@ def _endpoints(base_url, board_id, sample_card_id):
 
     ``board_list`` (#1723) is budgeted in the baseline file (#1767). run() treats
     a scenario with no budget as measure-only (recorded, never a violation); the
-    self-test requires every scenario here to have a budget.
+    self-test requires every scenario here to have a budget or an explicit
+    pending_budget issue reference (#1810).
     """
     return {
         "board_list": f"{base_url}/api/v1/boards/",
         "board_full": f"{base_url}/api/v1/boards/{board_id}/full/",
         "card_search": f"{base_url}/api/v1/cards/?search=the",
+        # Same URL, different viewer: run as demo3 (see run()), who can access
+        # ~200 boards, so the card SELECT gets the scan-and-sort plan (#1810).
+        "card_search_multi_board": f"{base_url}/api/v1/cards/?search=the",
         "card_timeline": f"{base_url}/api/v1/boards/{board_id}/cards/{sample_card_id}/timeline/",
         "notifications_list": f"{base_url}/api/v1/notifications/",
         "notifications_unread": f"{base_url}/api/v1/notifications/unread-count/",
@@ -221,6 +298,47 @@ def _find_board(session, base_url, board_name):
         f"No board named '{board_name}' is visible to this token. "
         "Run `manage.py seed_demo_data --force --scale N` first."
     )
+
+
+def _require_multi_board_session(sessions):
+    """Raise unless the multi-board viewer's session is configured (#1810).
+
+    Pure so --self-test can prove the guard fires without a server.
+    """
+    if "card_search_multi_board" not in sessions:
+        raise RuntimeError(
+            "--multi-board-token-file is required: card_search_multi_board must be "
+            "measured as the multi-board user demo3 (#1810)"
+        )
+
+
+def _check_multi_board_count(count, minimum):
+    """Raise if the multi-board user can access fewer than *minimum* boards.
+
+    A seed that silently shrinks (or omits --extra-boards) would otherwise
+    produce a valid-looking one-board number for the many-board scenario.
+    """
+    if count < minimum:
+        raise RuntimeError(
+            f"The multi-board user can access {count} boards, fewer than "
+            f"--min-multi-boards={minimum}. Seed with "
+            "`manage.py seed_demo_data --force --scale N --extra-boards M` (#1810)."
+        )
+
+
+def _count_accessible_boards(session, base_url):
+    """Number of boards visible to *session*'s user (follows pagination)."""
+    url = f"{base_url}/api/v1/boards/"
+    total = 0
+    while url:
+        r = session.get(url, timeout=30)
+        r.raise_for_status()
+        body = r.json()
+        if not isinstance(body, dict) or "results" not in body:
+            return total + len(body)
+        total += len(body["results"])
+        url = body.get("next")
+    return total
 
 
 def _time_requests(session, url, iterations, warmup):
@@ -260,6 +378,11 @@ def run(args):
             owner_session = requests.Session()
             owner_session.headers["Authorization"] = f"Token {fh.read().strip()}"
         sessions["board_list"] = owner_session
+    if args.multi_board_token_file:
+        with open(resolve_within(cli_roots(), args.multi_board_token_file), encoding="utf-8") as fh:
+            multi_session = requests.Session()
+            multi_session.headers["Authorization"] = f"Token {fh.read().strip()}"
+        sessions["card_search_multi_board"] = multi_session
 
     # Fail loudly rather than silently measure board_list as demo2: the committed
     # board_list budget was derived as the owner, so a plain-member run would
@@ -270,6 +393,11 @@ def run(args):
         raise RuntimeError(
             "--owner-token-file is required: board_list must be measured as the board owner (#1767)"
         )
+
+    # Same reason for card_search_multi_board (#1810): as demo2 it would time the
+    # one-board index walk and report a number that says nothing about the
+    # many-board plan.
+    _require_multi_board_session(sessions)
 
     base_url = args.base_url.rstrip("/")
     _wait_for_url(f"{base_url}/api/health/liveness/", timeout=args.startup_timeout)
@@ -297,6 +425,12 @@ def run(args):
         "card_count": len(cards),
         "swimlane_count": len(full_data.get("swimlanes", [])),
     }
+    # Prove the multi-board user really is multi-board before timing anything;
+    # a seed without --extra-boards would otherwise produce a valid-looking
+    # one-board number (#1810).
+    multi_board_count = _count_accessible_boards(sessions["card_search_multi_board"], base_url)
+    _check_multi_board_count(multi_board_count, args.min_multi_boards)
+    fixture["multi_board_accessible_boards"] = multi_board_count
     print(f"Fixture: {fixture}")
 
     endpoints = _endpoints(base_url, board_id, sample_card_id)
@@ -308,6 +442,7 @@ def run(args):
 
     results = {}
     violations = []
+    pending = []
     for name, url in endpoints.items():
         print(f"Measuring {name} ({args.iterations} requests, {args.warmup} warmup)...")
         samples_ms = _time_requests(sessions.get(name, session), url, args.iterations, args.warmup)
@@ -323,6 +458,10 @@ def run(args):
             "max_ms": round(max(samples_ms), 1),
         }
         budget_ms, within_budget, violation = _evaluate_budget(name, p95, budgets)
+        pending_ref = _pending_budget(name, budgets)
+        if pending_ref:
+            entry["budget_pending"] = pending_ref
+            pending.append((name, pending_ref, entry["p95_ms"]))
         if budget_ms is not None:
             entry["budget_p95_ms"] = budget_ms
             entry["within_budget"] = within_budget
@@ -331,6 +470,9 @@ def run(args):
         results[name] = entry
         print(f"  p50={entry['p50_ms']}ms p95={entry['p95_ms']}ms p99={entry['p99_ms']}ms"
               + (f" (budget {budget_ms}ms)" if budget_ms is not None else " (no budget — measure-only)"))
+        if pending_ref:
+            print(f"  PENDING BUDGET: {name} is measured but NOT gated until {pending_ref} "
+                  "assigns its budget.")
 
     output = {
         "measured_at": datetime.now(timezone.utc).isoformat(),
@@ -350,13 +492,21 @@ def run(args):
               "(x1.3-1.5) to (re-)derive backend/nightly-load-test-baseline.json.")
         return 0
 
+    for name, ref, p95_ms in pending:
+        print(f"\nWARNING: PENDING BUDGET — {name} p95={p95_ms}ms is not gated; "
+              f"{ref} assigns the budget.", file=sys.stderr)
+
     if violations:
         print("\nFAIL — budget exceeded:", file=sys.stderr)
         for v in violations:
             print(f"  - {v}", file=sys.stderr)
         return 1
 
-    print("\nAll endpoints within budget.")
+    if pending:
+        print(f"\nAll budgeted endpoints within budget ({len(pending)} pending, NOT gated: "
+              + ", ".join(n for n, _, _ in pending) + ").")
+    else:
+        print("\nAll endpoints within budget.")
     return 0
 
 
@@ -370,6 +520,15 @@ def main():
     parser.add_argument(
         "--owner-token-file", default=None,
         help="Optional PAT for the board OWNER, used only for the board_list scenario (#1723).",
+    )
+    parser.add_argument(
+        "--multi-board-token-file", default=None,
+        help="PAT for demo3 (owner of the --extra-boards fixture), used only for the "
+             "card_search_multi_board scenario (#1810). Required.",
+    )
+    parser.add_argument(
+        "--min-multi-boards", type=int, default=50,
+        help="Fail if the multi-board user can access fewer boards than this (default: 50).",
     )
     parser.add_argument("--board-name", default="Visiban Load Test Board")
     parser.add_argument("--budget-file", default="backend/nightly-load-test-baseline.json")
