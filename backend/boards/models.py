@@ -871,6 +871,17 @@ class CardComment(models.Model):
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Same meaning as CardMovement.imported_from_username (#1675, #1702): set
+    # only on comments created by an import, whose ``author`` is the importer.
+    # It keeps the name the source named (a JSON file's ``author``, a Trello
+    # member's display name) as plain text, never matched to an account.
+    # ``""`` means the source named nobody; NULL means the comment was posted
+    # on this board, or imported by an earlier version that did not keep it.
+    imported_from_username = models.CharField(
+        max_length=150,  # pragma: no mutate -- schema constant (migration-check)
+        null=True,
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+    )
 
     class Meta:
         db_table = "card_comments"

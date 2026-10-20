@@ -60,7 +60,7 @@ Click **Create board**. You see an upload progress bar, then **Creating board…
 | Cards | Cards with the title (up to 500 characters), description, due date, archived state, and original creation time. The due date is imported as a date, in UTC. |
 | Labels | Labels. Each Trello color maps to the closest Visiban color. Unnamed labels are named after their color. Duplicate names get a " (2)" suffix. |
 | Checklists | One checklist per card. Visiban supports one checklist per card, so multiple Trello checklists are combined, and each item is prefixed with `Checklist name: `. |
-| Comments | Comments, with their original timestamps. Comments over 10,000 characters are shortened; card descriptions over 50,000 characters are too. The preview warns when this happens. |
+| Comments | Comments, with their original timestamps, posted under your name with the Trello author's name kept beside it. See [Comment authors](#comment-authors). Comments over 10,000 characters are shortened; card descriptions over 50,000 characters are too. The preview warns when this happens. |
 | Attachments | Links are added to the card description under **Attachments (imported from Trello)**. The files themselves are not copied. |
 | Members | Matched to Visiban users when possible. See below. |
 
@@ -77,10 +77,22 @@ Only people you can already see in Visiban are checked: people who share a board
 
 **Add matched members to this board** is off by default.
 
-- **On:** matched users become board members with the Member role. They are assigned to their cards (the first matched Trello member on each card), and their comments keep them as the author, starting with "(imported from Trello)" so it is clear the comment came from the import.
-- **Off**, and for unmatched people: cards are unassigned, and comments are posted by you, starting with "Name (imported from Trello):".
+- **On:** matched users become board members with the Member role. They are assigned to their cards (the first matched Trello member on each card).
+- **Off:** cards are unassigned.
 
-Importing never sends notifications.
+Either way, comments are attributed to you (see below). Importing never sends notifications.
+
+## Comment authors
+
+> **Changed in 1.2** (#1702)
+
+Every imported comment is posted under your name, the person who ran the import, whether or not its Trello author matched a Visiban user. This matches how a [JSON import](board.md#import) records comments and [card history](card-history.md#imported-history). Each comment:
+
+- keeps its original Trello time;
+- keeps the Trello author's name as text in `imported_from_username`, shown after the time in the card's comment list, for example "imported, originally Ada Lovelace". The name is never matched to an account;
+- starts with the plain-text line "(imported from Trello)", which names where the comment came from.
+
+Because the comments are yours, you can delete them like any comment you posted. Comments imported by earlier versions are unchanged: they kept the matched user as the author (when **Add matched members** was on) or started with "Name (imported from Trello):", and carry `imported_from_username: null`.
 
 ## Limits
 

@@ -1052,11 +1052,12 @@ Apply this consistently in `CardMovementTimeline` and `MovementHistoryView`:
 - System event label text (`text-fg-tertiary italic` for "Archived", `text-accent-violet` for "Reactivated") is visually distinct from column-move text (`text-fg-secondary font-medium`)
 - Do not collapse system events by default — Jordan's audit trail use case requires them visible
 
-### Imported history attribution (#1675)
+### Imported history attribution (#1675, #1702)
 
-A movement or activity created by a board import with history carries `imported_from_username` (`null` = recorded on this board, or imported by an earlier version that did not keep the name). Render it only through `src/utils/importedHistory.ts` so every surface says the same thing:
+A movement or activity created by a board import with history, and a comment created by a JSON or Trello import, carries `imported_from_username` (`null` = recorded or posted on this board, or imported by an earlier version that did not keep the name). Render it only through `src/utils/importedHistory.ts` so every surface says the same thing:
 
 - **Card timeline (`ActivityTabPanel`)** — the right-hand by-line becomes `historyAttribution(actor, imported_from_username)`: `by Kelly · imported, originally alice`, `by Kelly · imported` when the file named nobody, or just the note when the importer account is gone. Same `text-xs text-fg-tertiary` span as the plain by-line, plus `max-w-full truncate` and the full text in `title` — a source name can be 150 characters.
+- **Card comments (`CardDetail`)** — the avatar and name stay the comment's `author` (the importer); `importedNote(imported_from_username)` follows the time in the comment header as its own `text-xs text-fg-muted min-w-0 truncate` span with the full text in `title`: `imported, originally Ada Lovelace`. Nothing is added for a comment posted on the board. In the comment header the time stays `shrink-0 whitespace-nowrap`; the author name and the imported note are the only spans that truncate, and both carry the full text in `title`. The delete control keeps `ml-auto`.
 - **`CardMovementTimeline`** (not mounted in the app today) uses `historyAttribution` for its by-lines the same way.
 - **Board History view (`MovementHistoryView`)** — the note goes on its own `block truncate text-fg-muted` line under the mover's name in the table cell (with `title`), and after the name as ` · imported, originally alice` in the slide-in panel.
 - **Never** render the source name as a user (no avatar, no `userDisplayName`, no link): it is text from a file, not an account on this instance. Never use a badge or color for it — the note is metadata, not status.

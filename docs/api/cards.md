@@ -620,10 +620,19 @@ Use this endpoint when you need a single list combining moves, comments, field e
 ### `GET /api/v1/boards/{board_id}/cards/{id}/comments/`
 List comments. Requires board member or above.
 
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | |
+| `author` | object \| `null` | User who posted the comment — `{ id, username, display_name, avatar_url }` — or `null` if that user has since been deleted. For an imported comment, the user who ran the import |
+| `body` | string | Plain text, at most 10,000 characters |
+| `created_at` | string | ISO 8601 timestamp |
+| `updated_at` | string | ISO 8601 timestamp |
+| `imported_from_username` | string \| `null` | *Since 1.2.* Read-only. `null` unless the comment was created by a JSON or Trello board import; then `author` is the importing user and this is the author name the source named (a JSON file's `author`, a Trello member's display name; `""` when it named nobody). Comments imported by earlier versions carry `null`. See [Imported history](../features/card-history.md#imported-history) |
+
 ### `POST /api/v1/boards/{board_id}/cards/{id}/comments/`
 Add a comment. **Minimum role: Collaborator.** Returns `404 Not Found` if the card was deleted concurrently; nothing is saved.
 
-**Request** `{ "body": "Looking into this now." }`
+**Request** `{ "body": "Looking into this now." }` — returns the new comment, with `imported_from_username: null`. The field is read-only and ignored if sent.
 
 ### `DELETE /api/v1/boards/{board_id}/cards/{id}/comments/{comment_id}/`
 Delete a comment. **Minimum role: Collaborator.** Collaborators may only delete their own comments. Members with the `is_moderator` entitlement (or admin role) may delete any comment. Collaborators cannot delete others' comments regardless of `is_moderator`. Returns `404 Not Found` if the card was deleted concurrently; the request has no effect.

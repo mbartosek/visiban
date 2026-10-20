@@ -476,6 +476,9 @@ def _serialize_comment(comment):
         "author": _serialize_user(comment.author) if comment.author_id else None,
         "created_at": comment.created_at.isoformat(),
         "updated_at": comment.updated_at.isoformat(),
+        # Same as the REST field (#1702): the source's author name on an
+        # imported comment, whose ``author`` is the importer; null otherwise.
+        "imported_from_username": comment.imported_from_username,
     }
 
 

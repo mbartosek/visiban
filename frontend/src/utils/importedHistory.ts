@@ -1,9 +1,10 @@
 /**
- * Attribution text for movement and activity rows (#1675).
+ * Attribution text for imported movement, activity (#1675) and comment
+ * (#1702) rows.
  *
- * A row created by a board import with history belongs to the user who ran
- * the import; `imported_from_username` keeps the username the import file
- * named (`""` when it named nobody, `null` for a row that was not imported).
+ * A row created by an import belongs to the user who ran the import;
+ * `imported_from_username` keeps the name the source named (`""` when it
+ * named nobody, `null` for a row that was not imported).
  * The source name is shown as plain text, never resolved to a local account,
  * so a reader can tell an imported row from one recorded on this board.
  */

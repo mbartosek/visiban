@@ -769,6 +769,26 @@ describe('CardDetail', () => {
     })
   })
 
+  it('notes an imported comment as imported with the source name, never as a user (#1702)', async () => {
+    const mockGetComments = getCardComments as ReturnType<typeof vi.fn>
+    mockGetComments.mockResolvedValue([
+      { id: 1, author: fakeUser, body: 'From Trello', created_at: new Date().toISOString(), updated_at: '', imported_from_username: 'Ada Lovelace' },
+      { id: 2, author: fakeUser, body: 'Unnamed source', created_at: new Date().toISOString(), updated_at: '', imported_from_username: '' },
+      { id: 3, author: fakeUser, body: 'Posted here', created_at: new Date().toISOString(), updated_at: '', imported_from_username: null },
+    ])
+    render(<CardDetail {...defaultProps()} />)
+    const note = await screen.findByText('imported, originally Ada Lovelace')
+    expect(note).toHaveAttribute('title', 'imported, originally Ada Lovelace')
+    expect(note).toHaveClass('text-xs', 'text-fg-muted', 'truncate')
+    // The time never shrinks or wraps; only the name and the note truncate.
+    expect(note.previousElementSibling).toHaveClass('shrink-0', 'whitespace-nowrap')
+    expect(screen.getByText('imported')).toBeInTheDocument()
+    // Exactly the two imported comments carry a note; the posted one does not.
+    expect(screen.getAllByText(/^imported/)).toHaveLength(2)
+    // The source name is text, not a user: no avatar initials for it.
+    expect(screen.queryByText('AL')).not.toBeInTheDocument()
+  })
+
   it('renders card with labels checked', () => {
     const props = defaultProps()
     props.card = makeCard({ labels: [{ id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }] })

@@ -210,9 +210,10 @@ class TrelloImportConfirmTests(TrelloImportBase):
         first = comments[0]
         self.assertEqual(first.created_at.isoformat()[:19], "2024-02-01T10:00:00")
         self.assertEqual(first.author, self.user)
-        self.assertTrue(first.body.startswith("Ada Lovelace (imported from Trello):\n\n"))
-        self.assertNotIn("*", first.body)
-        self.assertIn("Looks good to me", first.body)
+        # The Trello author's name is kept as text in its own field (#1702);
+        # the body names only the source system.
+        self.assertEqual(first.imported_from_username, "Ada Lovelace")
+        self.assertEqual(first.body, "(imported from Trello)\n\nLooks good to me")
 
     def test_custom_board_name(self):
         resp = self.confirm(name="My Imported Board")
@@ -316,14 +317,17 @@ class TrelloImportMemberMatchingTests(TrelloImportBase):
         self.assertFalse(BoardMembership.objects.filter(board=board, user=self.outsider).exists())
         self.assertEqual(board.cards.get(title="Write launch plan").assignee, self.ada)
         comments = CardComment.objects.filter(card__board=board)
+        # Every imported comment is the importer's, matched author or not, and
+        # keeps the Trello name as text (#1702), as JSON-imported comments and
+        # history do (#1675). The opt-in changes membership and assignees only.
         ada_comment = comments.get(body__endswith="Looks good to me")
-        self.assertEqual(ada_comment.author, self.ada)
-        # Provenance is always marked, so an uploaded file cannot produce a
-        # comment indistinguishable from one the user posted in Visiban.
+        self.assertEqual(ada_comment.author, self.user)
+        self.assertEqual(ada_comment.imported_from_username, "Ada Lovelace")
         self.assertTrue(ada_comment.body.startswith("(imported from Trello)\n\n"))
         stranger = comments.get(body__contains="Can I help?")
         self.assertEqual(stranger.author, self.user)
-        self.assertTrue(stranger.body.startswith("Stranger Danger (imported from Trello):\n\n"))
+        self.assertEqual(stranger.imported_from_username, "Stranger Danger")
+        self.assertTrue(stranger.body.startswith("(imported from Trello)\n\n"))
 
 
 class TrelloImportValidationTests(TrelloImportBase):
@@ -402,12 +406,11 @@ class TrelloImportValidationTests(TrelloImportBase):
         ]
         board = Board.objects.get(pk=self.post("confirm", data=data).data["board"]["id"])
         comment = CardComment.objects.get(card__board=board, body__contains="Can I help?")
-        header = comment.body.split("\n\n", 1)[0]
-        # Line breaks in the uploaded name are collapsed, so the name cannot
-        # forge extra paragraphs ahead of the real comment text.
-        self.assertTrue(header.startswith("Eve** "))
-        self.assertTrue(header.endswith("(imported from Trello):"))
-        self.assertNotIn("\n", header)
+        # Line breaks in the uploaded name are collapsed in the kept name
+        # (#1702), and the name never reaches the comment body.
+        self.assertTrue(comment.imported_from_username.startswith("Eve** "))
+        self.assertNotIn("\n", comment.imported_from_username)
+        self.assertNotIn("Eve", comment.body)
         card = board.cards.get(title="Write launch plan")
         self.assertIn("https://docs.example.com/a", card.description)
         self.assertNotIn("evil.example", card.description)

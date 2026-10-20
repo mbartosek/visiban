@@ -27,6 +27,7 @@ import CardExternalRefSection from "./CardExternalRefSection";
 import { failureReason, isLimitFailure } from "../../utils/moveFailure";
 import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
+import { importedNote } from "../../utils/importedHistory";
 import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON } from "../../constants/demoCopy";
 
 interface Props {
@@ -1551,13 +1552,19 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                 <div className="flex flex-col gap-3 mb-3">
                   {comments.map((c) => {
                     const authorName = c.author ? userDisplayName(c.author) : "Unknown";
+                    // An imported comment (#1702) is the importer's; the source's
+                    // author name is metadata text, never a user (frontend/CLAUDE.md).
+                    const imported = importedNote(c.imported_from_username);
                     return (
                       <div key={c.id} className="flex gap-2.5 group">
                         <Avatar user={c.author} size="sm" className="mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-semibold text-fg-secondary min-w-0 truncate" title={authorName}>{authorName}</span>
-                            <span className="text-xs text-fg-muted" title={formatDateTimeUser(c.created_at, currentUser)}>{formatCommentTime(c.created_at, currentUser)}</span>
+                            <span className="text-xs text-fg-muted shrink-0 whitespace-nowrap" title={formatDateTimeUser(c.created_at, currentUser)}>{formatCommentTime(c.created_at, currentUser)}</span>
+                            {imported && (
+                              <span className="text-xs text-fg-muted min-w-0 truncate" title={imported}>{imported}</span>
+                            )}
                             {canDeleteComment(c) && (
                               // #1193: comment DELETE is not on DEMO_ALLOWED_WRITES.
                               // Refuse up front with the fixed lead, never open the

@@ -79,6 +79,8 @@ _MAX_CHECKLIST_TEXT = 500
 # without first being rejected as too long.
 _MAX_COMMENT_BODY = 10_000
 _MAX_CARD_DESCRIPTION = 50_000
+# CardComment.imported_from_username column length (#1702).
+_MAX_IMPORTED_FROM_NAME = 150
 _MAX_BOARD_NAME = 255
 
 # Trello's UI JSON export includes at most this many actions. Comments are
@@ -642,7 +644,7 @@ class ImportPlan:
     swimlanes: list[dict]          # {key, name, color, position}
     cards: list[PlannedCard]
     checklist_items: dict[str, list[tuple[str, bool]]]   # trello card id → [(text, checked)]
-    comments: list[dict]           # {card_id, author_id|None, body, created_at}
+    comments: list[dict]           # {card_id, imported_from_username, body, created_at}
     member_user_ids: list[int]     # to add as board members (opt-in only)
     preview: dict
 
@@ -907,24 +909,23 @@ def build_plan(export: TrelloExport, options: ImportOptions, matched: dict[str, 
     for cm in export.comments:
         if cm.card_id not in planned_ids:
             continue
-        author_id = matched.get(cm.member_id) if add_members else None
-        if author_id is None:
-            # The importer becomes the author; keep the original name visible
-            # so the audit trail still says who wrote it in Trello.
-            # Comments render as plain text, so the prefix is plain text too.
-            name = " ".join(cm.author_name.split())
-            body = f"{name} (imported from Trello):\n\n{cm.text}"
-        else:
-            # Attributed to the matched user (opt-in), but the uploader wrote
-            # this file — always mark provenance so an imported comment can
-            # never pass as one the user posted in Visiban.
-            body = f"(imported from Trello)\n\n{cm.text}"
+        # Every imported comment is attributed to the importer, whether or not
+        # its Trello author matched an account (#1702): the importer is the one
+        # who brought the file in, as for JSON-imported comments and history
+        # (#1675). The Trello author's display name is kept as text in
+        # ``imported_from_username`` (shown as "imported, originally <name>"),
+        # never linked to an account, so add_matched_members only affects
+        # assignees and board membership. The body's "(imported from Trello)"
+        # line stays: it names the source system, which the field does not.
+        # Line breaks and runs of whitespace in the name are collapsed.
+        name = " ".join(cm.author_name.split())[:_MAX_IMPORTED_FROM_NAME]
+        body = f"(imported from Trello)\n\n{cm.text}"
         if len(body) > _MAX_COMMENT_BODY:
             body = body[:_MAX_COMMENT_BODY]
             long_comments += 1
         comments.append({
             "card_id": cm.card_id,
-            "author_id": author_id,
+            "imported_from_username": name,
             "body": body,
             "created_at": _parse_ts(cm.date),
         })
@@ -956,10 +957,10 @@ def build_plan(export: TrelloExport, options: ImportOptions, matched: dict[str, 
     unmatched_count = len(export.members) - matched_count
     if not add_members:
         _warn(warnings, "matched_members_not_added",
-              "Matched members will not be added to the board; assignees are left empty and comments are attributed to you.",
+              "Matched members will not be added to the board and assignees are left empty.",
               matched_count)
     _warn(warnings, "unmatched_members",
-          "Unmatched members are not assigned; their comments are attributed to you with their Trello name.",
+          "Unmatched members are not assigned to cards.",
           unmatched_count)
 
     attachment_total = sum(len(c.attachments) for c in export.cards)
@@ -1147,7 +1148,10 @@ def execute_plan(plan: ImportPlan, user, *, group=None, board_name: str | None =
         )
 
         comment_objs = [
-            CardComment(card=card_by_trello[cm["card_id"]], author_id=cm["author_id"] or user.pk, body=cm["body"])
+            CardComment(
+                card=card_by_trello[cm["card_id"]], author=user, body=cm["body"],
+                imported_from_username=cm["imported_from_username"],
+            )
             for cm in plan.comments
         ]
         CardComment.objects.bulk_create(comment_objs, batch_size=_BATCH)

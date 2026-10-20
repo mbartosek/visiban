@@ -338,14 +338,14 @@ export default function TrelloReviewStep({
                 label="Add matched members to this board"
                 description={
                   config.add_matched_members
-                    ? "Matched users become board members and are assigned to their cards. Their comments keep them as author, marked “(imported from Trello)”; comments by people who aren't matched are attributed to you."
-                    : "With this off, cards import without assignees and all comments are attributed to you with “(imported from Trello)”."
+                    ? "Matched users become board members and are assigned to their cards. Comments are attributed to you and keep their Trello author's name."
+                    : "With this off, cards import without assignees. Comments are attributed to you and keep their Trello author's name."
                 }
               />
             ) : (
               <p className="text-xs text-fg-muted">
-                No members matched. Cards will import without assignees, and comments will be attributed to you with
-                “(imported from Trello)”.
+                No members matched. Cards will import without assignees. Comments are attributed to you and keep their
+                Trello author's name.
               </p>
             )}
           </div>

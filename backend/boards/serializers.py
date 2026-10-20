@@ -1862,7 +1862,13 @@ class CardCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CardComment
-        fields = ["id", "author", "body", "created_at", "updated_at"]
+        fields = [
+            "id", "author", "body", "created_at", "updated_at",
+            # Additive (#1702): the source's author name on a comment created
+            # by an import (``author`` is then the importer), null otherwise.
+            "imported_from_username",
+        ]
+        read_only_fields = ["imported_from_username"]
 
 
 class CardActivitySerializer(serializers.ModelSerializer):

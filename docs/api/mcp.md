@@ -427,7 +427,7 @@ Card detail plus full audit history. Requires board membership — any role, inc
 | `movements` | array | `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by, imported_from_username}` objects — same shape as `move_card`'s `movement` above. |
 | `checklist_items` | array | `{id, text, is_checked, position}` objects. |
 | `activities` | array | `{id, event_type, from_value, to_value, actor, created_at, imported_from_username}` objects, newest first. `imported_from_username` works as on `movements`. |
-| `comments` | array | `{id, body, author, created_at, updated_at}` objects, oldest first. |
+| `comments` | array | `{id, body, author, created_at, updated_at, imported_from_username}` objects, oldest first. `imported_from_username` is `null` except on a comment created by a board import (since 1.2), where it holds the author name the source named and `author` is the user who imported it. |
 
 ### Resource errors
 

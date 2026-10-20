@@ -697,6 +697,13 @@ export interface CardComment {
   body: string;
   created_at: string;
   updated_at: string;
+  /**
+   * Set only on a comment created by an import (#1702): `author` is then the
+   * importing user and this is the author name the source named (`""` when
+   * it named nobody). `null` for a comment posted on this board. Render it
+   * through `utils/importedHistory.ts`, never as a user.
+   */
+  imported_from_username: string | null;
 }
 
 export interface GroupBrief {
