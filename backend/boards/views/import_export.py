@@ -29,7 +29,9 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError
 from rest_framework.parsers import MultiPartParser
+from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.throttling import UserRateThrottle
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiParameter, OpenApiResponse, OpenApiTypes
 
@@ -96,6 +98,30 @@ def _can_export_at_min_role(board, user, role):
     return actor_rank >= threshold_rank
 
 logger = logging.getLogger(__name__)
+
+
+class CsvExportRenderer(BaseRenderer):
+    """Registers ``csv`` with DRF's format negotiation for the board export.
+
+    DRF's ``URL_FORMAT_OVERRIDE`` (``?format=``) returns 404 for any value no
+    renderer claims, so ``?format=csv`` failed even though CSV is the export's
+    default (#1790). The export view builds its own ``HttpResponse``, so this
+    renderer never serializes anything; it only makes ``csv`` a negotiable
+    format. It is appended after the defaults so ``format=json``, ``format=api``
+    and an omitted ``format`` negotiate exactly as before.
+    """
+
+    media_type = "text/csv"
+    format = "csv"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        # Only reached for DRF-built responses (e.g. 403/404 error bodies on a
+        # csv request); fall back to the error detail as plain text.
+        if isinstance(data, dict) and "detail" in data:
+            return str(data["detail"]).encode(self.charset)
+        return b"" if data is None else str(data).encode(self.charset)
+
 
 
 class BoardImportThrottle(UserRateThrottle):
@@ -2475,7 +2501,7 @@ class BoardImportExportMixin:
         )
 
     # Schema only (#1783). The action is a file download (Content-Disposition:
-    # attachment): CSV by default, the JSON export with ?format=json. Without
+    # attachment): CSV by default (also ?format=csv), the JSON export with ?format=json. Without
     # this the schema showed the viewset's Board serializer as a JSON body.
     # The JSON variant is described by its top-level keys; the nested entries
     # are documented in docs/api/boards.md and keyed by name, not id.
@@ -2483,8 +2509,8 @@ class BoardImportExportMixin:
         parameters=[
             OpenApiParameter(
                 name="format", type=OpenApiTypes.STR, location=OpenApiParameter.QUERY,
-                required=False, enum=["json"],
-                description="`json` for the JSON export; omit for CSV (the default).",
+                required=False, enum=["csv", "json"],
+                description="`json` for the JSON export; `csv` or omitted for CSV (the default).",
             ),
         ],
         responses={
@@ -2511,7 +2537,10 @@ class BoardImportExportMixin:
             ),
         },
     )
-    @action(detail=True, methods=["get"], throttle_classes=[BoardExportThrottle])
+    @action(
+        detail=True, methods=["get"], throttle_classes=[BoardExportThrottle],
+        renderer_classes=[*api_settings.DEFAULT_RENDERER_CLASSES, CsvExportRenderer],
+    )
     def export(self, request, pk=None):
         """Export board data as CSV or JSON.
 

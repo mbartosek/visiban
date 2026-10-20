@@ -255,3 +255,49 @@ class ExportJsonSwimlanePiiTests(TestCase):
         sw = data["swimlanes"][0]
         self.assertEqual(sw["contact_email"], "secret@example.com")
         self.assertEqual(sw["notes"], "Internal notes about the customer")
+
+
+class ExportFormatNegotiation1790Tests(TestCase):
+    """``?format=csv`` must negotiate to CSV, not 404 (#1790)."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        User = get_user_model()
+        self.owner = User.objects.create_user(username="fmt1790_owner", password="x")
+        self.outsider = User.objects.create_user(username="fmt1790_out", password="x")
+        self.board = Board.objects.create(name="Fmt Board", owner=self.owner)
+        self.url = f"/api/v1/boards/{self.board.id}/export/"
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def test_format_csv_returns_csv_identical_to_default(self):
+        default = self.client.get(self.url)
+        explicit = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(explicit.status_code, 200)
+        self.assertEqual(explicit["Content-Type"], "text/csv")
+        self.assertIn("attachment", explicit["Content-Disposition"])
+        self.assertEqual(explicit.content, default.content)
+
+    def test_omitted_and_json_unchanged(self):
+        self.assertEqual(self.client.get(self.url)["Content-Type"], "text/csv")
+        r = self.client.get(self.url, {"format": "json"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/json")
+
+    def test_format_api_still_returns_csv(self):
+        # Pinned: ``api`` is the browsable-API renderer's format key; it has
+        # always fallen through to the CSV default.
+        r = self.client.get(self.url, {"format": "api"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "text/csv")
+
+    def test_unknown_format_still_404(self):
+        self.assertEqual(self.client.get(self.url, {"format": "xml"}).status_code, 404)
+
+    def test_permissions_unchanged_for_format_csv(self):
+        self.client.force_authenticate(self.outsider)
+        self.assertEqual(self.client.get(self.url, {"format": "csv"}).status_code, 404)
+        self.client.logout()
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(self.url, {"format": "csv"}).status_code, 401)

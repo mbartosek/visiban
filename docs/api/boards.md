@@ -540,13 +540,13 @@ Delete a saved filter preset. Only the owning user can delete their own filters 
 ## Export & Import
 
 ### `GET /api/v1/boards/{id}/export/`
-Export the board. Append `?format=json` for a JSON dump; omit for CSV (the default).
+Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV as omitting `format`.
 
 **Query parameters**
 
 | Parameter | Values | Default | Description |
 |---|---|---|---|
-| `format` | `json` | _(omit for CSV)_ | Response format. Omit it for CSV. `json` is the only documented value; other values such as `csv` or `xml` return `404 Not Found` from the API's format negotiation, so do not send `format=csv`. |
+| `format` | `csv`, `json` | `csv` | Response format. Omit it, or send `csv`, for CSV; send `json` for the JSON dump. Other values such as `xml` return `404 Not Found` from the API's format negotiation. `csv` is accepted since 1.2 (#1790); earlier versions returned `404` for it, so omit `format` to target older servers. |
 
 Both formats are file downloads (`Content-Disposition: attachment`): CSV as `text/csv`, JSON as `application/json`.
 
