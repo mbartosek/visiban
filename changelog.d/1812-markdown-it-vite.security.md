@@ -1,0 +1,1 @@
+Bumped `markdown-it` to 14.3.3 (GHSA-gfr2-rv44-r23c, GHSA-vfgh-jcmw-g37q) and `vite` to 7.3.7 (GHSA-587h-7wmj-h5pm and two moderate advisories), and regenerated `backend/requirements.lock` for the `certifi` floor, so `dep-scan-osv` and `backend-lock-check` pass.
