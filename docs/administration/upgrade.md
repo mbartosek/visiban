@@ -414,9 +414,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     itself, so nothing is left behind. A card deleted by a pod still on the previous release
     takes its history with it, as before the upgrade.
 
-    **During the rollout, deleting a board** from a pod still on the previous release can fail
+    **During the rollout, deleting a board** from a pod still on the previous release may fail
     with a server error when the board holds history of cards the new release already
-    hard-deleted. Retry once the rollout completes.
+    hard-deleted. Nothing is lost; retry once the rollout completes.
 
     **Rolling back past `boards/0079`** is refused while any deleted card's history exists,
     because restoring `card_id NOT NULL` would mean deleting that history. The error message

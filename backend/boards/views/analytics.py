@@ -667,9 +667,16 @@ class BoardAnalyticsMixin:
         # never missing from History, whether or not
         # backfill_card_movement_snapshots has run. (If their card is deleted
         # first, set_null_keeping_board fills the board.)
+        # The card-join branch defeats the (board, -moved_at) index's early
+        # exit (about 100x slower on a 10k-row board), so it is added only
+        # while rollout rows with no board exist; the probe is an index scan on
+        # the same index and the common, backfilled case keeps the fast plan.
+        on_board = Q(board=board)
+        if CardMovement.objects.filter(board__isnull=True, card__isnull=False).exists():
+            on_board |= Q(board__isnull=True, card__board=board)
         qs = (
             CardMovement.objects
-            .filter(Q(board=board) | Q(board__isnull=True, card__board=board))
+            .filter(on_board)
             .select_related("card", "moved_by", "from_column", "to_column", "from_swimlane", "to_swimlane")
             .order_by("-moved_at")
         )
