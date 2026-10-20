@@ -963,3 +963,61 @@ class LensBoardSchemaParametersTests(TestCase):
         names = {p["name"] for p in self._params()}
         self.assertNotIn("text", names)
         self.assertNotIn("q", names)
+
+
+class LensConnectionPutSchemaTests(TestCase):
+    """#1789: PUT /git-lens/connections/{board_id}/ declares the body it reads."""
+
+    PATH = "/api/v1/git-lens/connections/{board_id}/"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from drf_spectacular.generators import SchemaGenerator
+
+        cls.schema = SchemaGenerator().get_schema(request=None, public=True)
+
+    def _body_schema(self):
+        body = self.schema["paths"][self.PATH]["put"]["requestBody"]
+        self.assertTrue(body["required"])
+        ref = body["content"]["application/json"]["schema"]["$ref"]
+        return self.schema["components"]["schemas"][ref.rsplit("/", 1)[-1]]
+
+    def test_put_declares_required_request_body(self):
+        comp = self._body_schema()
+        # Must match what the view enforces: provider + repo_slug required,
+        # the two dimensions optional (the view defaults them).
+        self.assertEqual(set(comp["required"]), {"provider", "repo_slug"})
+        self.assertEqual(
+            set(comp["properties"]),
+            {"provider", "repo_slug", "column_dim", "swimlane_dim"},
+        )
+
+    def test_read_only_fields_not_in_request_body(self):
+        props = self._body_schema()["properties"]
+        for name in ("id", "created_by", "created_at", "updated_at"):
+            self.assertNotIn(name, props)
+
+    def test_delete_declares_no_body_and_204(self):
+        op = self.schema["paths"][self.PATH]["delete"]
+        self.assertNotIn("requestBody", op)
+        self.assertIn("204", op["responses"])
+
+    def test_documented_body_is_accepted_by_the_view(self):
+        user = _make_user("admin1789")
+        board = _make_board(user)
+        BoardMembership.objects.update_or_create(
+            board=board, user=user, defaults={"role": BoardMembership.Role.ADMIN},
+        )
+        client = APIClient()
+        client.force_authenticate(user)
+        resp = client.put(
+            f"/api/v1/git-lens/connections/{board.id}/",
+            {"provider": "github", "repo_slug": "octo/repo"}, format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # Omitting a documented-required field is rejected, as declared.
+        bad = client.put(
+            f"/api/v1/git-lens/connections/{board.id}/", {"provider": "github"}, format="json",
+        )
+        self.assertEqual(bad.status_code, status.HTTP_400_BAD_REQUEST)

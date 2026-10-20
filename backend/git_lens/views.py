@@ -447,7 +447,10 @@ class LensConnectionView(APIView):
             return Response({"detail": "No lens configured for this board."}, status=404)
         return Response(LensConnectionSerializer(conn).data)
 
-    @extend_schema(responses=LensConnectionSerializer)
+    # request= declares the body the view reads via LensConnectionSerializer
+    # (#1789): provider and repo_slug required, column_dim/swimlane_dim optional.
+    # Schema only; the view's validation is unchanged.
+    @extend_schema(request=LensConnectionSerializer, responses=LensConnectionSerializer)
     def put(self, request, board_id):
         board, role = get_board_for_user(board_id, request.user, slim=True)
         _require_board_admin(role)
