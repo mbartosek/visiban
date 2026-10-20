@@ -3092,6 +3092,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-october-2026-board_full-drift-1800" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The October 2026 board_full drift — #1800
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The October 2026 board_full drift — #1800">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-scheduled-runs-show" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the scheduled runs show
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-cause-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root cause, measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mitigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The mitigation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-1800-did-not-explain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What #1800 did not explain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#failure-notifications" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4228,13 +4289,175 @@ hand-adjusted, and all moved up: <code>board_full</code> 1430 to 1695ms, <code>c
 <code>card_timeline</code> 55 to 60ms, <code>notifications_list</code> 50 to 60ms, <code>notifications_unread</code> 40 to
 45ms. Those increases are <strong>not</strong> attributable to the fixture change: they predate #1723
 (<code>board_full</code> p95 was 981-1042ms on <code>gitlab-runner-nuc-2-visiban</code> on Oct 1-4 versus
-1172-1375ms on Oct 9-19) and are tracked in
-<a href="https://gitlab.com/visiban/visiban/-/issues/1800">#1800</a>. The new <code>board_full</code> budget leaves
+1172-1375ms on Oct 9-19). The new <code>board_full</code> budget leaves
 under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
-1430ms budget), so expect it to be tight until #1800 is resolved. The previous derivation ran
+1430ms budget). <a href="https://gitlab.com/visiban/visiban/-/issues/1800">#1800</a> partly attributed
+the <code>board_full</code> rise to the psycopg 3 migration and mitigated it with a backport. See
+<a href="#the-october-2026-board_full-drift-1800">The October 2026 <code>board_full</code> drift</a> below. The
+unattributed remainder of that step is tracked in
+<a href="https://gitlab.com/visiban/visiban/-/issues/1807">#1807</a>. The rises on <code>card_search</code>,
+<code>card_timeline</code>, <code>notifications_list</code> and <code>notifications_unread</code> are tracked in
+<a href="https://gitlab.com/visiban/visiban/-/issues/1805">#1805</a>. The previous derivation ran
 on <code>gitlab-runner-nuc-2-visiban</code>; both are NUC-class
 (<code>nuc</code>-tagged) runners, so the file was re-derived as a whole rather than patched.</p>
 </div>
+<h2 id="the-october-2026-board_full-drift-1800">The October 2026 <code>board_full</code> drift — #1800<a class="headerlink" href="#the-october-2026-board_full-drift-1800" title="Permanent link">&para;</a></h2>
+<p><strong>Verdict: a real regression, partly attributed and mitigated in code.</strong> The evidence for it
+is the local experiment below, not the CI history. Two parts:</p>
+<ul>
+<li>In a local 2x2 run, switching from psycopg2 to psycopg 3
+  (<a href="https://gitlab.com/visiban/visiban/-/issues/1252">#1252</a>, merged 2026-10-04 at 10:47 EDT)
+  added 11-12% to the <code>board_full</code> mean. The endpoint ran the same 17 queries and returned
+  byte-identical JSON.</li>
+<li>Django ticket <a href="https://code.djangoproject.com/ticket/36960">#36960</a> is the mechanism for
+  the largest identified part of that cost.</li>
+</ul>
+<p>A backport mitigates the parser part. The remainder of the driver step is not attributed and
+is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1807">#1807</a>.</p>
+<h3 id="what-the-scheduled-runs-show">What the scheduled runs show<a class="headerlink" href="#what-the-scheduled-runs-show" title="Permanent link">&para;</a></h3>
+<p>The CI history is consistent with a step after #1252 but does not establish one on its own.
+The data before Oct 5 is too noisy.</p>
+<p>There were 25 completed scheduled <code>nightly-load-test</code> jobs between 2026-09-29 and 2026-10-20,
+including 3 retried jobs on Sep 29-30 that a default job listing hides. Card count was 2388 in
+every one. The jobs ran on <code>gitlab-runner-nuc-2-visiban</code> (12), <code>Runner-03-NUC</code> (11),
+<code>gitlab-runner-dell-01-visiban</code> (1, Oct 8, before the <code>nuc</code> pin) and <code>runner-04-NUC</code> (1,
+Oct 20). This table uses <code>board_full</code> p50, which is less noisy than p95. It covers all 23
+NUC jobs from Sep 29 to Oct 19, split at the first run that included #1252 (Oct 5). It
+leaves out the dell-01 job (different hardware class) and the runner-04 job (a single run,
+after the #1723 fixture change).</p>
+<table>
+<thead>
+<tr>
+<th>Runner</th>
+<th>Before (Sep 29 to Oct 4, without #1252)</th>
+<th>After (Oct 5 to Oct 19, with #1252)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gitlab-runner-nuc-2-visiban</code></td>
+<td>6 jobs: 910-1144ms, median 980ms</td>
+<td>6 jobs: 1074-1200ms, median 1128ms</td>
+</tr>
+<tr>
+<td><code>Runner-03-NUC</code></td>
+<td>3 jobs: 944-1231ms, median 1180ms</td>
+<td>8 jobs: 1050-1326ms, median 1154ms</td>
+</tr>
+</tbody>
+</table>
+<p>Per job, before Oct 5 (job id, p50):</p>
+<ul>
+<li><code>gitlab-runner-nuc-2-visiban</code>: 16796278537 1143.7ms (Sep 29, retried, where the lighter
+  endpoints were also slow), 16796708105 959.1ms (Sep 29), 16825562214 1124.0ms (Sep 30,
+  retried), 16854145294 995.5ms, 16885874829 910.5ms, 16918108892 965.1ms (Oct 1-4).</li>
+<li><code>Runner-03-NUC</code>: 16796417688 1230.8ms (Sep 29, retried), 16826298383 1179.5ms (Sep 30),
+  16909453148 943.6ms (Oct 3).</li>
+</ul>
+<p>Four of the 9 NUC jobs before Oct 5 fall inside the "after" range, all of them on Sep 29-30.
+The other 5 (one on Sep 29 and the 4 from Oct 1-4) were 910-996ms. On <code>gitlab-runner-nuc-2-visiban</code> the medians moved
+from 980ms to 1128ms (+15%). On <code>Runner-03-NUC</code> they did not move: 1180ms before, 1154ms
+after. A reader who sets Sep 29-30 aside sees a clean step, and one who keeps it does not.
+That is why the verdict rests on the local measurement.</p>
+<p>Between the last job without #1252 (Oct 4, <code>7dee839ca</code>) and the first job with it (Oct 5,
+<code>724fbdd4b</code>), the job used the same <code>python:3.12-slim</code> image and the same job definition,
+and neither the load-test script nor <code>seed_demo_data</code> changed. Two direct dependency bumps in
+<code>backend/requirements.lock</code> account for every lock change between them:</p>
+<ul>
+<li><code>psycopg2-binary</code> 2.9.11 became <code>psycopg</code> 3.3.6 plus <code>psycopg-binary</code> 3.3.6 (#1252).</li>
+<li><code>mcp</code> 1.30.0 became 2.3.0 (#1253). Its transitive set changed with it:</li>
+<li><code>httpx</code> and <code>httpcore</code> were replaced by <code>httpx2</code> and <code>httpcore2</code>, and <code>httpx2-jsfetch</code>
+    was added.</li>
+<li><code>mcp-types</code>, <code>opentelemetry-api</code> and <code>truststore</code> were added.</li>
+<li><code>httpx-sse</code>, <code>pydantic-settings</code> and <code>python-dotenv</code> were dropped.</li>
+</ul>
+<p>The MCP SDK and its dependencies are not on the request path (<code>MCP_SERVER_ENABLED</code> is off in
+the job, so the SDK is never imported). The <code>board_full</code> serializer change in the same window (#1077) only adds schema
+<code>help_text</code>.</p>
+<p>The 2026-10-12 failure (job 17100891040, p95 1650.7ms against the then-1430ms budget) was a
+tail outlier. Its p50 was 1304ms, inside the post-Oct-5 range. The next two runs, on a commit
+with no change to the board serializer, view or requirements, measured p95 1228ms and 1155ms.</p>
+<h3 id="root-cause-measured">Root cause, measured<a class="headerlink" href="#root-cause-measured" title="Permanent link">&para;</a></h3>
+<p>Django 5.2 parses every <code>timestamptz</code> value through
+<code>django.db.backends.postgresql.psycopg_any.BaseTzLoader</code>. That class subclasses psycopg's
+<strong>pure-Python</strong> <code>TimestamptzLoader</code>, so each datetime is parsed by a regex in Python, even
+with <code>psycopg[binary]</code> installed. The C loader that package ships is never used. This is
+Django ticket <a href="https://code.djangoproject.com/ticket/36960">#36960</a>, fixed upstream only in
+Django 6.1 (commit <code>994fa77</code>). psycopg2 parsed these values in C. One <code>board_full</code> response
+on the load-test board loads about 44,000 <code>timestamptz</code> values (cards, movements and the
+other prefetched rows).</p>
+<p>The cause was measured locally on a scale-20 fixture against PostgreSQL 17. It was not
+inferred from the dates.</p>
+<ul>
+<li><strong>Same SQL, same payload.</strong> Under both drivers the endpoint runs 17 queries and returns
+  byte-identical JSON. A query-count guard cannot see this regression.</li>
+<li><strong>The driver accounts for the step.</strong> A 2x2 run crossed pre-drift code (<code>7dee839ca</code>) and
+  current code with each driver: 4 interleaved rounds of 40 requests each, <code>DEBUG=True</code> as
+  in CI. Changing the driver added about 11-12% to the mean on either code base:
+  622ms to 696ms on the old code, 630ms to 700ms on the current code. Changing the code
+  under psycopg2 added about 1% (622ms to 630ms). p95 rose more than the mean (about 667ms
+  to 839ms on the old code), which matches the ~25% p95 rise CI saw.</li>
+<li><strong>The Python timestamptz parser is the largest single identified part.</strong> A profile of 5
+  requests showed about 44,000 calls per request to <code>psycopg/types/datetime.py</code> <code>_load_iso</code>.
+  In a micro-benchmark that loads 14,014 <code>timestamptz</code> values from the fixture, the
+  per-value cost was about 1.5µs under psycopg 3 and 0.47µs under psycopg2. At 44,000
+  values that comes to about 45ms per request, out of a 74ms mean step on the old code.
+  The rest of the driver difference was not attributed to a specific cause. It is tracked in
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1807">#1807</a>.</li>
+</ul>
+<h3 id="the-mitigation">The mitigation<a class="headerlink" href="#the-mitigation" title="Permanent link">&para;</a></h3>
+<p><code>backend/visiban/db_psycopg.py</code> backports Django 6.1's change onto 5.2's <code>BaseTzLoader</code>. It
+wraps the loader psycopg registers by default (the C one with <code>psycopg[binary]</code>) and then
+re-applies the connection timezone exactly as Django did before. <code>boards.apps.BoardsConfig.ready()</code>
+applies it. Results are byte-identical to psycopg2's for the whole <code>board_full</code> response.
+With the backport in place:</p>
+<ul>
+<li>In the micro-benchmark, per-value loading drops from about 1.5µs to about 0.69µs
+  (psycopg2: 0.47µs). At 44,000 values per response that saves about 36ms per request. The
+  remaining 0.22µs per value is the Python wrapper and <code>.replace(tzinfo=...)</code>, which upstream
+  Django 6.1 keeps too.</li>
+<li>End to end, a 3-arm run on current code (psycopg2, psycopg 3, psycopg 3 with the
+  backport) was too noisy to resolve the effect well. It used 6 interleaved rounds of 30
+  requests each, <code>DEBUG=True</code>, on a development machine. The median of the per-round means
+  was 649ms, 722ms and 701ms. The median per-round saving from the backport was 35ms, against
+  a median driver step of 98ms. Several individual rounds had the opposite sign, so read this
+  only as agreeing with the micro-benchmark.</li>
+<li><code>boards/tests/test_db_psycopg.py</code> pins the backport:</li>
+<li>Values, tzinfo and errors must match Django's original <code>load</code>, captured from the
+    unpatched class, for three session TimeZones and three Django timezones. The inputs
+    include the overflow fallback, <code>infinity</code>, <code>-infinity</code> and BC values.</li>
+<li>A real query on PostgreSQL must never call the Python ISO parser. That check fails
+    without the backport.</li>
+<li>The backport turns itself off on a Django that already has the upstream fix, and on a
+    <code>BaseTzLoader</code> whose source no longer matches the reviewed fingerprint (logged as a
+    warning).</li>
+<li><strong>Delete the module once the <code>Django</code> pin reaches 6.1.</strong></li>
+</ul>
+<p>The backport removes roughly a third to a half of the driver step, not all of it. The
+unattributed remainder is tracked in
+<a href="https://gitlab.com/visiban/visiban/-/issues/1807">#1807</a>. Expect <code>board_full</code> to settle above
+its level without psycopg 3, not back at it. The committed budget
+(1695ms) was derived from a run before this fix, so it may be looser than the endpoint now
+needs. Re-derive it at the next re-derivation by following the procedure above, from a run
+that includes this fix. Never hand-edit it.</p>
+<h3 id="what-1800-did-not-explain">What #1800 did not explain<a class="headerlink" href="#what-1800-did-not-explain" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>card_search</code> (p50 about 80ms to 84-90ms over the same period, and 100.7ms on
+  <code>runner-04-NUC</code>) and <code>notifications_unread</code> show no driver effect locally: psycopg2,
+  psycopg 3 and psycopg 3 with the backport measured within noise of each other. Their
+  smaller rise is not the timestamptz loader. Locally, <code>card_search</code> was also about 14%
+  slower on current code than on <code>7dee839ca</code> with the same 8 queries. That comparison spans
+  two separately seeded databases and was not taken further here.
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1805">#1805</a> tracks these two, and also the
+  <code>card_timeline</code> and <code>notifications_list</code> rises that the #1767 re-derivation absorbed.</li>
+<li>The job installs <code>backend/requirements.txt</code>, not the hash-pinned <code>requirements.lock</code>, and
+  its <code>python:3.12-slim</code> and <code>postgres:17-alpine</code> images are floating tags. Transitive
+  dependency and base-image versions can therefore change between two runs on the same
+  commit. Those unpinned versions are not visible in the lock diff above, and this
+  investigation did not rule them out from the CI data. The local measurement reproduces a
+  step of the observed size from the driver alone. When attributing a future drift, check
+  them.</li>
+</ul>
 <h2 id="failure-notifications">Failure notifications<a class="headerlink" href="#failure-notifications" title="Permanent link">&para;</a></h2>
 <p>The scheduled run is blocking (not <code>allow_failure</code>), so a budget violation fails the pipeline.
 GitLab emails every project maintainer who has "Failed pipeline" notifications enabled
