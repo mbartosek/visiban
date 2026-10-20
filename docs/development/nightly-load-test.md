@@ -21,7 +21,7 @@ see that class of regression; this job can.
 
 | Endpoint | Path | Volume sensitivity |
 |---|---|---|
-| Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). **No budget yet** ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
+| Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
 | Card search | `GET /api/v1/cards/?search=...` | Exercises the `pg_trgm` GIN indexes added in migration `0030_card_trigram_search_indexes` |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
@@ -57,9 +57,8 @@ python manage.py seed_demo_data --force --scale 20 --with-notifications
   rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
   the `board_list` scenario, as the board owner (`demo1`, via `--owner-token-file`) so the
   20 memberships are on the measured path; every other scenario still runs as `demo2`. It has
-  **no budget** in `backend/nightly-load-test-baseline.json` until
-  [#1767](https://gitlab.com/visiban/visiban/-/issues/1767) adds one, so it is recorded in the
-  results artifact but cannot fail the job (a scenario without a baseline entry is measure-only).
+  a committed budget in `backend/nightly-load-test-baseline.json` (added by
+  [#1767](https://gitlab.com/visiban/visiban/-/issues/1767)).
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
   the 50-row cap `NotificationListView` / `NotificationUnreadCountView` apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.
@@ -93,13 +92,19 @@ CI databases like this job's only.
 python3 scripts/nightly_load_test.py \
     --base-url http://localhost:8000 \
     --token-file /tmp/visiban_load_test_token \
+    --owner-token-file /tmp/visiban_load_test_owner_token \
     --board-name "Visiban Load Test Board" \
     --budget-file backend/nightly-load-test-baseline.json \
     --iterations 40 --warmup 5 \
     --output nightly-load-test-results.json
 ```
 
-Every flag shown is also the script's default — this is what the CI job effectively runs.
+The CI job provisions two tokens: `--token-file` (`demo2`, a plain member) for every scenario,
+and `--owner-token-file` (`demo1`, the board owner) for `board_list` alone. `--owner-token-file`
+has no default and the script refuses to run without it: `board_list`'s 55ms budget was derived
+as the owner, whose access query spans all 20 memberships, so measuring it as `demo2` would
+compare a cheaper path against that budget and hide a regression. The other flags shown are the
+script's defaults.
 
 For each endpoint: 5 warmup requests (discarded), then 40 timed requests. Percentiles use
 nearest-rank (no interpolation), so every reported number was an actually-observed latency, not
@@ -115,14 +120,17 @@ file's 90-day expiry and is restricted to developers. On failure the job log pri
 Like every bespoke gate script in this repo, it ships a `--self-test` mode
 (`python scripts/nightly_load_test.py --self-test`) that proves the percentile calculation and
 budget-comparison logic still fire on a known-bad and known-good input, run in CI immediately
-before the real invocation — see [CI gate self-tests](ci-gates.md).
+before the real invocation — see [CI gate self-tests](ci-gates.md). It also fails if any scenario
+the script measures has no `budget_p95_ms` in the committed baseline, so a new scenario cannot
+silently stay measure-only. The `nightly-load-test-selftest` job runs it on merge requests that
+touch the script or the baseline.
 
 ## The schedule
 
 Configure once in GitLab: **CI/CD → Schedules → New schedule**
 
 - Target branch: `main`
-- Cron: `0 3 * * *` (daily at 03:00 UTC)
+- Cron: `0 0 * * *`, timezone `America/New_York` (daily at midnight Eastern, 04:00 UTC during daylight time and 05:00 UTC in winter; schedule 4463581)
 - Variables: `LOAD_TEST_SCHEDULE=true`
 
 The job can also be run manually at any time (advisory — `allow_failure: true` on the manual
@@ -161,7 +169,7 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
 
 !!! warning "Budgets are only valid on NUC runners"
     Budgets are absolute milliseconds, so they only hold on the hardware they were measured
-    on. The baseline (job 16796708105) ran on `gitlab-runner-nuc-2-visiban`, and the job is
+    on. The current baseline (job 17304593759, #1767) ran on `runner-04-NUC`; the one before it (job 16796708105, #1233) ran on `gitlab-runner-nuc-2-visiban`, and the job is
     pinned with `tags: [nuc]` (see [CI Runners](../maintainers/ci-runners.md)). Before the
     pin, the 2026-10-08 scheduled run landed on `gitlab-runner-dell-01-visiban` and failed
     `card_timeline`, `notifications_list` and `notifications_unread` by 1.3-1.8x with no
@@ -190,10 +198,27 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     next scheduled run (2026-09-30T03:00 UTC) failed against the *old* provisional budgets on
     `board_full`/`card_timeline`/`notifications_unread` — its measured numbers pass comfortably
     against the re-derived budgets, confirming the stale provisional file was the cause, not a new
-    regression. `board_full` is the most CPU-bound of the five endpoints (per-card DRF
+    regression. `board_full` is the most CPU-bound of the six endpoints (per-card DRF
     serialization across ~2,388 cards, #1212) and shows the widest run-to-run variance on a
     shared CI runner as a result — expect it to move more between runs than the lighter
     endpoints.
+
+!!! note "Re-derived after the 20-member fixture and `board_list` — #1767"
+    The seed fixture grew to 20 board members and the `board_list` scenario was added (#1723), so
+    the whole file was re-derived on 2026-10-20 from the first scheduled run after both landed
+    (job 17304593759, pipeline 2965970261, started about 04:08 UTC, on `runner-04-NUC`, tag `nuc`). `board_list`
+    is new and got its first budget (p95 37.2ms, budget 55ms), measured as the board owner so
+    the 20 memberships are on the path. The other budgets were recomputed from this run, not
+    hand-adjusted, and all moved up: `board_full` 1430 to 1695ms, `card_search` 120 to 155ms,
+    `card_timeline` 55 to 60ms, `notifications_list` 50 to 60ms, `notifications_unread` 40 to
+    45ms. Those increases are **not** attributable to the fixture change: they predate #1723
+    (`board_full` p95 was 981-1042ms on `gitlab-runner-nuc-2-visiban` on Oct 1-4 versus
+    1172-1375ms on Oct 9-19) and are tracked in
+    [#1800](https://gitlab.com/visiban/visiban/-/issues/1800). The new `board_full` budget leaves
+    under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
+    1430ms budget), so expect it to be tight until #1800 is resolved. The previous derivation ran
+    on `gitlab-runner-nuc-2-visiban`; both are NUC-class
+    (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
 
 ## Failure notifications
 

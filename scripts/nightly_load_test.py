@@ -13,7 +13,7 @@ show up before a customer notices it.
 Covers the endpoints boards/migrations 0030 (trigram GIN search indexes) and
 0045 (activity/comment composite indexes) exist to keep fast as data volume
 grows:
-  - board_list              GET  /api/v1/boards/                    (#1723, no budget yet: #1767)
+  - board_list              GET  /api/v1/boards/                    (#1723, budget: #1767)
   - board_full              GET  /api/v1/boards/{id}/full/
   - card_search             GET  /api/v1/cards/?search=...          (0030)
   - card_timeline           GET  /api/v1/boards/{id}/cards/{id}/timeline/  (0045)
@@ -24,6 +24,7 @@ Usage (CI — nightly-load-test job in .gitlab-ci.yml):
     python scripts/nightly_load_test.py \\
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
+        --owner-token-file /tmp/visiban_load_test_owner_token \\
         --budget-file backend/nightly-load-test-baseline.json \\
         --output nightly-load-test-results.json
 
@@ -32,14 +33,22 @@ docs/development/nightly-load-test.md):
     python scripts/nightly_load_test.py --measure-only \\
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
+        --owner-token-file /tmp/visiban_load_test_owner_token \\
         --output nightly-load-test-results.json
-    # Then hand-update backend/nightly-load-test-baseline.json's "budget_ms"
-    # values to roughly 1.3-1.5x the "p95_ms" this run measured — never a
-    # round number, and never looser than the ratio the issue specifies.
+    # Then recompute the WHOLE baseline from that artifact with the documented
+    # formula budget_p95_ms = ceil(p95_ms * 1.4 / 5) * 5 (see the "Budget
+    # derivation" section of docs/development/nightly-load-test.md) — never a
+    # round number, and take the artifact from a NUC-runner job.
+
+--owner-token-file (the board owner, demo1) is REQUIRED for a meaningful
+board_list scenario: its 55ms budget was derived as the owner, whose access
+query spans all 20 board memberships. Without it the scenario would run as the
+plain member demo2 and silently measure a cheaper path.
 """
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -89,8 +98,9 @@ def _self_test():
     """Build known-bad and known-good latency samples and prove the detection
     logic (percentile calculation + budget comparison) still fires correctly.
 
-    Touches no network, no database, no files — pure function checks, same
-    shape as check-migration-numbering.sh's synthetic-repo self-test.
+    Touches no network and no database — pure function checks, same shape as
+    check-migration-numbering.sh's synthetic-repo self-test. It reads exactly one
+    file, the committed baseline, to prove every scenario has a budget (#1767).
     """
     failures = []
 
@@ -126,11 +136,29 @@ def _self_test():
     if not _check_budget(1000, 1000):
         failures.append("boundary case failed: p95 == budget must be within budget (<=)")
 
-    # --- board_list (#1723) is measured, and a scenario with no baseline entry is
+    # --- board_list (#1723) is measured; a scenario with no baseline entry is
     # measure-only (budgets.get(name, {}).get("budget_p95_ms") is None) ---
     eps = _endpoints("http://x", 1, 2)
     if eps.get("board_list") != "http://x/api/v1/boards/":
         failures.append("board_list scenario missing from _endpoints()")
+    # Guard (#1767): every measured scenario must have a committed budget, so a
+    # new scenario cannot silently stay measure-only (it could never fail the job).
+    # Resolved from this file, not the cwd, so it works wherever the self-test runs.
+    baseline_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "backend", "nightly-load-test-baseline.json"
+    )
+    try:
+        with open(baseline_path, encoding="utf-8") as fh:
+            committed = json.load(fh).get("endpoints", {})
+    except (OSError, ValueError, AttributeError) as exc:
+        failures.append(f"could not read committed baseline {baseline_path}: {exc}")
+        committed = {}
+    if not isinstance(committed, dict) or not committed:
+        failures.append("committed baseline has no (or an empty) 'endpoints' mapping")
+        committed = {}
+    for name in eps:
+        if not isinstance(committed.get(name), dict) or committed[name].get("budget_p95_ms") is None:
+            failures.append(f"scenario {name!r} has no budget_p95_ms in nightly-load-test-baseline.json")
     # run()'s budget branch: no baseline entry => measure-only, never a violation,
     # even at an absurd p95; an entry over budget is still flagged.
     if _evaluate_budget("board_list", 10**9, {"board_full": {"budget_p95_ms": 1}}) != (None, None, None):
@@ -151,8 +179,8 @@ def _self_test():
 def _evaluate_budget(name, p95, budgets):
     """Return (budget_ms, within_budget, violation_msg) for one scenario.
 
-    A scenario with no baseline entry (e.g. ``board_list`` until #1767) is
-    measure-only: budget_ms is None and it can never produce a violation.
+    A scenario with no baseline entry is
+    measure-only (none currently; the self-test requires every scenario to have one): budget_ms is None and it can never produce a violation.
     """
     budget_ms = budgets.get(name, {}).get("budget_p95_ms")
     if budget_ms is None:
@@ -165,9 +193,9 @@ def _evaluate_budget(name, p95, budgets):
 def _endpoints(base_url, board_id, sample_card_id):
     """The measured scenarios, name -> URL.
 
-    ``board_list`` (#1723) has no entry in the baseline file until it gets a
-    budget (#1767); run() treats a scenario with no budget as
-    measure-only (recorded, never a violation), so adding it cannot fail the job.
+    ``board_list`` (#1723) is budgeted in the baseline file (#1767). run() treats
+    a scenario with no budget as measure-only (recorded, never a violation); the
+    self-test requires every scenario here to have a budget.
     """
     return {
         "board_list": f"{base_url}/api/v1/boards/",
@@ -230,6 +258,16 @@ def run(args):
             owner_session = requests.Session()
             owner_session.headers["Authorization"] = f"Token {fh.read().strip()}"
         sessions["board_list"] = owner_session
+
+    # Fail loudly rather than silently measure board_list as demo2: the committed
+    # board_list budget was derived as the owner, so a plain-member run would
+    # compare a cheaper path against it and hide a regression (#1767). Measure-only
+    # runs (re-deriving) are exempt only in that they never gate; they still need
+    # the owner path to produce a valid number, so the requirement is unconditional.
+    if "board_list" not in sessions:
+        raise RuntimeError(
+            "--owner-token-file is required: board_list must be measured as the board owner (#1767)"
+        )
 
     base_url = args.base_url.rstrip("/")
     _wait_for_url(f"{base_url}/api/health/liveness/", timeout=args.startup_timeout)
@@ -347,7 +385,7 @@ def main():
         "--self-test",
         action="store_true",
         help="Prove the percentile/budget-comparison detection logic still fires on a "
-             "known-bad and known-good input, then exit. Touches no network or files.",
+             "known-bad and known-good input, then exit. Touches no network or database; reads only the committed baseline.",
     )
     args = parser.parse_args()
 

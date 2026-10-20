@@ -21,7 +21,7 @@ committed budget file.
   perform within noise of each other (`board_full` p95 77-89ms) — no read-path latency
   regression across two major releases on this endpoint set.
 - On `main`, `board_full` p95 at the existing 2,395-card (2,388 active, 7 archived)
-  nightly-load-test fixture is **580ms**, comfortably under the 955ms committed budget and
+  nightly-load-test fixture is **580ms**, comfortably under the 955ms budget committed at the time (as of 2026-09; the budget has since been re-derived and is no longer comparable to the laptop figures on this page, because it is an absolute CI-runner figure) and
   better than the 681ms pre-regression baseline — consistent with !981 (#1212) having just
   merged into `main`.
 - `board_full` latency scales worse than linearly with card count: doubling the card count
@@ -125,7 +125,7 @@ it's the clearest reason a production deployment shouldn't run a single ASGI wor
 ## Finding the ceiling: max cards and swimlanes
 
 "Unusable" is defined here as `board_full` p95 crossing **3x its committed budget**
-(955ms × 3 = 2,865ms) — the point where a board fetch that should feel instant instead has a
+(955ms × 3 = 2,865ms, the budget at the time of measurement) — the point where a board fetch that should feel instant instead has a
 visible, multi-second stall. This was decided as the backend-only half of the question; see
 [Open follow-ups](#open-follow-ups) for why frontend render/scroll time isn't measured here.
 Single user, `board_full` only, `--scale N` escalating (10 swimlanes and ~12 cards/swimlane per
