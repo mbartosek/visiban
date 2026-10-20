@@ -24,7 +24,7 @@ see that class of regression; this job can.
 | Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
 | Card search | `GET /api/v1/cards/?search=...` | The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does **not** use the `pg_trgm` GIN indexes from migration `0030_card_trigram_search_indexes`, because `icontains` renders as `UPPER(col) LIKE`, which they cannot serve ([#1809](https://gitlab.com/visiban/visiban/-/issues/1809)). The `card_search` scenario runs as a one-board user, so it measures only the single-board plan; `card_search_multi_board` runs the same request as `demo3`, who can access 200 boards ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810); see [#1805](#the-october-2026-card_search-and-notifications_unread-drift-1805)) |
-| Card search, many boards | `GET /api/v1/cards/?search=...` as `demo3` | The same query as above for a user with 200 accessible boards, which gets PostgreSQL's scan-and-sort plan instead of the index walk. **Pending budget:** measured and recorded every night but not gated until [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns its budget (see [Pending budgets](#pending-budgets)) |
+| Card search, many boards | `GET /api/v1/cards/?search=...` as `demo3` | The same query as above for a user with 200 accessible boards, which is expected to get PostgreSQL's scan-and-sort plan instead of the index walk (not yet confirmed on this fixture; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) re-derives from the first NUC run). **Pending budget:** measured and recorded every night but not gated until [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns its budget (see [Pending budgets](#pending-budgets)) |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
 | Notifications list | `GET /api/v1/notifications/` | The highest-QPS authenticated endpoint in the product — the frontend polls it every 15-30s |
 | Notifications unread count | `GET /api/v1/notifications/unread-count/` | Same polling cadence as the list endpoint |
@@ -57,14 +57,17 @@ python manage.py seed_demo_data --force --scale 20 --extra-boards 199 --with-not
   independent correlated subqueries, and the access filter uses an `EXISTS` membership predicate
   rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
   the `board_list` scenario, as the board owner (`demo1`, via `--owner-token-file`) so the
-  20 memberships are on the measured path; every other scenario still runs as `demo2`. It has
+  20 memberships are on the measured path; `card_search_multi_board` runs as `demo3`; every other scenario still runs as `demo2`. It has
   a committed budget in `backend/nightly-load-test-baseline.json` (added by
   [#1767](https://gitlab.com/visiban/visiban/-/issues/1767)).
 - `--extra-boards 199` ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810)) adds 199
   small boards ("Visiban Load Test Extra Board 001" and on; one swimlane and 8 cards each,
   1,592 cards) owned by `demo3`. With the load-test board, `demo3` can access **200 boards**,
   the many-board side of the card query's plan switch. The boards belong to `demo3` alone, so
-  the `demo1` `board_list` scenario and every `demo2` scenario see the same data as before.
+  the `demo1` `board_list` scenario and every `demo2` scenario can see the same boards as before.
+  The `cards` table does grow by about 67% (about 3,980 cards in total), so those scenarios are
+  expected, not proven, to be unaffected; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808)
+  re-derives the whole file from the first NUC run with this fixture.
   The job's `LOAD_TEST_EXTRA_BOARDS` variable sets the count, and the script fails before
   timing anything if `demo3` can access fewer than `--min-multi-boards` boards (default 50; the CI job
   passes `LOAD_TEST_EXTRA_BOARDS + 1`, so a seed that silently shrinks fails).
@@ -117,8 +120,10 @@ python3 scripts/nightly_load_test.py \
     --output nightly-load-test-results.json
 ```
 
-The CI job provisions two tokens: `--token-file` (`demo2`, a plain member) for every scenario,
-and `--owner-token-file` (`demo1`, the board owner) for `board_list` alone. `--owner-token-file`
+The CI job provisions three tokens: `--token-file` (`demo2`, a plain member) for every scenario
+except two, `--owner-token-file` (`demo1`, the board owner) for `board_list` alone, and
+`--multi-board-token-file` (`demo3`, who can access 200 boards) for `card_search_multi_board`
+alone. `--owner-token-file`
 has no default and the script refuses to run without it: `board_list`'s 55ms budget was derived
 as the owner, whose access query spans all 20 memberships, so measuring it as `demo2` would
 compare a cheaper path against that budget and hide a regression. The other flags shown are the

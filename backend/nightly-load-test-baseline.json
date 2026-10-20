@@ -13,7 +13,7 @@
     "member_count": 20,
     "extra_board_count": 199,
     "multi_board_accessible_boards": 200,
-    "multi_board_note": "#1810: --extra-boards 199 adds 199 small boards (8 cards each, 1,592 cards) owned by demo3, so demo3 can access 200 boards with the load-test board. The extra boards belong to demo3 alone, so the demo1 board_list and demo2 scenarios are unaffected. The card_search_multi_board budget is pending (#1808); measured_at and every measured_p95_ms above predate this fixture addition."
+    "multi_board_note": "#1810: --extra-boards 199 adds 199 small boards (8 cards each, 1,592 cards) owned by demo3, so demo3 can access 200 boards with the load-test board. The extra boards belong to demo3 alone, so the demo1 board_list and demo2 scenarios see the same boards as before; the cards table grows about 67%, so their numbers are expected, not proven, to be unaffected (#1808 re-derives the whole file). The card_search_multi_board budget is pending (#1808); measured_at and every measured_p95_ms above predate this fixture addition."
   },
   "measurement_method": {
     "script": "scripts/nightly_load_test.py",
@@ -55,7 +55,7 @@
       "measured_p99_ms": null,
       "budget_p95_ms": null,
       "pending_budget": "#1808",
-      "note": "PENDING BUDGET (#1810): the same query as card_search, run as demo3, who can access 200 boards, so the card SELECT filters on a 200-id literal list and PostgreSQL scans the matching cards and sorts instead of walking card_board_updated_idx (13.5ms vs 0.65ms execution locally, #1805). Measured and recorded every night, not gated. #1808 assigns the budget in its one-pass re-derivation, from the first NUC run that includes this scenario; a budget may not be derived from a local run or hand-edited."
+      "note": "PENDING BUDGET (#1810): the same query as card_search, run as demo3, who can access 200 boards, so the card SELECT filters on a 200-id literal list. PostgreSQL is expected to scan the matching cards and sort instead of walking card_board_updated_idx (#1805 measured 13.5ms vs 0.65ms execution on the one-board fixture; this fixture layout was not EXPLAINed, so the plan is expected, not confirmed). Measured and recorded every night, not gated. #1808 assigns the budget in its one-pass re-derivation, from the first NUC run that includes this scenario; a budget may not be derived from a local run or hand-edited."
     },
     "card_timeline": {
       "method": "GET",
