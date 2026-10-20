@@ -403,6 +403,24 @@ class WsOriginWildcardHostsCheckTests(TestCase):
 
     @override_settings(
         DEBUG=False,
+        ALLOWED_HOSTS=["*", "[::1]"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_bracketed_loopback_host_beside_wildcard_still_warns(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*", ""],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_empty_host_entry_does_not_clear_it(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
         ALLOWED_HOSTS=["*", "app.example.com"],
         CORS_ALLOWED_ORIGINS=[],
         CSRF_TRUSTED_ORIGINS=[],

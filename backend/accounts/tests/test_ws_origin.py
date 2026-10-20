@@ -181,3 +181,16 @@ class WSOriginEdgeCaseTests(TransactionTestCase):
     def test_wildcard_install_with_csrf_origin_connects(self):
         ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"https://csrf.example.org")])
         self.assertTrue(ok)
+
+    @override_settings(ALLOWED_HOSTS=["[::1]"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[])
+    def test_exact_bracketed_ipv6_host_matches_ignoring_port(self):
+        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"http://[::1]:5173")])
+        self.assertTrue(ok)
+
+    def test_uppercase_origin_host_matches_exact_host(self):
+        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"HTTPS://APP.EXAMPLE.COM")])
+        self.assertTrue(ok)
+
+    @override_settings(ALLOWED_HOSTS=["", "app.example.com"])
+    def test_empty_allowed_hosts_entry_is_ignored(self):
+        self._assert_refused_without_consuming([(b"origin", b"https://other.example.org")])

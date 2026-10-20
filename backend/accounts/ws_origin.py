@@ -50,8 +50,10 @@ def _exact_allowed_hosts():
     Pattern entries are for Host-header validation; the Origin check uses
     exact hosts and explicitly listed origins.
     """
+    # urlsplit().hostname drops the brackets of an IPv6 literal, so compare
+    # against the unbracketed form of a bracketed entry such as "[::1]".
     return [
-        h
+        h[1:-1] if h.startswith("[") and h.endswith("]") else h
         for h in getattr(settings, "ALLOWED_HOSTS", None) or []
         if h and "*" not in h and not h.startswith(".")
     ]

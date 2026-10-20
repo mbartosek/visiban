@@ -346,7 +346,7 @@ def check_wildcard_allowed_hosts(app_configs, **kwargs):
     hosts = getattr(settings, "ALLOWED_HOSTS", None) or []
     if not any(h == "*" or h.startswith(".") for h in hosts):
         return []
-    loopback = {"localhost", "127.0.0.1", "::1"}
+    loopback = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
     def is_public(host):
         # An empty or wildcard host never matches a real Origin.
