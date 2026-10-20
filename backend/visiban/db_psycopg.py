@@ -11,8 +11,10 @@ datetime in every result row is parsed by a regex in Python. This happens even w
 
 When #1252 moved Visiban from psycopg2 to psycopg 3 (merged 2026-10-04),
 ``GET /boards/{id}/full/`` got about 12% slower at the mean and about 25% slower at
-p95 on the nightly load test's ~2,400-card board: the response loads ~44,000
-``timestamptz`` values. The query count and SQL did not change, so only the
+p95 on the nightly load test's ~2,400-card board. The response loads ~44,000
+``timestamptz`` values, and the Python parser accounts for part of that step. This
+backport removes about 36ms of it per request in a local measurement, roughly a
+third to a half of the step. The query count and SQL did not change, so only the
 latency job could see it. See ``docs/development/nightly-load-test.md``.
 
 Django fixed this upstream in 6.1 (commit 994fa77). The fix stops inheriting from
@@ -33,6 +35,15 @@ connection template is built (``get_adapters_template`` is ``lru_cache``-d) and
 for each cursor, so patching the base class covers both without touching Django's
 connection code.
 
+Before patching, :func:`apply` checks that ``BaseTzLoader`` is still the class this
+backport was written against: its source must hash to
+:data:`EXPECTED_BASE_TZ_LOADER_SHA256`, which is the same in Django 5.2.15 through
+5.2.17 and on ``stable/5.2.x``. ``requirements.txt`` accepts any 5.2.x from 5.2.15
+on, so a later patch release could change the class. In that case, or when the
+source cannot be read, the patch is skipped with a logged warning and Django's own
+loader stays in place. ``boards/tests/test_db_psycopg.py`` fails on that state, so
+CI flags a Django bump that changed the class.
+
 Remove this module and its call in ``boards.apps`` once the ``Django`` pin
 reaches 6.1. :func:`apply` already turns itself into a no-op on a Django whose
 ``BaseTzLoader`` no longer subclasses the Python loader, and
@@ -41,15 +52,40 @@ reaches 6.1. :func:`apply` already turns itself into a no-op on a Django whose
 
 from __future__ import annotations
 
+import hashlib
+import inspect
+import logging
+import textwrap
+
+logger = logging.getLogger(__name__)
+
 _APPLIED_ATTR = "_visiban_1800_fast_tz_loader"
+
+# sha256 of textwrap.dedent(inspect.getsource(BaseTzLoader)) for the class this
+# backport replaces: Django 5.2.15, 5.2.17 and stable/5.2.x all match.
+EXPECTED_BASE_TZ_LOADER_SHA256 = "4c1a54456d8cfdd2c0a42f3d5af6ff821e1758054ebf73e36a50e6ad0d4f1cc5"
+
+# Django's own BaseTzLoader methods, captured just before they are replaced, so
+# tests can compare the backport against the real original rather than a copy.
+ORIGINAL_METHODS: dict = {}
+
+
+def source_fingerprint(cls) -> str | None:
+    """sha256 of ``cls``'s dedented source, or None when it cannot be read."""
+    try:
+        source = inspect.getsource(cls)
+    except (OSError, TypeError):
+        return None
+    return hashlib.sha256(textwrap.dedent(source).encode("utf-8")).hexdigest()
 
 
 def apply() -> bool:
     """Patch Django's ``BaseTzLoader`` to delegate to psycopg's default loader.
 
-    Returns True if the patch is (now) in place and False if it does not apply:
-    psycopg 3 is not installed, or the running Django already has the upstream
-    fix. Safe to call more than once.
+    Returns True if the patch is (now) in place. Returns False if it does not
+    apply: psycopg 3 is not installed, the running Django already has the
+    upstream fix, or ``BaseTzLoader`` is not the class this backport was written
+    for (logged as a warning). Safe to call more than once.
     """
     try:
         from django.db.backends.postgresql import psycopg_any
@@ -68,6 +104,18 @@ def apply() -> bool:
     if not issubclass(base, PyTimestamptzLoader):
         # Django >= 6.1 already wraps the default loader; nothing to backport.
         return False
+    fingerprint = source_fingerprint(base)
+    if fingerprint != EXPECTED_BASE_TZ_LOADER_SHA256:
+        # Patching a class we have not reviewed could change datetime values, so
+        # keep Django's slower but correct loader instead.
+        logger.warning(
+            "Not applying the psycopg timestamptz loader backport (#1800): "
+            "Django's BaseTzLoader source fingerprint is %s, expected %s. "
+            "Review visiban/db_psycopg.py against the installed Django.",
+            fingerprint,
+            EXPECTED_BASE_TZ_LOADER_SHA256,
+        )
+        return False
 
     # The loader psycopg registers by default: the C class with psycopg[binary]
     # or psycopg[c], the Python class otherwise. Delegating to the Python class
@@ -83,6 +131,8 @@ def apply() -> bool:
     def load(self, data):
         return self._visiban_default_loader.load(data).replace(tzinfo=self.timezone)
 
+    ORIGINAL_METHODS["__init__"] = base.__init__
+    ORIGINAL_METHODS["load"] = base.load
     base.__init__ = __init__
     base.load = load
     setattr(base, _APPLIED_ATTR, True)

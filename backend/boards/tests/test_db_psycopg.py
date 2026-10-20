@@ -6,14 +6,18 @@ value with psycopg's pure-Python loader. After the psycopg2 to psycopg 3 move
 load-test board, with the query count and SQL unchanged. A query-count test cannot
 see that regression, so these tests pin the mechanism instead:
 
-* the patched loader returns exactly what Django's own loader returned,
+* the patched loader returns exactly what Django's own (captured, original)
+  ``load`` returns, values, tzinfo and errors alike, for every session TimeZone
+  and Django timezone combination tested,
 * with the C loader available, the Python ISO parser is never called on a real
   query, and
-* the patch steps aside on a Django that already carries the upstream fix.
+* the patch steps aside on a Django that already carries the upstream fix, and on
+  a ``BaseTzLoader`` whose source differs from the one it was written for.
 """
 
 import contextlib
 import datetime
+import zoneinfo
 from unittest import mock, skipUnless
 
 from django.db import connection
@@ -42,7 +46,44 @@ SAMPLES = [
     b"1883-11-18 12:03:58-04:56:02",
     b"0001-01-01 00:00:00+00",
     b"9999-12-31 23:59:59.999999+00",
+    # Overflow fallback: shifting to the session zone runs past datetime.max or
+    # before datetime.min, so the loader returns the value in a fixed offset.
+    b"9999-12-31 23:59:59-01",
+    b"0001-01-01 00:00:00+01",
+    # Values Python's datetime cannot represent: both loaders must raise the
+    # same DataError.
+    b"infinity",
+    b"-infinity",
+    b"2000-01-01 00:00:00+00 BC",
+    b"0044-03-15 12:00:00+00 BC",
 ]
+
+# Django's ``timezone`` for the loader: UTC under USE_TZ=True, None under
+# USE_TZ=False (tzinfo is chopped), and a named zone (a per-DATABASES TIME_ZONE).
+DJANGO_TIMEZONES = [datetime.timezone.utc, None, zoneinfo.ZoneInfo("America/New_York")]
+
+
+def _outcome(fn):
+    """Comparable result of one load call: the value or the raised error."""
+    try:
+        value = fn()
+    except Exception as exc:  # noqa: BLE001 - error parity is what is under test
+        return ("error", type(exc), str(exc))
+    return ("value", value, value.isoformat(), repr(value.tzinfo))
+
+
+def assert_matches_original(testcase, context):
+    """Compare the backport with Django's captured original ``load`` on one instance."""
+    original_load = db_psycopg.ORIGINAL_METHODS["load"]
+    for tz in DJANGO_TIMEZONES:
+        loader_cls = type("SpecificTzLoader", (psycopg_any.BaseTzLoader,), {"timezone": tz})
+        loader = loader_cls(TIMESTAMPTZ_OID, context)
+        for raw in SAMPLES:
+            with testcase.subTest(tz=tz, raw=raw):
+                testcase.assertEqual(
+                    _outcome(lambda: loader.load(raw)),
+                    _outcome(lambda: original_load(loader, raw)),
+                )
 
 
 @skipUnless(psycopg_any.is_psycopg3, "the backport only applies to psycopg 3")
@@ -63,20 +104,55 @@ class TimestamptzLoaderBackportTests(SimpleTestCase):
             # not the Python one Django 5.2 subclasses.
             self.assertIsNot(default_cls, PyTimestamptzLoader)
 
-    def test_values_match_djangos_original_loader(self):
-        # Original Django 5.2 behavior: Python parse, then replace(tzinfo=tz).
-        # Covers USE_TZ=True (UTC) and USE_TZ=False (None strips tzinfo).
-        for tz in (datetime.timezone.utc, None):
-            with self.subTest(tz=tz):
-                patched_cls = type("Patched", (psycopg_any.BaseTzLoader,), {"timezone": tz})
-                patched = patched_cls(TIMESTAMPTZ_OID, None)
-                original = PyTimestamptzLoader(TIMESTAMPTZ_OID, None)
-                for raw in SAMPLES:
-                    expected = original.load(raw).replace(tzinfo=tz)
-                    got = patched.load(raw)
-                    self.assertEqual(got, expected, raw)
-                    self.assertEqual(got.tzinfo, expected.tzinfo, raw)
-                    self.assertEqual(got.isoformat(), expected.isoformat(), raw)
+    def test_original_methods_were_captured_from_django(self):
+        # The comparison below is only meaningful against Django's real method.
+        original_load = db_psycopg.ORIGINAL_METHODS["load"]
+        self.assertEqual(original_load.__module__, psycopg_any.__name__)
+        self.assertEqual(original_load.__qualname__, "BaseTzLoader.load")
+        self.assertIs(db_psycopg.ORIGINAL_METHODS["__init__"], PyTimestamptzLoader.__init__)
+
+    def test_values_and_errors_match_djangos_original_loader_without_a_connection(self):
+        # context=None: psycopg assumes an ISO DateStyle and a UTC session.
+        assert_matches_original(self, None)
+
+    def test_installed_django_matches_the_reviewed_fingerprint(self):
+        # Fails when a Django 5.2.x release changes BaseTzLoader. apply() then
+        # skips the patch, and this module needs a fresh review.
+        self.assertEqual(
+            db_psycopg.source_fingerprint(psycopg_any.BaseTzLoader),
+            db_psycopg.EXPECTED_BASE_TZ_LOADER_SHA256,
+        )
+
+    def test_skips_and_warns_when_base_tz_loader_source_changed(self):
+        class ChangedBaseTzLoader(PyTimestamptzLoader):
+            timezone = None
+
+            def load(self, data):  # pragma: no cover - never called
+                return super().load(data)
+
+        original_load = ChangedBaseTzLoader.load
+        with mock.patch.object(psycopg_any, "BaseTzLoader", ChangedBaseTzLoader):
+            with self.assertLogs("visiban.db_psycopg", level="WARNING") as logs:
+                self.assertFalse(db_psycopg.apply())
+        self.assertIn("source fingerprint", logs.output[0])
+        self.assertIs(ChangedBaseTzLoader.load, original_load)
+        self.assertNotIn("__init__", ChangedBaseTzLoader.__dict__)
+        self.assertFalse(hasattr(ChangedBaseTzLoader, db_psycopg._APPLIED_ATTR))
+
+    def test_skips_and_warns_when_source_is_unavailable(self):
+        # e.g. an install that ships only .pyc files: no source, no patch.
+        class UnreadableBaseTzLoader(PyTimestamptzLoader):
+            timezone = None
+
+        with (
+            mock.patch.object(psycopg_any, "BaseTzLoader", UnreadableBaseTzLoader),
+            mock.patch.object(db_psycopg.inspect, "getsource", side_effect=OSError),
+            self.assertLogs("visiban.db_psycopg", level="WARNING") as logs,
+        ):
+            self.assertIsNone(db_psycopg.source_fingerprint(UnreadableBaseTzLoader))
+            self.assertFalse(db_psycopg.apply())
+        self.assertIn("fingerprint is None", logs.output[0])
+        self.assertNotIn("load", UnreadableBaseTzLoader.__dict__)
 
     def test_noop_when_django_already_has_the_upstream_fix(self):
         # Django >= 6.1 (commit 994fa77) makes BaseTzLoader an adapt.Loader that
@@ -100,6 +176,19 @@ class TimestamptzLoaderBackportTests(SimpleTestCase):
     "the timestamptz loader only runs on PostgreSQL with psycopg 3",
 )
 class TimestamptzLoaderOnRealQueriesTests(TestCase):
+    def test_values_and_errors_match_original_for_each_session_timezone(self):
+        # A real psycopg connection, configured by Django, whose session TimeZone
+        # the loaders read: UTC (USE_TZ=True), and the non-UTC zones a
+        # USE_TZ=False install or a per-DATABASES TIME_ZONE would set.
+        raw_conn = connection.get_new_connection(connection.get_connection_params())
+        try:
+            for session_tz in ("UTC", "America/New_York", "Asia/Kolkata"):
+                raw_conn.execute("SELECT set_config('TimeZone', %s, false)", [session_tz])
+                with self.subTest(session_tz=session_tz):
+                    assert_matches_original(self, raw_conn)
+        finally:
+            raw_conn.close()
+
     def test_query_results_are_aware_utc_and_skip_the_python_parser(self):
         from accounts.models import User
 
