@@ -142,13 +142,38 @@ class WSOriginEdgeCaseTests(TransactionTestCase):
         self.assertTrue(ok)
 
     @override_settings(ALLOWED_HOSTS=[".example.com"])
-    def test_leading_dot_allowed_hosts_matches_subdomains(self):
-        """Pinned: a leading-dot ALLOWED_HOSTS entry matches every subdomain."""
-        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"https://user.example.com")])
-        self.assertTrue(ok)
+    def test_leading_dot_allowed_hosts_is_not_applied(self):
+        """A leading-dot ALLOWED_HOSTS entry no longer matches an Origin host (#1697)."""
+        self._assert_refused_without_consuming([(b"origin", b"https://user.example.com")])
 
     @override_settings(ALLOWED_HOSTS=["*"])
-    def test_wildcard_allowed_hosts_matches_any_host(self):
-        """Pinned: '*' makes the host fallback match every origin host."""
-        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"https://anything.test")])
+    def test_wildcard_allowed_hosts_is_not_applied(self):
+        """'*' no longer matches an Origin host (#1697)."""
+        self._assert_refused_without_consuming([(b"origin", b"https://anything.test")])
+
+    @override_settings(
+        ALLOWED_HOSTS=["*", ".example.com", "exact.example.com"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_exact_host_still_matches_beside_patterns(self):
+        for origin in (b"http://exact.example.com", b"https://exact.example.com:8443"):
+            ok, _ = _connect_raw(self._ticket_path(), [(b"origin", origin)])
+            self.assertTrue(ok, origin)
+
+    @override_settings(
+        ALLOWED_HOSTS=["*"],
+        CORS_ALLOWED_ORIGINS=["https://boards.example.org"],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_wildcard_install_with_listed_origin_connects(self):
+        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"https://boards.example.org")])
+        self.assertTrue(ok)
+        self._assert_refused_without_consuming([(b"origin", b"https://other.example.org")])
+
+    @override_settings(
+        ALLOWED_HOSTS=["*"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=["https://csrf.example.org"]
+    )
+    def test_wildcard_install_with_csrf_origin_connects(self):
+        ok, _ = _connect_raw(self._ticket_path(), [(b"origin", b"https://csrf.example.org")])
         self.assertTrue(ok)

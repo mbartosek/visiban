@@ -12,9 +12,11 @@ have, so no new configuration is required:
 
 * ``CORS_ALLOWED_ORIGINS`` and ``CSRF_TRUSTED_ORIGINS`` (exact origins, the
   SPA's real origin in dev and prod), and
-* any origin whose host matches ``ALLOWED_HOSTS`` (the same rule Django and
-  Channels' ``AllowedHostsOriginValidator`` use). When ``ALLOWED_HOSTS``
-  contains ``*`` every host matches, so the check is effectively open.
+* any origin whose host equals an *exact* ``ALLOWED_HOSTS`` entry (scheme and
+  port are ignored). Pattern entries (``*`` and leading-dot such as
+  ``.example.com``) are not applied here; an install that uses them lists its
+  public origin in ``CORS_ALLOWED_ORIGINS`` or ``CSRF_TRUSTED_ORIGINS``
+  (#1697).
 """
 from urllib.parse import urlsplit
 
@@ -42,6 +44,20 @@ def _normalize(origin):
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
 
+def _exact_allowed_hosts():
+    """``ALLOWED_HOSTS`` without ``*`` and leading-dot pattern entries.
+
+    Those patterns are meant for Host-header validation; as an Origin allow
+    rule they would cover every host they match, so the Origin check relies on
+    exact hosts and explicitly listed origins instead.
+    """
+    return [
+        h
+        for h in getattr(settings, "ALLOWED_HOSTS", None) or []
+        if h != "*" and not h.startswith(".")
+    ]
+
+
 def origin_allowed(origin):
     """Return True when *origin* is acceptable for a WebSocket handshake."""
     parts = urlsplit(origin)
@@ -63,7 +79,7 @@ def origin_allowed(origin):
     }
     if normalized in configured:
         return True
-    return validate_host(parts.hostname, settings.ALLOWED_HOSTS)
+    return validate_host(parts.hostname, _exact_allowed_hosts())
 
 
 class OptionalOriginValidator:

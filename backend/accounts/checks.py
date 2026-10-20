@@ -325,16 +325,20 @@ def check_pending_action_extra_exempt_views_not_oss_gated(app_configs, **kwargs)
 
 @checks.register(checks.Tags.security)
 def check_wildcard_allowed_hosts(app_configs, **kwargs):
-    """Recommend exact hostnames when ALLOWED_HOSTS uses a wildcard entry (#1687).
+    """Warn when browser WebSockets would be refused for lack of a listed origin (#1697).
 
-    The WebSocket Origin check (``accounts.ws_origin``) also accepts an origin
-    whose host matches ``ALLOWED_HOSTS``, ignoring scheme and port, so a ``*``
-    or leading-dot entry makes that match as broad as the pattern. Listing
-    origins in ``CORS_ALLOWED_ORIGINS`` does not narrow that host match, so the
-    check does not look at them: the remedy is exact hostnames. Skipped when
-    ``DEBUG`` is on; CI sets an exact ``ALLOWED_HOSTS``. A Warning,
-    not an Error: the matching rule itself is unchanged in 1.2 (#1697).
+    The WebSocket Origin check (``accounts.ws_origin``) no longer applies ``*``
+    or leading-dot ``ALLOWED_HOSTS`` entries; a present Origin must equal a
+    configured origin or an exact ``ALLOWED_HOSTS`` host. An install that
+    relies on a pattern entry and lists no non-loopback origin in
+    ``CORS_ALLOWED_ORIGINS`` / ``CSRF_TRUSTED_ORIGINS`` would have every browser
+    WebSocket refused after upgrading, so this flags exactly that setup. A
+    Warning, not an Error: the rest of the app works, and failing
+    ``manage.py check`` on an existing install would turn an upgrade into an
+    outage. Skipped when ``DEBUG`` is on.
     """
+    from urllib.parse import urlsplit
+
     from django.conf import settings
 
     if settings.DEBUG:
@@ -342,12 +346,21 @@ def check_wildcard_allowed_hosts(app_configs, **kwargs):
     hosts = getattr(settings, "ALLOWED_HOSTS", None) or []
     if not any(h == "*" or h.startswith(".") for h in hosts):
         return []
+    loopback = {"localhost", "127.0.0.1", "::1"}
+    origins = [
+        *(getattr(settings, "CORS_ALLOWED_ORIGINS", None) or []),
+        *(getattr(settings, "CSRF_TRUSTED_ORIGINS", None) or []),
+    ]
+    if any((urlsplit(o).hostname or "") not in loopback for o in origins):
+        return []
     return [
         checks.Warning(
-            "ALLOWED_HOSTS contains a wildcard entry.",
+            "ALLOWED_HOSTS uses a wildcard entry and no public origin is listed, "
+            "so browser WebSocket connections will be refused.",
             hint=(
-                "Consider listing exact hostnames, which also keeps WebSocket "
-                "origin matching exact. Silence with "
+                "List your public origin (for example https://boards.example.com) "
+                "in CORS_ALLOWED_ORIGINS or CSRF_TRUSTED_ORIGINS, or list exact "
+                "hostnames in ALLOWED_HOSTS. Silence with "
                 "SILENCED_SYSTEM_CHECKS=['accounts.W002'] if intended. "
                 "See docs/api/websockets.md."
             ),
