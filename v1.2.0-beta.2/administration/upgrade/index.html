@@ -4610,18 +4610,20 @@ fast at typical sizes. <code>accounts/0036</code> is a standalone data migration
 row-locks superuser rows, which is negligible. On installs with millions of user rows, run
 <code>migrate</code> during a maintenance window.</p>
 </div>
-<div class="admonition note">
+<div class="admonition warning">
 <p class="admonition-title">Browser WebSocket connections check the Origin header</p>
 <p>A WebSocket handshake that carries an <code>Origin</code> header must match <code>CORS_ALLOWED_ORIGINS</code>,
-<code>CSRF_TRUSTED_ORIGINS</code>, or a host in <code>ALLOWED_HOSTS</code>. If your public hostname differs from
-<code>ALLOWED_HOSTS</code>, add it there (or list the origin in <code>CORS_ALLOWED_ORIGINS</code>); otherwise browser
-WebSocket connections are refused. Clients that send no <code>Origin</code> header are unaffected. See the
+<code>CSRF_TRUSTED_ORIGINS</code>, or an exact host listed in <code>ALLOWED_HOSTS</code> (scheme and port are
+ignored). <code>ALLOWED_HOSTS</code> entries of <code>*</code> or with a leading dot (such as <code>.example.com</code>) are
+not applied to this check. <strong>If your <code>ALLOWED_HOSTS</code> uses one of those entries, list your
+public origin (for example <code>https://boards.example.com</code>) in <code>CORS_ALLOWED_ORIGINS</code> or
+<code>CSRF_TRUSTED_ORIGINS</code> before upgrading; otherwise browser WebSocket connections are
+refused.</strong> Clients that send no <code>Origin</code> header are unaffected. See the
 <a href="../../api/websockets/#connecting">WebSocket API</a>.</p>
-<p>With <code>DEBUG</code> off, <code>manage.py check</code> / <code>check --deploy</code> now emits system-check warning
-<code>accounts.W002</code> when <code>ALLOWED_HOSTS</code> contains <code>*</code> or a leading-dot entry (such as
-<code>.example.com</code>). List exact hostnames instead, which also keeps WebSocket origin matching exact,
-or add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to accept the wildcard. Origin matching
-behavior is unchanged in 1.2.</p>
+<p>With <code>DEBUG</code> off, <code>manage.py check</code> / <code>check --deploy</code> emits system-check warning
+<code>accounts.W002</code> when <code>ALLOWED_HOSTS</code> contains <code>*</code> or a leading-dot entry and no public
+origin is listed in <code>CORS_ALLOWED_ORIGINS</code> or <code>CSRF_TRUSTED_ORIGINS</code>. Listing the origin
+clears it. Add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to accept the configuration.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Group owners and last admins cannot be removed or demoted</p>
