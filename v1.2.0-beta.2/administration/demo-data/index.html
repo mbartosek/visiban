@@ -4160,7 +4160,9 @@
 </code></pre></div>
 <div class="admonition info">
 <p class="admonition-title">Large fixture for load testing</p>
-<p><code>--scale N</code> (replicate the swimlane layout N times) and <code>--with-notifications</code> seed a
+<p><code>--scale N</code> (replicate the swimlane layout N times), <code>--with-notifications</code> and
+<code>--extra-boards M</code> (M small extra boards owned by <code>demo3</code>, so that user can access M+1
+boards; requires <code>--scale</code> above 1) seed a
 much larger, separately-named <strong>"Visiban Load Test Board"</strong> instead of the normal demo
 board — This is CI-only, used by the
 <code>nightly-load-test</code> job; see

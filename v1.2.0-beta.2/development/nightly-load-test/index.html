@@ -3050,6 +3050,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Running it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pending-budgets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pending budgets
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4152,7 +4169,12 @@ postmortem.</p>
 <tr>
 <td>Card search</td>
 <td><code>GET /api/v1/cards/?search=...</code></td>
-<td>The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does <strong>not</strong> use the <code>pg_trgm</code> GIN indexes from migration <code>0030_card_trigram_search_indexes</code>, because <code>icontains</code> renders as <code>UPPER(col) LIKE</code>, which they cannot serve (<a href="https://gitlab.com/visiban/visiban/-/issues/1809">#1809</a>). It runs as a one-board user, so only the single-board plan is measured (<a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a>; see <a href="#the-october-2026-card_search-and-notifications_unread-drift-1805">#1805</a>)</td>
+<td>The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does <strong>not</strong> use the <code>pg_trgm</code> GIN indexes from migration <code>0030_card_trigram_search_indexes</code>, because <code>icontains</code> renders as <code>UPPER(col) LIKE</code>, which they cannot serve (<a href="https://gitlab.com/visiban/visiban/-/issues/1809">#1809</a>). The <code>card_search</code> scenario runs as a one-board user, so it measures only the single-board plan; <code>card_search_multi_board</code> runs the same request as <code>demo3</code>, who can access 200 boards (<a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a>; see <a href="#the-october-2026-card_search-and-notifications_unread-drift-1805">#1805</a>)</td>
+</tr>
+<tr>
+<td>Card search, many boards</td>
+<td><code>GET /api/v1/cards/?search=...</code> as <code>demo3</code></td>
+<td>The same query as above for a user with 200 accessible boards, which is expected to get PostgreSQL's scan-and-sort plan instead of the index walk (not yet confirmed on this fixture; <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a> re-derives from the first NUC run). <strong>Pending budget:</strong> measured and recorded every night but not gated until <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a> assigns its budget (see <a href="#pending-budgets">Pending budgets</a>)</td>
 </tr>
 <tr>
 <td>Card timeline</td>
@@ -4179,7 +4201,7 @@ budget.</p>
 <h2 id="the-fixture">The fixture<a class="headerlink" href="#the-fixture" title="Permanent link">&para;</a></h2>
 <p>The job seeds a dedicated, larger board — never the real demo board — with:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>backend
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>seed_demo_data<span class="w"> </span>--force<span class="w"> </span>--scale<span class="w"> </span><span class="m">20</span><span class="w"> </span>--with-notifications
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>seed_demo_data<span class="w"> </span>--force<span class="w"> </span>--scale<span class="w"> </span><span class="m">20</span><span class="w"> </span>--extra-boards<span class="w"> </span><span class="m">199</span><span class="w"> </span>--with-notifications
 </code></pre></div>
 <ul>
 <li><code>--scale 20</code> replicates the demo board's 10-swimlane layout 20 times: <strong>200 swimlanes,
@@ -4195,9 +4217,22 @@ budget.</p>
   independent correlated subqueries, and the access filter uses an <code>EXISTS</code> membership predicate
   rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
   the <code>board_list</code> scenario, as the board owner (<code>demo1</code>, via <code>--owner-token-file</code>) so the
-  20 memberships are on the measured path; every other scenario still runs as <code>demo2</code>. It has
+  20 memberships are on the measured path; <code>card_search_multi_board</code> runs as <code>demo3</code>; every other scenario still runs as <code>demo2</code>. It has
   a committed budget in <code>backend/nightly-load-test-baseline.json</code> (added by
   <a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a>).</li>
+<li><code>--extra-boards 199</code> (<a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a>) adds 199
+  small boards ("Visiban Load Test Extra Board 001" and on; one swimlane and 8 cards each,
+  1,592 cards) owned by <code>demo3</code>. With the load-test board, <code>demo3</code> can access <strong>200 boards</strong>,
+  the many-board side of the card query's plan switch. The boards belong to <code>demo3</code> alone, so
+  the <code>demo1</code> <code>board_list</code> scenario and every <code>demo2</code> scenario can see the same boards as before.
+  The <code>cards</code> table does grow by about 67% (about 3,980 cards in total), so those scenarios are
+  expected, not proven, to be unaffected; <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a>
+  re-derives the whole file from the first NUC run with this fixture.
+  The job's <code>LOAD_TEST_EXTRA_BOARDS</code> variable sets the count, and the script fails before
+  timing anything if <code>demo3</code> can access fewer than <code>--min-multi-boards</code> boards (default 50; the CI job
+  passes <code>LOAD_TEST_EXTRA_BOARDS + 1</code>, so a seed that silently shrinks fails).
+  The baseline's <code>fixture</code> block records <code>extra_board_count</code> and
+  <code>multi_board_accessible_boards</code>.</li>
 <li><code>--with-notifications</code> seeds 60 unread <code>Notification</code> rows for the <code>demo2</code> user — more than
   the 50-row cap <code>NotificationListView</code> / <code>NotificationUnreadCountView</code> apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.</li>
@@ -4221,18 +4256,26 @@ password, and a password change revokes every token. The flag gives <code>demo2<
 that is never recorded, so the password-change routes require a current password and no request
 can revoke the job's token mid-run. The flag is off by default, and the command is for throwaway
 CI databases like this job's only.</p>
+<p>The job provisions a third token for <code>demo3</code> (<code>VISIBAN_LOAD_TEST_MULTI_BOARD_TOKEN_FILE</code>) the
+same way, used by <code>card_search_multi_board</code> alone. <code>--multi-board-token-file</code> has no default and
+the script refuses to run without it, for the same reason as <code>--owner-token-file</code>: measured as
+<code>demo2</code>, the scenario would time the one-board plan again and report a number that says
+nothing about the many-board plan.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python3<span class="w"> </span>scripts/nightly_load_test.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span>--base-url<span class="w"> </span>http://localhost:8000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span>--token-file<span class="w"> </span>/tmp/visiban_load_test_token<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span>--owner-token-file<span class="w"> </span>/tmp/visiban_load_test_owner_token<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span>--board-name<span class="w"> </span><span class="s2">"Visiban Load Test Board"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span>--budget-file<span class="w"> </span>backend/nightly-load-test-baseline.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span>--iterations<span class="w"> </span><span class="m">40</span><span class="w"> </span>--warmup<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span>--output<span class="w"> </span>nightly-load-test-results.json
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span>--multi-board-token-file<span class="w"> </span>/tmp/visiban_load_test_multi_board_token<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span>--board-name<span class="w"> </span><span class="s2">"Visiban Load Test Board"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span>--budget-file<span class="w"> </span>backend/nightly-load-test-baseline.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span>--iterations<span class="w"> </span><span class="m">40</span><span class="w"> </span>--warmup<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span>--output<span class="w"> </span>nightly-load-test-results.json
 </code></pre></div>
-<p>The CI job provisions two tokens: <code>--token-file</code> (<code>demo2</code>, a plain member) for every scenario,
-and <code>--owner-token-file</code> (<code>demo1</code>, the board owner) for <code>board_list</code> alone. <code>--owner-token-file</code>
+<p>The CI job provisions three tokens: <code>--token-file</code> (<code>demo2</code>, a plain member) for every scenario
+except two, <code>--owner-token-file</code> (<code>demo1</code>, the board owner) for <code>board_list</code> alone, and
+<code>--multi-board-token-file</code> (<code>demo3</code>, who can access 200 boards) for <code>card_search_multi_board</code>
+alone. <code>--owner-token-file</code>
 has no default and the script refuses to run without it: <code>board_list</code>'s 55ms budget was derived
 as the owner, whose access query spans all 20 memberships, so measuring it as <code>demo2</code> would
 compare a cheaper path against that budget and hide a regression. The other flags shown are the
@@ -4251,8 +4294,28 @@ file's 90-day expiry and is restricted to developers. On failure the job log pri
 budget-comparison logic still fire on a known-bad and known-good input, run in CI immediately
 before the real invocation — see <a href="../ci-gates/">CI gate self-tests</a>. It also fails if any scenario
 the script measures has no <code>budget_p95_ms</code> in the committed baseline, so a new scenario cannot
-silently stay measure-only. The <code>nightly-load-test-selftest</code> job runs it on merge requests that
-touch the script or the baseline.</p>
+silently stay measure-only, unless the entry carries an explicit pending budget (below). The
+<code>nightly-load-test-selftest</code> job runs it on merge requests that touch the script or the baseline.</p>
+<h3 id="pending-budgets">Pending budgets<a class="headerlink" href="#pending-budgets" title="Permanent link">&para;</a></h3>
+<p>A budget may only come from a NUC run, so a new scenario can land before its budget can.
+For that case a baseline entry may set <code>"budget_p95_ms": null</code> together with
+<code>"pending_budget": "#NNNN"</code>, the issue that will assign the budget. The script then:</p>
+<ul>
+<li>measures the scenario and records it in the results artifact, with <code>budget_pending</code> in its
+  entry, so the NUC run needed to derive the budget produces its number;</li>
+<li>prints <code>PENDING BUDGET: &lt;name&gt; is measured but NOT gated until #NNNN assigns its budget.</code>
+  next to the scenario, a <code>WARNING: PENDING BUDGET</code> line on stderr at the end, and says
+  "(N pending, NOT gated: ...)" in its final line, every run;</li>
+<li>never fails the job on it.</li>
+</ul>
+<p>It is not a silent default: the self-test fails a scenario whose budget is null without a valid
+<code>#NNNN</code> reference, or with no baseline entry at all, and asserts that a pending scenario can
+never produce a violation. When the issue assigns the budget, replace <code>budget_p95_ms</code> and delete
+<code>pending_budget</code> in the same whole-file re-derivation. Currently pending:
+<code>card_search_multi_board</code> (<a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a> added the
+scenario; <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a> assigns the budget).
+Nothing yet fails if the cited issue closes while the entry is still pending; that check is
+tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1812">#1812</a>.</p>
 <h2 id="the-schedule">The schedule<a class="headerlink" href="#the-schedule" title="Permanent link">&para;</a></h2>
 <p>Configure once in GitLab: <strong>CI/CD → Schedules → New schedule</strong></p>
 <ul>
@@ -4308,7 +4371,8 @@ changes.</p>
 <li>For each endpoint, recompute <code>budget_p95_ms</code> from that run's <code>p95_ms</code> using the formula
    above.</li>
 <li>Update <code>backend/nightly-load-test-baseline.json</code>'s <code>measured_p95_ms</code>, <code>measured_p99_ms</code>, and
-   <code>budget_p95_ms</code> fields, its top-level <code>measured_at</code>, and its <code>fixture</code> block if the fixture
+   <code>budget_p95_ms</code> fields (and, for an entry with a <code>pending_budget</code> key, delete that key once
+   its budget is set), its top-level <code>measured_at</code>, and its <code>fixture</code> block if the fixture
    size changed. Recompute the whole file in one pass — never hand-adjust a single
    <code>budget_p95_ms</code> without also updating the <code>measured_p95_ms</code> it supposedly came from.</li>
 <li>Flip <code>status</code> from <code>"provisional"</code> to <code>"ci-derived"</code> the first time this is done from a real
@@ -4693,9 +4757,17 @@ not have caught it.</p>
 <li><strong>It measures only the single-board plan.</strong> The scenario runs as <code>demo2</code>, who can access
   one board, so after the fix it times the single-board index walk on
   <code>card_board_updated_idx</code>. The plan most multi-board users get (scan and sort, 13.5ms
-  execution at 200 ids in the table above) is not measured nightly. A budget derived from
-  this scenario cannot see a regression on that path. Adding a multi-board scenario is
-  tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a>.</li>
+  execution at 200 ids in the table above) is not measured by this scenario. A budget derived
+  from it cannot see a regression on that path.</li>
+<li><strong><code>card_search_multi_board</code> measures the many-board plan.</strong>
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a> added it: the same request as
+  <code>card_search</code>, run as <code>demo3</code>, who owns 199 small extra boards (<code>--extra-boards 199</code>) and is a
+  member of the load-test board, so the card SELECT filters on a 200-id literal list. Its
+  budget is <strong>pending</strong>: it is measured and recorded nightly but not gated, because no NUC run
+  of this code exists yet and a budget may not come from a local run.
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a> assigns it in its one-pass
+  re-derivation of the whole baseline from the first NUC run that includes it. Do not
+  hand-edit it.</li>
 <li><strong>It never exercised the trigram indexes.</strong> Django's <code>icontains</code> renders as
   <code>UPPER(col) LIKE UPPER('%term%')</code>. The <code>card_title_trgm_idx</code> and <code>card_desc_trgm_idx</code>
   indexes from migration 0030 are on the bare columns, so PostgreSQL cannot use them for
