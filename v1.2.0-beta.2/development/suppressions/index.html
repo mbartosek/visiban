@@ -4029,6 +4029,17 @@ naming file, line, and issue — if any cited issue is already closed, or if the
 return it at all</strong> (it doesn't exist, or it's confidential and not visible to the token or
 anonymous request used). An open issue passes silently. A plain <code>-- reason</code> suppression with no
 marker is never touched.</p>
+<p>The same job also scans <code>backend/nightly-load-test-baseline.json</code> for pending budgets (#1812).
+An <code>endpoints</code> entry with <code>"budget_p95_ms": null</code> and <code>"pending_budget": "#NNNN"</code> is measured
+nightly but not gated (see <a href="../nightly-load-test/#pending-budgets">Pending budgets</a>), which makes
+it a temporary exemption exactly like a <code>SUPPRESSED-UNTIL</code> marker. The check applies the same
+rules: it fails, naming the endpoint and the issue, when the cited issue is closed or not
+returned by the tracker, and fails open on an inconclusive lookup. The marker shape matches
+<code>_pending_budget()</code> in <code>scripts/nightly_load_test.py</code>: an entry whose budget is not null is gated
+normally, so a leftover <code>pending_budget</code> on it is ignored, and so is a value that is not <code>#NNNN</code>
+(the load-test self-test rejects that case). A missing or unparseable baseline file fails the
+check instead of reporting a clean scan. When it fires, assign the budget and delete
+<code>pending_budget</code> in the whole-file NUC re-derivation, or re-point it at a new tracked issue.</p>
 <p>This job runs on <strong>merge requests, <code>main</code>, and scheduled pipelines</strong> — deliberately not
 MR-only. The triggering event is "an issue closed," not "a commit landed": the commit that
 added the marker may have merged long before the cited issue closes, so a job that only ran on
@@ -4069,7 +4080,8 @@ never-send-<code>JOB-TOKEN</code> guarantee, and the 401-falls-back-to-anonymous
 <code>curl</code> on <code>PATH</code>, with no network access.</p>
 <h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
 <p>The marker convention and this check apply to <code>frontend/src</code> (eslint-disable) and <code>backend/</code>
-(pytest <code>skip</code>/<code>skipif</code>/<code>xfail</code>). Coverage <code>omit</code> entries in <code>backend/.coveragerc</code> are plain
+(pytest <code>skip</code>/<code>skipif</code>/<code>xfail</code>), plus the <code>pending_budget</code> entries in
+<code>backend/nightly-load-test-baseline.json</code> described above. Coverage <code>omit</code> entries in <code>backend/.coveragerc</code> are plain
 path globs — <code>configparser</code> (the INI format <code>.coveragerc</code> uses) has no syntax for an inline
 trailing comment on a list item, only a full-line <code>#</code> comment above it, so <code>SUPPRESSED-UNTIL(#N)</code>
 doesn't read naturally there and <code>check-suppression-issues.sh</code> does not scan this file today. A

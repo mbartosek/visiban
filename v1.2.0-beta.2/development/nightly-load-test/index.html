@@ -4325,8 +4325,9 @@ never produce a violation. When the issue assigns the budget, replace <code>budg
 <code>pending_budget</code> in the same whole-file re-derivation. Currently pending:
 <code>card_search_multi_board</code> (<a href="https://gitlab.com/visiban/visiban/-/issues/1810">#1810</a> added the
 scenario; <a href="https://gitlab.com/visiban/visiban/-/issues/1808">#1808</a> assigns the budget).
-Nothing yet fails if the cited issue closes while the entry is still pending; that check is
-tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1812">#1812</a>.</p>
+The <code>suppressions-check</code> CI job fails, naming the entry and the issue, if the cited issue
+closes while the entry is still pending (<a href="https://gitlab.com/visiban/visiban/-/issues/1812">#1812</a>;
+see <a href="../suppressions/#what-ci-enforces">Suppression markers</a>).</p>
 <h2 id="the-schedule">The schedule<a class="headerlink" href="#the-schedule" title="Permanent link">&para;</a></h2>
 <p>Configure once in GitLab: <strong>CI/CD → Schedules → New schedule</strong></p>
 <ul>
