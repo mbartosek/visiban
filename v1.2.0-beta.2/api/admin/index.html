@@ -4436,7 +4436,7 @@ and an audit log an admin can edit is not evidence of anything.</p>
 </tr>
 <tr>
 <td><code>user.password_set</code></td>
-<td><code>{"target_id": 42, "target_username": "jordan"}</code> (password set on an existing account, or a user added with a password, in the Django admin)</td>
+<td><code>{"target_id": 42, "target_username": "jordan"}</code> (password set on an existing account, or a user added with a password, in the Django admin; also written with <code>source</code> <code>cli</code> and no actor by <code>ensure_site_admin</code>, <code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>)</td>
 </tr>
 <tr>
 <td><code>user.password_disabled</code></td>
@@ -4462,10 +4462,16 @@ when an administrator saves another account's <strong>Password</strong> form in 
 administrator adds a user with a password there; no entry is written for a user added with
 password sign-in disabled. <code>metadata</code> names the account concerned; the password and its hash
 are never stored. Changing your own password is not recorded.</p>
+<p>The <code>ensure_site_admin</code>, <code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>
+management commands also record <code>user.password_set</code>, with <code>source</code> <code>cli</code> and no actor (<code>actor_id</code> is
+null). The entry is written in the same transaction as the password, so the password is
+only changed when the entry is saved. The demo seed (<code>seed_demo_data --demo-site</code>)
+writes no entries: it runs only with <code>DEMO_MODE=true</code>, and the demo's hourly reset empties
+the log.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">What this log does <em>not</em> record yet</p>
-<p>The instance-wide settings and per-account password events above are covered. Granting or
+<p>The instance-wide settings and the password events listed above are covered. Granting or
 revoking site admin, changing <code>can_access_all_content</code>, deactivating a user, and creating or
 revoking invite links are <strong>not</strong> recorded — so this is not yet a complete record of
 privileged activity.
@@ -4480,8 +4486,9 @@ it exists for. Operators with data-erasure obligations should account for this t
 </div>
 <div class="admonition note">
 <p class="admonition-title">Direct database writes are not captured</p>
-<p>Rows are written by the admin API, the <code>maintenance_mode</code> management command, and the
-Django admin. A change made straight through the ORM (<code>manage.py shell</code>) has no actor to
+<p>Rows are written by the admin API, the <code>maintenance_mode</code> management command, the
+password management commands (<code>ensure_site_admin</code>, <code>changepassword</code>,
+<code>provision_fuzz_token</code>), and the Django admin. A change made straight through the ORM (<code>manage.py shell</code>) has no actor to
 record and leaves no row, so an empty log means "no audited path made this change" — not
 "nothing happened".</p>
 </div>
