@@ -4686,6 +4686,9 @@ a regression (#1715: <code>mcp</code> 1.x installed against the <code>mcp==2.3.0
 <code>&lt;package&gt;: requires X, installed Y</code>. Fix with
 <code>backend/.venv/bin/pip install -r backend/requirements.txt</code>. The check is covered by
 <code>scripts/tests/wt-doctor-drift.test.sh</code>.</p>
+<p>Every <code>glab</code>/<code>gh</code> call in <code>scripts/wt</code> is bounded by <code>WT_FORGE_TIMEOUT</code> (a positive integer, default 20
+seconds). A stalled call degrades to a warning instead of hanging, and <code>scripts/wt release &lt;issue&gt;</code> clears a
+lock left behind. <code>scripts/tests/wt-forge-timeout.test.sh</code> covers this.</p>
 <h2 id="git-hooks">Git hooks<a class="headerlink" href="#git-hooks" title="Permanent link">&para;</a></h2>
 <p><code>scripts/wt</code> (see its <code>--help</code>) applies a <code>status::wip</code> GitLab label when you create a
 worktree with <code>wt new</code>/<code>wt claim</code>, so a parallel agent or teammate doesn't grab the same
