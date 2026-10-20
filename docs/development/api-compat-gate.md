@@ -202,9 +202,7 @@ behind; after deleting, it must print nothing:
 python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"
 ```
 
-A temporary entry left behind fails the roll MR loudly. Then prune the six ids in
-`backend/schemathesis-baseline.json` per #1791, only after both an MR-style fuzz run and the
-deep nightly list each entry as unobserved (#1582). Finally, in this file, delete every sentence
+A temporary entry left behind fails the roll MR loudly. Then, in this file, delete every sentence
 or paragraph that describes temporary entries or counts exceptions to the "never added" rule
 (including any added for #1789 or #1792), keeping the existing "never added" sentence as is, and
 revise the prose that describes the v1.1.0 baseline drift and allow-list burn-down (the
