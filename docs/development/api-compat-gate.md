@@ -124,7 +124,7 @@ the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, a
   `NEW_REQUIRED_REQUEST_FIELD ... .old_password` entries under `#1257`, the deliberate security
   break.
 
-These entries stay in the file because the drift lives in the frozen baseline itself: deleting
+Until the baseline is rolled at the next GA, these entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
@@ -182,23 +182,30 @@ git worktree remove /tmp/visiban-$TAG
 Then, as a manual step on the
 release checklist, point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`
 (lines 52-53) at the new
-directory, clear the allow-list entries the new baseline no longer needs, and delete the old
-baseline directory.
+directory, delete every allow-list entry the new baseline no longer needs, and delete the old
+baseline directory. `--normalize` strips prose, examples, and `x-` extensions so the fixture
+stays small and docs edits never read as contract changes.
 
-The temporary entries must go in the same roll. Every temporary entry has a `reason` that
-starts with `temporary:` and cites #1783, #1788, #1789 or #1792; the other entries (#1080,
-#1257, #1302, #1695) are permanent and stay. This lists what is left to delete, and it must
-print nothing before the roll MR merges:
+Every allow-list entry is a diff against the v1.1.0 baseline. Once the baseline is the v1.2.0
+schema and HEAD matches it, none of those findings fire, so all entries go stale, and a stale
+entry fails the job. After regenerating, run `python3 scripts/check-api-compat.py`, delete every
+entry it reports as stale (expected: the whole list, leaving `{"allow": []}`), and re-run until
+it prints OK with no stale entries. As a safety net for the temporary entries (those whose
+`reason` starts with `temporary:`, citing #1783, #1788, #1789 or #1792), this lists any left
+behind; after deleting, it must print nothing:
 
 ```bash
 python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"
 ```
 
-A temporary entry left behind is stale against the new baseline, so `api-compat-check` fails
-the roll MR loudly. Then prune the six ids in `backend/schemathesis-baseline.json` per #1791,
-only after the nightly deep run lists them unobserved, and remove the "temporary" paragraphs
-above. `--normalize` strips prose, examples, and `x-` extensions so the fixture
-stays small and docs edits never read as contract changes.
+A temporary entry left behind fails the roll MR loudly. Then prune the six ids in
+`backend/schemathesis-baseline.json` per #1791, only after the nightly deep run lists them
+unobserved. Finally remove every paragraph describing temporary entries (the #1788 and #1783
+ones, and any #1789 or #1792 adds), the sentence "The temporary `#1788` and `#1783` entries
+described below..." in the frozen-snapshot section, and the exception sentences "The exceptions
+are the #1781 replacement above and the temporary #1788 entries below." and "The temporary
+#1783 entries below are a third exception." Restore the rule to read: entries are only ever
+deleted or re-justified, never added.
 
 ## Not covered
 

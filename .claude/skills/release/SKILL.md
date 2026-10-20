@@ -99,21 +99,25 @@ Before running the script:
       `scripts/compat-baseline/<tag>/` and repoint `BASELINE_SCHEMA` / `BASELINE_ENV` in
       `scripts/check-api-compat.py`, per `docs/development/api-compat-gate.md`, so the next
       cycle's `api-compat-check` diffs against this release.
-- [ ] **Delete the temporary API allow-list entries (GA tags only).** They exist only because
-      the v1.1.0 baseline holds drifted schemas; against the freshly rolled baseline they are
-      stale and fail `api-compat-check`. List the leftovers, delete them from
-      `scripts/compat-baseline/allowlist.json`, then re-run `python3 scripts/check-api-compat.py`
-      and confirm no stale entries and no live findings:
+- [ ] **Clear the API allow-list (GA tags only).** Every entry is a diff against the v1.1.0
+      baseline, so against the freshly rolled baseline all of them go stale and fail
+      `api-compat-check`. Run `python3 scripts/check-api-compat.py`, delete every entry it
+      reports as stale from `scripts/compat-baseline/allowlist.json` (expected: the whole list,
+      leaving `{"allow": []}`), and re-run until it prints OK with no stale entries. Safety net
+      for the temporary entries (reason starts with `temporary:`; issues #1783, #1788, #1789,
+      #1792); after deleting, it must print nothing:
       `python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"`
-      Expected after deletion: no output. The set is every entry citing #1783, #1788, #1789 or
-      #1792 (also every entry whose `reason` starts with `temporary:`); do not hardcode counts.
-- [ ] **Prune the six fuzz-baseline ids (GA tags only).** Remove `0420cf`, `c32635`, `d2f3d8`,
-      `3c0458`, `72c48f` and `a9fe64` from `backend/schemathesis-baseline.json` per #1791 (the
-      issue text names five; `d2f3d8`, `GET boards/{id}/export/`, is the sixth), only after the
-      nightly deep run lists each one as unobserved (#1582 rule, `docs/api/openapi.md`).
-- [ ] **Remove the temporary-entry prose (GA tags only).** Delete the matching "temporary
-      entries" paragraphs from `docs/development/api-compat-gate.md` and restore the "never
-      added" rule's wording there.
+- [ ] **Prune the six fuzz-baseline ids (GA tags only).** Remove them from
+      `backend/schemathesis-baseline.json` per #1791 (its body names four; its comment adds
+      `72c48f` and `a9fe64`), only after the nightly deep run lists each as unobserved (#1582
+      rule, `docs/api/openapi.md`): `0420cf` DELETE boards/{id}/star, `c32635` analytics,
+      `d2f3d8` export, `3c0458` summary, `72c48f` resend-email, `a9fe64` ws-ticket.
+- [ ] **Remove the temporary-entry prose (GA tags only).** In
+      `docs/development/api-compat-gate.md` delete every paragraph describing temporary
+      entries (#1788, #1783, and any #1789/#1792 adds), the sentence beginning "The temporary
+      `#1788` and `#1783` entries described below", and the two sentences beginning "The
+      exceptions are the #1781 replacement" and "The temporary #1783 entries below"; restore
+      the rule to "entries are only ever deleted or re-justified, never added".
 
 ## Step 1b — Documentation audit
 
