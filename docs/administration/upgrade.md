@@ -406,7 +406,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     record a move after `0080` has run, and that move does not appear in the board's History
     view until it is backfilled. Once the rollout completes, run
     `python manage.py backfill_card_movement_snapshots` once. It is idempotent. Single-instance
-    Docker Compose installs stop the old release before migrating and do not need it.
+    Docker Compose installs stop the old release before migrating and do not need it. If such a
+    card is hard-deleted before the command runs, that move's record has neither a card nor a
+    board: it stays hidden from History and is not removed when the board is deleted.
 
     **Rolling back past `boards/0079`** is refused while any deleted card's history exists,
     because restoring `card_id NOT NULL` would mean deleting that history. The error message

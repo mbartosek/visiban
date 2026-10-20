@@ -334,6 +334,45 @@ class CardMovementAdminTests(_BoardFixture):
         self.assertEqual(CardMovement.objects.count(), 0)
 
 
+@_PLAIN_STATIC
+class UserAdminDeleteWithHistoryTests(_BoardFixture):
+    """User deletion in the admin is unaffected by the read-only movement admin.
+
+    A user's own movements are only SET_NULL (``moved_by``), never collected
+    for deletion; a board owner is refused before the confirmation page by
+    the owned-boards guard (#1616), exactly as before #1469.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.root = User.objects.create_superuser(
+            username="root1469u", email="root1469u@example.com", password=PW,
+        )
+        self.admin_client = Client()
+        self.admin_client.force_login(self.root)
+
+    def test_deleting_a_user_who_moved_cards_keeps_the_movements(self):
+        mover = User.objects.create_user(username="mover1469", password=PW)
+        mv = CardMovement.objects.create(card=self._card(), to_column=self.col_done, moved_by=mover)
+        url = reverse("admin:accounts_user_delete", args=[mover.pk])
+        confirm = self.admin_client.get(url)
+        self.assertEqual(confirm.status_code, 200)
+        self.assertFalse(confirm.context["perms_lacking"])
+        self.assertEqual(self.admin_client.post(url, {"post": "yes"}).status_code, 302)
+        self.assertFalse(User.objects.filter(pk=mover.pk).exists())
+        mv.refresh_from_db()
+        self.assertIsNone(mv.moved_by_id)
+
+    def test_board_owner_is_still_refused_by_the_owner_guard(self):
+        CardMovement.objects.create(card=self._card(), to_column=self.col_done)
+        url = reverse("admin:accounts_user_delete", args=[self.owner.pk])
+        resp = self.admin_client.post(url, {"post": "yes"}, follow=True)
+        self.assertTrue(User.objects.filter(pk=self.owner.pk).exists())
+        text = " ".join(str(m) for m in resp.context["messages"])
+        self.assertIn("board", text.lower())
+        self.assertNotIn("card movement", text.lower())
+
+
 class BackfillTests(_BoardFixture):
     """Migration 0080's function, run against the live registry (same models)."""
 
