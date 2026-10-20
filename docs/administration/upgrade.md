@@ -404,14 +404,19 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     (`0081`). None of them takes a long table lock. The backfill takes time proportional to
     the size of `card_movements`.
 
-    **Multi-replica deployments that roll pods:** a pod still on the previous release can
-    record a move after `0080` has run, and that move does not appear in the board's History
-    view until it is backfilled. Once the rollout completes, run
-    `python manage.py backfill_card_movement_snapshots` once. It is idempotent. Single-instance
-    Docker Compose installs stop the old release before migrating and do not need it. If such a
-    card is hard-deleted by the new release before the command runs, the delete fills in the
-    record itself, so nothing is left behind. A card deleted by a pod still on the previous
-    release takes its history with it, as before the upgrade.
+    **Installs that migrate while the old release is still serving:** this covers the
+    documented Docker Compose steps and Helm (the new pod migrates in its init container while
+    the old pod serves), not only multi-replica setups. The old release can record a move after
+    `0080` has run. That move still appears in the board's History view, but it has no stored
+    board or card snapshot yet. Once the rollout completes, run
+    `python manage.py backfill_card_movement_snapshots` once. It is idempotent. If such a card
+    is hard-deleted by the new release before the command runs, the delete fills in the record
+    itself, so nothing is left behind. A card deleted by a pod still on the previous release
+    takes its history with it, as before the upgrade.
+
+    **During the rollout, deleting a board** from a pod still on the previous release can fail
+    with a server error when the board holds history of cards the new release already
+    hard-deleted. Retry once the rollout completes.
 
     **Rolling back past `boards/0079`** is refused while any deleted card's history exists,
     because restoring `card_id NOT NULL` would mean deleting that history. The error message

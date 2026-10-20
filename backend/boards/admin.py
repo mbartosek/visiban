@@ -332,6 +332,11 @@ class CardAdmin(admin.ModelAdmin):
                 CardMovement.objects.filter(card=obj).exclude(board_id=obj.board_id).update(
                     board_id=obj.board_id,
                 )
+                # A row an older release wrote mid-rollout has empty snapshots
+                # and the repair paths only look at rows with no board, so fill
+                # them here too or they stay empty once the card is deleted.
+                CardMovement.objects.filter(card=obj, card_uid="").update(card_uid=obj.uid)
+                CardMovement.objects.filter(card=obj, card_title="").update(card_title=obj.title)
         board = obj.board
         event = _broadcast.EVT_CARD_UPDATED if change else _broadcast.EVT_CARD_CREATED
         card_data = _refetched_card_data_or_none(obj, request, board)

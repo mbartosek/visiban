@@ -20,6 +20,7 @@ from django.core.cache import cache
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Permission
 from django.core.management import call_command
+from django.db import connection
 from django.http import HttpResponse
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -407,6 +408,92 @@ class AdminCardMoveBetweenBoardsTests(_BoardFixture):
         # Deleting the old board leaves the live card's history alone.
         self.assertEqual(self.client.delete(f"/api/v1/boards/{self.board.pk}/").status_code, 204)
         self.assertEqual(CardMovement.objects.filter(card=card, board=b2).count(), 1)
+
+
+class RollingUpgradeRowInHistoryTests(_BoardFixture):
+    """A row an old pod wrote after 0080 (no board, empty snapshot) is not lost."""
+
+    def _late_row(self, card):
+        mv = CardMovement.objects.create(card=card, to_column=self.col_done)
+        CardMovement.objects.filter(pk=mv.pk).update(board=None, card_uid="", card_title="")
+        return mv
+
+    def test_history_lists_the_row_before_any_backfill_runs(self):
+        card = self._card("Late")
+        mv = self._late_row(card)
+        data = self._history()
+        self.assertEqual([r["id"] for r in data["results"]], [mv.pk])
+        self.assertEqual(data["results"][0]["card_uid"], card.uid)
+        self.assertEqual(data["results"][0]["card_title"], "Late")
+
+    def test_history_does_not_list_another_boards_unbackfilled_row(self):
+        other = Board.objects.create(name="Other", owner=self.owner)
+        BoardMembership.objects.create(board=other, user=self.owner, role="admin")
+        col = Column.objects.create(board=other, name="C", position=0)
+        swim = Swimlane.objects.create(board=other, name="S", position=0)
+        foreign = Card.objects.create(
+            board=other, column=col, swimlane=swim, title="Foreign",
+            created_by=self.owner, position=0,
+        )
+        self._late_row(foreign)
+        self.assertEqual(self._history()["count"], 0)
+
+    def test_admin_save_fills_the_snapshot_of_such_a_row(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+
+        from boards.admin import CardAdmin
+        from boards.tests.test_admin_broadcast import _DummyForm
+
+        card = self._card("Repointed")
+        mv = self._late_row(card)
+        root = User.objects.create_superuser(
+            username="root1469r", email="root1469r@example.com", password=PW,
+        )
+        request = RequestFactory().post("/admin/")
+        request.user = root
+        with self.captureOnCommitCallbacks(execute=True):
+            CardAdmin(Card, AdminSite()).save_model(request, card, _DummyForm(), change=True)
+        mv.refresh_from_db()
+        self.assertEqual((mv.board_id, mv.card_uid, mv.card_title), (self.board.pk, card.uid, "Repointed"))
+        self._delete_card(card)
+        self.assertEqual(self._history()["results"][0]["card_title"], "Repointed")
+
+
+class DropNotNullKeepingForeignKeyTests(TestCase):
+    """0079's operation must stay a bare DROP NOT NULL on PostgreSQL."""
+
+    def _op(self):
+        migration = importlib.import_module("boards.migrations.0079_cardmovement_card_nullable")
+        return migration.Migration.operations[0]
+
+    def _states(self):
+        from django.db.migrations.state import ProjectState
+
+        state = ProjectState.from_apps(apps)
+        return state, state
+
+    def test_postgres_forwards_is_only_drop_not_null(self):
+        schema_editor = MagicMock()
+        schema_editor.connection.vendor = "postgresql"
+        schema_editor.quote_name = lambda n: f'"{n}"'
+        state, _ = self._states()
+        self._op().database_forwards("boards", schema_editor, state, state)
+        schema_editor.execute.assert_called_once_with(
+            'ALTER TABLE "card_movements" ALTER COLUMN "card_id" DROP NOT NULL'
+        )
+
+    def test_backwards_refuses_while_history_of_deleted_cards_exists(self):
+        owner = User.objects.create_user(username="o0079", password=PW)
+        board = Board.objects.create(name="B", owner=owner)
+        col = Column.objects.create(board=board, name="C", position=0)
+        CardMovement.objects.create(board=board, card=None, card_uid="u", to_column=col)
+        schema_editor = MagicMock()
+        schema_editor.connection = connection
+        schema_editor.quote_name = connection.ops.quote_name
+        state, _ = self._states()
+        with self.assertRaisesMessage(RuntimeError, "Cannot reverse boards.0079"):
+            self._op().database_backwards("boards", schema_editor, state, state)
 
 
 class RollingUpgradeRowOnCardDeleteTests(_BoardFixture):

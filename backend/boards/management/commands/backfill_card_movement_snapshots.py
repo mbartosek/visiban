@@ -2,13 +2,14 @@
 Fill CardMovement.board / card_uid / card_title on rows that still lack them (#1469).
 
 Migration ``boards.0080`` does this for every existing row at upgrade time.
-On a multi-replica deployment that rolls its pods, a pod still running the
-previous release can write a movement after that migration has run; such a
-row has no ``board`` yet, so it is missing from the board-level History until
-it is filled. Run this once after the rollout completes. It is idempotent and
-safe to run at any time — it touches only rows that have a card but no board,
-in committed batches. Single-instance (Docker Compose) installs stop the old
-release before migrating and do not need it.
+Any install that migrates while the previous release is still serving (the
+documented Compose steps, and Helm, which migrates in the new pod's init
+container) can get a movement written by the old code after that migration; it
+has no ``board`` or snapshot yet. Board History still lists such a row through
+its card, so nothing is lost from view; this command fills the columns so the
+row also survives its card being deleted. Run it once after the rollout
+completes. It is idempotent and safe to run at any time — it touches only rows
+that have a card but no board, in committed batches.
 
 Usage:
     python manage.py backfill_card_movement_snapshots

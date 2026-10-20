@@ -459,7 +459,7 @@ Each result object fields:
 | Field | Type | Description |
 |---|---|---|
 | `id` | integer | Movement record ID |
-| `card_title` | string | The card's current title. For a card that was hard-deleted, the title it had at the time of the movement (since 1.2) |
+| `card_title` | string | The card's current title. For a card that was hard-deleted, the title recorded on the movement (since 1.2; as of the upgrade or import for older rows) |
 | `card_uid` | string | Card stable 16-char hex UID — still the original card's UID after the card is hard-deleted |
 | `from_column`, `to_column` | integer / null | Column FK IDs (may be `null` if column was deleted) |
 | `from_column_name`, `to_column_name` | string | Denormalized column names (preserved after deletion) |

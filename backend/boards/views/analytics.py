@@ -663,11 +663,13 @@ class BoardAnalyticsMixin:
         # rows are kept and serialize from their card_uid / card_title
         # snapshot. Served by movement_board_moved_idx. Rows an older release
         # wrote during a rolling upgrade, after the 0080 backfill, carry no
-        # board and do not appear here until backfill_card_movement_snapshots
-        # runs (or their card is deleted: set_null_keeping_board fills them).
+        # board; the second branch finds them through their card so they are
+        # never missing from History, whether or not
+        # backfill_card_movement_snapshots has run. (If their card is deleted
+        # first, set_null_keeping_board fills the board.)
         qs = (
             CardMovement.objects
-            .filter(board=board)
+            .filter(Q(board=board) | Q(board__isnull=True, card__board=board))
             .select_related("card", "moved_by", "from_column", "to_column", "from_swimlane", "to_swimlane")
             .order_by("-moved_at")
         )
