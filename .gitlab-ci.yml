@@ -4943,6 +4943,26 @@ backend-benchmark:
     - when: manual
       allow_failure: true
 
+# ─── Nightly load test — MR-time self-test (#1767) ─────────────────────────────
+#
+# The scheduled job below only runs its --self-test once a night, so an MR that
+# adds a scenario without a budget (or empties the baseline) would stay green
+# until the next schedule. This tiny job runs just the self-test, and only when
+# the script or the baseline changes, so unrelated pipelines are unaffected.
+nightly-load-test-selftest:
+  stage: lint
+  needs: []
+  image: ${DOCKERHUB_MIRROR}/python:3.12-slim
+  rules:
+    - changes: &nightly-load-test-paths
+        - scripts/nightly_load_test.py
+        - backend/nightly-load-test-baseline.json
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *nightly-load-test-paths
+  script:
+    - pip install --quiet requests==2.33.0
+    - python3 scripts/nightly_load_test.py --self-test
+
 # ─── Nightly load test ─────────────────────────────────────────────────────────
 #
 # Measures p50/p95/p99 latency for the endpoints most sensitive to data volume
@@ -4959,7 +4979,8 @@ backend-benchmark:
 # backend/nightly-load-test-baseline.json for the committed budgets.
 #
 # To configure the schedule: CI/CD → Schedules → New schedule → target branch
-# main, cron "0 3 * * *" (daily at 03:00 UTC), variable LOAD_TEST_SCHEDULE=true.
+# main, cron "0 0 * * *" in timezone America/New_York (midnight Eastern, i.e.
+# 04:00 UTC in daylight time), variable LOAD_TEST_SCHEDULE=true.
 # Can also be run manually at any time (advisory — allow_failure: true) via
 # "Run pipeline" or the pipeline's manual job button.
 nightly-load-test:

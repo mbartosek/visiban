@@ -24,6 +24,7 @@ Usage (CI — nightly-load-test job in .gitlab-ci.yml):
     python scripts/nightly_load_test.py \\
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
+        --owner-token-file /tmp/visiban_load_test_owner_token \\
         --budget-file backend/nightly-load-test-baseline.json \\
         --output nightly-load-test-results.json
 
@@ -32,10 +33,17 @@ docs/development/nightly-load-test.md):
     python scripts/nightly_load_test.py --measure-only \\
         --base-url http://localhost:8000 \\
         --token-file /tmp/visiban_load_test_token \\
+        --owner-token-file /tmp/visiban_load_test_owner_token \\
         --output nightly-load-test-results.json
-    # Then hand-update backend/nightly-load-test-baseline.json's "budget_ms"
-    # values to roughly 1.3-1.5x the "p95_ms" this run measured — never a
-    # round number, and never looser than the ratio the issue specifies.
+    # Then recompute the WHOLE baseline from that artifact with the documented
+    # formula budget_p95_ms = ceil(p95_ms * 1.4 / 5) * 5 (see the "Budget
+    # derivation" section of docs/development/nightly-load-test.md) — never a
+    # round number, and take the artifact from a NUC-runner job.
+
+--owner-token-file (the board owner, demo1) is REQUIRED for a meaningful
+board_list scenario: its 55ms budget was derived as the owner, whose access
+query spans all 20 board memberships. Without it the scenario would run as the
+plain member demo2 and silently measure a cheaper path.
 """
 
 import argparse
@@ -90,8 +98,9 @@ def _self_test():
     """Build known-bad and known-good latency samples and prove the detection
     logic (percentile calculation + budget comparison) still fires correctly.
 
-    Touches no network, no database, no files — pure function checks, same
-    shape as check-migration-numbering.sh's synthetic-repo self-test.
+    Touches no network and no database — pure function checks, same shape as
+    check-migration-numbering.sh's synthetic-repo self-test. It reads exactly one
+    file, the committed baseline, to prove every scenario has a budget (#1767).
     """
     failures = []
 
@@ -141,11 +150,14 @@ def _self_test():
     try:
         with open(baseline_path, encoding="utf-8") as fh:
             committed = json.load(fh).get("endpoints", {})
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, AttributeError) as exc:
         failures.append(f"could not read committed baseline {baseline_path}: {exc}")
         committed = {}
+    if not isinstance(committed, dict) or not committed:
+        failures.append("committed baseline has no (or an empty) 'endpoints' mapping")
+        committed = {}
     for name in eps:
-        if committed and committed.get(name, {}).get("budget_p95_ms") is None:
+        if not isinstance(committed.get(name), dict) or committed[name].get("budget_p95_ms") is None:
             failures.append(f"scenario {name!r} has no budget_p95_ms in nightly-load-test-baseline.json")
     # run()'s budget branch: no baseline entry => measure-only, never a violation,
     # even at an absurd p95; an entry over budget is still flagged.
@@ -246,6 +258,16 @@ def run(args):
             owner_session = requests.Session()
             owner_session.headers["Authorization"] = f"Token {fh.read().strip()}"
         sessions["board_list"] = owner_session
+
+    # Fail loudly rather than silently measure board_list as demo2: the committed
+    # board_list budget was derived as the owner, so a plain-member run would
+    # compare a cheaper path against it and hide a regression (#1767). Measure-only
+    # runs (re-deriving) are exempt only in that they never gate; they still need
+    # the owner path to produce a valid number, so the requirement is unconditional.
+    if "board_list" not in sessions:
+        raise RuntimeError(
+            "--owner-token-file is required: board_list must be measured as the board owner (#1767)"
+        )
 
     base_url = args.base_url.rstrip("/")
     _wait_for_url(f"{base_url}/api/health/liveness/", timeout=args.startup_timeout)
@@ -363,7 +385,7 @@ def main():
         "--self-test",
         action="store_true",
         help="Prove the percentile/budget-comparison detection logic still fires on a "
-             "known-bad and known-good input, then exit. Touches no network or files.",
+             "known-bad and known-good input, then exit. Touches no network or database; reads only the committed baseline.",
     )
     args = parser.parse_args()
 

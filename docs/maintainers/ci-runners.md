@@ -9,7 +9,7 @@ of "no runner available."
 
 ## Inventory
 
-As of 2026-10-08, these GitLab group runners are registered against `visiban/visiban`
+As of 2026-10-20, these GitLab group runners are registered against `visiban/visiban`
 (`glab api "projects/visiban%2Fvisiban/runners?type=group_type"`):
 
 | Runner ID | Description | Status | Tags | `run_untagged` |
@@ -20,6 +20,8 @@ As of 2026-10-08, these GitLab group runners are registered against `visiban/vis
 | 56787877 | `gitlab-runner-nuc-2-visiban` | online | `nuc` | true |
 | 56802474 | `Max1-Runner-Visiban` | online | `arm, arm64, apple, macosx, mac, ios` | false |
 | 56888935 | `gitlab-runner-dell-01-visiban` | online | `dell-small` | true |
+| 57236808 | `gitlab-runner-dell-02-visiban` | paused | `dell-small` | true |
+| 57236862 | `gitlab-runner-dell-03-visiban` | online | `dell-small` | true |
 
 All are self-hosted. The NUC runners carry the `nuc` tag (added 2026-10-08) so that
 hardware-sensitive jobs can pin to them — today only `nightly-load-test`, whose latency
