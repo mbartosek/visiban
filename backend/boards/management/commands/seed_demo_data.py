@@ -877,12 +877,13 @@ class Command(BaseCommand):
                 password = settings.DEMO_MEMBER_PASSWORD
             # Lock the row, re-set the password and revoke the credentials issued
             # under the previous one in one transaction (#1600, Rule 3 in
-            # docs/development/security-invariants.md). The demo passwords are
-            # published, so a re-seed that kept an old PAT or DRF Token alive
-            # would leave a credential the reset was meant to cut off.
+            # docs/development/security-invariants.md). The visitor's password
+            # is published, so a re-seed that kept an old PAT or DRF Token alive
+            # would leave a credential the reset was meant to cut off; the same
+            # step runs for every demo account.
             # require_password_change_after_admin_set is deliberately not used:
-            # it would set must_change_password on demo accounts that every
-            # visitor signs in to with the published password.
+            # it would set must_change_password on the demo accounts,
+            # including the visitor, who signs in with the published password.
             with transaction.atomic():
                 user, created = User.objects.get_or_create(
                     username=username,
