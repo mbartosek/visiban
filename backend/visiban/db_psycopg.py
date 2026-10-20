@@ -9,13 +9,15 @@ datetime in every result row is parsed by a regex in Python. This happens even w
 ``psycopg[binary]`` installed, whose C loader is never reached (Django ticket
 #36960). psycopg2 parsed these values in C.
 
-When #1252 moved Visiban from psycopg2 to psycopg 3 (merged 2026-10-04),
-``GET /boards/{id}/full/`` got about 12% slower at the mean and about 25% slower at
-p95 on the nightly load test's ~2,400-card board. The response loads ~44,000
-``timestamptz`` values, and the Python parser accounts for part of that step. This
-backport removes about 36ms of it per request in a local measurement, roughly a
-third to a half of the step. The query count and SQL did not change, so only the
-latency job could see it. See ``docs/development/nightly-load-test.md``.
+#1252 moved Visiban from psycopg2 to psycopg 3 (merged 2026-10-04). Measured
+locally on the nightly load test's ~2,400-card fixture, that switch alone made
+``GET /boards/{id}/full/`` about 12% slower at the mean, with the same queries and
+byte-identical responses. The response loads ~44,000 ``timestamptz`` values. The
+Python parser is the largest identified part of the step: about 45ms of 74ms. This
+backport mitigates that part, removing about 36ms per request, which is roughly a
+third to a half of the step. The rest is not attributed and is tracked in #1807.
+The query count and SQL did not change, so only a latency measurement can see this.
+See ``docs/development/nightly-load-test.md``.
 
 Django fixed this upstream in 6.1 (commit 994fa77). The fix stops inheriting from
 the Python loader. It instead wraps whatever loader psycopg registered by default

@@ -215,43 +215,68 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     (`board_full` p95 was 981-1042ms on `gitlab-runner-nuc-2-visiban` on Oct 1-4 versus
     1172-1375ms on Oct 9-19). The new `board_full` budget leaves
     under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
-    1430ms budget). [#1800](https://gitlab.com/visiban/visiban/-/issues/1800) traced the
-    `board_full` rise to the psycopg 3 migration and backported a fix. See
+    1430ms budget). [#1800](https://gitlab.com/visiban/visiban/-/issues/1800) partly attributed
+    the `board_full` rise to the psycopg 3 migration and mitigated it with a backport. See
     [The October 2026 `board_full` drift](#the-october-2026-board_full-drift-1800) below. The
-    rise on the lighter endpoints is tracked in
+    unattributed remainder of that step is tracked in
+    [#1807](https://gitlab.com/visiban/visiban/-/issues/1807). The rises on `card_search`,
+    `card_timeline`, `notifications_list` and `notifications_unread` are tracked in
     [#1805](https://gitlab.com/visiban/visiban/-/issues/1805). The previous derivation ran
     on `gitlab-runner-nuc-2-visiban`; both are NUC-class
     (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
 
 ## The October 2026 `board_full` drift — #1800
 
-**Verdict: a real regression, fixed in code.** The cause was the psycopg2 to psycopg 3 move
-([#1252](https://gitlab.com/visiban/visiban/-/issues/1252), merged 2026-10-04 at 10:47 EDT).
-It was not a runner or environment change.
+**Verdict: a real regression, partly attributed and mitigated in code.** The evidence for it
+is the local experiment below, not the CI history. Two parts:
+
+- In a local 2x2 run, switching from psycopg2 to psycopg 3
+  ([#1252](https://gitlab.com/visiban/visiban/-/issues/1252), merged 2026-10-04 at 10:47 EDT)
+  added 11-12% to the `board_full` mean. The endpoint ran the same 17 queries and returned
+  byte-identical JSON.
+- Django ticket [#36960](https://code.djangoproject.com/ticket/36960) is the mechanism for
+  the largest identified part of that cost.
+
+A backport mitigates the parser part. The remainder of the driver step is not attributed and
+is tracked in [#1807](https://gitlab.com/visiban/visiban/-/issues/1807).
 
 ### What the scheduled runs show
 
-The 22 completed scheduled runs between 2026-09-29 and 2026-10-20 did **not** all land on one
-runner. They alternated between `gitlab-runner-nuc-2-visiban` and `Runner-03-NUC`. One ran
-on `gitlab-runner-dell-01-visiban` (Oct 8, before the `nuc` pin) and one on `runner-04-NUC`
-(Oct 20). Card count was 2388 throughout. `board_full` p50 is less noisy than p95. The step
-is clear in it on `gitlab-runner-nuc-2-visiban`, with 4 runs before and 6 after. On
-`Runner-03-NUC` the evidence is thinner: there is only one fast run before Oct 5 to compare
-against.
+The CI history is consistent with a step after #1252 but does not establish one on its own.
+The data before Oct 5 is too noisy.
 
-| Runner | Before (Sep 29 to Oct 4) | After (Oct 5 to Oct 19) |
+There were 25 completed scheduled `nightly-load-test` jobs between 2026-09-29 and 2026-10-20,
+including 3 retried jobs on Sep 29-30 that a default job listing hides. Card count was 2388 in
+every one. The jobs ran on `gitlab-runner-nuc-2-visiban` (12), `Runner-03-NUC` (11),
+`gitlab-runner-dell-01-visiban` (1, Oct 8, before the `nuc` pin) and `runner-04-NUC` (1,
+Oct 20). This table uses `board_full` p50, which is less noisy than p95. It covers all 23
+NUC jobs from Sep 29 to Oct 19, split at the first run that included #1252 (Oct 5). It
+leaves out the dell-01 job (different hardware class) and the runner-04 job (a single run,
+after the #1723 fixture change).
+
+| Runner | Before (Sep 29 to Oct 4, without #1252) | After (Oct 5 to Oct 19, with #1252) |
 |---|---|---|
-| `gitlab-runner-nuc-2-visiban` | p50 910-995ms (4 runs) | p50 1074-1200ms (6 runs) |
-| `Runner-03-NUC` | p50 944ms (Oct 3)\* | p50 1050-1326ms (8 runs) |
+| `gitlab-runner-nuc-2-visiban` | 6 jobs: 910-1144ms, median 980ms | 6 jobs: 1074-1200ms, median 1128ms |
+| `Runner-03-NUC` | 3 jobs: 944-1231ms, median 1180ms | 8 jobs: 1050-1326ms, median 1154ms |
 
-\* The other `Runner-03-NUC` run before Oct 5 (Sep 30, p50 1180ms, p95 1335ms) was slow. Its
-commit predates every change below, so it is treated as runner noise and left out of this
-column. With only the Oct 3 run left, the "before" value for this runner is a single sample.
+Per job, before Oct 5 (job id, p50):
 
-The first slow run is the Oct 5 run on `724fbdd4b`. The last fast run is the Oct 4 run on
-`7dee839ca`. The job ran the same `python:3.12-slim` image and job definition on both
-commits, and neither the load-test script nor `seed_demo_data` changed. Two direct
-dependency bumps in `backend/requirements.lock` account for every lock change between them:
+- `gitlab-runner-nuc-2-visiban`: 16796278537 1143.7ms (Sep 29, retried, where the lighter
+  endpoints were also slow), 16796708105 959.1ms (Sep 29), 16825562214 1124.0ms (Sep 30,
+  retried), 16854145294 995.5ms, 16885874829 910.5ms, 16918108892 965.1ms (Oct 1-4).
+- `Runner-03-NUC`: 16796417688 1230.8ms (Sep 29, retried), 16826298383 1179.5ms (Sep 30),
+  16909453148 943.6ms (Oct 3).
+
+Four of the 9 NUC jobs before Oct 5 fall inside the "after" range, all of them on Sep 29-30.
+The other 5 (one on Sep 29 and the 4 from Oct 1-4) were 910-996ms. On `gitlab-runner-nuc-2-visiban` the medians moved
+from 980ms to 1128ms (+15%). On `Runner-03-NUC` they did not move: 1180ms before, 1154ms
+after. A reader who sets Sep 29-30 aside sees a clean step, and one who keeps it does not.
+That is why the verdict rests on the local measurement.
+
+Between the last job without #1252 (Oct 4, `7dee839ca`) and the first job with it (Oct 5,
+`724fbdd4b`), the job used the same `python:3.12-slim` image and the same job definition,
+and neither the load-test script nor `seed_demo_data` changed. Two direct dependency bumps in
+`backend/requirements.lock` account for every lock change between them:
 
 - `psycopg2-binary` 2.9.11 became `psycopg` 3.3.6 plus `psycopg-binary` 3.3.6 (#1252).
 - `mcp` 1.30.0 became 2.3.0 (#1253). Its transitive set changed with it:
@@ -265,8 +290,8 @@ the job, so the SDK is never imported). The `board_full` serializer change in th
 `help_text`.
 
 The 2026-10-12 failure (job 17100891040, p95 1650.7ms against the then-1430ms budget) was a
-tail outlier on top of that step. Its p50 was 1304ms. The next two runs, on a commit with
-no change to the board serializer, view or requirements, measured p95 1228ms and 1155ms.
+tail outlier. Its p50 was 1304ms, inside the post-Oct-5 range. The next two runs, on a commit
+with no change to the board serializer, view or requirements, measured p95 1228ms and 1155ms.
 
 ### Root cause, measured
 
@@ -295,9 +320,10 @@ inferred from the dates.
   In a micro-benchmark that loads 14,014 `timestamptz` values from the fixture, the
   per-value cost was about 1.5µs under psycopg 3 and 0.47µs under psycopg2. At 44,000
   values that comes to about 45ms per request, out of a 74ms mean step on the old code.
-  The rest of the driver difference was not attributed to a specific cause.
+  The rest of the driver difference was not attributed to a specific cause. It is tracked in
+  [#1807](https://gitlab.com/visiban/visiban/-/issues/1807).
 
-### The fix
+### The mitigation
 
 `backend/visiban/db_psycopg.py` backports Django 6.1's change onto 5.2's `BaseTzLoader`. It
 wraps the loader psycopg registers by default (the C one with `psycopg[binary]`) and then
@@ -326,8 +352,10 @@ With the backport in place:
     warning).
 - **Delete the module once the `Django` pin reaches 6.1.**
 
-The backport removes roughly a third to a half of the driver step, not all of it. Expect
-`board_full` to settle above its pre-Oct-5 level, not back at it. The committed budget
+The backport removes roughly a third to a half of the driver step, not all of it. The
+unattributed remainder is tracked in
+[#1807](https://gitlab.com/visiban/visiban/-/issues/1807). Expect `board_full` to settle above
+its level without psycopg 3, not back at it. The committed budget
 (1695ms) was derived from a run before this fix, so it may be looser than the endpoint now
 needs. Re-derive it at the next re-derivation by following the procedure above, from a run
 that includes this fix. Never hand-edit it.
@@ -339,14 +367,15 @@ that includes this fix. Never hand-edit it.
   psycopg 3 and psycopg 3 with the backport measured within noise of each other. Their
   smaller rise is not the timestamptz loader. Locally, `card_search` was also about 14%
   slower on current code than on `7dee839ca` with the same 8 queries. That comparison spans
-  two separately seeded databases and was not taken further here. This rise is tracked in
-  [#1805](https://gitlab.com/visiban/visiban/-/issues/1805).
+  two separately seeded databases and was not taken further here.
+  [#1805](https://gitlab.com/visiban/visiban/-/issues/1805) tracks these two, and also the
+  `card_timeline` and `notifications_list` rises that the #1767 re-derivation absorbed.
 - The job installs `backend/requirements.txt`, not the hash-pinned `requirements.lock`, and
   its `python:3.12-slim` and `postgres:17-alpine` images are floating tags. Transitive
   dependency and base-image versions can therefore change between two runs on the same
-  commit. Those unpinned versions are not visible in the lock diff above. The step lines up
-  with #1252's merge on both runners, and the local measurement reproduces it from the driver
-  alone, so they are not needed to explain it. When attributing a future drift, check
+  commit. Those unpinned versions are not visible in the lock diff above, and this
+  investigation did not rule them out from the CI data. The local measurement reproduces a
+  step of the observed size from the driver alone. When attributing a future drift, check
   them.
 
 ## Failure notifications

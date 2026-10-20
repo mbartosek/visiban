@@ -165,7 +165,12 @@ class TimestamptzLoaderBackportTests(SimpleTestCase):
             def load(self, data):  # pragma: no cover - never called
                 raise AssertionError
 
-        with mock.patch.object(psycopg_any, "BaseTzLoader", UpstreamBaseTzLoader):
+        # No warning: this is the expected, quiet exit (the issubclass check),
+        # not the fingerprint-mismatch path, which would also return False.
+        with (
+            mock.patch.object(psycopg_any, "BaseTzLoader", UpstreamBaseTzLoader),
+            self.assertNoLogs("visiban.db_psycopg", level="WARNING"),
+        ):
             self.assertFalse(db_psycopg.apply())
         self.assertFalse(hasattr(UpstreamBaseTzLoader, db_psycopg._APPLIED_ATTR))
         self.assertNotIn("_visiban_default_loader", UpstreamBaseTzLoader.__dict__)
