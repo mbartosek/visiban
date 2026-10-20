@@ -4126,7 +4126,7 @@ the v1.1.0 <em>view code</em> (<code>git show v1.1.0:backend/...</code>), not th
   <code>NEW_REQUIRED_REQUEST_FIELD ... .old_password</code> entries under <code>#1257</code>, the deliberate security
   break.</li>
 </ul>
-<p>These entries stay in the file because the drift lives in the frozen baseline itself: deleting
+<p>Until the baseline is rolled at the next GA, these entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
@@ -4176,9 +4176,26 @@ temporary worktree outside the repo and delete it afterward.</p>
 <p>Then, as a manual step on the
 release checklist, point <code>BASELINE_SCHEMA</code> / <code>BASELINE_ENV</code> in <code>scripts/check-api-compat.py</code>
 (lines 52-53) at the new
-directory, clear the allow-list entries the new baseline no longer needs, and delete the old
+directory, delete every allow-list entry the new baseline no longer needs, and delete the old
 baseline directory. <code>--normalize</code> strips prose, examples, and <code>x-</code> extensions so the fixture
 stays small and docs edits never read as contract changes.</p>
+<p>Every allow-list entry is a diff against the v1.1.0 baseline. Once the baseline is the v1.2.0
+schema and HEAD matches it, none of those findings fire, so all entries go stale, and a stale
+entry fails the job. After regenerating, run <code>python3 scripts/check-api-compat.py</code>, delete every
+entry it reports as stale (expected: the whole list, leaving <code>{"allow": []}</code>), and re-run until
+it prints OK with no stale entries. As a safety net for the temporary entries (those whose
+<code>reason</code> starts with <code>temporary:</code>, citing #1783, #1788, #1789 or #1792), this lists any left
+behind; after deleting, it must print nothing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"</span>
+</code></pre></div>
+<p>A temporary entry left behind fails the roll MR loudly. Then prune the six ids in
+<code>backend/schemathesis-baseline.json</code> per #1791, only after both an MR-style fuzz run and the
+deep nightly list each entry as unobserved (#1582). Finally, in this file, delete every sentence
+or paragraph that describes temporary entries or counts exceptions to the "never added" rule
+(including any added for #1789 or #1792), keeping the existing "never added" sentence as is, and
+revise the prose that describes the v1.1.0 baseline drift and allow-list burn-down (the
+"Frozen snapshot of the v1.1.0 baseline drift" section, the <code>#1080</code> catch-all mentions, the
+<code>v1.1.0/</code> paths, and the paragraph above) to the new baseline.</p>
 <h2 id="not-covered">Not covered<a class="headerlink" href="#not-covered" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Serializer fields that never reach the schema (the schema is the source of truth here;
