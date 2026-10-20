@@ -12,6 +12,7 @@ from django.utils import timezone
 from boards.management.commands.seed_demo_data import (
     DEMO_GROUP_NAME,
     LOAD_TEST_BOARD_NAME,
+    LOAD_TEST_EXTRA_BOARD_PREFIX,
     SEED_ANCHOR_DATE,
 )
 from accounts.models import AdminActionLog, User
@@ -548,6 +549,58 @@ class SeedScaleTests(TestCase):
         _seed(scale=3, wipe=True)
         self.assertTrue(Board.objects.filter(name=BOARD_NAME).exists())
         self.assertEqual(Board.objects.filter(name=LOAD_TEST_BOARD_NAME).count(), 1)
+
+
+@override_settings(DEBUG=True)
+class SeedExtraBoardsTests(TestCase):
+    """--extra-boards (#1810): many-board fixture for the multi-board card_search scenario."""
+
+    def test_default_seeds_no_extra_boards(self):
+        _seed(scale=2)
+        self.assertFalse(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).exists())
+
+    def test_extra_boards_give_demo3_many_accessible_boards(self):
+        from boards.views._helpers import get_accessible_boards_queryset
+
+        out, _ = _seed(scale=2, extra_boards=4)
+        self.assertEqual(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).count(), 4)
+        demo = {u.username: u for u in User.objects.filter(username__in=["demo1", "demo2", "demo3"])}
+        # Load-test board + 4 extras for demo3; demo1 and demo2 are unchanged.
+        self.assertEqual(get_accessible_boards_queryset(demo["demo3"]).count(), 5)
+        self.assertEqual(get_accessible_boards_queryset(demo["demo2"]).count(), 1)
+        self.assertEqual(get_accessible_boards_queryset(demo["demo1"]).count(), 1)
+        self.assertIn("5 accessible boards", out)
+
+    def test_extra_boards_have_searchable_cards(self):
+        _seed(scale=2, extra_boards=2)
+        for board in Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX):
+            self.assertEqual(board.cards.count(), 8)
+
+    def test_extra_boards_do_not_change_main_fixture(self):
+        _seed(scale=2)
+        before = sorted(Board.objects.get(name=LOAD_TEST_BOARD_NAME).cards.values_list("title", flat=True))
+        _seed(scale=2, extra_boards=3, wipe=True)
+        after = sorted(Board.objects.get(name=LOAD_TEST_BOARD_NAME).cards.values_list("title", flat=True))
+        self.assertEqual(before, after)
+
+    def test_wipe_replaces_extra_boards_rather_than_accumulating(self):
+        _seed(scale=2, extra_boards=3)
+        _seed(scale=2, extra_boards=2, wipe=True)
+        self.assertEqual(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).count(), 2)
+
+    def test_wipe_with_scale_1_leaves_extra_boards_alone(self):
+        _seed(scale=2, extra_boards=2)
+        _seed(scale=1, wipe=True)
+        self.assertEqual(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).count(), 2)
+
+    def test_extra_boards_requires_scale_above_one(self):
+        with self.assertRaises(CommandError) as ctx:
+            _seed(extra_boards=2)
+        self.assertIn("--scale", str(ctx.exception))
+
+    def test_negative_extra_boards_rejected(self):
+        with self.assertRaises(CommandError):
+            _seed(scale=2, extra_boards=-1)
 
 
 @override_settings(DEBUG=True)

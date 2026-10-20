@@ -32,7 +32,9 @@ python manage.py seed_demo_data --wipe --force --seed 42
 ```
 
 !!! info "Large fixture for load testing"
-    `--scale N` (replicate the swimlane layout N times) and `--with-notifications` seed a
+    `--scale N` (replicate the swimlane layout N times), `--with-notifications` and
+    `--extra-boards M` (M small extra boards owned by `demo3`, so that user can access M+1
+    boards; requires `--scale` above 1) seed a
     much larger, separately-named **"Visiban Load Test Board"** instead of the normal demo
     board — This is CI-only, used by the
     `nightly-load-test` job; see

@@ -5,12 +5,15 @@
   "measured_at": "2026-10-20T04:13:19.740815+00:00",
   "fixture": {
     "board_name": "Visiban Load Test Board",
-    "seed_command": "manage.py seed_demo_data --force --scale 20 --with-notifications",
+    "seed_command": "manage.py seed_demo_data --force --scale 20 --extra-boards 199 --with-notifications",
     "swimlane_count": 200,
     "card_count": 2388,
     "notification_count": 60,
     "note": "--scale 20 replicates the 10-swimlane demo layout 20x (11-13 cards/swimlane, same distribution as the normal demo board) rather than picking an arbitrary target card count directly. The load-test board has 20 members (5 demo users + 15 loadtest* filler accounts, #1723).",
-    "member_count": 20
+    "member_count": 20,
+    "extra_board_count": 199,
+    "multi_board_accessible_boards": 200,
+    "multi_board_note": "#1810: --extra-boards 199 adds 199 small boards (8 cards each, 1,592 cards) owned by demo3, so demo3 can access 200 boards with the load-test board. The extra boards belong to demo3 alone, so the demo1 board_list and demo2 scenarios are unaffected. The card_search_multi_board budget is pending (#1808); measured_at and every measured_p95_ms above predate this fixture addition."
   },
   "measurement_method": {
     "script": "scripts/nightly_load_test.py",
@@ -44,6 +47,15 @@
       "measured_p99_ms": 258.7,
       "budget_p95_ms": 155,
       "note": "The cross-board card query as a one-board user (demo2): access filter plus one 51-row cursor page. It does NOT use the pg_trgm GIN indexes from migration 0030 (card_title_trgm_idx / card_desc_trgm_idx): icontains renders as UPPER(col) LIKE, which they cannot serve (#1809). This budget predates the #1805 fix; re-derive per #1808. 'the' is a deliberately broad, high-cardinality search term -- it matches a large fraction of the corpus, closer to a real user's search-as-you-type behavior than a highly selective term would be."
+    },
+    "card_search_multi_board": {
+      "method": "GET",
+      "path": "/api/v1/cards/?search=the",
+      "measured_p95_ms": null,
+      "measured_p99_ms": null,
+      "budget_p95_ms": null,
+      "pending_budget": "#1808",
+      "note": "PENDING BUDGET (#1810): the same query as card_search, run as demo3, who can access 200 boards, so the card SELECT filters on a 200-id literal list and PostgreSQL scans the matching cards and sorts instead of walking card_board_updated_idx (13.5ms vs 0.65ms execution locally, #1805). Measured and recorded every night, not gated. #1808 assigns the budget in its one-pass re-derivation, from the first NUC run that includes this scenario; a budget may not be derived from a local run or hand-edited."
     },
     "card_timeline": {
       "method": "GET",
