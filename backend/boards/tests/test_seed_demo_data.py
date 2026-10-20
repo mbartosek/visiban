@@ -727,9 +727,10 @@ class SeedDemoSiteTests(TestCase):
     def test_reseed_revokes_existing_account_credentials(self):
         """#1600: re-seeding an existing demo account revokes its PATs and DRF Token.
 
-        The demo passwords are published, so the re-set must cut off every
-        credential issued under the previous one. It must not set
-        must_change_password: visitors sign in with the published password.
+        The visitor's password is published, so the re-set must cut off every
+        credential issued under the previous one (applied to all four accounts).
+        It must not set must_change_password: the visitor signs in with the
+        published password.
         """
         from rest_framework.authtoken.models import Token
 
