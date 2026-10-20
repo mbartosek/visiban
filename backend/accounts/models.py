@@ -978,7 +978,9 @@ class AdminActionLog(models.Model):
         EMAIL_USERNAME_CHANGED = "email_settings.username_changed", "Email username changed"
         EMAIL_PASSWORD_CHANGED = "email_settings.password_changed", "Email password changed"
         EMAIL_TEST_SENT = "email_settings.test_sent", "Test email sent"
-        # Django admin sets or disables another account's password (#1555).
+        # Django admin sets or disables another account's password (#1555);
+        # the ensure_site_admin, changepassword and provision_fuzz_token
+        # commands record USER_PASSWORD_SET with source cli (#1699).
         # The metadata names the target account only; the password and its
         # hash are never recorded.
         USER_PASSWORD_SET = "user.password_set", "User password set by an administrator"

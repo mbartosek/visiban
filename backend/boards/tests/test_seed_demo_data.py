@@ -612,9 +612,9 @@ class SeedDemoSiteTests(TestCase):
     def test_demo_site_password_sets_are_not_in_the_admin_action_log(self):
         """#1699: documented exception to the admin action log.
 
-        The demo passwords are published for visitors and the seed is limited
-        to demo installs, so a first seed and a re-seed (which re-sets the
-        passwords) write no ``user.password_set`` entry. See the "Demo-site
+        ``--demo-site`` requires DEMO_MODE and the hourly reset empties every
+        table including the action log, so a first seed and a re-seed (which
+        re-sets the passwords) write no ``user.password_set`` entry. See the "Demo-site
         seed password" row of docs/development/security-invariants.md.
         """
         _seed(demo_site=True)

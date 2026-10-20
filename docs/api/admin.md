@@ -147,7 +147,8 @@ opaque string rather than failing on it.
     management commands also record `user.password_set`, with `source` `cli` and no actor (`actor_id` is
     null). The entry is written in the same transaction as the password, so the password is
     only changed when the entry is saved. The demo seed (`seed_demo_data --demo-site`)
-    publishes its passwords and writes no entries.
+    writes no entries: it runs only with `DEMO_MODE=true`, and the demo's hourly reset empties
+    the log.
 
 !!! warning "What this log does *not* record yet"
     The instance-wide settings and the password events listed above are covered. Granting or
