@@ -157,6 +157,25 @@ describe('TrelloImportModal', () => {
     expect(screen.getByLabelText('Add matched members to this board')).not.toBeChecked()
   })
 
+  it('says every comment is attributed to you with the Trello name kept, with the option on or off (#1702)', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await goToReview(user)
+    const keptName = "Comments are attributed to you and keep their Trello author's name."
+    expect(screen.getByText(`With this off, cards import without assignees. ${keptName}`)).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Add matched members to this board'))
+    expect(
+      screen.getByText(`Matched users become board members and are assigned to their cards. ${keptName}`),
+    ).toBeInTheDocument()
+  })
+
+  it('says the same about comments when no members matched (#1702)', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await goToReview(user, makePreview({ members: { total: 1, matched: 0, unmatched: [{ trello_id: 'm2', full_name: 'Grace Hopper' }] } }))
+    expect(screen.getByText(/No members matched\. Cards will import without assignees\. Comments are attributed to you and keep their\s+Trello author's name\./)).toBeInTheDocument()
+  })
+
   it('confirms with the chosen mapping and calls onImported', async () => {
     const user = userEvent.setup()
     const { onImported } = renderModal()

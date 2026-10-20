@@ -839,7 +839,11 @@ def _validate_json_import_values(data):
         _optional_name_error, max_length=_field_max_length(CardMovement, "imported_from_username"),
     )
     child_specs = {
-        "comments": ("comment", (("body", _text()),)),
+        "comments": ("comment", (
+            ("body", _text()),
+            # A comment's kept source name (#1702), same column length.
+            ("imported_from_username", imported_name),
+        )),
         "checklist": ("checklist item", (
             ("text", _text(_field_max_length(CardChecklist, "text"))),
             ("is_checked", _bool_error),
@@ -952,8 +956,9 @@ _IMPORTED_FROM_MAX_LENGTH = CardMovement._meta.get_field("imported_from_username
 def _imported_from_username(entry, key):
     """The source username an imported history row keeps as text (#1675).
 
-    Every imported movement and activity is attributed to the importer, so
-    the file's ``moved_by`` / ``actor`` is kept only as this label. A file
+    Every imported movement, activity and comment (#1702) is attributed to
+    the importer, so the file's ``moved_by`` / ``actor`` / ``author`` is kept
+    only as this label. A file
     that Visiban exported from an imported board carries the row's original
     name in ``imported_from_username``; that wins over ``key`` (which names
     whoever imported it last), so an export/import round trip keeps the first
@@ -1298,6 +1303,9 @@ class BoardImportExportMixin:
                             "imported_from_username",
                         ),
                         "activities": ("actor", "imported_from_username"),
+                        # Only the new key: a comment's ``author`` was never
+                        # read, and a non-string one is still ignored (#1702).
+                        "comments": ("imported_from_username",),
                     }.get(_child, ())
                     for _k in _str_keys:
                         if _is_truthy_non_string(_entry.get(_k)):
@@ -1674,6 +1682,9 @@ class BoardImportExportMixin:
                             card_id=card_pk,
                             author=request.user,
                             body=comment_data.get("body", ""),
+                            # The file's author is kept as text, never matched
+                            # to an account, as for history rows (#1675, #1702).
+                            imported_from_username=_imported_from_username(comment_data, "author"),
                         ),
                         comment_data.get("created_at"),
                     ))
@@ -2745,6 +2756,8 @@ class BoardImportExportMixin:
                             "author": c.author.username if c.author else None,
                             "body": c.body,
                             "created_at": c.created_at.isoformat(),
+                            # Additive (#1702); null unless the comment was imported.
+                            "imported_from_username": c.imported_from_username,
                         }
                         for c in sorted(card.comments.all(), key=lambda c: c.created_at)
                     ],

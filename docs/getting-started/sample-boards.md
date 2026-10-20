@@ -91,7 +91,8 @@ Imports are limited to 10 per user per hour.
     Otherwise cards are imported unassigned. Moves and history entries are always
     recorded under you, the importing user, with the sample's name kept beside yours
     ("imported, originally demo1") — see [Imported history](../features/card-history.md#imported-history).
-    Comments are always imported as written by you.
+    Comments are always imported as written by you, with the sample's name kept beside
+    yours in the same way.
 
 The `.csv` file for each template uses the same layout as **Export → CSV**
 Use it to look at

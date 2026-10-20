@@ -51,7 +51,9 @@ A board created by a [JSON import](board.md#import) with **Card history** includ
 
 The source name is never matched to an account here: imported entries are shown under the importer's name. Entries recorded on the board after the import have `imported_from_username: null` and show no note. History imported by earlier versions also carries `null`, since the original name was not kept.
 
-Exports carry the field too: JSON export writes `imported_from_username` on every movement and activity, and re-importing such a file keeps the original source name (not the name of whoever imported it first). CSV export appends the note to the mover in **Movement History**, for example `…|Kelly (imported, originally alice)`.
+Imported comments work the same way (since 1.2, #1702): a comment created by a JSON or [Trello import](trello-import.md#comment-authors) is posted under the importer, keeps its original time, and keeps the source's author name in `imported_from_username`, shown after the time in the card's comment list ("imported, originally alice"). Comments posted on the board carry `null`.
+
+Exports carry the field too: JSON export writes `imported_from_username` on every movement, activity, and comment, and re-importing such a file keeps the original source name (not the name of whoever imported it first). CSV export appends the note to the mover in **Movement History**, for example `…|Kelly (imported, originally alice)`.
 
 ## Activity log
 

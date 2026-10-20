@@ -1973,15 +1973,24 @@ class ExportJsonShapeTests(ExportBase):
         self.assertEqual(
             out["comments"],
             [
-                {"author": None, "body": "a-early", "created_at": t0.isoformat()},
+                {
+                    "author": None,
+                    "body": "a-early",
+                    "created_at": t0.isoformat(),
+                    "imported_from_username": None,
+                },
                 {
                     "author": "owner",
                     "body": "b-late",
                     "created_at": c_late.created_at.isoformat(),
+                    "imported_from_username": None,
                 },
             ],
         )
-        self.assertEqual(list(out["comments"][0]), ["author", "body", "created_at"])
+        # imported_from_username is additive (#1702).
+        self.assertEqual(
+            list(out["comments"][0]), ["author", "body", "created_at", "imported_from_username"]
+        )
         self.assertEqual(
             out["checklist"],
             [

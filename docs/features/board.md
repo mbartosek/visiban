@@ -529,6 +529,7 @@ Click **Import** on the dashboard to create a new board from a previously export
 - Movement history — every column transition appears in the card's **Activity** tab
 - Activity log — assignee changes, label changes, priority changes, due-date changes, checklist events, and comments all appear in the activity feed
 - Imported history keeps its original times and is recorded under your name, the person who ran the import. The username the file gave for each movement and activity entry is kept as text, and the card's **Activity** tab and the board's **History** view show it next to your name, for example "by Kelly · imported, originally alice" — so imported entries can always be told apart from history recorded on this board. The name is not matched to an account on this instance. See [Imported history](card-history.md#imported-history).
+- Comments — posted under your name with their original times. Since 1.2 the comment's `author` from the file is kept as text the same way and shown after the time in the card's comment list ("imported, originally alice").
 - Custom fields (since 1.2) — the board's card and swimlane custom field definitions, with their number formatting and choice colors, and every card's and swimlane's values. A value the field's type would refuse is skipped; the rest of the import goes ahead
 
 **CSV import** creates cards with their current field values only. Movement history and activity log are not restored.

@@ -583,9 +583,11 @@ Export the board as JSON. Returns `application/json`. Same permission rules as t
 
 The top-level `schema_version` field is always `2` in 1.1+ exports. The importer understands versions 0 (pre-1.0, no field present), 1, and 2. Version 2 adds `archived_at` per card, `movement_type`, movement `notes`, and comment `created_at`.
 
-Each card also carries its own `movements` (`{from_column, to_column, from_swimlane, to_swimlane, moved_by, moved_at, notes, movement_type}`, one per `CardMovement`) and `activities` (`{event_type, from_value, to_value, actor, created_at}`, one per `CardActivity`) arrays, mirroring the [movements](cards.md#history) and [activities](cards.md#history) endpoints. As with the rest of this export, `moved_by`/`actor` are usernames rather than user objects, and `null` when the acting user has since been deleted. Since 1.2 both also carry `imported_from_username` (additive; `schema_version` stays `2`): `null` for history recorded on the board, and the source username for a row that came from an earlier import.
+Each card also carries its own `movements` (`{from_column, to_column, from_swimlane, to_swimlane, moved_by, moved_at, notes, movement_type}`, one per `CardMovement`) and `activities` (`{event_type, from_value, to_value, actor, created_at}`, one per `CardActivity`) arrays, mirroring the [movements](cards.md#history) and [activities](cards.md#history) endpoints. As with the rest of this export, `moved_by`/`actor` are usernames rather than user objects, and `null` when the acting user has since been deleted. Since 1.2 both also carry `imported_from_username` (additive; `schema_version` stays `2`): `null` for history recorded on the board, and the source username for a row that came from an earlier import. Each card's `comments` (`{author, body, created_at}`) carry it too since 1.2, with the same meaning (#1702).
 
 On import with `history` on, every movement and activity entry is recorded under the importing user and keeps the file's time. Its source name is kept as text in `imported_from_username` — the entry's own `imported_from_username` when the file has one (a re-exported import), otherwise its `moved_by` / `actor`, or `""` when there is neither. Source names are never resolved to accounts; only `assignee` is. `imported_from_username` must be a string or `null`, at most 150 characters, with no NUL characters.
+
+Comments (with `comments` on) work the same way since 1.2: each is posted under the importing user, keeps the file's `created_at`, and keeps its source name in `imported_from_username` — the comment's own `imported_from_username` when the file has one, otherwise its `author` (a string; any other value is ignored, as before), or `""`. A comment's `author` is never resolved to an account, and an `author` longer than 150 characters is cut to 150. The same `imported_from_username` validation applies.
 
 Since 1.2 the payload also carries the board's `custom_fields` schema and each card's
 `custom_field_values`, keyed by field name. Both are **additive**, so `schema_version`
@@ -644,7 +646,7 @@ caller below `admin` — the same role gate this export already applies to a swi
       "archived_at": null,
       "custom_field_values": { "Array Type": "raid10" },
       "external_ref": { "provider": "gitlab", "ref": "acme/webapp!45", "url": "https://gitlab.com/acme/webapp/-/merge_requests/45" },
-      "comments": [{ "author": "bob", "body": "On it.", "created_at": "2026-03-02T09:00:00Z" }],
+      "comments": [{ "author": "bob", "body": "On it.", "created_at": "2026-03-02T09:00:00Z", "imported_from_username": null }],
       "checklist": [{ "text": "Write tests", "is_checked": false }],
       "movements": [
         { "from_column": null, "to_column": "Backlog", "from_swimlane": null, "to_swimlane": "Acme Corp", "moved_by": "alice", "moved_at": "2026-03-01T10:00:00Z", "notes": "", "movement_type": "move", "imported_from_username": null }
@@ -719,7 +721,7 @@ The whole-import limit is an upper bound on every row the import inserts, counte
 - Column and swimlane `position`, card `weight` and `position`, and column `wip_limit` and `weight_limit` must be integers from 0 to 2,147,483,647. Only `wip_limit` and `weight_limit` may be `null`.
 - Column positions must be unique. A column with no `position` takes its index in the list, so an explicit position can collide with another column's default. Swimlane positions may repeat.
 - Text values must not be `null`, a list, or an object, and must not contain NUL characters: column, swimlane, and label `color`; swimlane `contact_email` and `notes`; board and card `description`; comment `body`; checklist `text`; movement `notes`; activity `from_value` and `to_value`. A plain number or `true`/`false` is stored as its text (`5` → `"5"`, `true` → `"True"`), as in earlier releases; `NaN` and `Infinity` are refused. A key left out takes its default.
-- Text values stored in a limited column must fit it: column and swimlane `name` (255), label `name` (50), `color` (7), `contact_email` (254), card `title` (500), checklist `text` (500), movement `notes` (500), the column and swimlane names in a movement (255), the `name` form field (255), usernames in `assignee`, `moved_by`, and `actor` (150), and `imported_from_username` on movements and activities (150).
+- Text values stored in a limited column must fit it: column and swimlane `name` (255), label `name` (50), `color` (7), `contact_email` (254), card `title` (500), checklist `text` (500), movement `notes` (500), the column and swimlane names in a movement (255), the `name` form field (255), usernames in `assignee`, `moved_by`, and `actor` (150), and `imported_from_username` on movements, activities, and comments (150).
 - Column `is_done` and `allow_card_creation`, and checklist `is_checked`, must be `true` or `false`.
 - Dates and timestamps (`due_date`, `archived_at`, and comment, movement, and activity timestamps) must be strings that name a real date or time; a number such as `20200101`, an impossible value such as `2024-02-30` or `T25:00:00`, or a time whose UTC equivalent falls outside years 1–9999 (such as `9999-12-31T23:59:59-12:00`) is rejected.
 - A file that cannot be parsed, including one with an integer literal of more than 4,300 digits or nesting too deep to parse, returns `{"detail": "The uploaded file is not valid JSON."}`.
@@ -979,8 +981,10 @@ A Trello member matches a Visiban user when the Trello **username** equals the V
 
 Matching only considers users the caller can already see: co-members of the caller's boards, co-members of the caller's groups, and members and owner of the target group. Site admins can match any active user. This keeps a crafted file from being used to check whether an arbitrary username exists. The response reports only a **count** of matches, never which accounts matched.
 
-- `add_matched_members: false` (default): matched users are not added to the board, cards are left unassigned, and every comment is authored by the importer, starting with the plain-text line `Full Name (imported from Trello):`.
-- `add_matched_members: true`: matched users are added to the board with the `member` role and assigned to their cards (the first matched Trello member on each card). Their comments are authored by them but always start with the plain-text line `(imported from Trello)`, so an imported comment is never indistinguishable from one posted in Visiban. Comments by unmatched people keep the `Full Name (imported from Trello):` form. Adding members sends no notification.
+- `add_matched_members: false` (default): matched users are not added to the board and cards are left unassigned.
+- `add_matched_members: true`: matched users are added to the board with the `member` role and assigned to their cards (the first matched Trello member on each card). Adding members sends no notification.
+
+Since 1.2 (#1702), with either setting, every comment is authored by the importer and keeps its Trello time. The Trello author's display name is kept as text in the comment's `imported_from_username` (at most 150 characters, line breaks collapsed), never matched to an account, and the body starts with the plain-text line `(imported from Trello)`. Earlier versions authored a matched member's comments as that member when `add_matched_members` was `true`, and put the author's name in the body (`Full Name (imported from Trello):`) otherwise; comments imported then are unchanged.
 
 Unmatched members are listed in the preview by their Trello name (from the uploader's own file).
 
@@ -1079,7 +1083,7 @@ Exceeding either limit returns `429 Too Many Requests`. Previews are throttled s
     },
     {
       "code": "matched_members_not_added",
-      "message": "Matched members will not be added to the board; assignees are left empty and comments are attributed to you.",
+      "message": "Matched members will not be added to the board and assignees are left empty.",
       "count": 2
     }
   ],
@@ -1109,7 +1113,7 @@ In `mapping.columns`, `position` is `null` for a list that will not be imported 
 | `unknown_labels` | Label references missing from the export will be ignored. |
 | `comments_may_be_incomplete` | The export hit Trello's 1,000-action limit, so older comments may be missing. |
 | `matched_members_not_added` | Members matched but `add_matched_members` is `false`. Only present when `false`. |
-| `unmatched_members` | Members with no matching Visiban user are not assigned; their comments are attributed to the importer with their Trello name. |
+| `unmatched_members` | Members with no matching Visiban user are not assigned to cards. |
 
 **`unmappable`** — Trello data that has no Visiban equivalent and is dropped. Each entry is `{kind, count}`, present only when the count is greater than zero. Kinds:
 

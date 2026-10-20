@@ -239,11 +239,13 @@ importer, co-members of their boards and groups, and the target group (a site
 admin or an all-content user matches every active user). A name outside that
 pool is dropped, so a file cannot assign work to an arbitrary account.
 
-Imported history rows (JSON movement `moved_by`, activity `actor`) are not
-resolved at all, inside the pool or out of it: each row is recorded under the
-importer and keeps the file's name as text in `imported_from_username` (#1675),
-which the timeline, History view and exports display. A new import path that
-writes history rows applies the same rule rather than linking them to accounts.
+Imported history rows (JSON movement `moved_by`, activity `actor`) and imported
+comments (JSON comment `author`, Trello comment authors) are not resolved at
+all, inside the pool or out of it: each row is recorded under the importer and
+keeps the source's name as text in `imported_from_username` (#1675, #1702),
+which the timeline, comment list, History view and exports display. A new import
+path that writes history rows or comments applies the same rule rather than
+linking them to accounts.
 
 Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, direct and group-inherited members whose role is not viewer, and users with `can_access_all_content`. A viewer role alone never makes a user assignable. REST card create and update and the MCP `create_card` and `update_card` username lookup all use this set (`_get_assignable_member_ids`).
 
@@ -258,9 +260,9 @@ the status filter and the uniform response, not scope.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` (assignee); history rows use the importer plus `_imported_from_username` |
+| JSON import | `boards/views/import_export.py` `BoardImportExportMixin._import_json` | `_resolve_import_users` (assignee); history rows and comments use the importer plus `_imported_from_username` |
 | CSV import | `boards/views/import_export.py` `BoardImportExportMixin._import_csv` | `_resolve_import_users` (assignee; CSV import writes no history rows) |
-| Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` (card members and comment authors; Trello import writes no movement or activity rows) |
+| Trello import | `boards/views/import_export.py` `BoardImportExportMixin.import_trello` | `boards/services/trello_import.py` `visible_users`, `match_members` (card members only; comments use the importer and keep the author name in `imported_from_username`; Trello import writes no movement or activity rows) |
 | User search | `accounts/views.py` `UserSearchView` | Filters `is_active=True`; matches `username` and `display_name` only |
 | Board member add or role change | `boards/views/boards.py` `BoardViewSet.members` | An existing membership is updated as is (the site-admin refusal applies to it); a new one requires an active user, whatever the user's site role. Unknown and inactive ids answer the same `404`. Also checks the submitted `role` is a string within `BoardMembership.Role.values` |
 | Group member role change | `groups/views.py` `GroupViewSet.update_member` (PATCH) | Same lookup and `404`; the site-admin refusal is evaluated after the membership lookup |
