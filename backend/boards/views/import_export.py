@@ -1725,6 +1725,11 @@ class BoardImportExportMixin:
                     movements_to_create.append((
                         CardMovement(
                             card_id=card_pk,
+                            # bulk_create skips CardMovement.save(), which
+                            # fills these on every other path (#1469).
+                            board_id=card_obj.board_id,
+                            card_uid=card_obj.uid,
+                            card_title=card_obj.title,
                             from_column=from_col,
                             to_column=to_col,
                             from_swimlane=from_sw,

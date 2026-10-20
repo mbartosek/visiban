@@ -654,9 +654,29 @@ class BoardAnalyticsMixin:
         board, role = get_board_for_user(pk, request.user)
         PAGE_SIZE = 50
 
+        # Read by the movement's own board (#1469), not card__board: a
+        # hard-deleted card's retained history (card NULL) still belongs to
+        # this board's History. For live cards the two select the same rows:
+        # the API never moves a card between boards, and the Django admin,
+        # which can, re-points the card's movements (CardAdmin.save_model).
+        # select_related on the nullable card FK is a LEFT JOIN, so retained
+        # rows are kept and serialize from their card_uid / card_title
+        # snapshot. Served by movement_board_moved_idx. Rows an older release
+        # wrote during a rolling upgrade, after the 0080 backfill, carry no
+        # board; the second branch finds them through their card so they are
+        # never missing from History, whether or not
+        # backfill_card_movement_snapshots has run. (If their card is deleted
+        # first, set_null_keeping_board fills the board.)
+        # The card-join branch defeats the (board, -moved_at) index's early
+        # exit (about 100x slower on a 10k-row board), so it is added only
+        # while rollout rows with no board exist; the probe is an index scan on
+        # the same index and the common, backfilled case keeps the fast plan.
+        on_board = Q(board=board)
+        if CardMovement.objects.filter(board__isnull=True, card__isnull=False).exists():
+            on_board |= Q(board__isnull=True, card__board=board)
         qs = (
             CardMovement.objects
-            .filter(card__board=board)
+            .filter(on_board)
             .select_related("card", "moved_by", "from_column", "to_column", "from_swimlane", "to_swimlane")
             .order_by("-moved_at")
         )
@@ -729,7 +749,12 @@ class BoardAnalyticsMixin:
                     status=status.HTTP_403_FORBIDDEN,
                 )
             backend = hooks.MOVEMENT_EXPORT_BACKENDS[0]
-            response = backend(board, qs, request)
+            # Live cards only (#1469): the hook's queryset has always held only
+            # rows with a card, and a backend may read ``mv.card``. Retained
+            # history of hard-deleted cards is not handed to it until the
+            # extension-point contract says rows may have ``card=None`` (#1796).
+            export_qs = qs.filter(card__isnull=False)
+            response = backend(board, export_qs, request)
             # Audit only exports that actually produced data (like the board
             # export, which logs after the body is assembled); a failed or
             # rejected backend call is not an export.
@@ -740,7 +765,7 @@ class BoardAnalyticsMixin:
                     role_at_export=_role_at_export(board, request.user, role),
                     # export_format is capped at 20 chars; the value is user input.
                     export_format=f"movements_{export_format.lower()}"[:20],
-                    row_count=qs.count(),
+                    row_count=export_qs.count(),
                 )
             return response
 

@@ -436,8 +436,9 @@ class AnalyticsDwellTimeTests(TestCase):
         mv = CardMovement.objects.create(
             card=card, to_column=col, to_swimlane=swim, moved_by=self.user
         )
+        # Queryset update: CardMovement.save() refuses an existing row (#1469).
+        CardMovement.objects.filter(pk=mv.pk).update(moved_at=moved_at)
         mv.moved_at = moved_at
-        mv.save(update_fields=["moved_at"])
         # Keep card.column in sync with the movement destination so the
         # long-dwelling cards block (which reads card.column_id) sees the
         # correct current column, matching what the production move endpoint does.

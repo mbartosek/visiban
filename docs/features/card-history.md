@@ -22,6 +22,23 @@ Pure position reorders within the same cell don't create a movement record.
 
 Find the movement timeline in the card detail panel's **Activity** tab.
 
+## Deleted cards keep their history
+
+> **Changed in 1.2** (#1469)
+
+Movement records are append-only: once written, they are not edited or removed.
+
+- **Deleting a card keeps its movements.** This covers deleting the card itself and deleting the column or swimlane it is in. Each record keeps the card's UID and title (`card_uid`, `card_title`) as of when it was recorded (for movements from before 1.2 and for imported ones, as of the upgrade or import), so the board's **History** view still lists it under the original card. A deleted card no longer appears under the **Swimlane** filter, which filters by the card's current swimlane.
+- **Deleting the board removes all of its movements**, including those of cards deleted earlier. Board deletion is the only way history leaves.
+- **Metrics are unchanged.** The Summary and Analytics views and the stale-card check count only cards that still exist, as before. A deleted card's movements do not count toward throughput, cycle time or dwell time.
+- **Exports don't include them yet.** JSON and CSV board export write movements per card, so a deleted card's history is not exported (#1796).
+
+In the Django admin (`/admin/`), movement records can be viewed but not added, edited or deleted; earlier releases allowed edits and deletes there. The admin list shows, and searches, the card UID and the card's title **as recorded at the time of each move**, not a renamed card's current title. Moving a card to another board in the admin keeps its movement history attached to the card's current board.
+
+A deleted card's title and any movement notes stay visible to the board's members until the board is deleted; a purge command for them is tracked in #1797.
+
+Before 1.2, deleting a card also deleted its movement history.
+
 ## Imported history
 
 > **Changed in 1.2** (#1675)
@@ -93,7 +110,7 @@ GET /api/v1/boards/{board_id}/cards/{card_id}/movements/
 GET /api/v1/boards/{board_id}/cards/{card_id}/activities/
 ```
 
-Movement records include `from_column_name`, `to_column_name`, `from_swimlane_name`, `to_swimlane_name`, `from_column_uid`, `to_column_uid`, `from_swimlane_uid`, `to_swimlane_uid`, `moved_by`, `moved_at`, and `movement_type`. The name and UID fields are denormalized — captured at write time, accurate regardless of future renames or deletions. See [Stable UIDs](stable-uids.md) for the full field reference and integration examples.
+Movement records include `card_uid`, `card_title`, `from_column_name`, `to_column_name`, `from_swimlane_name`, `to_swimlane_name`, `from_column_uid`, `to_column_uid`, `from_swimlane_uid`, `to_swimlane_uid`, `moved_by`, `moved_at`, and `movement_type`. The column and swimlane name and UID fields are denormalized — captured at write time, accurate regardless of future renames or deletions. `card_uid` and `card_title` show the card's current values while the card exists, and the values kept on the record once it is deleted. See [Stable UIDs](stable-uids.md) for the full field reference and integration examples.
 
 ## Board-level movement history
 

@@ -477,6 +477,33 @@ Optional follow-up, out of scope for this page:
 No issue is currently filed for either; file one before picking either up rather than
 inferring scope from this paragraph.
 
+### Changing an existing foreign key's nullability
+
+A plain `AlterField` that only adds `null=True` to a `ForeignKey` looks catalog-only, and it
+is not. Django's schema editor drops and re-adds the foreign key constraint whenever any
+database-relevant attribute of the field changes, and `null` is one (`on_delete` is not —
+it emits no SQL). `sqlmigrate` shows the full sequence:
+
+```sql
+ALTER TABLE "card_movements" DROP CONSTRAINT "card_movements_card_id_..._fk_cards_id";
+ALTER TABLE "card_movements" ALTER COLUMN "card_id" DROP NOT NULL;
+ALTER TABLE "card_movements" ADD CONSTRAINT "..." FOREIGN KEY ("card_id") REFERENCES "cards" ("id") DEFERRABLE INITIALLY DEFERRED;
+```
+
+The re-`ADD` validates every row against the referenced table, holding `ACCESS EXCLUSIVE` on
+the referencing table (the migration is atomic) and `SHARE ROW EXCLUSIVE` on the referenced
+one for the whole scan. Neither checker flags it yet (#1798).
+
+The change that is actually needed is only `ALTER COLUMN ... DROP NOT NULL`, which is
+catalog-only and leaves the existing constraint in place. `boards/0079_cardmovement_card_nullable`
+(#1469) is the precedent: a small `AlterField` subclass whose PostgreSQL `database_forwards`
+runs only that statement and whose state change is the inherited `AlterField`'s, so
+`makemigrations --check` stays clean. Other backends fall through to the normal path (SQLite
+rebuilds the table, which is fine locally). Its `database_backwards` refuses while any row
+holds `NULL`, rather than deleting data to restore `NOT NULL`. Confirm the result with
+`python manage.py sqlmigrate <app> <migration>` against PostgreSQL: the output should be the
+single `DROP NOT NULL`.
+
 ---
 
 ## SQLite

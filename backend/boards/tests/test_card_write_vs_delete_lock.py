@@ -201,7 +201,9 @@ class CardWriteVsDeleteNotFoundTests(APITestCase):
             with self.subTest(name), self._delete_before_lock():
                 resp = reqs[name](self.client)
             self._assert_404_and_silent(resp)
-            self.assertFalse(CardMovement.objects.filter(card_id=self.card.pk).exists())
+            # By uid as well as card_id: a deleted card's movements are kept
+            # with card NULL since #1469, so card_id alone would pass vacuously.
+            self.assertFalse(CardMovement.objects.filter(card_uid=self.card.uid).exists())
 
     def test_unraced_writes_still_succeed(self):
         reqs = _requests(self)
@@ -411,7 +413,8 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
         self.assertEqual(results.get("deleter"), "deleted")
         self.assertEqual(self._status(results, "writer"), 404)
         self._assert_card_and_children_gone()
-        self.assertFalse(CardMovement.objects.filter(card_id=self.card.pk).exists())
+        # No unarchive movement was written (by uid: see #1469 above).
+        self.assertFalse(CardMovement.objects.filter(card_uid=self.card.uid).exists())
 
     def test_unarchive_then_delete(self):
         Card.objects.filter(pk=self.card.pk).update(archived_at=timezone.now())
@@ -427,4 +430,10 @@ class CardWriteVsDeleteLockTests(TransactionTestCase):
         self.assertEqual(self._status(results, "writer"), 200)
         self.assertIsInstance(results.get("deleter"), str, results.get("deleter"))
         self._assert_card_and_children_gone()
-        self.assertFalse(CardMovement.objects.filter(card_id=self.card.pk).exists())
+        # The unarchive committed first, so its movement exists — and survives
+        # the delete with card NULL and its snapshot (#1469).
+        kept = CardMovement.objects.filter(card_uid=self.card.uid)
+        self.assertEqual(
+            list(kept.values_list("card_id", "movement_type")),
+            [(None, CardMovement.MovementType.UNARCHIVED)],
+        )
