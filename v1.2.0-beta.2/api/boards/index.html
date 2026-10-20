@@ -6048,7 +6048,7 @@
 <hr />
 <h2 id="export-import">Export &amp; Import<a class="headerlink" href="#export-import" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1boardsidexport"><code>GET /api/v1/boards/{id}/export/</code><a class="headerlink" href="#get-apiv1boardsidexport" title="Permanent link">&para;</a></h3>
-<p>Export the board. Append <code>?format=json</code> for a JSON dump; omit for CSV (the default).</p>
+<p>Export the board. CSV is the default; append <code>?format=json</code> for a JSON dump. <code>?format=csv</code> is also accepted and returns the same CSV bytes as omitting <code>format</code> whenever the request's <code>Accept</code> header is absent or allows <code>application/json</code> or <code>*/*</code>. Under <code>format=csv</code> and <code>format=json</code>, error responses (<code>401</code>, <code>403</code>, <code>404</code>, <code>406</code>, <code>429</code>) are JSON. A request with <code>Accept: text/csv</code> alone returns <code>406 Not Acceptable</code> on the CSV paths, with or without <code>format</code>, because no renderer serves <code>text/csv</code>; send <code>*/*</code> or omit <code>Accept</code>. With <code>format</code> omitted and a browser <code>Accept</code> (<code>text/html</code>), or with <code>format=api</code>, errors render as HTML from the browsable API.</p>
 <p><strong>Query parameters</strong></p>
 <table>
 <thead>
@@ -6062,9 +6062,9 @@
 <tbody>
 <tr>
 <td><code>format</code></td>
-<td><code>json</code></td>
-<td><em>(omit for CSV)</em></td>
-<td>Response format. Omit it for CSV. <code>json</code> is the only documented value; other values such as <code>csv</code> or <code>xml</code> return <code>404 Not Found</code> from the API's format negotiation, so do not send <code>format=csv</code>.</td>
+<td><code>csv</code>, <code>json</code></td>
+<td><code>csv</code></td>
+<td>Response format. Omit it, or send <code>csv</code>, for CSV; send <code>json</code> for the JSON dump. Other values such as <code>xml</code> return <code>404 Not Found</code> from the API's format negotiation. <code>csv</code> is accepted since 1.2 (#1790); earlier versions returned <code>404</code> for it, so omit <code>format</code> to target older servers.</td>
 </tr>
 </tbody>
 </table>
