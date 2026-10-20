@@ -1561,7 +1561,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs font-semibold text-fg-secondary min-w-0 truncate" title={authorName}>{authorName}</span>
-                            <span className="text-xs text-fg-muted" title={formatDateTimeUser(c.created_at, currentUser)}>{formatCommentTime(c.created_at, currentUser)}</span>
+                            <span className="text-xs text-fg-muted shrink-0 whitespace-nowrap" title={formatDateTimeUser(c.created_at, currentUser)}>{formatCommentTime(c.created_at, currentUser)}</span>
                             {imported && (
                               <span className="text-xs text-fg-muted min-w-0 truncate" title={imported}>{imported}</span>
                             )}

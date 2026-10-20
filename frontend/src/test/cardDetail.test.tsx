@@ -780,6 +780,8 @@ describe('CardDetail', () => {
     const note = await screen.findByText('imported, originally Ada Lovelace')
     expect(note).toHaveAttribute('title', 'imported, originally Ada Lovelace')
     expect(note).toHaveClass('text-xs', 'text-fg-muted', 'truncate')
+    // The time never shrinks or wraps; only the name and the note truncate.
+    expect(note.previousElementSibling).toHaveClass('shrink-0', 'whitespace-nowrap')
     expect(screen.getByText('imported')).toBeInTheDocument()
     // Exactly the two imported comments carry a note; the posted one does not.
     expect(screen.getAllByText(/^imported/)).toHaveLength(2)
