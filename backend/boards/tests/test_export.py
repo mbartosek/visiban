@@ -301,3 +301,16 @@ class ExportFormatNegotiation1790Tests(TestCase):
         self.client.logout()
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(self.url, {"format": "csv"}).status_code, 401)
+
+    def test_restricted_error_body_keeps_structured_code_for_format_csv(self):
+        self.board.export_min_role = "admin"
+        self.board.save(update_fields=["export_min_role"])
+        from boards.models import BoardMembership
+        from accounts.models import User as U
+        viewer = U.objects.create_user(username="fmt1790_view", password="x")
+        BoardMembership.objects.create(board=self.board, user=viewer, role="viewer")
+        self.client.force_authenticate(viewer)
+        r = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(r.status_code, 403)
+        body = json.loads(r.content)
+        self.assertEqual(body["code"], "export_restricted")

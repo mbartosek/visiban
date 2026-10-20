@@ -116,12 +116,12 @@ class CsvExportRenderer(BaseRenderer):
     charset = "utf-8"
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-        # Only reached for DRF-built responses (e.g. 403/404 error bodies on a
-        # csv request); fall back to the error detail as plain text.
-        if isinstance(data, dict) and "detail" in data:
-            return str(data["detail"]).encode(self.charset)
-        return b"" if data is None else str(data).encode(self.charset)
-
+        # Only reached for DRF-built responses (401/403/404/429 error bodies on
+        # a csv request). Keep the structured error body (``code``,
+        # ``min_role``) as JSON so clients parsing ``export_restricted`` still can.
+        if data is None:
+            return b""
+        return json.dumps(data, default=str).encode(self.charset)
 
 
 class BoardImportThrottle(UserRateThrottle):
