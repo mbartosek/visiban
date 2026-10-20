@@ -56,6 +56,12 @@ class EnsureSiteAdminLogTests(TestCase):
         entry = AdminActionLog.objects.get(action=SET)
         self.assertEqual(entry.metadata["target_id"], existing.pk)
 
+    def test_log_failure_leaves_no_new_account(self):
+        with patch.object(AdminActionLog, "record", side_effect=RuntimeError("log down")):
+            with self.assertRaises(RuntimeError):
+                call_command("ensure_site_admin", stdout=StringIO())
+        self.assertFalse(User.objects.filter(username="admin").exists())
+
     def test_noop_run_records_nothing(self):
         User.objects.create_user(username="existing", password="x", is_site_admin=True)
         call_command("ensure_site_admin", stdout=StringIO())
@@ -122,3 +128,30 @@ class ProvisionFuzzTokenLogTests(TestCase):
         self.assertFalse(self.member.has_usable_password())
         self.assertFalse(self.member.personal_access_tokens.exists())
         self.assertFalse(os.path.exists(self.token_file))
+
+
+class ChangePasswordLogTests(TestCase):
+    NEW = "a-Strong-new-pass-1699"
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="op1699", password="old-pass-1699x")
+
+    def _run(self):
+        with patch("getpass.getpass", side_effect=[self.NEW, self.NEW]):
+            call_command("changepassword", "op1699", stdout=StringIO())
+
+    def test_password_set_is_recorded_without_secrets(self):
+        self._run()
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.NEW))
+        entry = AdminActionLog.objects.get(action=SET)
+        _assert_entry_is_secret_free(self, entry, self.user)
+        self.assertNotIn(self.NEW, repr(entry.metadata))
+
+    def test_log_failure_rolls_back_the_password(self):
+        before = self.user.password
+        with patch.object(AdminActionLog, "record", side_effect=RuntimeError("log down")):
+            with self.assertRaises(RuntimeError):
+                self._run()
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, before)

@@ -79,7 +79,7 @@ class ProvisionFuzzTokenTests(TestCase):
         )
         social.refresh_from_db()
         self.assertTrue(social.has_usable_password())
-        self.assertIn("random, unrecorded password", out.getvalue())
+        self.assertIn("random password that is not kept", out.getvalue())
 
         with open(self.token_file) as fh:
             raw_token = fh.read().strip()
@@ -133,7 +133,7 @@ class ProvisionFuzzTokenTests(TestCase):
         social.refresh_from_db()
         self.assertFalse(social.has_usable_password())
         self.assertTrue(PersonalAccessToken.objects.filter(user=social).exists())
-        self.assertNotIn("random, unrecorded password", out.getvalue())
+        self.assertNotIn("random password that is not kept", out.getvalue())
 
     def test_without_flag_a_token_cannot_set_a_first_password(self):
         """Since #1609 a token-only caller cannot set a first password.
@@ -186,7 +186,7 @@ class ProvisionFuzzTokenTests(TestCase):
                     stdout=out,
                 )
                 self.assertEqual(User.objects.get(pk=self.member.pk).password, before)
-                self.assertNotIn("random, unrecorded password", out.getvalue())
+                self.assertNotIn("random password that is not kept", out.getvalue())
 
     def test_refuses_missing_user(self):
         with self.assertRaises(CommandError) as ctx:

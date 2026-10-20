@@ -20,6 +20,7 @@ from django.core.management.base import CommandError
 from django.db import transaction
 
 from accounts.credentials import lock_user_row, revoke_credentials_after_operator_reset
+from accounts.models import AdminActionLog
 
 
 class Command(django_changepassword.Command):
@@ -72,5 +73,12 @@ class Command(django_changepassword.Command):
             u.set_password(p1)
             u.save(update_fields=["password"])
             revoke_credentials_after_operator_reset(u)
+            # Same transaction as the password write: a failed log write rolls
+            # the password back. Only id and username are stored.
+            AdminActionLog.record(
+                action=AdminActionLog.Action.USER_PASSWORD_SET,
+                source=AdminActionLog.Source.CLI,
+                metadata={"target_id": u.pk, "target_username": u.username},
+            )
 
         return "Password changed successfully for user '%s'" % u

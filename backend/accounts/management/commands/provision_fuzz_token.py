@@ -75,7 +75,7 @@ class Command(BaseCommand):
             "--set-random-password",
             action="store_true",
             help=(
-                "If the user has no usable password, set a random, unrecorded one so a "
+                "If the user has no usable password, set a random one that is not kept so a "
                 "fuzzed password change cannot revoke the token (#1607). Throwaway CI "
                 "databases only: on a real social-only account it lifts the "
                 "verified-email gate on password reset."
@@ -138,6 +138,6 @@ class Command(BaseCommand):
         )
         if password_locked:
             self.stdout.write(
-                f"Set a random, unrecorded password on '{username}' (it had none), so "
+                f"Set a random password that is not kept on '{username}' (it had none), so "
                 "the password-change routes require a current password the fuzzer cannot supply."
             )
