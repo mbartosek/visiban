@@ -4539,6 +4539,36 @@ admin of them (now <code>403</code> for a visible group, <code>404</code> for on
 <h1 id="1703">1703).<a class="headerlink" href="#1703" title="Permanent link">&para;</a></h1>
 </div>
 <div class="admonition note">
+<p class="admonition-title">Deleted cards keep their movement history; movements are read-only in the admin</p>
+<p>Hard-deleting a card (or the column or swimlane it is in) no longer deletes its movement
+history. The records stay on the board's <strong>History</strong> view under the card's original UID
+and title; deleting the whole board still removes them. In the Django admin, movement
+records can now only be viewed — add, edit and delete are gone. Summary and Analytics
+numbers are unchanged. See <a href="../../features/card-history/#deleted-cards-keep-their-history">Card History</a> (#1469).
+A deleted card's title and movement notes now stay visible to the board's members until
+the board is deleted; a purge command is tracked in #1797.</p>
+<p>Migrations <code>boards/0078</code>–<code>0081</code> add three columns to <code>card_movements</code>, make <code>card_id</code>
+nullable without rebuilding its foreign key, backfill the new columns in committed batches
+of 5,000 rows (<code>0080</code>, resumable if interrupted), and build one index concurrently
+(<code>0081</code>). None of them takes a long table lock. The backfill takes time proportional to
+the size of <code>card_movements</code>.</p>
+<p><strong>Installs that migrate while the old release is still serving:</strong> this covers the
+documented Docker Compose steps and Helm (the new pod migrates in its init container while
+the old pod serves), not only multi-replica setups. The old release can record a move after
+<code>0080</code> has run. That move still appears in the board's History view, but it has no stored
+board or card snapshot yet. Once the rollout completes, run
+<code>python manage.py backfill_card_movement_snapshots</code> once. It is idempotent. If such a card
+is hard-deleted by the new release before the command runs, the delete fills in the record
+itself, so nothing is left behind. A card deleted by a pod still on the previous release
+takes its history with it, as before the upgrade.</p>
+<p><strong>During the rollout, deleting a board</strong> from a pod still on the previous release may fail
+with a server error when the board holds history of cards the new release already
+hard-deleted. Nothing is lost; retry once the rollout completes.</p>
+<p><strong>Rolling back past <code>boards/0079</code></strong> is refused while any deleted card's history exists,
+because restoring <code>card_id NOT NULL</code> would mean deleting that history. The error message
+names the <code>DELETE</code> that lets the rollback proceed, if you intend that.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Secrets are read verbatim — a leading <code>$</code> is no longer a variable reference</p>
 <p><code>DJANGO_SECRET_KEY</code>, OAuth/OIDC client IDs and secrets, <code>EMAIL_HOST_PASSWORD</code>,
 <code>VISIBAN_SECRET_ENCRYPTION_KEY</code>, <code>DEMO_ADMIN_PASSWORD</code>, and <code>DEMO_MEMBER_PASSWORD</code> are now

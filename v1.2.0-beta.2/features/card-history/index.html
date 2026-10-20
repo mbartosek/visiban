@@ -1285,6 +1285,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deleted-cards-keep-their-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleted cards keep their history
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#imported-history" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4061,6 +4072,20 @@
 <p>Pure position reorders within the same cell don't create a movement record.</p>
 <p><code>archived</code> and <code>unarchived</code> events appear in the card's own timeline and in the board-level History view.</p>
 <p>Find the movement timeline in the card detail panel's <strong>Activity</strong> tab.</p>
+<h2 id="deleted-cards-keep-their-history">Deleted cards keep their history<a class="headerlink" href="#deleted-cards-keep-their-history" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1469)</p>
+</blockquote>
+<p>Movement records are append-only: once written, they are not edited or removed.</p>
+<ul>
+<li><strong>Deleting a card keeps its movements.</strong> This covers deleting the card itself and deleting the column or swimlane it is in. Each record keeps the card's UID and title (<code>card_uid</code>, <code>card_title</code>) as of when it was recorded (for movements from before 1.2 and for imported ones, as of the upgrade or import), so the board's <strong>History</strong> view still lists it under the original card. A deleted card no longer appears under the <strong>Swimlane</strong> filter, which filters by the card's current swimlane.</li>
+<li><strong>Deleting the board removes all of its movements</strong>, including those of cards deleted earlier. Board deletion is the only way history leaves.</li>
+<li><strong>Metrics are unchanged.</strong> The Summary and Analytics views and the stale-card check count only cards that still exist, as before. A deleted card's movements do not count toward throughput, cycle time or dwell time.</li>
+<li><strong>Exports don't include them yet.</strong> JSON and CSV board export write movements per card, so a deleted card's history is not exported (#1796).</li>
+</ul>
+<p>In the Django admin (<code>/admin/</code>), movement records can be viewed but not added, edited or deleted; earlier releases allowed edits and deletes there. The admin list shows, and searches, the card UID and the card's title <strong>as recorded at the time of each move</strong>, not a renamed card's current title. Moving a card to another board in the admin keeps its movement history attached to the card's current board.</p>
+<p>A deleted card's title and any movement notes stay visible to the board's members until the board is deleted; a purge command for them is tracked in #1797.</p>
+<p>Before 1.2, deleting a card also deleted its movement history.</p>
 <h2 id="imported-history">Imported history<a class="headerlink" href="#imported-history" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>Changed in 1.2</strong> (#1675)</p>
@@ -4151,7 +4176,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>GET /api/v1/boards/{board_id}/cards/{card_id}/movements/
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>GET /api/v1/boards/{board_id}/cards/{card_id}/activities/
 </code></pre></div>
-<p>Movement records include <code>from_column_name</code>, <code>to_column_name</code>, <code>from_swimlane_name</code>, <code>to_swimlane_name</code>, <code>from_column_uid</code>, <code>to_column_uid</code>, <code>from_swimlane_uid</code>, <code>to_swimlane_uid</code>, <code>moved_by</code>, <code>moved_at</code>, and <code>movement_type</code>. The name and UID fields are denormalized — captured at write time, accurate regardless of future renames or deletions. See <a href="../stable-uids/">Stable UIDs</a> for the full field reference and integration examples.</p>
+<p>Movement records include <code>card_uid</code>, <code>card_title</code>, <code>from_column_name</code>, <code>to_column_name</code>, <code>from_swimlane_name</code>, <code>to_swimlane_name</code>, <code>from_column_uid</code>, <code>to_column_uid</code>, <code>from_swimlane_uid</code>, <code>to_swimlane_uid</code>, <code>moved_by</code>, <code>moved_at</code>, and <code>movement_type</code>. The column and swimlane name and UID fields are denormalized — captured at write time, accurate regardless of future renames or deletions. <code>card_uid</code> and <code>card_title</code> show the card's current values while the card exists, and the values kept on the record once it is deleted. See <a href="../stable-uids/">Stable UIDs</a> for the full field reference and integration examples.</p>
 <h2 id="board-level-movement-history">Board-level movement history<a class="headerlink" href="#board-level-movement-history" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>Added in 1.0</strong></p>

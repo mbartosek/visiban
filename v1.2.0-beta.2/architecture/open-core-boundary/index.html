@@ -4646,7 +4646,7 @@
 <tr>
 <td><code>MOVEMENT_EXPORT_BACKENDS</code> list (<code>boards/hooks.py</code>)</td>
 <td>Enterprise delivery report export (#342 enterprise)</td>
-<td>✅ Implemented — <code>boards/hooks.py</code></td>
+<td>✅ Implemented — <code>boards/hooks.py</code>. The queryset handed to a backend holds movements of live cards only (<code>card</code> is never <code>None</code>): the retained history of hard-deleted cards (#1469) is filtered out until the contract is widened to say rows may have <code>card=None</code> (#1796)</td>
 </tr>
 <tr>
 <td><code>ANALYTICS_EXTENSIONS</code> list (<code>boards/hooks.py</code>)</td>
