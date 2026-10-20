@@ -958,9 +958,10 @@ class CardViewSet(viewsets.ModelViewSet):
             # prefetch populated — the instance the service holds was loaded for
             # locking and would otherwise trigger ~7 extra queries.
             #
-            # A card hard-deleted between the move's write and this re-read (or
-            # the movement row with it, via cascade) answers 404, not a bare
-            # DoesNotExist 500 (#1585). We are inside the service's atomic
+            # A card hard-deleted between the move's write and this re-read
+            # answers 404, not a bare DoesNotExist 500 (#1585). The movement
+            # row itself survives a card delete since #1469 (card SET_NULL)
+            # and vanishes only with its board. We are inside the service's atomic
             # block, so the raise rolls the move back and nothing is broadcast.
             try:
                 data = {

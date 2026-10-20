@@ -72,9 +72,22 @@ class BoardCascadeDeletionTests(TestCase):
         self.assertEqual(Card.objects.filter(board_id=board_id).count(), 0)
 
     def test_deleting_board_cascades_card_movements(self):
-        card_id = self.card.pk
+        # The board FK is what removes them (#1469): card is SET_NULL, so a
+        # card_id filter would pass vacuously. Count by board and overall.
+        board_id = self.board.pk
+        self.assertEqual(CardMovement.objects.filter(board_id=board_id).count(), 2)
         self.board.delete()
-        self.assertEqual(CardMovement.objects.filter(card_id=card_id).count(), 0)
+        self.assertEqual(CardMovement.objects.filter(board_id=board_id).count(), 0)
+        self.assertEqual(CardMovement.objects.count(), 0)
+
+    def test_deleting_board_cascades_history_of_previously_deleted_cards(self):
+        # A card hard-deleted earlier left its movements behind (card NULL);
+        # deleting the board removes them too, so nothing is orphaned (#1469).
+        board_id = self.board.pk
+        self.card.delete()
+        self.assertEqual(CardMovement.objects.filter(board_id=board_id, card__isnull=True).count(), 2)
+        self.board.delete()
+        self.assertEqual(CardMovement.objects.count(), 0)
 
     def test_deleting_board_cascades_card_comments(self):
         card_id = self.card.pk
@@ -88,7 +101,7 @@ class BoardCascadeDeletionTests(TestCase):
 
 
 class ColumnCascadeDeletionTests(TestCase):
-    """Deleting a column should cascade to its cards and their movements."""
+    """Deleting a column should cascade to its cards (their movements are kept, #1469)."""
 
     def setUp(self):
         self.owner = User.objects.create_user(username="owner", password="pass")
@@ -104,10 +117,15 @@ class ColumnCascadeDeletionTests(TestCase):
         self.col_a.delete()
         self.assertFalse(Card.objects.filter(pk=card_id).exists())
 
-    def test_deleting_column_cascades_card_movements(self):
-        card_id = self.card.pk
+    def test_deleting_column_keeps_deleted_cards_movements(self):
+        # The column delete hard-deletes its cards, but their history is kept,
+        # still tied to the board and naming the card (#1469).
+        card_uid = self.card.uid
         self.col_a.delete()
-        self.assertEqual(CardMovement.objects.filter(card_id=card_id).count(), 0)
+        kept = CardMovement.objects.filter(board=self.board)
+        self.assertEqual(kept.count(), 2)
+        self.assertFalse(kept.filter(card__isnull=False).exists())
+        self.assertEqual(set(kept.values_list("card_uid", "card_title")), {(card_uid, "Card 1")})
 
     def test_deleting_column_cascades_card_comments(self):
         card_id = self.card.pk
@@ -138,10 +156,14 @@ class SwimlaneCascadeDeletionTests(TestCase):
         self.swim.delete()
         self.assertFalse(Card.objects.filter(pk=card_id).exists())
 
-    def test_deleting_swimlane_cascades_card_movements(self):
-        card_id = self.card.pk
+    def test_deleting_swimlane_keeps_deleted_cards_movements(self):
+        # Same as the column case (#1469): cards go, their history stays.
+        card_uid = self.card.uid
         self.swim.delete()
-        self.assertEqual(CardMovement.objects.filter(card_id=card_id).count(), 0)
+        kept = CardMovement.objects.filter(board=self.board)
+        self.assertEqual(kept.count(), 2)
+        self.assertFalse(kept.filter(card__isnull=False).exists())
+        self.assertEqual(set(kept.values_list("card_uid", flat=True)), {card_uid})
 
     def test_deleting_swimlane_does_not_affect_other_swimlanes(self):
         """Cards in other swimlanes should remain intact."""

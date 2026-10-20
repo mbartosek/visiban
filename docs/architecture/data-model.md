@@ -349,7 +349,9 @@ A fourth Django app, `git_lens`, is registered only when `GIT_LENS_ENABLED=true`
 
 ## Key design decisions
 
-**CardMovement is append-only.** Every time a card changes column or swimlane a new `CardMovement` row is created. Records are never updated or deleted, providing a full audit trail.
+**CardMovement is append-only.** Every time a card changes column or swimlane a new `CardMovement` row is created. Application code never updates or deletes a record, providing a full audit trail: since 1.2 (#1469) `CardMovement.save()` refuses to rewrite an existing row, `delete()` on a row always refuses, and the Django admin shows movements read-only. This is a guard against accidental writes, not tamper-proofing — a queryset `update()`/`delete()` or raw SQL bypasses it.
+
+**A card's movements outlive the card; a board's do not.** `CardMovement.card` is `on_delete=SET_NULL` (#1469): hard-deleting a card (directly, or by deleting the column or swimlane it is in) keeps its movements, with `card` set to `NULL`. Each row also carries `board` (the board it happened on, `on_delete=CASCADE`) and `card_uid` / `card_title` (the card's uid and title at the time of the movement), so a deleted card's history stays on its board's History view under its original uid and title. Deleting the whole board is the explicit destructive act that removes every movement on it, through `board`.
 
 **BoardMembership is explicit per board.** A user can have different roles on different boards. Group membership is inherited automatically (see [Group Inheritance](../features/rbac/inheritance.md)) but can be overridden by an explicit `BoardMembership` row.
 
@@ -361,6 +363,6 @@ A fourth Django app, `git_lens`, is registered only when `GIT_LENS_ENABLED=true`
 
 **Soft-delete via `archived_at`.** Cards are never hard-deleted from the board view. Archiving sets `archived_at` and hides the card; restoring clears it. Both operations create a `CardMovement` record with the appropriate `movement_type` so the archive/restore event appears in the card's history.
 
-**Denormalized names and UIDs on CardMovement.** The `from_column_name`, `to_column_name`, `from_swimlane_name`, `to_swimlane_name` fields (and their `*_uid` counterparts) are written at move time. This preserves human-readable and machine-readable history even after the referenced column or swimlane is deleted (`on_delete=SET_NULL` on the FK).
+**Denormalized names and UIDs on CardMovement.** The `from_column_name`, `to_column_name`, `from_swimlane_name`, `to_swimlane_name` fields (and their `*_uid` counterparts) are written at move time. This preserves human-readable and machine-readable history even after the referenced column or swimlane is deleted (`on_delete=SET_NULL` on the FK). `card_uid` and `card_title` do the same for the card (#1469); the API serves them only once the card itself is gone.
 
 **InviteLink is hash-only.** Both `InviteLink` (site-level) and `PersonalAccessToken` store only a SHA-256 hash of the raw token. The raw value is returned exactly once at creation and never persisted, following the same pattern as GitHub PATs.

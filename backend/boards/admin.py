@@ -755,6 +755,20 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 actor_id=request.user.pk,
             )
 
+    def get_deleted_objects(self, objs, request):
+        """Let a board delete cascade its movement history (#1469).
+
+        ``CardMovementAdmin`` grants no delete permission, and the admin's
+        confirmation step checks that permission on every collected object, so
+        without this a board with any history could not be deleted here.
+        Deleting the whole board is the one sanctioned way movements leave;
+        the board's own delete permission is what authorizes it. Also used by
+        the ``delete_selected`` action.
+        """
+        to_delete, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        perms_needed.discard(CardMovement._meta.verbose_name)
+        return to_delete, model_count, perms_needed, protected
+
     def delete_queryset(self, request, queryset):
         # One outer atomic across lock + delete (#1603).
         with transaction.atomic():
@@ -976,14 +990,48 @@ class CardChecklistAdmin(_CardChildBroadcastAdminMixin, admin.ModelAdmin):
     """Admin for CardChecklist that broadcasts mutations (see CardAdmin for rationale)."""
 
 
-# CardMovement and CardActivity are append-only audit-trail rows (no update
-# path, and deletion is not part of any documented workflow) — the #1241
-# audit flagged them as the same gap in principle but lower priority than the
-# six models above. CardAttachment and Notification were not flagged by the
-# audit. All four remain plain registrations; broadcasting admin mutations to
-# them can follow the same _BoardEventAdminMixin/_CardChildBroadcastAdminMixin
-# pattern if a future audit asks for it.
-admin.site.register(CardMovement)
+@admin.register(CardMovement)
+class CardMovementAdmin(admin.ModelAdmin):
+    """The movement audit trail, view-only (#1469).
+
+    No add, change or delete: the history is a record of who moved what, and
+    an admin edit would rewrite it silently. View permission is Django's
+    default, so who can browse it is unchanged. Movements leave only with
+    their board (``BoardAdmin.get_deleted_objects``).
+    """
+
+    list_display = ("moved_at", "card_title", "card_uid", "from_column_name", "to_column_name",
+                    "movement_type", "moved_by")
+    list_select_related = ("moved_by",)
+    list_filter = ("movement_type",)
+    search_fields = ("card_uid", "card_title")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
+# CardActivity is an append-only audit-trail row too (no update path, and
+# deletion is not part of any documented workflow) — the #1241 audit flagged
+# it and CardMovement as the same gap in principle but lower priority than the
+# six models above; CardMovement is read-only above since #1469.
+# CardAttachment and Notification were not flagged by the audit. The three
+# remain plain registrations; broadcasting admin mutations to them can follow
+# the same _BoardEventAdminMixin/_CardChildBroadcastAdminMixin pattern if a
+# future audit asks for it.
 admin.site.register(CardActivity)
 admin.site.register(CardAttachment)
 admin.site.register(Notification)

@@ -1795,6 +1795,24 @@ class SwimlaneCustomFieldDefinitionSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class _MovementCardField(serializers.CharField):
+    """A movement's card ``uid`` or ``title``: live card first, then the snapshot (#1469).
+
+    Reads ``movement.card.<attr>`` when the card still exists and
+    ``movement.card_<attr>`` (the value captured on the row) when the card was
+    hard-deleted. Always a string, never null.
+    """
+
+    def __init__(self, attr, **kwargs):
+        self._card_attr = attr
+        super().__init__(source="*", read_only=True, **kwargs)
+
+    def to_representation(self, movement):
+        if movement.card_id is not None:
+            return getattr(movement.card, self._card_attr)
+        return getattr(movement, f"card_{self._card_attr}")
+
+
 class CardMovementSerializer(serializers.ModelSerializer):
     # allow_null=True (#1108): moved_by is a SET_NULL FK — a movement made by
     # a since-deleted user must still serialize, and the schema must document
@@ -1802,11 +1820,17 @@ class CardMovementSerializer(serializers.ModelSerializer):
     moved_by = BoardUserSerializer(read_only=True, allow_null=True)
     # card_uid / card_title allow board-level history consumers to identify
     # which card a movement belongs to without a secondary fetch.
-    # source="card.*" is safe because the board-level movements queryset
-    # always select_related("card"), and the card-level queryset trivially
-    # has the card available.
-    card_uid = serializers.CharField(source="card.uid", read_only=True)
-    card_title = serializers.CharField(source="card.title", read_only=True)
+    # The board-level movements queryset always select_related("card"), and
+    # the card-level queryset trivially has the card available.
+    #
+    # A live card serves its current uid and title, exactly as before #1469.
+    # A hard-deleted card (``card`` is NULL since #1469) serves the snapshot
+    # captured on the movement row instead, so both keys stay present and
+    # non-null strings: a plain source="card.uid" would make DRF silently drop
+    # the key for such a row. Still CharFields, so the published schema is
+    # unchanged.
+    card_uid = _MovementCardField("uid")
+    card_title = _MovementCardField("title")
 
     class Meta:
         model = CardMovement

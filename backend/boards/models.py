@@ -601,6 +601,10 @@ class Card(models.Model):
         return self.title
 
 
+class AppendOnlyViolation(Exception):
+    """An application write tried to change or delete a ``CardMovement`` (#1469)."""
+
+
 class CardMovement(models.Model):
     """
     Automatic audit log entry created whenever a card is moved between
@@ -615,6 +619,14 @@ class CardMovement(models.Model):
     The movement_type field distinguishes regular moves from archive/restore
     system events. This allows history consumers to filter out system events
     (e.g. exclude_type=archived,unarchived) and focus on workflow transitions.
+
+    Append-only (#1469). Hard-deleting a card keeps its movements: ``card`` is
+    SET_NULL and ``card_uid`` / ``card_title`` keep the card identifiable.
+    Only deleting the whole board removes them, through ``board`` (CASCADE).
+    ``save()`` refuses to update an existing row and ``delete()`` always
+    refuses; both are a guard against accidental application writes, not
+    tamper-proofing — a queryset ``update()``/``delete()`` bypasses them, and
+    the deletion collector relies on that (SET_NULL is a queryset update).
     """
 
     # Mutation testing (#1503): the no-mutate pragmas below mark a schema
@@ -628,7 +640,45 @@ class CardMovement(models.Model):
         ARCHIVED = "archived", "Archived"
         UNARCHIVED = "unarchived", "Unarchived"
 
-    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="movements")
+    # SET_NULL, not CASCADE (#1469): a hard-deleted card keeps its history.
+    # The row then reads its identity from card_uid / card_title below.
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+        related_name="movements",  # pragma: no mutate -- schema constant (migration-check)
+    )
+    # The board the movement happened on, captured at write time (#1469). It is
+    # what still ties a deleted card's history to its board: the board-level
+    # History reads by it, and deleting the board cascades through it. Nullable
+    # only because rows predating migration 0080's backfill (or written by an
+    # older release during a rolling upgrade) may not carry it yet.
+    board = models.ForeignKey(
+        Board,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+        db_index=False,  # pragma: no mutate -- schema constant (migration-check)
+        related_name="+",  # pragma: no mutate -- schema constant (migration-check)
+    )
+    # The card's uid and title at the time of the movement (#1469), parallel to
+    # the *_column_name / *_column_uid snapshots below. Read only when ``card``
+    # is NULL; a live card's current uid/title is served instead, so payloads
+    # for live cards are unchanged. db_default so an INSERT from an older
+    # release that does not know these columns still succeeds.
+    card_uid = models.CharField(
+        max_length=16,  # pragma: no mutate -- schema constant (migration-check)
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+        default="",
+        db_default="",
+    )
+    card_title = models.CharField(
+        max_length=500,  # pragma: no mutate -- schema constant (migration-check)
+        blank=True,  # pragma: no mutate -- schema constant (migration-check)
+        default="",
+        db_default="",
+    )
     from_column = models.ForeignKey(
         Column,
         on_delete=models.SET_NULL,
@@ -735,7 +785,47 @@ class CardMovement(models.Model):
                 fields=["card", "-moved_at"],  # pragma: no mutate -- schema constant (migration-check)
                 name="movement_card_moved_idx",  # pragma: no mutate -- schema constant (migration-check)
             ),
+            # Board-level History (#1469) reads by board, newest first; the
+            # board-delete cascade's DELETE ... WHERE board_id IN (...) uses it
+            # too. Built concurrently in migration 0081.
+            models.Index(
+                fields=["board", "-moved_at"],  # pragma: no mutate -- schema constant (migration-check)
+                name="movement_board_moved_idx",  # pragma: no mutate -- schema constant (migration-check)
+            ),
         ]
+
+    def save(self, *args, **kwargs):
+        """Insert only (#1469): an existing movement is never rewritten.
+
+        A pk already set means Django would try an UPDATE, so that is refused
+        too. On insert, fill the board and card snapshots from the card when
+        the caller did not; services pass the card instance, so this reads the
+        cached object and costs no query. ``bulk_create`` skips ``save()``,
+        so the import path sets them itself.
+        """
+        if self.pk is not None or not self._state.adding:
+            raise AppendOnlyViolation(
+                "CardMovement rows are append-only; an existing movement cannot be changed."
+            )
+        if self.card_id is not None:
+            card = self.card
+            if self.board_id is None:
+                self.board_id = card.board_id
+            if not self.card_uid:
+                self.card_uid = card.uid
+            if not self.card_title:
+                self.card_title = card.title
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Refused (#1469): movements leave only with their board.
+
+        The board-delete cascade deletes them with a queryset-level SQL delete
+        that never calls this method, so that path is unaffected.
+        """
+        raise AppendOnlyViolation(
+            "CardMovement rows are append-only; a movement is removed only by deleting its board."
+        )
 
 
 class CardComment(models.Model):

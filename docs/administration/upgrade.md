@@ -389,6 +389,29 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     admin of them (now `403` for a visible group, `404` for one the caller cannot see) (#1678,
     #1703).
 
+!!! note "Deleted cards keep their movement history; movements are read-only in the admin"
+    Hard-deleting a card (or the column or swimlane it is in) no longer deletes its movement
+    history. The records stay on the board's **History** view under the card's original UID
+    and title; deleting the whole board still removes them. In the Django admin, movement
+    records can now only be viewed — add, edit and delete are gone. Summary and Analytics
+    numbers are unchanged. See [Card History](../features/card-history.md#deleted-cards-keep-their-history) (#1469).
+
+    Migrations `boards/0078`–`0081` add three columns to `card_movements`, make `card_id`
+    nullable without rebuilding its foreign key, backfill the new columns in committed batches
+    of 5,000 rows (`0080`, resumable if interrupted), and build one index concurrently
+    (`0081`). None of them takes a long table lock. The backfill takes time proportional to
+    the size of `card_movements`.
+
+    **Multi-replica deployments that roll pods:** a pod still on the previous release can
+    record a move after `0080` has run, and that move does not appear in the board's History
+    view until it is backfilled. Once the rollout completes, run
+    `python manage.py backfill_card_movement_snapshots` once. It is idempotent. Single-instance
+    Docker Compose installs stop the old release before migrating and do not need it.
+
+    **Rolling back past `boards/0079`** is refused while any deleted card's history exists,
+    because restoring `card_id NOT NULL` would mean deleting that history. The error message
+    names the `DELETE` that lets the rollback proceed, if you intend that.
+
 !!! note "Secrets are read verbatim — a leading `$` is no longer a variable reference"
     `DJANGO_SECRET_KEY`, OAuth/OIDC client IDs and secrets, `EMAIL_HOST_PASSWORD`,
     `VISIBAN_SECRET_ENCRYPTION_KEY`, `DEMO_ADMIN_PASSWORD`, and `DEMO_MEMBER_PASSWORD` are now
