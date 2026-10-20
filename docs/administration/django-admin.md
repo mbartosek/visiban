@@ -29,6 +29,7 @@ An account with a forced password or username change pending (`must_change_passw
 
 - **Your own password:** the admin's **Change password** link opens the web app, where you change it like any other user.
 - **Another user's password** (the user's **Password** form at `/admin/accounts/user/<id>/password/`): saving a new password, or disabling password sign-in, deletes that user's Personal Access Tokens and API token and ends their sessions. If a new password was set, the user must change it the next time they sign in. The action is recorded in the [admin action log](../api/admin.md) with who made the change and which account it applied to; the password itself is never recorded.
+- **Passwords set from the command line:** `ensure_site_admin` (the generated one-time password) and `provision_fuzz_token --set-random-password` record the same entry in the admin action log with source `cli` and no actor. The entry and the password change are saved together, so the password changes only if the entry is saved. The demo seed and `changepassword` write no entry.
 - **Adding a user:** a user created here with a password must choose their own password the first time they sign in, the same as one created from the site-admin panel. Adding a user with a password is recorded in the admin action log; the password itself is not. A user created with password sign-in disabled is not asked to create one.
 
 ## Deactivating users

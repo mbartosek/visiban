@@ -47,7 +47,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from accounts import credentials
 from accounts.management._secure_file import write_secret_file
-from accounts.models import PAT_DEFAULT_SCOPES, User
+from accounts.models import PAT_DEFAULT_SCOPES, AdminActionLog, User
 
 _DEFAULT_TOKEN_FILE = os.environ.get(
     "VISIBAN_FUZZ_TOKEN_FILE", "/tmp/visiban_fuzz_token"  # nosec B108 — CI-only, overridable
@@ -114,6 +114,13 @@ class Command(BaseCommand):
             if password_locked:
                 locked.set_password(secrets.token_urlsafe(32))
                 locked.save(update_fields=["password"])
+                # Same transaction as the password write: a failed log write
+                # rolls the password back. Only id and username are stored.
+                AdminActionLog.record(
+                    action=AdminActionLog.Action.USER_PASSWORD_SET,
+                    source=AdminActionLog.Source.CLI,
+                    metadata={"target_id": locked.pk, "target_username": locked.username},
+                )
             _, raw_token = locked.personal_access_tokens.model.generate(
                 user=locked,
                 name="backend-schema-fuzz (CI)",

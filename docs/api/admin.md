@@ -122,7 +122,7 @@ and an audit log an admin can edit is not evidence of anything.
 | `email_settings.username_changed` | `{}` |
 | `email_settings.password_changed` | `{}` |
 | `email_settings.test_sent` | `{"result": "success"}` or `{"result": "failure"}` |
-| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin) |
+| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin; also written with `source` `cli` and no actor by `ensure_site_admin` and `provision_fuzz_token --set-random-password`) |
 | `user.password_disabled` | `{"target_id": 42, "target_username": "jordan"}` |
 
 New action types may be added in any minor release; treat an unrecognized `action` as an
@@ -142,6 +142,12 @@ opaque string rather than failing on it.
     administrator adds a user with a password there; no entry is written for a user added with
     password sign-in disabled. `metadata` names the account concerned; the password and its hash
     are never stored. Changing your own password is not recorded.
+
+    The `ensure_site_admin` and `provision_fuzz_token --set-random-password` management
+    commands also record `user.password_set`, with `source` `cli` and no actor (`actor_id` is
+    null). The entry is written in the same transaction as the password, so the password is
+    only changed when the entry is saved. The demo seed (`seed_demo_data --demo-site`) and
+    `changepassword` do not write entries.
 
 !!! warning "What this log does *not* record yet"
     The instance-wide settings and per-account password events above are covered. Granting or

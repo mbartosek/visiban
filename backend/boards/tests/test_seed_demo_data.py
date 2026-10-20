@@ -14,7 +14,7 @@ from boards.management.commands.seed_demo_data import (
     LOAD_TEST_BOARD_NAME,
     SEED_ANCHOR_DATE,
 )
-from accounts.models import User
+from accounts.models import AdminActionLog, User
 from boards.models import (
     Board,
     BoardMembership,
@@ -608,6 +608,22 @@ class SeedDemoSiteTests(TestCase):
         from boards.management.commands._demo_site_data import BOARDS
 
         return next(len(spec["cards"]) for spec in BOARDS if spec["name"] == name)
+
+    def test_demo_site_password_sets_are_not_in_the_admin_action_log(self):
+        """#1699: documented exception to the admin action log.
+
+        The demo passwords are published for visitors and the seed is limited
+        to demo installs, so a first seed and a re-seed (which re-sets the
+        passwords) write no ``user.password_set`` entry. See the "Demo-site
+        seed password" row of docs/development/security-invariants.md.
+        """
+        _seed(demo_site=True)
+        _seed(demo_site=True)
+        self.assertFalse(
+            AdminActionLog.objects.filter(
+                action=AdminActionLog.Action.USER_PASSWORD_SET
+            ).exists()
+        )
 
     def test_overlay_pipeline_cards_move_through_every_stage_they_passed(self):
         """#1416: the overlay board's nine-stage pipeline shows real movement.
