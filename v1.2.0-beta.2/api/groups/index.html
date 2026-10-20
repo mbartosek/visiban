@@ -4703,8 +4703,9 @@
 </table>
 <h3 id="patch-apiv1groupsidmembersuser_id"><code>PATCH /api/v1/groups/{id}/members/{user_id}/</code><a class="headerlink" href="#patch-apiv1groupsidmembersuser_id" title="Permanent link">&para;</a></h3>
 <p>Change a member's role. Requires group admin. Cannot modify the membership of a site admin who is a member of the group. The target must already have a membership in the group (the role of an inactive member can be changed); otherwise the response is the same <code>404 Not Found</code> whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member.</p>
-<p><strong>Request</strong> <code>{ "role": "admin" }</code></p>
+<p><strong>Request</strong> <code>{ "role": "admin" }</code> (<code>role</code> is required and is the only key read)</p>
 <p>Valid roles: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></p>
+<p><strong>Response</strong> <code>200 OK</code> with the membership <code>{ "id", "user", "role", "joined_at" }</code>. Unlike the rows of <code>GET .../members/</code>, it carries no <code>is_inherited</code> or <code>inherited_from</code>.</p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). A non-numeric <code>{user_id}</code> in the path is <code>404</code>, as before.</p>
 <p><em>(1.2+)</em> Changing a member's role away from <code>admin</code> revokes their unused <a href="#invite-links">invite links</a> in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits <code>invite_link.revoked</code> on its group's channel. This frees their slots under the 5-active-link cap.</p>
 <p><em>(1.2+)</em> A role change that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). The same <code>404</code> answers a role change whose membership was removed while it waited.</p>
@@ -5050,10 +5051,11 @@
 <hr />
 <h2 id="favorites">Favorites<a class="headerlink" href="#favorites" title="Permanent link">&para;</a></h2>
 <h3 id="post-apiv1groupsidstar"><code>POST /api/v1/groups/{id}/star/</code><a class="headerlink" href="#post-apiv1groupsidstar" title="Permanent link">&para;</a></h3>
-<p>Star (favorite) a group. Requires group membership (any role) — not just authentication.</p>
+<p>Star (favorite) a group. Requires group membership (any role) — not just authentication. Takes no request body.</p>
+<p><strong>Response</strong> <code>201 Created</code> with <code>{ "starred": true }</code> when the group was not starred yet, <code>200 OK</code> with the same body when it already was.</p>
 <p><em>(1.2+)</em> A star that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719).</p>
 <h3 id="delete-apiv1groupsidstar"><code>DELETE /api/v1/groups/{id}/star/</code><a class="headerlink" href="#delete-apiv1groupsidstar" title="Permanent link">&para;</a></h3>
-<p>Unstar a group. Requires group membership (any role) — not just authentication.</p>
+<p>Unstar a group. Requires group membership (any role) — not just authentication. Returns <code>204 No Content</code>.</p>
 <h3 id="get-apiv1groupsstarredtrue"><code>GET /api/v1/groups/?starred=true</code><a class="headerlink" href="#get-apiv1groupsstarredtrue" title="Permanent link">&para;</a></h3>
 <p>List only starred groups for the current user.</p>
 <hr />
@@ -5095,7 +5097,7 @@
 <hr />
 <h2 id="board-defaults">Board defaults<a class="headerlink" href="#board-defaults" title="Permanent link">&para;</a></h2>
 <h3 id="patch-apiv1groupsidboard-defaults"><code>PATCH /api/v1/groups/{id}/board-defaults/</code><a class="headerlink" href="#patch-apiv1groupsidboard-defaults" title="Permanent link">&para;</a></h3>
-<p>Update the board defaults for this group. <code>allowed_priorities</code> is copied onto boards created in the group; <code>default_board_member_role</code> is <strong>deprecated (#1430)</strong>: still accepted and stored, but it has no effect. Requires group admin.</p>
+<p>Update the board defaults for this group. <code>allowed_priorities</code> is copied onto boards created in the group; <code>default_board_member_role</code> is <strong>deprecated (#1430)</strong>: still accepted and stored, but it has no effect. Requires group admin. Only the two fields below are read; any other key in the body is ignored.</p>
 <p><strong>Patchable fields</strong></p>
 <table>
 <thead>

@@ -5266,10 +5266,10 @@
 </code></pre></div>
 <p>See <a href="../events/">Change Feed</a> for the full contract, retention, and the reconnect flow.</p>
 <h3 id="post-apiv1boardsidstar"><code>POST /api/v1/boards/{id}/star/</code><a class="headerlink" href="#post-apiv1boardsidstar" title="Permanent link">&para;</a></h3>
-<p>Star (favorite) a board. Returns <code>200 OK</code> with the updated board object (whether or not the board was already starred).</p>
+<p>Star (favorite) a board. Takes no request body. Returns <code>200 OK</code> with the updated board object (whether or not the board was already starred).</p>
 <p><strong>Permissions:</strong> requires authentication and board access (any role). Sends <code>board.star_changed</code> to the requesting user's own WebSocket sessions only (#1677).</p>
 <h3 id="delete-apiv1boardsidstar"><code>DELETE /api/v1/boards/{id}/star/</code><a class="headerlink" href="#delete-apiv1boardsidstar" title="Permanent link">&para;</a></h3>
-<p>Unstar a board. Sends <code>board.star_changed</code> to the requesting user's own WebSocket sessions only.</p>
+<p>Unstar a board. Returns <code>200 OK</code> with the updated board object (<code>is_starred: false</code>), the same as <code>POST</code>, not <code>204 No Content</code>. The OpenAPI schema documented a bodiless <code>204</code> until 1.2 (#1783); the endpoint has always answered <code>200</code> with the board. Sends <code>board.star_changed</code> to the requesting user's own WebSocket sessions only.</p>
 <p><strong>Permissions:</strong> requires authentication and board access (any role).</p>
 <h3 id="get-apiv1boardsstarredtrue"><code>GET /api/v1/boards/?starred=true</code><a class="headerlink" href="#get-apiv1boardsstarredtrue" title="Permanent link">&para;</a></h3>
 <p>List only boards the requesting user has starred.</p>
@@ -5278,7 +5278,8 @@
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). A <code>group_id</code> that is not an integer or is out of range is <code>404</code>, as before.</p>
 <p><strong>Minimum role:</strong> Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a>. Moving to personal (<code>null</code>) needs only the board role above.</p>
 <p><em>(1.2+)</em> A move-group, board <code>PATCH</code>/<code>PUT</code> that sets <code>group</code>, board create with a <code>group</code>, or <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a> that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer <code>404</code>, as for an unknown group; board create and <code>PATCH</code>/<code>PUT</code> answer <code>400</code> with <code>{"group": ["Unknown group, or you are not an admin of it."]}</code>, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).</p>
-<p><strong>Request</strong> <code>{ "group_id": 5 }</code> or <code>{ "group_id": null }</code></p>
+<p><strong>Request</strong> <code>{ "group_id": 5 }</code> or <code>{ "group_id": null }</code>. <code>group_id</code> is the only key read; omitting it is the same as <code>null</code> (move to personal).</p>
+<p><strong>Response</strong> <code>200 OK</code> with the updated board object.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -6063,10 +6064,11 @@
 <td><code>format</code></td>
 <td><code>json</code></td>
 <td><em>(omit for CSV)</em></td>
-<td>Response format. Omit or set to anything other than <code>json</code> for CSV.</td>
+<td>Response format. Omit it for CSV. <code>json</code> is the only documented value; other values such as <code>csv</code> or <code>xml</code> return <code>404 Not Found</code> from the API's format negotiation, so do not send <code>format=csv</code>.</td>
 </tr>
 </tbody>
 </table>
+<p>Both formats are file downloads (<code>Content-Disposition: attachment</code>): CSV as <code>text/csv</code>, JSON as <code>application/json</code>.</p>
 <p><strong>Rate limit:</strong> 20 exports/hour per authenticated user (scope: <code>board_export</code>). Exceeding the limit returns <code>429 Too Many Requests</code>.</p>
 <p>Requires board membership — callers with no access to the board receive <code>404 Not Found</code>, the same as for a board that does not exist. If the caller is a member but their role is below the board's <code>export_min_role</code> threshold, returns <code>403 Forbidden</code> with body <code>{"detail": "...", "code": "export_restricted", "min_role": "&lt;threshold&gt;"}</code>. Owners and site admins always bypass the threshold.</p>
 <p><strong>CSV columns:</strong> <code>Card ID</code>, <code>Title</code>, <code>Description</code>, <code>Column</code>, <code>Swimlane</code>, <code>Priority</code>, <code>Assignee</code>, <code>Labels</code>, <code>Due Date</code>, <code>Weight</code>, <code>Created At</code>, <code>Created By</code>, <code>Last Moved At</code>, <code>Movement Count</code>, <code>Movement History</code></p>
