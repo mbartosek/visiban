@@ -161,6 +161,10 @@ class WSOriginEdgeCaseTests(TransactionTestCase):
             ok, _ = _connect_raw(self._ticket_path(), [(b"origin", origin)])
             self.assertTrue(ok, origin)
 
+    @override_settings(ALLOWED_HOSTS=["*.example.com"])
+    def test_embedded_wildcard_allowed_hosts_is_not_applied(self):
+        self._assert_refused_without_consuming([(b"origin", b"https://*.example.com")])
+
     @override_settings(
         ALLOWED_HOSTS=["*"],
         CORS_ALLOWED_ORIGINS=["https://boards.example.org"],

@@ -45,16 +45,15 @@ def _normalize(origin):
 
 
 def _exact_allowed_hosts():
-    """``ALLOWED_HOSTS`` without ``*`` and leading-dot pattern entries.
+    """``ALLOWED_HOSTS`` without pattern entries (``*`` anywhere, leading dot).
 
-    Those patterns are meant for Host-header validation; as an Origin allow
-    rule they would cover every host they match, so the Origin check relies on
-    exact hosts and explicitly listed origins instead.
+    Pattern entries are for Host-header validation; the Origin check uses
+    exact hosts and explicitly listed origins.
     """
     return [
         h
         for h in getattr(settings, "ALLOWED_HOSTS", None) or []
-        if h != "*" and not h.startswith(".")
+        if h and "*" not in h and not h.startswith(".")
     ]
 
 

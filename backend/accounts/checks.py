@@ -330,7 +330,7 @@ def check_wildcard_allowed_hosts(app_configs, **kwargs):
     The WebSocket Origin check (``accounts.ws_origin``) no longer applies ``*``
     or leading-dot ``ALLOWED_HOSTS`` entries; a present Origin must equal a
     configured origin or an exact ``ALLOWED_HOSTS`` host. An install that
-    relies on a pattern entry and lists no non-loopback origin in
+    relies on a pattern entry and lists no exact public host or non-loopback origin in
     ``CORS_ALLOWED_ORIGINS`` / ``CSRF_TRUSTED_ORIGINS`` would have every browser
     WebSocket refused after upgrading, so this flags exactly that setup. A
     Warning, not an Error: the rest of the app works, and failing
@@ -347,11 +347,19 @@ def check_wildcard_allowed_hosts(app_configs, **kwargs):
     if not any(h == "*" or h.startswith(".") for h in hosts):
         return []
     loopback = {"localhost", "127.0.0.1", "::1"}
+
+    def is_public(host):
+        # An empty or wildcard host never matches a real Origin.
+        return bool(host) and "*" not in host and host not in loopback
+
+    # An exact public ALLOWED_HOSTS entry still matches browser origins.
+    if any(is_public(h) and h != "*" and not h.startswith(".") for h in hosts):
+        return []
     origins = [
         *(getattr(settings, "CORS_ALLOWED_ORIGINS", None) or []),
         *(getattr(settings, "CSRF_TRUSTED_ORIGINS", None) or []),
     ]
-    if any((urlsplit(o).hostname or "") not in loopback for o in origins):
+    if any(is_public(urlsplit(o).hostname or "") for o in origins):
         return []
     return [
         checks.Warning(
