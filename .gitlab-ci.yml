@@ -5067,6 +5067,7 @@ nightly-load-test:
         --token-file "${VISIBAN_LOAD_TEST_TOKEN_FILE}"
         --owner-token-file "${VISIBAN_LOAD_TEST_OWNER_TOKEN_FILE}"
         --multi-board-token-file "${VISIBAN_LOAD_TEST_MULTI_BOARD_TOKEN_FILE}"
+        --min-multi-boards "$((LOAD_TEST_EXTRA_BOARDS + 1))"
         --board-name "Visiban Load Test Board"
         --budget-file backend/nightly-load-test-baseline.json
         --iterations "${LOAD_TEST_ITERATIONS}"

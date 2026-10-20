@@ -221,6 +221,21 @@ def _self_test():
     ):
         if _pending_budget("s", bad) is not None:
             failures.append(f"{bad!r} must not count as a pending budget")
+    # Multi-board guards (#1810): a missing token and a shrunken fixture must both raise.
+    for label, fn, ok_args, bad_args in (
+        ("missing multi-board token", _require_multi_board_session,
+         ({"card_search_multi_board": object()},), ({"board_list": object()},)),
+        ("too few multi-board boards", _check_multi_board_count, (200, 200), (199, 200)),
+    ):
+        try:
+            fn(*ok_args)
+        except RuntimeError:
+            failures.append(f"{label}: guard raised on a valid input")
+        try:
+            fn(*bad_args)
+            failures.append(f"{label}: guard did not raise on a bad input")
+        except RuntimeError:
+            pass
     _b, _w, _msg = _evaluate_budget("board_full", 2000, {"board_full": {"budget_p95_ms": 1000}})
     if _w is not False or not _msg:
         failures.append("_evaluate_budget did not flag an over-budget scenario")
@@ -283,6 +298,32 @@ def _find_board(session, base_url, board_name):
         f"No board named '{board_name}' is visible to this token. "
         "Run `manage.py seed_demo_data --force --scale N` first."
     )
+
+
+def _require_multi_board_session(sessions):
+    """Raise unless the multi-board viewer's session is configured (#1810).
+
+    Pure so --self-test can prove the guard fires without a server.
+    """
+    if "card_search_multi_board" not in sessions:
+        raise RuntimeError(
+            "--multi-board-token-file is required: card_search_multi_board must be "
+            "measured as the multi-board user demo3 (#1810)"
+        )
+
+
+def _check_multi_board_count(count, minimum):
+    """Raise if the multi-board user can access fewer than *minimum* boards.
+
+    A seed that silently shrinks (or omits --extra-boards) would otherwise
+    produce a valid-looking one-board number for the many-board scenario.
+    """
+    if count < minimum:
+        raise RuntimeError(
+            f"The multi-board user can access {count} boards, fewer than "
+            f"--min-multi-boards={minimum}. Seed with "
+            "`manage.py seed_demo_data --force --scale N --extra-boards M` (#1810)."
+        )
 
 
 def _count_accessible_boards(session, base_url):
@@ -356,11 +397,7 @@ def run(args):
     # Same reason for card_search_multi_board (#1810): as demo2 it would time the
     # one-board index walk and report a number that says nothing about the
     # many-board plan.
-    if "card_search_multi_board" not in sessions:
-        raise RuntimeError(
-            "--multi-board-token-file is required: card_search_multi_board must be "
-            "measured as the multi-board user demo3 (#1810)"
-        )
+    _require_multi_board_session(sessions)
 
     base_url = args.base_url.rstrip("/")
     _wait_for_url(f"{base_url}/api/health/liveness/", timeout=args.startup_timeout)
@@ -392,12 +429,7 @@ def run(args):
     # a seed without --extra-boards would otherwise produce a valid-looking
     # one-board number (#1810).
     multi_board_count = _count_accessible_boards(sessions["card_search_multi_board"], base_url)
-    if multi_board_count < args.min_multi_boards:
-        raise RuntimeError(
-            f"The multi-board user can access {multi_board_count} boards, fewer than "
-            f"--min-multi-boards={args.min_multi_boards}. Seed with "
-            "`manage.py seed_demo_data --force --scale N --extra-boards M` (#1810)."
-        )
+    _check_multi_board_count(multi_board_count, args.min_multi_boards)
     fixture["multi_board_accessible_boards"] = multi_board_count
     print(f"Fixture: {fixture}")
 

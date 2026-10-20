@@ -66,7 +66,8 @@ python manage.py seed_demo_data --force --scale 20 --extra-boards 199 --with-not
   the many-board side of the card query's plan switch. The boards belong to `demo3` alone, so
   the `demo1` `board_list` scenario and every `demo2` scenario see the same data as before.
   The job's `LOAD_TEST_EXTRA_BOARDS` variable sets the count, and the script fails before
-  timing anything if `demo3` can access fewer than `--min-multi-boards` (default 50) boards.
+  timing anything if `demo3` can access fewer than `--min-multi-boards` boards (default 50; the CI job
+  passes `LOAD_TEST_EXTRA_BOARDS + 1`, so a seed that silently shrinks fails).
   The baseline's `fixture` block records `extra_board_count` and
   `multi_board_accessible_boards`.
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
@@ -161,6 +162,8 @@ never produce a violation. When the issue assigns the budget, replace `budget_p9
 `pending_budget` in the same whole-file re-derivation. Currently pending:
 `card_search_multi_board` ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810) added the
 scenario; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns the budget).
+Nothing yet fails if the cited issue closes while the entry is still pending; that check is
+tracked in [#1812](https://gitlab.com/visiban/visiban/-/issues/1812).
 
 ## The schedule
 
@@ -221,7 +224,8 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
 3. For each endpoint, recompute `budget_p95_ms` from that run's `p95_ms` using the formula
    above.
 4. Update `backend/nightly-load-test-baseline.json`'s `measured_p95_ms`, `measured_p99_ms`, and
-   `budget_p95_ms` fields, its top-level `measured_at`, and its `fixture` block if the fixture
+   `budget_p95_ms` fields (and, for an entry with a `pending_budget` key, delete that key once
+   its budget is set), its top-level `measured_at`, and its `fixture` block if the fixture
    size changed. Recompute the whole file in one pass — never hand-adjust a single
    `budget_p95_ms` without also updating the `measured_p95_ms` it supposedly came from.
 5. Flip `status` from `"provisional"` to `"ci-derived"` the first time this is done from a real

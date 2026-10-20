@@ -593,6 +593,24 @@ class SeedExtraBoardsTests(TestCase):
         _seed(scale=1, wipe=True)
         self.assertEqual(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).count(), 2)
 
+    def test_scale_wipe_deletes_only_load_test_and_prefixed_boards(self):
+        """The prefix match must not reach unrelated boards, including look-alikes."""
+        from accounts.models import User
+
+        owner = User.objects.create(username="wipe-owner-1810")
+        keep = [
+            Board.objects.create(name="Unrelated Board", owner=owner),
+            # Contains the prefix but does not start with it.
+            Board.objects.create(name=f"My {LOAD_TEST_EXTRA_BOARD_PREFIX} 001", owner=owner),
+            # Similar start, not the prefix.
+            Board.objects.create(name="Visiban Load Test Extra", owner=owner),
+        ]
+        _seed(scale=2, extra_boards=2)
+        _seed(scale=2, extra_boards=1, wipe=True)
+        for board in keep:
+            self.assertTrue(Board.objects.filter(pk=board.pk).exists(), board.name)
+        self.assertEqual(Board.objects.filter(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX).count(), 1)
+
     def test_extra_boards_requires_scale_above_one(self):
         with self.assertRaises(CommandError) as ctx:
             _seed(extra_boards=2)
