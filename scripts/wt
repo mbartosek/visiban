@@ -69,6 +69,8 @@
 #   WT_COMPOSE_PROJECT  shared compose project name       (default repo dir name)
 #   WT_SYMLINK_DIRS     space-separated dev-dep dirs to symlink (default: auto-detect)
 #   WT_LOCK_LABEL       GitLab label used for the issue check-out lock (default: status::wip)
+#   WT_FORGE_TIMEOUT    seconds before a glab/gh call is abandoned (default 20); a
+#                       timeout degrades to a warning like any other forge failure
 #   WT_E2E_PORT_BASE / WT_E2E_PORT_SPAN
 #                       Playwright dev-server port range (default: 15173, span 800)
 
@@ -91,6 +93,7 @@ REPO_NAME="$(basename "$REPO_ROOT")"
 WT_BASE="${WT_BASE:-${REPO_ROOT%/*}/${REPO_NAME}-wt}"
 WT_CAP="${WT_CAP:-10}"
 WT_WARN="${WT_WARN:-8}"
+WT_FORGE_TIMEOUT="${WT_FORGE_TIMEOUT:-20}"
 # Defaults to "<repo>-dev", not "<repo>". Compose precedence is
 # -p > COMPOSE_PROJECT_NAME > `name:` > directory basename, so an exported
 # COMPOSE_PROJECT_NAME overrides the `name:` pinned in every compose file. With
@@ -178,9 +181,9 @@ derive_branch_name() {
     local cli title=""
     cli="$(forge_cli)"
     case "$cli" in
-      glab) command -v glab >/dev/null 2>&1 && title="$(glab issue view "$input" --output json 2>/dev/null \
+      glab) command -v glab >/dev/null 2>&1 && title="$(forge_run glab issue view "$input" --output json \
               | python3 -c 'import json,sys; print(json.load(sys.stdin).get("title",""))' || true)" ;;
-      gh)   command -v gh >/dev/null 2>&1 && title="$(gh issue view "$input" --json title -q .title 2>/dev/null || true)" ;;
+      gh)   command -v gh >/dev/null 2>&1 && title="$(forge_run gh issue view "$input" --json title -q .title || true)" ;;
     esac
     if [[ -z "$title" ]]; then
       die "couldn't look up issue #$input (need ${cli:-glab/gh} installed + authed); pass a full branch name like 'feat/$input-something'"
@@ -253,6 +256,27 @@ auto_created_regex() {
 # never a hard failure, when glab is missing, unauthenticated, or the repo
 # isn't GitLab-hosted, so worktree management never breaks on a network blip.
 
+# Run a forge CLI (glab/gh) with a hard time bound and no stdin. Unbounded calls
+# made `prune` look frozen after the worktree was already removed (#1803): a slow
+# network or a CLI waiting on a prompt hung silently, and Ctrl-C left the issue
+# labeled. perl's alarm survives exec and works on macOS (no `timeout`/`gtimeout`)
+# and Linux alike. On timeout (SIGALRM, rc 142) it warns and returns 142; every
+# caller already treats a nonzero rc as "can't answer", so a kill never reads as
+# success. Callers must not redirect this function's stderr, or the warning is lost.
+FORGE_TIMEOUT_RC=142
+forge_run() {
+  local rc=0
+  if command -v perl >/dev/null 2>&1; then
+    perl -e 'alarm shift; exec @ARGV or exit 127' "$WT_FORGE_TIMEOUT" "$@" </dev/null 2>/dev/null || rc=$?
+  else
+    "$@" </dev/null 2>/dev/null || rc=$?
+  fi
+  if (( rc == FORGE_TIMEOUT_RC )); then
+    warn "$1 ${2:-} timed out after ${WT_FORGE_TIMEOUT}s (WT_FORGE_TIMEOUT)"
+  fi
+  return "$rc"
+}
+
 lock_available() { [[ "$(forge_cli)" == "glab" ]] && command -v glab >/dev/null 2>&1; }
 
 # Extract the issue number encoded in a branch name (feat/123-foo -> 123), or
@@ -263,20 +287,20 @@ issue_from_branch() {
 }
 
 ensure_lock_label() {
-  glab label list 2>/dev/null | grep -qF "$WT_LOCK_LABEL" && return 0
-  glab label create -n "$WT_LOCK_LABEL" -c "#ec9a29" \
+  forge_run glab label list | grep -qF "$WT_LOCK_LABEL" && return 0
+  forge_run glab label create -n "$WT_LOCK_LABEL" -c "#ec9a29" \
     -d "Checked out by an agent/worktree (scripts/wt) — do not grab in parallel" \
-    >/dev/null 2>&1 || true
+    >/dev/null || true
 }
 
 issue_is_locked() {
-  glab issue view "$1" --output json 2>/dev/null \
+  forge_run glab issue view "$1" --output json \
     | python3 -c "import json,sys; d=json.load(sys.stdin); print('locked' if '${WT_LOCK_LABEL}' in (d.get('labels') or []) else '')" \
     2>/dev/null || true
 }
 
 last_checkout_note() {
-  glab issue view "$1" --comments --output json 2>/dev/null | python3 -c "
+  forge_run glab issue view "$1" --comments --output json | python3 -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
@@ -291,19 +315,30 @@ print(hits[-1] if hits else '')
 apply_lock() {
   local issue="$1" branch="$2" path="$3" ts
   ensure_lock_label
-  glab issue update "$issue" --label "$WT_LOCK_LABEL" >/dev/null 2>&1 \
+  forge_run glab issue update "$issue" --label "$WT_LOCK_LABEL" >/dev/null \
     || warn "could not apply '$WT_LOCK_LABEL' to #$issue (check glab auth)"
   ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  glab issue note "$issue" \
+  forge_run glab issue note "$issue" \
     -m "🔒 checked out ${ts} · branch \`${branch}\` · worktree \`${path}\`" \
-    >/dev/null 2>&1 || warn "could not post check-out comment to #$issue"
+    >/dev/null || warn "could not post check-out comment to #$issue"
 }
 
 clear_lock() {
-  local issue="$1" branch="$2" ts
-  glab issue update "$issue" --unlabel "$WT_LOCK_LABEL" >/dev/null 2>&1 || true
+  local issue="$1" branch="$2" ts rc=0
+  # Best-effort: a failure stays silent as before, but a timeout names the issue
+  # so the user can re-run `scripts/wt release` (the label may still be set).
+  forge_run glab issue update "$issue" --unlabel "$WT_LOCK_LABEL" >/dev/null || rc=$?
+  if (( rc == FORGE_TIMEOUT_RC )); then
+    warn "release of #$issue timed out — '$WT_LOCK_LABEL' may still be set; run: scripts/wt release $issue"
+    return 0
+  fi
   ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  glab issue note "$issue" -m "🔓 released ${ts} · branch \`${branch}\`" >/dev/null 2>&1 || true
+  rc=0
+  forge_run glab issue note "$issue" -m "🔓 released ${ts} · branch \`${branch}\`" >/dev/null || rc=$?
+  if (( rc == FORGE_TIMEOUT_RC )); then
+    warn "release comment on #$issue timed out — the label was cleared; the comment was not posted"
+  fi
+  return 0
 }
 
 # Guard used by new/claim: die if $1 is already checked out and --force wasn't given.
@@ -651,7 +686,7 @@ merged_mr_has_sha() {
   [[ -n "$enc" ]] || return 1
   enc_target="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DEFAULT_BRANCH" 2>/dev/null || true)"
   [[ -n "$enc_target" ]] || return 1
-  ( cd "$REPO_ROOT" && glab api "projects/:id/merge_requests?state=merged&source_branch=${enc}&target_branch=${enc_target}" 2>/dev/null ) \
+  ( cd "$REPO_ROOT" && forge_run glab api "projects/:id/merge_requests?state=merged&source_branch=${enc}&target_branch=${enc_target}" ) \
     | python3 -c '
 import json, sys
 try:
