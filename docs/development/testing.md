@@ -485,6 +485,9 @@ issue — but that lock only covers work that goes through `wt`. A plain
 `git checkout -b feat/N-something` bypasses it entirely, and the first sign of a
 collision is two merge requests solving the same issue.
 
+Every `glab`/`gh` call in `scripts/wt` is bounded by `WT_FORGE_TIMEOUT` (default 20 seconds); a stalled
+call degrades to a warning instead of hanging, and `scripts/wt release <issue>` clears a lock left behind.
+
 `scripts/check-issue-collision.sh` closes that gap at push time, regardless of how the
 branch was created. Install it once per clone:
 

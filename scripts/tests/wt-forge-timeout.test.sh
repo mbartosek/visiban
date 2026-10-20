@@ -5,7 +5,8 @@
 # WT_FORGE_TIMEOUT. The bug: `wt prune` removed a worktree, then hung forever in
 # clear_lock's unbounded `glab issue update`, and Ctrl-C left status::wip set.
 #
-# `glab` is stubbed on PATH as a script that sleeps far longer than the bound.
+# `glab` is stubbed on PATH as a script that sleeps far longer than the bound and
+# ignores ALRM and TERM (as real Go binaries do), so only a KILL escalation works.
 # A timeout must (a) return within the bound, (b) warn naming the issue, (c)
 # leave prune's worktree removal intact, and (d) never read as "merged".
 #
@@ -29,7 +30,10 @@ check() { # check <desc> <rc>
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/glab" <<'STUB'
 #!/usr/bin/env bash
-sleep 30
+# Ignore ALRM and TERM like a Go binary: ignored dispositions survive exec, so a
+# bound that relies on the child dying from a signal it can ignore would hang.
+trap '' ALRM TERM
+exec sleep 30
 STUB
 chmod +x "$TMP/bin/glab"
 export PATH="$TMP/bin:$PATH"
@@ -77,13 +81,17 @@ check "worktree stays removed" "$([[ ! -d "$P" ]] && echo 0 || echo 1)"
 grep -q "release of #1803 timed out" <<<"$OUT"; check "prune warns naming the issue" "$?"
 
 echo "Case 3: a stalled MR lookup is 'can't answer', never 'merged'"
+start="$(now)"
 set +e
-( cd "$D" && source <(sed -n '/^FORGE_TIMEOUT_RC=/,/^}/p;/^merged_mr_has_sha()/,/^}/p' "$WT") \
+( cd "$D" && source <(sed -n '/^FORGE_TIMEOUT_RC=/,/^lock_available() {/p;/^merged_mr_has_sha()/,/^}/p' "$WT") \
   && DEFAULT_BRANCH=main && REPO_ROOT="$D" && warn() { :; } \
   && merged_mr_has_sha feat/1803-x deadbeef ) >/dev/null 2>&1
 rc=$?
 set -e
+elapsed=$(( $(now) - start ))
 check "timed-out merged_mr_has_sha returns nonzero" "$(( rc != 0 ? 0 : 1 ))"
+check "merged_mr_has_sha returned within the bound (took ${elapsed}s)" "$(( elapsed < 10 ? 0 : 1 ))"
+
 
 if (( fail > 0 )); then echo "FAILED: $fail"; exit 1; fi
 echo "OK"
