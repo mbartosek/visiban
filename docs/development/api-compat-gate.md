@@ -183,7 +183,21 @@ Then, as a manual step on the
 release checklist, point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`
 (lines 52-53) at the new
 directory, clear the allow-list entries the new baseline no longer needs, and delete the old
-baseline directory. `--normalize` strips prose, examples, and `x-` extensions so the fixture
+baseline directory.
+
+The temporary entries must go in the same roll. Every temporary entry has a `reason` that
+starts with `temporary:` and cites #1783, #1788, #1789 or #1792; the other entries (#1080,
+#1257, #1302, #1695) are permanent and stay. This lists what is left to delete, and it must
+print nothing before the roll MR merges:
+
+```bash
+python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"
+```
+
+A temporary entry left behind is stale against the new baseline, so `api-compat-check` fails
+the roll MR loudly. Then prune the six ids in `backend/schemathesis-baseline.json` per #1791,
+only after the nightly deep run lists them unobserved, and remove the "temporary" paragraphs
+above. `--normalize` strips prose, examples, and `x-` extensions so the fixture
 stays small and docs edits never read as contract changes.
 
 ## Not covered
