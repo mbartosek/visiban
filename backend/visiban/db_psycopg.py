@@ -15,7 +15,10 @@ locally on the nightly load test's ~2,400-card fixture, that switch alone made
 byte-identical responses. The response loads ~44,000 ``timestamptz`` values. The
 Python parser is the largest identified part of the step: about 45ms of 74ms. This
 backport mitigates that part, removing about 36ms per request, which is roughly a
-third to a half of the step. The rest is not attributed and is tracked in #1807.
+third to a half of the step. #1807 attributed the rest: mostly the per-value
+``.replace(tzinfo=...)`` this backport keeps (as Django 6.1 does), psycopg 3's
+client-side binding of large prefetch ``IN`` lists in Python, and extra
+garbage collection, which is inferred to come from that binding.
 The query count and SQL did not change, so only a latency measurement can see this.
 See ``docs/development/nightly-load-test.md``.
 

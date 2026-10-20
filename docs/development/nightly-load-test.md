@@ -263,9 +263,9 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
     1430ms budget). [#1800](https://gitlab.com/visiban/visiban/-/issues/1800) partly attributed
     the `board_full` rise to the psycopg 3 migration and mitigated it with a backport. See
-    [The October 2026 `board_full` drift](#the-october-2026-board_full-drift-1800) below. The
-    unattributed remainder of that step is tracked in
-    [#1807](https://gitlab.com/visiban/visiban/-/issues/1807). The rises on `card_search`,
+    [The October 2026 `board_full` drift](#the-october-2026-board_full-drift-1800) below.
+    [#1807](https://gitlab.com/visiban/visiban/-/issues/1807) attributed the remainder of that
+    step. See [The remaining driver step](#the-remaining-driver-step-1807) below. The rises on `card_search`,
     `card_timeline`, `notifications_list` and `notifications_unread` were investigated in
     [#1805](https://gitlab.com/visiban/visiban/-/issues/1805). See
     [The October 2026 `card_search` and `notifications_unread` drift](#the-october-2026-card_search-and-notifications_unread-drift-1805)
@@ -285,8 +285,10 @@ is the local experiment below, not the CI history. Two parts:
 - Django ticket [#36960](https://code.djangoproject.com/ticket/36960) is the mechanism for
   the largest identified part of that cost.
 
-A backport mitigates the parser part. The remainder of the driver step is not attributed and
-is tracked in [#1807](https://gitlab.com/visiban/visiban/-/issues/1807).
+A backport mitigates the parser part. [#1807](https://gitlab.com/visiban/visiban/-/issues/1807)
+attributed the remainder of the driver step and fixed nothing further in Visiban code. One
+in-app option is untried and tracked in [#1813](https://gitlab.com/visiban/visiban/-/issues/1813).
+See [The remaining driver step](#the-remaining-driver-step-1807).
 
 ### What the scheduled runs show
 
@@ -368,8 +370,9 @@ inferred from the dates.
   In a micro-benchmark that loads 14,014 `timestamptz` values from the fixture, the
   per-value cost was about 1.5µs under psycopg 3 and 0.47µs under psycopg2. At 44,000
   values that comes to about 45ms per request, out of a 74ms mean step on the old code.
-  The rest of the driver difference was not attributed to a specific cause. It is tracked in
-  [#1807](https://gitlab.com/visiban/visiban/-/issues/1807).
+  #1800 did not attribute the rest of the driver difference.
+  [#1807](https://gitlab.com/visiban/visiban/-/issues/1807) did. See
+  [The remaining driver step](#the-remaining-driver-step-1807).
 
 ### The mitigation
 
@@ -401,12 +404,178 @@ With the backport in place:
 - **Delete the module once the `Django` pin reaches 6.1.**
 
 The backport removes roughly a third to a half of the driver step, not all of it. The
-unattributed remainder is tracked in
-[#1807](https://gitlab.com/visiban/visiban/-/issues/1807). Expect `board_full` to settle above
-its level without psycopg 3, not back at it. The committed budget
+remainder is attributed in [the next section](#the-remaining-driver-step-1807). Expect
+`board_full` to settle above its level without psycopg 3, not back at it. The committed budget
 (1695ms) was derived from a run before this fix, so it may be looser than the endpoint now
 needs. Re-derive it at the next re-derivation by following the procedure above, from a run
-that includes this fix. Never hand-edit it.
+that includes this fix. Never hand-edit it. That re-derivation is tracked in
+[#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
+
+### The remaining driver step — #1807
+
+**Verdict: the remaining step comes from psycopg 3, from Django's timestamptz loader and from
+the garbage collector's response to psycopg 3. Nothing further was fixed in Visiban code. One
+in-app option is untried and tracked in
+[#1813](https://gitlab.com/visiban/visiban/-/issues/1813).** With the backport in place,
+psycopg 3 still made the local `board_full` mean about 45ms slower (7%). That is the median of
+the four per-round differences against psycopg2, measured in the same round. The medians of the
+per-round means in the table at the end of this section give a slightly larger 52ms (668ms
+against 720ms), because a median of differences is not the difference of two medians. Every
+step and part in this section is such a paired per-round median, and every absolute time is a
+median of per-round means.
+
+With the collector on, which is how CI runs, the 45ms splits by phase of the request:
+
+| Part | Effect on the step | Where it comes from |
+|---|---|---|
+| Garbage-collector pauses | +40ms | The collector's response to psycopg 3's allocations, inferred to come mostly from the binding below |
+| Django's per-value timestamptz wrapper (fetch phase) | +26ms | Django: 6.1 keeps the same wrapper |
+| Client-side binding of the six prefetch `IN` lists (execute phase) | +5ms | psycopg 3 |
+| Row loading in C, which is faster than psycopg2's (fetch phase, without the wrapper) | -22ms | psycopg 3 |
+| Everything else in the request | -4ms | Not attributed further |
+
+The parts add up to 45ms. Each one is the median of its own per-round differences, so in
+general they add up only to within a millisecond or two.
+
+With the collector off, the step was +26ms. The same split gives +27ms for the wrapper, +10ms
+for the binding, -15ms for row loading and +4ms for everything else. That view helps isolate
+CPU costs, but do not combine it with the one above. Turning the collector off is not the same
+as removing its pauses: no reference cycle is freed, so the heap grows from request to request
+and the other phases change too. That is why the binding costs 10ms there and 5ms with the
+collector on, and why the step with the collector off (+26ms) plus the pauses (+40ms) is more
+than the step with it on (+45ms).
+
+- **Garbage-collector pauses (+40ms).** `gc.callbacks` measured 204ms of collector pauses per
+  request under psycopg 3 and 161ms under psycopg2. Most of that is in the three full
+  collections each request runs under both drivers: 179ms against 137ms. The C-loader arm below
+  had the same pauses as the shipped arm, 1ms apart, so the wrapper is not the cause. Python
+  starts a collection after a set number of container allocations. psycopg 3 runs add about
+  29,000 of them per request: 418 young-generation collections against 377, at the default
+  threshold of 700. The likely mechanism is that more allocations move the request's full
+  collections to later points, when more of the board is in memory. That the extra
+  allocations come from the placeholder parsing below is **inferred**, not isolated. The
+  parsing creates objects per placeholder, both psycopg 3 arms show the same 418 collections,
+  and the import footprint is ruled out below. But no arm removes the parsing on its own. The
+  collector is a large share of this endpoint under either driver: 161ms of psycopg2's 668ms
+  mean. A step made of collector timing moves with allocation patterns, so expect it to vary
+  more between runs and runners than plain CPU time does.
+- **The timestamptz wrapper (+26ms).** The backport delegates to psycopg's C loader and then
+  calls `.replace(tzinfo=self.timezone)` on each value, exactly as Django 6.1 does. That is a
+  Python call per value, about 43,800 per response. A counterfactual arm registered psycopg's C
+  loader directly, with no Python wrapper. Its fetch phase was 26ms shorter than the shipped
+  arm's (24.3ms against 50.7ms), and its whole request was 23ms shorter (per round +24, +27,
+  +22, +14). In the request, the wrapper costs about 0.6µs per value, more than the 0.22µs the
+  #1800 micro-benchmark measured in isolation.
+- **Client-side binding (+5ms).** `prefetch_related` renders as
+  `WHERE card_id IN (%s, %s, ...)`, with one placeholder per card. Six of the request's
+  queries carry 2,388 or 2,389 placeholders each, 14,329 in total. Django's psycopg 3 backend
+  binds parameters client-side (`ClientCursor`). psycopg 3 splits the query text on its
+  placeholders in Python (`psycopg/_queries.py`, `_split_query`). That creates a regex match,
+  a tuple and a `QueryPart` for every placeholder. psycopg caches the split only for queries of
+  at most 4,096 bytes and 50 parameters (`MAX_CACHED_STATEMENT_LENGTH`,
+  `MAX_CACHED_STATEMENT_PARAMS`), so these six are split again on every request. psycopg2
+  did this in C. Composing one of them took about 2.5ms under psycopg 3 and 1.1ms under
+  psycopg2, about 8ms over the six.
+- **Row loading (-22ms).** Without the wrapper, psycopg 3's fetch phase was 22ms shorter than
+  psycopg2's (24.3ms against 45.6ms). psycopg 3's C row loading is faster, and it absorbs most
+  of the wrapper's cost.
+
+Ruled out, each by measurement or by reading the path:
+
+- **psycopg 3's import footprint.** psycopg 3 adds about 8,100 GC-tracked objects at startup,
+  so it looked like a cause of the slower collections. A psycopg2 arm with psycopg 3
+  imported, but not used, measured the same as plain psycopg2: 8ms faster with the collector
+  on and 3ms faster with it off, both within noise.
+- **Network and server time.** Replaying the request's `SELECT`s with their SQL already
+  composed took 103.7ms under psycopg2 and 101.7ms under psycopg 3.
+- **Other Python-side loaders.** Every other column type in the response (varchar, text,
+  bool, int2, int4, int8, uuid, date, jsonb) loads through psycopg's C loaders. Django
+  registers psycopg's `TextLoader` for jsonb, inet and cidr, and psycopg substitutes its C
+  version for it.
+- **Row factory.** Django uses psycopg 3's default tuple rows, built in C. They are faster
+  than psycopg2's (above).
+- **Server-side cursors.** Not used on this path. Django opens a named cursor only for
+  chunked `.iterator()` reads, and `board_full` makes none.
+- **Server-side binding.** Django's `OPTIONS["server_side_binding"]` would not help. psycopg's
+  server-side `PostgresQuery` splits the query with the same `_split_query`, behind the same
+  4,096-byte and 50-parameter cache limits as the client-side `PostgresClientQuery`
+  (`psycopg/_queries.py`, the two `convert` methods).
+- **Pipeline mode.** Django does not use it. Each prefetch query also needs the ids returned
+  by the query before it, so the round trips could not be pipelined anyway.
+- **The previous response staying in memory.** Each request's first full collection frees
+  about 207,000 objects from the previous `board_full` response. The `@extend_schema`
+  decorator on the `full` action passes its schema class through the view's init kwargs, and
+  DRF's schema descriptor then stores each new view instance on that class. So the last view,
+  its response and the serialized board stay referenced until the next request to the same
+  action. Removing that reference did not change latency: the objects are reference cycles
+  that only the collector frees in either case. It is the same under both drivers and is not
+  part of this step. This is recorded as an observation only. No work on it is planned.
+
+Why the parts are not fixed here:
+
+- **The wrapper.** Registering psycopg's C loader directly returns the same values when the
+  session TimeZone is UTC, which Django sets. It does not return the same values for the
+  overflow fallback values that `boards/tests/test_db_psycopg.py` pins: Django relabels a
+  fixed-offset fallback value with its own timezone, and the C loader keeps the offset. Django's
+  `create_cursor` also reads `.timezone` from the registered loader class, which the C class
+  does not have, so this would need a second patch to Django. Django 6.1 keeps the wrapper,
+  so the change would depart from upstream instead of backporting it.
+- **The binding.** Raising psycopg's cache limits would keep a parsed copy of each large query
+  in memory for each distinct board size. Those would be long-lived objects for the collector
+  to walk, so the change would add to its work instead of removing it. The real fix is to not
+  send thousands of placeholders. Inside Django, that would mean one array parameter with
+  `= ANY(%s)`, a change to how Django builds `prefetch_related` lookups. Visiban could also do
+  it without a Django change: `board_full` loads a single board, so it could fetch each child
+  relation filtered by the board and attach the rows to the cards itself. That would remove
+  the `IN` lists under psycopg2 too. It is untried. The experiment is tracked in
+  [#1813](https://gitlab.com/visiban/visiban/-/issues/1813).
+- **The collector.** Tuning it is a process-wide change to every endpoint, not a driver
+  change. As a data point, calling `gc.freeze()` after startup made each arm faster than the
+  same arm with default settings in the same round: by about 53ms under psycopg2 (668ms to
+  616ms in the table) and about 77ms under psycopg 3 (720ms to 646ms). It also shrank the
+  psycopg 3 step from about 45ms to about 24ms (30ms from the table's medians). This is
+  recorded as an observation only. No work on collector tuning is planned.
+
+How it was measured, so it can be repeated:
+
+- **Setup.** A throwaway `postgres:17-alpine` container (PostgreSQL 17.11). The fixture was
+  seeded with `manage.py seed_demo_data --force --scale 20 --with-notifications` (2,395
+  cards). The run used Python 3.12.6, Django 5.2.17, psycopg 3.3.6 with `psycopg-binary`, and
+  psycopg2-binary 2.9.11, on a development machine. The measurement predates
+  [#1810](https://gitlab.com/visiban/visiban/-/issues/1810), which adds 199 small boards to the
+  nightly fixture and makes the cards table about 67% larger. To repeat it on the current
+  nightly fixture, seed with `manage.py seed_demo_data --force --scale 20 --extra-boards 199
+  --with-notifications`. The extra boards belong to `demo3` and are separate from the
+  `board_full` board, but this measurement was not repeated on that fixture.
+- **Requests.** Each request ran in-process through Django's test `Client`, with `demo2`'s PAT
+  from `manage.py provision_fuzz_token` and `DEBUG=True` as in CI. That is 19 queries per
+  request: the 17 the endpoint runs, plus the two token queries.
+- **Arms.** Each arm ran in a fresh process. The psycopg2 arm sets `sys.modules["psycopg"] =
+  None` before Django loads, so `psycopg_any` falls back to psycopg2. The C-loader arm
+  replaces `psycopg_any.register_tzloader` to register psycopg's default timestamptz loader
+  for UTC, and skips the `.timezone` check in `create_cursor`. It is a timing counterfactual,
+  not a candidate fix. Its responses were byte-identical to the other arms' on this fixture.
+- **Phases.** Phase times come from wrapping `django.db.backends.utils.CursorWrapper._execute`
+  and its `fetchone`, `fetchmany` and `fetchall`. Collector time comes from `gc.callbacks`.
+  "Collector off" means `gc.disable()` in that process. "`gc.freeze()`" means `gc.collect()`
+  then `gc.freeze()` after Django loads, before the warm-up requests.
+- **Rounds.** Four interleaved rounds. Each round ran every arm under each collector setting
+  once, with 3 warm-up requests and 15 timed requests. The table gives the median of the four
+  per-round means. The step column gives the median of the four differences against
+  psycopg2 under the same collector setting in the same round. Phase times in the text are
+  medians of per-round means too.
+
+| Arm | Collector on: mean | Collector on: step | Collector off: mean | Collector off: step | `gc.freeze()`: mean | `gc.freeze()`: step |
+|---|---|---|---|---|---|---|
+| psycopg2 | 668ms | — | 491ms | — | 616ms | — |
+| psycopg2, with psycopg 3 imported but not used | 659ms | -8ms | 489ms | -3ms | 618ms | -3ms |
+| psycopg 3 with the backport | 720ms | +45ms | 517ms | +26ms | 646ms | +24ms |
+| psycopg 3, C timestamptz loader with no wrapper (counterfactual) | 700ms | +22ms | 483ms | -7ms | 614ms | -5ms |
+
+Per round, the psycopg 3 step was +45, +78, +44 and +36ms with the collector on, and +25, +27,
++25 and +28ms with it off. This was measured on a development machine, not a NUC runner.
+Re-deriving the `board_full` budget from a NUC run that includes #1800 is
+[#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
 
 ### What #1800 did not explain
 
