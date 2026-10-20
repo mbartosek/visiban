@@ -223,12 +223,6 @@ that is the tag-only job flagged in Step 1's pre-flight inventory if it changed 
       for the temporary entries (reason starts with `temporary:`; issues #1783, #1788, #1789,
       #1792); after deleting, it must print nothing:
       `python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"`
-- [ ] **Prune the six fuzz-baseline ids (v1.2.0 roll only).** Remove them from
-      `backend/schemathesis-baseline.json` per #1791 (its body names four; its comment adds
-      `72c48f` and `a9fe64`), only after both an MR-style fuzz run and the deep nightly list
-      the entry as unobserved (#1582 rule, `docs/api/openapi.md`): `0420cf` DELETE
-      boards/{id}/star, `c32635` analytics, `d2f3d8` export, `3c0458` summary, `72c48f`
-      resend-email, `a9fe64` ws-ticket.
 - [ ] **Remove the temporary-entry prose (v1.2.0 roll only).** In
       `docs/development/api-compat-gate.md`, delete every sentence or paragraph that describes
       temporary entries or counts exceptions to the "never added" rule (including any added
