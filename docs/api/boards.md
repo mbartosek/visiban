@@ -540,7 +540,7 @@ Delete a saved filter preset. Only the owning user can delete their own filters 
 ## Export & Import
 
 ### `GET /api/v1/boards/{id}/export/`
-Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV as omitting `format`. Error responses (`401`, `403`, `404`, `429`) are always JSON, so the `Accept` header must allow `application/json` or `*/*`.
+Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV bytes as omitting `format` whenever the request's `Accept` header is absent or allows `application/json` or `*/*`. Under `format=csv` and `format=json`, error responses (`401`, `403`, `404`, `406`, `429`) are JSON. A request with `Accept: text/csv` alone returns `406 Not Acceptable` on the CSV paths, with or without `format`, because no renderer serves `text/csv`; send `*/*` or omit `Accept`. With `format` omitted and a browser `Accept` (`text/html`), or with `format=api`, errors render as HTML from the browsable API.
 
 **Query parameters**
 
