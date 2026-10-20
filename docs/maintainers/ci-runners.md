@@ -16,7 +16,7 @@ As of 2026-10-08, these GitLab group runners are registered against `visiban/vis
 |---|---|---|---|---|
 | 52215741 | (none set) | stale | none | true |
 | 56277672 | `Runner-03-NUC` | online | `nuc` | true |
-| 56277916 | `runner-04-NUC` | stale | `nuc` | true |
+| 56277916 | `runner-04-NUC` | online | `nuc` | true |
 | 56787877 | `gitlab-runner-nuc-2-visiban` | online | `nuc` | true |
 | 56802474 | `Max1-Runner-Visiban` | online | `arm, arm64, apple, macosx, mac, ios` | false |
 | 56888935 | `gitlab-runner-dell-01-visiban` | online | `dell-small` | true |

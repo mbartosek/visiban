@@ -40,6 +40,7 @@ docs/development/nightly-load-test.md):
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -126,11 +127,26 @@ def _self_test():
     if not _check_budget(1000, 1000):
         failures.append("boundary case failed: p95 == budget must be within budget (<=)")
 
-    # --- board_list (#1723) is measured, and a scenario with no baseline entry is
+    # --- board_list (#1723) is measured; a scenario with no baseline entry is
     # measure-only (budgets.get(name, {}).get("budget_p95_ms") is None) ---
     eps = _endpoints("http://x", 1, 2)
     if eps.get("board_list") != "http://x/api/v1/boards/":
         failures.append("board_list scenario missing from _endpoints()")
+    # Guard (#1767): every measured scenario must have a committed budget, so a
+    # new scenario cannot silently stay measure-only (it could never fail the job).
+    # Resolved from this file, not the cwd, so it works wherever the self-test runs.
+    baseline_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "backend", "nightly-load-test-baseline.json"
+    )
+    try:
+        with open(baseline_path, encoding="utf-8") as fh:
+            committed = json.load(fh).get("endpoints", {})
+    except (OSError, ValueError) as exc:
+        failures.append(f"could not read committed baseline {baseline_path}: {exc}")
+        committed = {}
+    for name in eps:
+        if committed and committed.get(name, {}).get("budget_p95_ms") is None:
+            failures.append(f"scenario {name!r} has no budget_p95_ms in nightly-load-test-baseline.json")
     # run()'s budget branch: no baseline entry => measure-only, never a violation,
     # even at an absurd p95; an entry over budget is still flagged.
     if _evaluate_budget("board_list", 10**9, {"board_full": {"budget_p95_ms": 1}}) != (None, None, None):
@@ -151,8 +167,8 @@ def _self_test():
 def _evaluate_budget(name, p95, budgets):
     """Return (budget_ms, within_budget, violation_msg) for one scenario.
 
-    A scenario with no baseline entry (e.g. ``board_list`` until #1767) is
-    measure-only: budget_ms is None and it can never produce a violation.
+    A scenario with no baseline entry is
+    measure-only (none currently; the self-test requires every scenario to have one): budget_ms is None and it can never produce a violation.
     """
     budget_ms = budgets.get(name, {}).get("budget_p95_ms")
     if budget_ms is None:
@@ -165,9 +181,9 @@ def _evaluate_budget(name, p95, budgets):
 def _endpoints(base_url, board_id, sample_card_id):
     """The measured scenarios, name -> URL.
 
-    ``board_list`` (#1723) has no entry in the baseline file until it gets a
-    budget (#1767); run() treats a scenario with no budget as
-    measure-only (recorded, never a violation), so adding it cannot fail the job.
+    ``board_list`` (#1723) is budgeted in the baseline file (#1767). run() treats
+    a scenario with no budget as measure-only (recorded, never a violation); the
+    self-test requires every scenario here to have a budget.
     """
     return {
         "board_list": f"{base_url}/api/v1/boards/",

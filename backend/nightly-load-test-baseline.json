@@ -17,7 +17,7 @@
     "iterations_per_endpoint": 40,
     "warmup_per_endpoint": 5,
     "percentile_method": "nearest-rank (no interpolation) over the 40 timed samples",
-    "auth": "manage.py provision_fuzz_token --username demo2 (scoped, non-admin PAT — same mechanism backend-schema-fuzz already uses)"
+    "auth": "manage.py provision_fuzz_token --username demo2 (scoped, non-admin PAT; board_list alone authenticates as the board owner demo1 via --owner-token-file — same mechanism backend-schema-fuzz already uses)"
   },
   "budget_formula": "budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5 -- a 1.4x factor (issue #1082 specifies 1.3-1.5x) rounded up to the nearest 5ms so CI comparisons have a little headroom for measurement noise without the number itself being picked round. Recompute this whole file -- never hand-adjust a single budget_p95_ms -- when re-deriving.",
   "endpoints": {

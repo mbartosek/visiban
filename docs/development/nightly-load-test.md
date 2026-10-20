@@ -160,7 +160,7 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
 
 !!! warning "Budgets are only valid on NUC runners"
     Budgets are absolute milliseconds, so they only hold on the hardware they were measured
-    on. The baseline (job 16796708105) ran on `gitlab-runner-nuc-2-visiban`, and the job is
+    on. The current baseline (job 17304593759, #1767) ran on `runner-04-NUC`; the one before it (job 16796708105, #1233) ran on `gitlab-runner-nuc-2-visiban`, and the job is
     pinned with `tags: [nuc]` (see [CI Runners](../maintainers/ci-runners.md)). Before the
     pin, the 2026-10-08 scheduled run landed on `gitlab-runner-dell-01-visiban` and failed
     `card_timeline`, `notifications_list` and `notifications_unread` by 1.3-1.8x with no
