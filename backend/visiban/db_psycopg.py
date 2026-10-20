@@ -17,8 +17,8 @@ Python parser is the largest identified part of the step: about 45ms of 74ms. Th
 backport mitigates that part, removing about 36ms per request, which is roughly a
 third to a half of the step. #1807 attributed the rest: mostly the per-value
 ``.replace(tzinfo=...)`` this backport keeps (as Django 6.1 does), psycopg 3's
-client-side binding of large prefetch ``IN`` lists in Python, and the extra
-garbage collection that binding causes.
+client-side binding of large prefetch ``IN`` lists in Python, and extra
+garbage collection, which is inferred to come from that binding.
 The query count and SQL did not change, so only a latency measurement can see this.
 See ``docs/development/nightly-load-test.md``.
 
