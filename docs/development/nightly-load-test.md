@@ -216,9 +216,108 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     1172-1375ms on Oct 9-19) and are tracked in
     [#1800](https://gitlab.com/visiban/visiban/-/issues/1800). The new `board_full` budget leaves
     under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
-    1430ms budget), so expect it to be tight until #1800 is resolved. The previous derivation ran
+    1430ms budget). [#1800](https://gitlab.com/visiban/visiban/-/issues/1800) traced the
+    `board_full` rise to the psycopg 3 migration and backported the fix. See
+    [The October 2026 `board_full` drift](#the-october-2026-board_full-drift-1800) below. The previous derivation ran
     on `gitlab-runner-nuc-2-visiban`; both are NUC-class
     (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
+
+## The October 2026 `board_full` drift — #1800
+
+**Verdict: a real regression, fixed in code.** The cause was the psycopg2 to psycopg 3 move
+([#1252](https://gitlab.com/visiban/visiban/-/issues/1252), merged 2026-10-04 at 10:47 EDT).
+It was not a runner or environment change.
+
+### What the scheduled runs show
+
+The 22 completed scheduled runs between 2026-09-29 and 2026-10-20 did **not** all land on one
+runner. They alternated between `gitlab-runner-nuc-2-visiban` and `Runner-03-NUC`. One ran
+on `gitlab-runner-dell-01-visiban` (Oct 8, before the `nuc` pin) and one on `runner-04-NUC`
+(Oct 20). Card count was 2388 throughout. `board_full` p50 is less noisy than p95, and the
+step is visible in it on **both** NUC runners:
+
+| Runner | Before (Sep 29 to Oct 4) | After (Oct 5 to Oct 19) |
+|---|---|---|
+| `gitlab-runner-nuc-2-visiban` | p50 910-995ms (4 runs) | p50 1074-1200ms (6 runs) |
+| `Runner-03-NUC` | p50 944ms (Oct 3)\* | p50 1050-1326ms (8 runs) |
+
+\* The Sep 30 `Runner-03-NUC` run (p50 1180ms, p95 1335ms) is the only slow run before
+Oct 5. Its commit predates every change below, so it was runner noise.
+
+The first slow run is the Oct 5 run on `724fbdd4b`. The last fast run is the Oct 4 run on
+`7dee839ca`. The job ran the same `python:3.12-slim` image and job definition on both
+commits, and neither the load-test script nor `seed_demo_data` changed. Between them, only two packages changed in `backend/requirements.lock`:
+`psycopg2-binary` 2.9.11 became `psycopg[binary]` 3.3.6 (#1252), and `mcp` 1.30.0 became
+2.3.0 (#1253). The MCP SDK is not on the request path (`MCP_SERVER_ENABLED` is off in the
+job). The `board_full` serializer change in the same window (#1077) only adds schema
+`help_text`.
+
+The 2026-10-12 failure (job 17100891040, p95 1650.7ms against the then-1430ms budget) was a
+tail outlier on top of that step. Its p50 was 1304ms. The next two runs, on a commit with
+no change to the board serializer, view or requirements, measured p95 1228ms and 1155ms.
+
+### Root cause, measured
+
+Django 5.2 parses every `timestamptz` value through
+`django.db.backends.postgresql.psycopg_any.BaseTzLoader`. That class subclasses psycopg's
+**pure-Python** `TimestamptzLoader`, so each datetime is parsed by a regex in Python, even
+with `psycopg[binary]` installed. The C loader that package ships is never used. This is
+Django ticket [#36960](https://code.djangoproject.com/ticket/36960), fixed upstream only in
+Django 6.1 (commit `994fa77`). psycopg2 parsed these values in C. One `board_full` response
+on the load-test board loads about 44,000 `timestamptz` values (cards, movements and the
+other prefetched rows).
+
+The cause was measured locally on a scale-20 fixture against PostgreSQL 17. It was not
+inferred from the dates.
+
+- **Same SQL, same payload.** Under both drivers the endpoint runs 17 queries and returns
+  byte-identical JSON. A query-count guard cannot see this regression.
+- **The driver is the whole step.** A 2x2 run crossed pre-drift code (`7dee839ca`) and
+  current code with each driver: 4 interleaved rounds of 40 requests each, `DEBUG=True` as
+  in CI. Changing the driver added about 11-12% to the mean on either code base:
+  622ms to 696ms on the old code, 630ms to 700ms on the current code. Changing the code
+  under psycopg2 added about 1% (622ms to 630ms). p95 rose more than the mean (about 667ms
+  to 839ms on the old code), which matches the ~25% p95 rise CI saw.
+- **The loader is where the time goes.** In a profile of 5 requests, psycopg 3 spent about
+  44,000 calls per request in `psycopg/types/datetime.py` `_load_iso`. Per value, loading
+  cost about 1.5µs under psycopg 3, against 0.47µs under psycopg2.
+
+### The fix
+
+`backend/visiban/db_psycopg.py` backports Django 6.1's change onto 5.2's `BaseTzLoader`. It
+wraps the loader psycopg registers by default (the C one with `psycopg[binary]`) and then
+re-applies the connection timezone exactly as Django did before. `boards.apps.BoardsConfig.ready()`
+applies it. Results are byte-identical to psycopg2's for the whole `board_full` response.
+With the backport in place:
+
+- per-value loading drops from about 1.5µs to about 0.69µs (psycopg2: 0.47µs);
+- the C core of psycopg 3 costs the same as psycopg2's on this endpoint. What is left is
+  the Python wrapper and `.replace(tzinfo=...)`, which upstream Django 6.1 also keeps;
+- `boards/tests/test_db_psycopg.py` pins it. Values must match Django's original loader, and
+  a real query on PostgreSQL must never call the Python ISO parser. That test fails without
+  the backport. It also checks that the backport turns itself off on a Django that already
+  has the upstream fix. **Delete the module once the `Django` pin reaches 6.1.**
+
+The backport removes most of the driver cost, not all of it. Expect `board_full` to settle a
+few percent above its pre-Oct-5 level rather than exactly back at it. The committed budget
+(1695ms, from a run before this fix) is therefore looser than the endpoint now needs. Tighten
+it at the next re-derivation by following the procedure above, from a run that includes this
+fix. Never hand-edit it.
+
+### What #1800 did not explain
+
+- `card_search` (p50 about 80ms to 84-90ms over the same period, and 100.7ms on
+  `runner-04-NUC`) and `notifications_unread` show no driver effect locally: psycopg2,
+  psycopg 3 and psycopg 3 with the backport measured within noise of each other. Their
+  smaller rise is not the timestamptz loader. Locally, `card_search` was also about 14%
+  slower on current code than on `7dee839ca` with the same 8 queries. That comparison spans
+  two separately seeded databases and was not taken further here.
+- The job installs `backend/requirements.txt`, not the hash-pinned `requirements.lock`, and
+  its `python:3.12-slim` and `postgres:17-alpine` images are floating tags. Transitive
+  dependency and base-image versions can therefore change between two runs on the same
+  commit. That did not cause this drift (the lock diff above is the full set of pinned
+  changes, and the step lines up with #1252's merge). When attributing a future drift, check
+  for it.
 
 ## Failure notifications
 
