@@ -4031,7 +4031,7 @@ postmortem.</p>
 <tr>
 <td>Board list</td>
 <td><code>GET /api/v1/boards/</code></td>
-<td>Run as the board owner (<code>demo1</code>) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). <strong>No budget yet</strong> (<a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a>)</td>
+<td>Run as the board owner (<code>demo1</code>) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms (<a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a>)</td>
 </tr>
 <tr>
 <td>Board fetch</td>
@@ -4085,9 +4085,8 @@ budget.</p>
   rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
   the <code>board_list</code> scenario, as the board owner (<code>demo1</code>, via <code>--owner-token-file</code>) so the
   20 memberships are on the measured path; every other scenario still runs as <code>demo2</code>. It has
-  <strong>no budget</strong> in <code>backend/nightly-load-test-baseline.json</code> until
-  <a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a> adds one, so it is recorded in the
-  results artifact but cannot fail the job (a scenario without a baseline entry is measure-only).</li>
+  a committed budget in <code>backend/nightly-load-test-baseline.json</code> (added by
+  <a href="https://gitlab.com/visiban/visiban/-/issues/1767">#1767</a>).</li>
 <li><code>--with-notifications</code> seeds 60 unread <code>Notification</code> rows for the <code>demo2</code> user — more than
   the 50-row cap <code>NotificationListView</code> / <code>NotificationUnreadCountView</code> apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.</li>
@@ -4115,12 +4114,18 @@ CI databases like this job's only.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python3<span class="w"> </span>scripts/nightly_load_test.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span>--base-url<span class="w"> </span>http://localhost:8000<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span>--token-file<span class="w"> </span>/tmp/visiban_load_test_token<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span>--board-name<span class="w"> </span><span class="s2">"Visiban Load Test Board"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span>--budget-file<span class="w"> </span>backend/nightly-load-test-baseline.json<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span>--iterations<span class="w"> </span><span class="m">40</span><span class="w"> </span>--warmup<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span>--output<span class="w"> </span>nightly-load-test-results.json
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span>--owner-token-file<span class="w"> </span>/tmp/visiban_load_test_owner_token<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span>--board-name<span class="w"> </span><span class="s2">"Visiban Load Test Board"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span>--budget-file<span class="w"> </span>backend/nightly-load-test-baseline.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span>--iterations<span class="w"> </span><span class="m">40</span><span class="w"> </span>--warmup<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span>--output<span class="w"> </span>nightly-load-test-results.json
 </code></pre></div>
-<p>Every flag shown is also the script's default — this is what the CI job effectively runs.</p>
+<p>The CI job provisions two tokens: <code>--token-file</code> (<code>demo2</code>, a plain member) for every scenario,
+and <code>--owner-token-file</code> (<code>demo1</code>, the board owner) for <code>board_list</code> alone. <code>--owner-token-file</code>
+has no default and the script refuses to run without it: <code>board_list</code>'s 55ms budget was derived
+as the owner, whose access query spans all 20 memberships, so measuring it as <code>demo2</code> would
+compare a cheaper path against that budget and hide a regression. The other flags shown are the
+script's defaults.</p>
 <p>For each endpoint: 5 warmup requests (discarded), then 40 timed requests. Percentiles use
 nearest-rank (no interpolation), so every reported number was an actually-observed latency, not
 a synthetic average of two samples. The job fails (<code>sys.exit(1)</code>) if any endpoint's measured p95
@@ -4133,12 +4138,15 @@ file's 90-day expiry and is restricted to developers. On failure the job log pri
 <p>Like every bespoke gate script in this repo, it ships a <code>--self-test</code> mode
 (<code>python scripts/nightly_load_test.py --self-test</code>) that proves the percentile calculation and
 budget-comparison logic still fire on a known-bad and known-good input, run in CI immediately
-before the real invocation — see <a href="../ci-gates/">CI gate self-tests</a>.</p>
+before the real invocation — see <a href="../ci-gates/">CI gate self-tests</a>. It also fails if any scenario
+the script measures has no <code>budget_p95_ms</code> in the committed baseline, so a new scenario cannot
+silently stay measure-only. The <code>nightly-load-test-selftest</code> job runs it on merge requests that
+touch the script or the baseline.</p>
 <h2 id="the-schedule">The schedule<a class="headerlink" href="#the-schedule" title="Permanent link">&para;</a></h2>
 <p>Configure once in GitLab: <strong>CI/CD → Schedules → New schedule</strong></p>
 <ul>
 <li>Target branch: <code>main</code></li>
-<li>Cron: <code>0 3 * * *</code> (daily at 03:00 UTC)</li>
+<li>Cron: <code>0 0 * * *</code>, timezone <code>America/New_York</code> (daily at midnight Eastern, 04:00 UTC during daylight time and 05:00 UTC in winter; schedule 4463581)</li>
 <li>Variables: <code>LOAD_TEST_SCHEDULE=true</code></li>
 </ul>
 <p>The job can also be run manually at any time (advisory — <code>allow_failure: true</code> on the manual
@@ -4174,7 +4182,7 @@ without ever firing.</p>
 <div class="admonition warning">
 <p class="admonition-title">Budgets are only valid on NUC runners</p>
 <p>Budgets are absolute milliseconds, so they only hold on the hardware they were measured
-on. The baseline (job 16796708105) ran on <code>gitlab-runner-nuc-2-visiban</code>, and the job is
+on. The current baseline (job 17304593759, #1767) ran on <code>runner-04-NUC</code>; the one before it (job 16796708105, #1233) ran on <code>gitlab-runner-nuc-2-visiban</code>, and the job is
 pinned with <code>tags: [nuc]</code> (see <a href="../../maintainers/ci-runners/">CI Runners</a>). Before the
 pin, the 2026-10-08 scheduled run landed on <code>gitlab-runner-dell-01-visiban</code> and failed
 <code>card_timeline</code>, <code>notifications_list</code> and <code>notifications_unread</code> by 1.3-1.8x with no
@@ -4204,10 +4212,28 @@ is now <code>"ci-derived"</code> from its artifact (job 16796708105), following 
 next scheduled run (2026-09-30T03:00 UTC) failed against the <em>old</em> provisional budgets on
 <code>board_full</code>/<code>card_timeline</code>/<code>notifications_unread</code> — its measured numbers pass comfortably
 against the re-derived budgets, confirming the stale provisional file was the cause, not a new
-regression. <code>board_full</code> is the most CPU-bound of the five endpoints (per-card DRF
+regression. <code>board_full</code> is the most CPU-bound of the six endpoints (per-card DRF
 serialization across ~2,388 cards, #1212) and shows the widest run-to-run variance on a
 shared CI runner as a result — expect it to move more between runs than the lighter
 endpoints.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Re-derived after the 20-member fixture and <code>board_list</code> — #1767</p>
+<p>The seed fixture grew to 20 board members and the <code>board_list</code> scenario was added (#1723), so
+the whole file was re-derived on 2026-10-20 from the first scheduled run after both landed
+(job 17304593759, pipeline 2965970261, started about 04:08 UTC, on <code>runner-04-NUC</code>, tag <code>nuc</code>). <code>board_list</code>
+is new and got its first budget (p95 37.2ms, budget 55ms), measured as the board owner so
+the 20 memberships are on the path. The other budgets were recomputed from this run, not
+hand-adjusted, and all moved up: <code>board_full</code> 1430 to 1695ms, <code>card_search</code> 120 to 155ms,
+<code>card_timeline</code> 55 to 60ms, <code>notifications_list</code> 50 to 60ms, <code>notifications_unread</code> 40 to
+45ms. Those increases are <strong>not</strong> attributable to the fixture change: they predate #1723
+(<code>board_full</code> p95 was 981-1042ms on <code>gitlab-runner-nuc-2-visiban</code> on Oct 1-4 versus
+1172-1375ms on Oct 9-19) and are tracked in
+<a href="https://gitlab.com/visiban/visiban/-/issues/1800">#1800</a>. The new <code>board_full</code> budget leaves
+under 3% headroom over the worst past run (1650.7ms, the Oct 12 failure against the old
+1430ms budget), so expect it to be tight until #1800 is resolved. The previous derivation ran
+on <code>gitlab-runner-nuc-2-visiban</code>; both are NUC-class
+(<code>nuc</code>-tagged) runners, so the file was re-derived as a whole rather than patched.</p>
 </div>
 <h2 id="failure-notifications">Failure notifications<a class="headerlink" href="#failure-notifications" title="Permanent link">&para;</a></h2>
 <p>The scheduled run is blocking (not <code>allow_failure</code>), so a budget violation fails the pipeline.
