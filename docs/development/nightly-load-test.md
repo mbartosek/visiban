@@ -21,7 +21,7 @@ see that class of regression; this job can.
 
 | Endpoint | Path | Volume sensitivity |
 |---|---|---|
-| Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). **No budget yet** ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
+| Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
 | Card search | `GET /api/v1/cards/?search=...` | Exercises the `pg_trgm` GIN indexes added in migration `0030_card_trigram_search_indexes` |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
@@ -57,9 +57,8 @@ python manage.py seed_demo_data --force --scale 20 --with-notifications
   rather than a join, so the members x cards row blow-up is gone. The job times that endpoint as
   the `board_list` scenario, as the board owner (`demo1`, via `--owner-token-file`) so the
   20 memberships are on the measured path; every other scenario still runs as `demo2`. It has
-  **no budget** in `backend/nightly-load-test-baseline.json` until
-  [#1767](https://gitlab.com/visiban/visiban/-/issues/1767) adds one, so it is recorded in the
-  results artifact but cannot fail the job (a scenario without a baseline entry is measure-only).
+  a committed budget in `backend/nightly-load-test-baseline.json` (added by
+  [#1767](https://gitlab.com/visiban/visiban/-/issues/1767)).
 - `--with-notifications` seeds 60 unread `Notification` rows for the `demo2` user — more than
   the 50-row cap `NotificationListView` / `NotificationUnreadCountView` apply, so the job
   exercises the same "more unread than the cap" path a busy real inbox hits.
@@ -194,6 +193,17 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     serialization across ~2,388 cards, #1212) and shows the widest run-to-run variance on a
     shared CI runner as a result — expect it to move more between runs than the lighter
     endpoints.
+
+!!! note "Re-derived after the 20-member fixture and `board_list` — #1767"
+    The seed fixture grew to 20 board members and the `board_list` scenario was added (#1723), so
+    the whole file was re-derived on 2026-10-20 from the first scheduled run after both landed
+    (job 17304593759, pipeline 2965970261, 04:08 UTC, on `runner-04-NUC`, tag `nuc`). `board_list`
+    got its first budget (p95 37.2ms, budget 55ms), measured as the board owner so the 20
+    memberships are on the path. The other budgets moved because they were recomputed from this
+    run, not hand-adjusted: `board_full` 1430 to 1695ms, `card_search` 120 to 155ms,
+    `card_timeline` 55 to 60ms, `notifications_list` 50 to 60ms, `notifications_unread` 40 to
+    45ms. The previous derivation ran on `gitlab-runner-nuc-2-visiban`; both are NUC-class
+    (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
 
 ## Failure notifications
 

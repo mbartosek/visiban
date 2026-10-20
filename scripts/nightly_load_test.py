@@ -13,7 +13,7 @@ show up before a customer notices it.
 Covers the endpoints boards/migrations 0030 (trigram GIN search indexes) and
 0045 (activity/comment composite indexes) exist to keep fast as data volume
 grows:
-  - board_list              GET  /api/v1/boards/                    (#1723, no budget yet: #1767)
+  - board_list              GET  /api/v1/boards/                    (#1723, budget: #1767)
   - board_full              GET  /api/v1/boards/{id}/full/
   - card_search             GET  /api/v1/cards/?search=...          (0030)
   - card_timeline           GET  /api/v1/boards/{id}/cards/{id}/timeline/  (0045)
