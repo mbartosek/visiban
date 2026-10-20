@@ -12,6 +12,14 @@ class BoardsConfig(AppConfig):
     def ready(self):
         import boards.signals  # noqa: F401
 
+        # Process-wide DB plumbing, hooked here because the project package has
+        # no AppConfig of its own. It must run before the first query loads a
+        # timestamptz value, and ready() runs before any request or command
+        # body (#1800, see visiban/db_psycopg.py).
+        from visiban import db_psycopg
+
+        db_psycopg.apply()
+
         from django.db.models.signals import post_migrate
 
         def _sync_board_templates(sender, **kwargs):
