@@ -41,6 +41,10 @@
 # only — never JOB-TOKEN. The job now runs this script with `bash` (was
 # `sh`) to use that library; see docs/development/suppressions.md.
 #
+# #1812: the same job also scans backend/nightly-load-test-baseline.json for
+# `pending_budget: "#NNNN"` markers (see run_pending_scan) and fails when the
+# cited issue is closed or missing.
+#
 # Usage:
 #   bash scripts/check-suppression-issues.sh              # real run
 #   bash scripts/check-suppression-issues.sh --self-test   # gate self-test
@@ -202,6 +206,95 @@ run_scan() {
   return "$scan_fail"
 }
 
+# --- Pending budgets in the nightly load-test baseline (#1812) ---------------
+#
+# A baseline entry with `budget_p95_ms: null` and `pending_budget: "#NNNN"` is
+# measured but not gated (docs/development/nightly-load-test.md, "Pending
+# budgets"). Nothing else notices when the cited issue closes while the entry
+# is still pending, so the scenario could stay ungated indefinitely. This is
+# the same "waiting on tracked work" shape as SUPPRESSED-UNTIL, so it is
+# checked here, with the same lookup, the same closed/missing findings and the
+# same fail-open policy.
+#
+# The marker shape matches scripts/nightly_load_test.py `_pending_budget()`:
+# a pending entry has a null budget AND a "#NNNN" string. An entry that
+# carries a `pending_budget` but also a non-null `budget_p95_ms` is gated
+# normally, so it is not pending and is ignored here (a stale marker on a
+# gated entry blocks nothing, and the issue closing is expected).
+BASELINE_FILE="backend/nightly-load-test-baseline.json"
+
+# pending_budget_entries <baseline_file> — prints "<name><TAB><iid>" per
+# pending entry. Returns non-zero if the file is not parseable JSON.
+pending_budget_entries() {
+  jq -r '(.endpoints // {}) | to_entries[]
+    | select(.value | type == "object")
+    | select(.value.budget_p95_ms == null)
+    | select((.value.pending_budget | type) == "string" and (.value.pending_budget | test("^#[0-9]+$")))
+    | "\(.key)\t\(.value.pending_budget[1:])"' "$1"
+}
+
+# run_pending_scan <baseline_file> — returns 1 if any pending entry cites a
+# closed or tracker-missing issue (or the file is missing/unparseable); 0
+# otherwise, including when the lookup is inconclusive (fail open, like
+# run_scan).
+run_pending_scan() {
+  local file="$1" entries name iid
+  if [ ! -f "$file" ]; then
+    echo "check-suppression-issues: ERROR — baseline '$file' does not exist; refusing to report a clean pending_budget scan without having scanned it." >&2
+    return 1
+  fi
+  if ! entries="$(pending_budget_entries "$file" 2>/dev/null)"; then
+    echo "check-suppression-issues: ERROR — could not parse '$file' as JSON; refusing to report a clean pending_budget scan." >&2
+    return 1
+  fi
+  [ -n "$entries" ] || return 0
+
+  local ids=() seen=","
+  while IFS=$'\t' read -r name iid; do
+    [ -n "${iid:-}" ] || continue
+    case "$seen" in
+      *",${iid},"*) ;;
+      *) ids+=("$iid"); seen="${seen}${iid}," ;;
+    esac
+  done <<< "$entries"
+
+  local states="" lookup_rc=0 lines="" i
+  if [ -n "${CHECK_SUPPRESSION_MOCK_CLOSED:-}" ]; then
+    # Same test-only short-circuit as run_scan: never touches the network.
+    for i in "${ids[@]}"; do
+      case ",${CHECK_SUPPRESSION_MOCK_CLOSED}," in
+        *",${i},"*) lines="${lines}${i}$(printf '\t')closed"$'\n' ;;
+        *) lines="${lines}${i}$(printf '\t')opened"$'\n' ;;
+      esac
+    done
+    states="$lines"
+  else
+    states="$(gitlab_issue_states "${ids[@]}")" || lookup_rc=1
+  fi
+
+  if [ "$lookup_rc" -ne 0 ]; then
+    echo "check-suppression-issues: WARNING — could not resolve the pending_budget issues' state (tracker unreachable, or no usable token/anonymous access); not blocking on an inconclusive lookup." >&2
+    return 0
+  fi
+
+  local pending_fail=0 state
+  while IFS=$'\t' read -r name iid; do
+    [ -n "${iid:-}" ] || continue
+    state="$(resolve_issue_state "$iid" "$states")"
+    case "$state" in
+      closed)
+        pending_fail=1
+        echo "check-suppression-issues: ${file}: endpoint '${name}' has pending_budget #${iid}, which is CLOSED — assign its budget_p95_ms and delete pending_budget (whole-file NUC re-derivation), or re-point pending_budget at a new tracked issue." >&2
+        ;;
+      missing)
+        pending_fail=1
+        echo "check-suppression-issues: ${file}: endpoint '${name}' has pending_budget #${iid}, which the tracker did not return (it does not exist, or is confidential to the token/anonymous access used) — re-point pending_budget at a real, visible issue." >&2
+        ;;
+    esac
+  done <<< "$entries"
+  return "$pending_fail"
+}
+
 # self_test — see script header. Never touches the network.
 self_test() {
   fixture_dir="$(mktemp -d)"
@@ -248,11 +341,24 @@ EOF
     ok=0
   fi
 
+  mkdir -p "$fixture_dir/pending"
+  cat > "$fixture_dir/pending/baseline.json" <<'EOF'
+{"endpoints": {"a": {"budget_p95_ms": null, "pending_budget": "#9999"}, "b": {"budget_p95_ms": 50}}}
+EOF
+  if CHECK_SUPPRESSION_MOCK_CLOSED="9999" run_pending_scan "$fixture_dir/pending/baseline.json" 2>/dev/null; then
+    echo "check-suppression-issues --self-test: FAIL — a pending_budget citing a closed issue did not block." >&2
+    ok=0
+  fi
+  if ! CHECK_SUPPRESSION_MOCK_CLOSED="1" run_pending_scan "$fixture_dir/pending/baseline.json"; then
+    echo "check-suppression-issues --self-test: FAIL — a pending_budget citing an open issue was incorrectly blocked." >&2
+    ok=0
+  fi
+
   rm -rf "$fixture_dir"
   trap - EXIT
 
   if [ "$ok" -eq 1 ]; then
-    echo "check-suppression-issues --self-test: OK — fires on a closed-issue marker, passes an open-issue marker, ignores a plain reason, dedupes repeated citations."
+    echo "check-suppression-issues --self-test: OK — fires on a closed-issue marker, passes an open-issue marker, ignores a plain reason, dedupes repeated citations, gates pending_budget on its issue's state."
     return 0
   fi
   return 1
@@ -264,15 +370,24 @@ main() {
     exit $?
   fi
 
+  # Run both scans before deciding, so one run reports every finding.
+  local rc=0
   # shellcheck disable=SC2086  # SCAN_PATHS is intentionally word-split (two bare paths, no globs/spaces).
   if run_scan $SCAN_PATHS; then
     echo "check-suppression-issues: OK — no SUPPRESSED-UNTIL(#N) marker cites a closed or unresolvable issue."
-    exit 0
   else
     echo "" >&2
     echo "check-suppression-issues: FAIL — one or more SUPPRESSED-UNTIL(#N) markers cite a closed issue, or an issue the tracker could not confirm exists and is open." >&2
-    exit 1
+    rc=1
   fi
+  if run_pending_scan "$BASELINE_FILE"; then
+    echo "check-suppression-issues: OK — no pending_budget in ${BASELINE_FILE} cites a closed or unresolvable issue."
+  else
+    echo "" >&2
+    echo "check-suppression-issues: FAIL — one or more pending_budget entries in ${BASELINE_FILE} cite a closed issue, or an issue the tracker could not confirm exists and is open." >&2
+    rc=1
+  fi
+  exit "$rc"
 }
 
 main "$@"

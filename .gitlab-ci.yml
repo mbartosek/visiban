@@ -2864,7 +2864,10 @@ changelog-check:
 # cited issue via the GitLab API, and fails — naming file, line, and issue —
 # if any cited issue is already closed. See scripts/check-suppression-issues.sh,
 # scripts/lib/gitlab-issues.sh, and docs/development/suppressions.md for the
-# full contract; unit-tested in scripts/tests/check-suppression-issues.test.sh
+# full contract. #1812: the same script also scans the nightly load-test
+# baseline (backend/nightly-load-test-baseline.json) for `pending_budget:
+# "#NNNN"` entries (budget null, measured but not gated) and fails, naming the
+# endpoint and issue, when the cited issue is closed. Unit-tested in scripts/tests/check-suppression-issues.test.sh
 # and scripts/tests/gitlab-issues.test.sh, both run here.
 #
 # Deliberately NOT MR-only: the triggering event is "an issue closed", not
