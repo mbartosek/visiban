@@ -94,7 +94,7 @@ Those findings are therefore frozen as exact per-finding `key` entries (generate
 the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
 closed: anything not already in it, including a further change to an operation that has
 entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
-or needs its own issue-referenced entry. The temporary `#1788` and `#1783` entries described
+or needs its own issue-referenced entry. The temporary `#1788`, `#1783` and `#1792` entries described
 below are such entries; none of them is part of the burn-down count above.
 The exception is an operation covered by an `operation` entry (the `#1783` ones): every finding
 under it passes, including a new one. That is why those entries must be deleted at the v1.2.0
@@ -128,7 +128,7 @@ These entries stay in the file because the drift lives in the frozen baseline it
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
-The temporary #1783 entries below are a third exception.
+The temporary #1783 entries below are a third exception, and the #1792 entry a fourth.
 
 Four temporary `key` entries under `#1788` cover `NEW_REQUIRED_REQUEST_BODY` on `POST swimlanes/`,
 `PUT swimlanes/{id}/`, and `PATCH swimlanes/{id}/set-collapsed/` and `set_collapsed/`. The v1.1.0
@@ -144,11 +144,15 @@ whose schema showed a fallback serializer, no body, or a wrong status (for examp
 The v1.1.0 baseline holds those wrong shapes, so each correction reads as a removal; no runtime
 behavior changed. Delete all sixteen when the baseline is rolled at the v1.2.0 GA.
 
+One temporary `key` entry under `#1792` covers `REQUEST_BODY_BECAME_REQUIRED` on `POST boards/import/`: the
+baseline published the multipart upload body as optional, but the view has always answered 400 without
+`file`. Delete it when the baseline is rolled at the v1.2.0 GA.
+
 The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
 as the new baseline, so an operation that still documents a fallback serializer at the tag
 carries that error into the next baseline. #1783 corrected the cases its sweep confirmed. The
-board import endpoints' request bodies are tracked in #1792 and other hand-written `GET`s that
-publish no response body in #1793; any found later needs the same fix before the following roll.
+board import request bodies were corrected in #1792; hand-written `GET`s that
+publish no response body are tracked in #1793; any found later needs the same fix before the following roll.
 
 ## Running it locally
 

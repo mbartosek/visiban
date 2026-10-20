@@ -2924,6 +2924,11 @@
    "operation": "POST /api/v1/auth/registration/resend-email/",
    "issue": "#1783",
    "reason": "temporary: real schema declared in #1783; baseline drift cleared at the v1.2.0 roll"
+  },
+  {
+   "key": "REQUEST_BODY_BECAME_REQUIRED POST /api/v1/boards/import/",
+   "issue": "#1792",
+   "reason": "temporary: real request body declared in #1792; baseline drift cleared at the v1.2.0 roll"
   }
  ]
 }

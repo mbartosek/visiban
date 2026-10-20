@@ -200,24 +200,28 @@ def pin_named_enums(result, generator, request, public):
     return result
 
 
-# PATCH actions whose view answers 400 without the body. drf-spectacular marks a
-# request body required only for serializers, and a dict schema never is, so
-# these have to be set here (shared by #1788 and #1783).
-_REQUIRED_PATCH_BODIES = (
-    "/api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/",
-    "/api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/",
-    "/api/v1/groups/{id}/members/{user_id}/",
+# (path, method) operations whose view answers 400 without the body.
+# drf-spectacular marks a request body required only for serializers, and a
+# dict schema never is, so these have to be set here (shared by #1788, #1783
+# and #1792).
+_REQUIRED_BODIES = (
+    ("/api/v1/boards/{board_pk}/swimlanes/{id}/set-collapsed/", "patch"),
+    ("/api/v1/boards/{board_pk}/swimlanes/{id}/set_collapsed/", "patch"),
+    ("/api/v1/groups/{id}/members/{user_id}/", "patch"),
+    # The import views answer 400 "No file provided." without the upload (#1792).
+    ("/api/v1/boards/import/", "post"),
+    ("/api/v1/boards/import/trello/", "post"),
 )
 
 
 def require_declared_request_bodies(result, generator, request, public):
-    """Mark the request body of ``_REQUIRED_PATCH_BODIES`` as required.
+    """Mark the request body of every ``_REQUIRED_BODIES`` operation as required.
 
     Without this the schema says the body is optional, and correcting it after
-    the v1.2.0 baseline freezes would be a breaking change (#1788, #1783).
+    the v1.2.0 baseline freezes would be a breaking change (#1788, #1783, #1792).
     """
-    for path in _REQUIRED_PATCH_BODIES:
-        body = result.get("paths", {}).get(path, {}).get("patch", {}).get("requestBody")
+    for path, method in _REQUIRED_BODIES:
+        body = result.get("paths", {}).get(path, {}).get(method, {}).get("requestBody")
         if body is not None:
             body["required"] = True
     return result
