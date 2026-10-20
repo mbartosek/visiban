@@ -69,8 +69,8 @@
 #   WT_COMPOSE_PROJECT  shared compose project name       (default repo dir name)
 #   WT_SYMLINK_DIRS     space-separated dev-dep dirs to symlink (default: auto-detect)
 #   WT_LOCK_LABEL       GitLab label used for the issue check-out lock (default: status::wip)
-#   WT_FORGE_TIMEOUT    seconds before a glab/gh call is abandoned (default 20); a
-#                       timeout degrades to a warning like any other forge failure
+#   WT_FORGE_TIMEOUT    seconds (positive integer, default 20) before a glab/gh call is
+#                       killed; a timeout degrades to a warning like any other forge failure
 #   WT_E2E_PORT_BASE / WT_E2E_PORT_SPAN
 #                       Playwright dev-server port range (default: 15173, span 800)
 
@@ -259,12 +259,22 @@ auto_created_regex() {
 # Run a forge CLI (glab/gh) with a hard time bound and no stdin. Unbounded calls
 # made `prune` look frozen after the worktree was already removed (#1803): a slow
 # network or a CLI waiting on a prompt hung silently, and Ctrl-C left the issue
-# labeled. macOS has no `timeout`/`gtimeout`, so a perl parent forks the CLI and
-# owns the clock: a plain `alarm` + `exec` does NOT bound real glab/gh, because
-# Go binaries ignore SIGALRM. On expiry the parent sends TERM, then KILL after ~1s,
-# reaps the child (no orphan), and exits 142. On timeout it warns and returns 142;
-# every caller already treats a nonzero rc as "can't answer", so a kill never reads
-# as success. Callers must not redirect this function's stderr, or the warning is lost.
+# labeled. macOS has no `timeout`/`gtimeout`, so a perl parent forks the CLI into
+# its own process group and owns the clock: a plain `alarm` + `exec` does NOT bound
+# real glab/gh, because Go binaries ignore SIGALRM. On expiry the parent sends TERM
+# to the whole group, then KILL after ~1s (so a grandchild holding stdout cannot
+# keep a `$( )` call blocked), reaps the child, and exits 142. INT/TERM sent to the
+# parent are forwarded to the group the same way (exit 130), since the child's own
+# group no longer sees the terminal's Ctrl-C. On timeout it warns and returns 142;
+# callers treat a nonzero rc as "can't answer" and check it explicitly, so a kill
+# never reads as success. Callers must not redirect this function's stderr, or the
+# warning is lost.
+# WT_FORGE_TIMEOUT must be a positive integer; anything else (0, abc, -5) would mean
+# "no limit" or break perl's argument parsing, so it falls back to 20 with a warning.
+if ! [[ "$WT_FORGE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  warn "WT_FORGE_TIMEOUT='$WT_FORGE_TIMEOUT' is not a positive integer; using 20"
+  WT_FORGE_TIMEOUT=20
+fi
 FORGE_TIMEOUT_RC=142
 # shellcheck disable=SC2016  # perl source, deliberately single-quoted
 FORGE_TIMEOUT_PERL='
@@ -272,13 +282,21 @@ use POSIX ":sys_wait_h";
 my $t = shift;
 my $pid = fork();
 exit 127 unless defined $pid;
-if (!$pid) { exec @ARGV or exit 127 }
-$SIG{ALRM} = sub {
-  kill "TERM", $pid;
-  for (1 .. 10) { last if waitpid($pid, WNOHANG) == $pid; select(undef, undef, undef, 0.1); }
-  if (kill 0, $pid) { kill "KILL", $pid; waitpid($pid, 0); }
-  exit 142;
-};
+if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127 }
+setpgrp($pid, $pid);
+my $reaped = 0;
+sub killgrp {
+  kill "TERM", -$pid;
+  for (1 .. 10) {
+    $reaped ||= (waitpid($pid, WNOHANG) == $pid);
+    last if $reaped && !kill(0, -$pid);
+    select(undef, undef, undef, 0.1);
+  }
+  kill "KILL", -$pid;
+  waitpid($pid, 0) unless $reaped;
+}
+$SIG{ALRM} = sub { killgrp(); exit 142 };
+$SIG{INT} = $SIG{TERM} = sub { killgrp(); exit 130 };
 alarm $t;
 waitpid($pid, 0);
 exit(($? & 127) ? 128 + ($? & 127) : $? >> 8);
@@ -351,10 +369,12 @@ clear_lock() {
   local issue="$1" branch="$2" ts rc=0
   # Best-effort: a failure stays silent as before, but a timeout names the issue
   # so the user can re-run `scripts/wt release` (the label may still be set).
+  # Returns 1 only when the label removal timed out (callers must not claim a
+  # release); a timed-out comment alone still returns 0 because the lock is gone.
   forge_run glab issue update "$issue" --unlabel "$WT_LOCK_LABEL" >/dev/null || rc=$?
   if (( rc == FORGE_TIMEOUT_RC )); then
     warn "release of #$issue timed out — '$WT_LOCK_LABEL' may still be set; run: scripts/wt release $issue"
-    return 0
+    return 1
   fi
   ts="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   rc=0
@@ -693,8 +713,7 @@ cmd_remove() {
 
   local issue; issue="$(issue_from_branch "$branch")"
   if [[ -n "$issue" ]] && lock_available; then
-    clear_lock "$issue" "$branch"
-    ok "released check-out of #$issue"
+    if clear_lock "$issue" "$branch"; then ok "released check-out of #$issue"; fi
   fi
 }
 
@@ -705,12 +724,15 @@ cmd_remove() {
 # Every failure — glab offline, unauthenticated, unparseable output — is a 1,
 # so a lookup that cannot answer keeps the worktree rather than reaping it.
 merged_mr_has_sha() {
-  local branch="$1" tip="$2" enc enc_target
+  local branch="$1" tip="$2" enc enc_target out
   enc="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$branch" 2>/dev/null || true)"
   [[ -n "$enc" ]] || return 1
   enc_target="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$DEFAULT_BRANCH" 2>/dev/null || true)"
   [[ -n "$enc_target" ]] || return 1
-  ( cd "$REPO_ROOT" && forge_run glab api "projects/:id/merge_requests?state=merged&source_branch=${enc}&target_branch=${enc_target}" ) \
+  # Check forge_run's rc explicitly (not via pipefail): a timeout can leave partial
+  # output that parses as a matching MR, and that must never read as merged.
+  out="$( cd "$REPO_ROOT" && forge_run glab api "projects/:id/merge_requests?state=merged&source_branch=${enc}&target_branch=${enc_target}" )" || return 1
+  printf '%s' "$out" \
     | python3 -c '
 import json, sys
 try:
@@ -810,8 +832,7 @@ cmd_prune() {
 
     local issue; issue="$(issue_from_branch "$branch")"
     if [[ -n "$issue" ]] && lock_available; then
-      clear_lock "$issue" "$branch"
-      dim "    released check-out of #$issue"
+      if clear_lock "$issue" "$branch"; then dim "    released check-out of #$issue"; fi
     fi
   done < <(git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print substr($0, 10)}')
 
@@ -843,7 +864,7 @@ cmd_release() {
   local issue="$1"
   [[ "$issue" =~ ^[0-9]+$ ]] || die "release needs a numeric issue number"
   lock_available || die "glab not available (or origin isn't GitLab-hosted) — cannot release #$issue"
-  clear_lock "$issue" "(manual release)"
+  clear_lock "$issue" "(manual release)" || exit 1
   ok "released check-out of #$issue"
 }
 
