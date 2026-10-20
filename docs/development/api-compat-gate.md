@@ -124,7 +124,7 @@ the v1.1.0 *view code* (`git show v1.1.0:backend/...`), not the v1.1.0 schema, a
   `NEW_REQUIRED_REQUEST_FIELD ... .old_password` entries under `#1257`, the deliberate security
   break.
 
-These entries stay in the file because the drift lives in the frozen baseline itself: deleting
+Until the baseline is rolled at the next GA, these entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
@@ -186,9 +186,30 @@ git worktree remove /tmp/visiban-$TAG
 Then, as a manual step on the
 release checklist, point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`
 (lines 52-53) at the new
-directory, clear the allow-list entries the new baseline no longer needs, and delete the old
+directory, delete every allow-list entry the new baseline no longer needs, and delete the old
 baseline directory. `--normalize` strips prose, examples, and `x-` extensions so the fixture
 stays small and docs edits never read as contract changes.
+
+Every allow-list entry is a diff against the v1.1.0 baseline. Once the baseline is the v1.2.0
+schema and HEAD matches it, none of those findings fire, so all entries go stale, and a stale
+entry fails the job. After regenerating, run `python3 scripts/check-api-compat.py`, delete every
+entry it reports as stale (expected: the whole list, leaving `{"allow": []}`), and re-run until
+it prints OK with no stale entries. As a safety net for the temporary entries (those whose
+`reason` starts with `temporary:`, citing #1783, #1788, #1789 or #1792), this lists any left
+behind; after deleting, it must print nothing:
+
+```bash
+python3 -c "import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"
+```
+
+A temporary entry left behind fails the roll MR loudly. Then prune the six ids in
+`backend/schemathesis-baseline.json` per #1791, only after both an MR-style fuzz run and the
+deep nightly list each entry as unobserved (#1582). Finally, in this file, delete every sentence
+or paragraph that describes temporary entries or counts exceptions to the "never added" rule
+(including any added for #1789 or #1792), keeping the existing "never added" sentence as is, and
+revise the prose that describes the v1.1.0 baseline drift and allow-list burn-down (the
+"Frozen snapshot of the v1.1.0 baseline drift" section, the `#1080` catch-all mentions, the
+`v1.1.0/` paths, and the paragraph above) to the new baseline.
 
 ## Not covered
 
