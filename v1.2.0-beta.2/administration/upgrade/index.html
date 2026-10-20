@@ -4594,6 +4594,13 @@ or add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to ac
 behavior is unchanged in 1.2.</p>
 </div>
 <div class="admonition note">
+<p class="admonition-title">Group owners and last admins cannot be removed or demoted</p>
+<p>Removing a group member, or changing their role, now answers <code>400 Bad Request</code> when the
+member is the group's owner or its last admin. Transfer ownership first, or make another
+member an admin. Clients that remove or demote members should show the response's
+<code>detail</code> message. See the <a href="../../api/groups/#members">Groups API</a>.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title"><code>is_starred</code> omitted from WebSocket board and group events</p>
 <p><code>board.created</code>, <code>board.updated</code>, <code>group.created</code> and <code>group.updated</code> payloads now carry
 <code>is_starred</code> only for the user who made the change; every other subscriber receives the

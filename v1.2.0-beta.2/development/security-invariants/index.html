@@ -2962,6 +2962,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rule-11-a-group-keeps-its-owner-as-an-admin-member-and-at-least-one-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 11: A group keeps its owner as an admin member and at least one admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-add-a-rule" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4994,6 +5005,50 @@ fails closed.</p>
 user-bearing keys and card keys to the REST serializers for the lowest role, and
 <code>test_web_only_fields_are_never_exposed</code>), <code>boards/tests/test_consumer_role_refresh.py</code>,
 and the Rule 8 tests.</p>
+<h2 id="rule-11-a-group-keeps-its-owner-as-an-admin-member-and-at-least-one-admin">Rule 11: A group keeps its owner as an admin member and at least one admin<a class="headerlink" href="#rule-11-a-group-keeps-its-owner-as-an-admin-member-and-at-least-one-admin" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> A group's owner keeps a membership with the <code>admin</code> role, and a group
+keeps at least one admin. A request that would remove or demote the owner, or
+remove or demote the last admin, is refused. The owner leaves through ownership
+transfer or by deleting the group.</p>
+<p><strong>Why.</strong> A group with no admin can only be repaired by its owner. Both checks
+are judged under the group row lock, so two concurrent requests that each change
+a different admin cannot both pass.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Group member role change and removal (REST)</td>
+<td><code>groups/views.py</code> <code>GroupViewSet.update_member</code></td>
+<td><code>groups/services.py</code> <code>lock_membership_for_removal_or_demotion</code>: group row <code>FOR NO KEY UPDATE</code>, then the admin rows and the target row in one pk-ordered statement; refused with <code>400</code></td>
+</tr>
+<tr>
+<td>Group ownership transfer (REST)</td>
+<td><code>groups/views.py</code> <code>GroupViewSet.transfer_ownership</code></td>
+<td><code>groups/services.py</code> <code>transfer_group_ownership</code>: the new owner must already be an admin and the previous owner stays an admin; the group row is locked <code>FOR UPDATE</code>, which queues with the member-change lock</td>
+</tr>
+<tr>
+<td>Group ownership transfer (Django admin)</td>
+<td><code>groups/admin.py</code> <code>GroupAdmin</code> transfer action</td>
+<td>The same <code>transfer_group_ownership</code> function</td>
+</tr>
+<tr>
+<td>User delete (Django admin)</td>
+<td><code>accounts/admin.py</code> <code>VisibanUserAdmin</code> delete</td>
+<td><code>user_deletion_refusals</code> refuses deleting a group owner</td>
+</tr>
+</tbody>
+</table>
+<p>Coverage: <code>groups/tests/test_group_member_guards.py</code> (owner and last-admin
+refusals on both methods, a demotion queued behind an ownership transfer, and
+<code>GroupMembershipEntryPointTests</code>, which scans the backend for a function that
+deletes or demotes a <code>GroupMembership</code> and requires it to call
+<code>lock_membership_for_removal_or_demotion</code> or be allowlisted with a reason).</p>
 <h2 id="how-to-add-a-rule">How to add a rule<a class="headerlink" href="#how-to-add-a-rule" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Write the rule as a statement of behavior, not an implementation: what must
