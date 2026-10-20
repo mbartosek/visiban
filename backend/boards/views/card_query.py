@@ -249,9 +249,11 @@ class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     Access scoping reuses get_accessible_boards_queryset() — the same
     owner/membership/group-ancestry/site-admin rule BoardViewSet.get_queryset()
-    uses for the board list — via a `board_id__in=<queryset>.values_list("id")`
-    subquery. This performs the equivalent of a per-card permission check with
-    a single subquery rather than a per-card lookup: a non-member's boards
+    uses for the board list. It evaluates that queryset's ids once per request
+    and filters cards with `board_id__in=<that list>` (a list, not a subquery,
+    for planning cost; see get_queryset(), #1805). This performs the
+    equivalent of a per-card permission check with one board-id query rather
+    than a per-card lookup: a non-member's boards
     never enter the `IN`, so their cards cannot appear regardless of what
     filters are supplied (IDOR prevention). The invariant this endpoint relies
     on is `board_id in get_accessible_boards_queryset(user)` <=>
@@ -284,7 +286,27 @@ class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        accessible_board_ids = get_accessible_boards_queryset(user).values_list("id", flat=True)
+        # Evaluate the accessible board ids up front (one small query) and pass
+        # them as a literal list. Do not hand the queryset itself to
+        # ``board_id__in``. As a subquery, PostgreSQL pulls it up into the
+        # card SELECT's 7-table join, and planning that join cost more than
+        # running it: on the nightly-load-test fixture the planner spent about
+        # 20ms per request on the Exists() form #1723 introduced (11-15ms on
+        # the older DISTINCT-join form), against about 5ms for literal ids. With
+        # the ids known, the planner can also walk card_board_updated_idx in
+        # cursor order and stop at the page size instead of sorting every match
+        # (#1805). The rule is unchanged: the same
+        # get_accessible_boards_queryset() still decides which boards are in
+        # the list, so the IDOR invariant in the class docstring holds. The list
+        # grows with the user's accessible boards (every board for a
+        # can_access_all_content user). That is one id per board, not per card.
+        # The ids and the cards are now two statements instead of one, so a
+        # membership revoked between them takes effect on the next request:
+        # the same check-then-read window as get_board_for_user() endpoints.
+        # An empty list makes Django skip the card query and return no rows.
+        accessible_board_ids = list(
+            get_accessible_boards_queryset(user).values_list("id", flat=True),
+        )
         qs = Card.objects.filter(board_id__in=accessible_board_ids)
         # Archived cards are excluded unless ?include_archived=true — matching
         # /boards/{id}/cards/ and /full/. Applied here (not as a FilterSet

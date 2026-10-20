@@ -378,6 +378,146 @@ that includes this fix. Never hand-edit it.
   step of the observed size from the driver alone. When attributing a future drift, check
   them.
 
+## The October 2026 `card_search` and `notifications_unread` drift — #1805
+
+**Verdict: three separate effects. One was a code regression, now fixed. The other two are
+environment shifts, documented here and left unfixed.**
+
+1. **`card_search` on Oct 20 was a regression in the code.**
+   [#1723](https://gitlab.com/visiban/visiban/-/issues/1723) rewrote the board access
+   filter (merged Oct 19) and made the cross-board card query slower to *plan*. The
+   query count and the payload stayed the same. #1805 fixes it in
+   `CardQueryViewSet.get_queryset()`.
+2. **All four light endpoints on Oct 20 ran on a different runner.** That run was the first
+   scheduled run on `runner-04-NUC`. On endpoints whose code did not change, it measured 6-10%
+   slower than the other two NUC runners. This is one sample.
+3. **All four light endpoints stepped up about 1ms at the Oct 4/5 boundary**, on both NUC
+   runners. That is the same boundary as the `board_full` step above. A local driver A/B did not
+   reproduce it. It is well inside the 1.4x budget headroom and was not fixed.
+
+`card_timeline` and `notifications_list`, which the #1767 re-derivation also moved up, are
+explained by effects 2 and 3. The budgets were **not** re-derived here: no NUC run has
+measured the fix yet. That is tracked in
+[#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
+
+### What the scheduled runs show
+
+This uses the same 25 scheduled jobs and the same per-runner p50 method as #1800 above. The
+dell-01 job is excluded, and so is job 16796278537 (Sep 29, retried), where
+`notifications_unread`, `notifications_list` and `card_timeline` were 50-60% slower than in
+every other job. Each cell gives the median p50 across that runner's jobs:
+
+| Endpoint | `gitlab-runner-nuc-2-visiban` before / after Oct 5 (5 / 6 jobs) | `Runner-03-NUC` before / after Oct 5 (3 / 8 jobs) | `runner-04-NUC` Oct 20 (1 job) |
+|---|---|---|---|
+| `card_search` | 81.0 / 84.2ms (+4%) | 80.3 / 84.7ms (+5%) | 100.7ms |
+| `notifications_unread` | 23.8 / 24.9ms (+4%) | 24.5 / 25.8ms (+5%) | 28.1ms |
+| `notifications_list` | 32.3 / 33.5ms (+4%) | 32.9 / 35.0ms (+6%) | 36.3ms |
+| `card_timeline` | 32.3 / 33.1ms (+2%) | 32.5 / 34.4ms (+6%) | 36.7ms |
+
+On the Oct 20 run, the light endpoints were above both other runners' post-Oct-5 medians
+(84.2, 25.5, 34.3 and 33.5ms): `card_search` by 20%, `notifications_unread` by 10%,
+`card_timeline` by 9% and `notifications_list` by 6%. `board_full` was not: 1136ms against a
+1151ms median. That run is also the first after #1723 and #1721 merged (`37ad2d8e0` to
+`b1f1cf76b`), so the CI data alone cannot separate the runner from the code. The local A/B
+below does.
+
+### `card_search`: the access-filter rewrite (#1723)
+
+Measured locally on one scale-20 database (PostgreSQL 17, `DEBUG=True` and no
+`CONN_MAX_AGE`, as in CI). The method was 6 interleaved rounds of 40 timed requests per
+endpoint, with the servers for both commits running against that same database. This
+answers the open question #1800 left: its 14% difference spanned two separately seeded
+databases.
+
+- **Only `card_search` moved.** From `37ad2d8e0` (Oct 19 run) to `b1f1cf76b` (Oct 20 run),
+  the median per-round p50 went from 69.1ms to 77.6ms, slower in every round, and p95 went
+  from 72.9ms to 106.7ms. `notifications_unread`, `notifications_list` and `card_timeline`
+  were unchanged within 1ms. All four returned byte-identical JSON on both commits.
+- **Same queries, slower planning.** Both commits ran 10 queries. Only the main card SELECT
+  got slower, 25ms to 33ms. `EXPLAIN ANALYZE` on that statement:
+  - Execution: unchanged (15.2ms and 15.1ms).
+  - Planning: 11-15ms before, 19-23ms after, in fresh and warm sessions alike.
+- **Mechanism.** The view filters cards with `board_id__in=get_accessible_boards_queryset(user)`.
+  Before #1723 that subquery was `SELECT DISTINCT ... LEFT JOIN board_memberships`. #1723
+  replaced it with `owner = ... OR EXISTS(...)`. PostgreSQL pulls the subquery up into the
+  card SELECT's 7-table join (cards, board, column, swimlane, two users, external ref). With
+  the `OR EXISTS` form, the planner spends longer on that join than the executor spends
+  running it. #1723's `Exists()` alone accounts for the rise (planning 19-20ms).
+  [#1721](https://gitlab.com/visiban/visiban/-/issues/1721)'s role filter added nothing
+  measurable.
+
+**The fix.** `get_queryset()` now evaluates the accessible board ids as a list (one small
+extra query) and passes the literal list to `board_id__in`. The access rule itself is
+untouched: the same `get_accessible_boards_queryset()` decides which ids are in the list.
+On the same statement:
+
+| Access filter in the card SELECT | Planning | Execution |
+|---|---|---|
+| Subquery, before #1723 | 11-15ms | 15ms |
+| Subquery, after #1723 | 19-23ms | 15ms |
+| Literal list, 1 board (this fixture) | 4.5ms | 0.65ms |
+| Literal list, 200 ids | 5ms | 13.5ms |
+| Literal list, 20,000 ids | 15-17ms | 14-15ms |
+
+With this fixture's single board, the planner can also walk `card_board_updated_idx` in
+cursor order and stop at the 51st row instead of sorting every match. With 200 ids it went
+back to the old scan-and-sort, at the old execution time. Even 20,000 ids plan faster than
+the subquery did after #1723.
+
+End to end, with all three servers on one database (6 interleaved rounds, median per-round
+p50 / p95):
+
+| Code | `card_search` p50 | `card_search` p95 |
+|---|---|---|
+| `37ad2d8e0` (before #1723) | 67.9ms | 85.8ms |
+| `b1f1cf76b` (Oct 20 run) | 74.3ms | 106.8ms |
+| `b1f1cf76b` with the #1805 fix | 48.0ms | 57.2ms |
+
+The other three endpoints were unchanged within noise in all three arms. The response
+was byte-identical, and the request now runs 11 queries instead of 10.
+`CardQueryCountTests.test_access_filter_is_a_literal_id_list` in
+`boards/tests/test_card_query.py` pins the shape. It fails if the card SELECT's `WHERE`
+contains a `boards` or `board_memberships` subquery, or if the inlined ids are not exactly
+the caller's accessible boards. Like the #1800 regression, this one left the query count
+unchanged, so a query-count guard would not have caught it.
+
+### `runner-04-NUC`: one slower run
+
+Locally, the `37ad2d8e0` to `b1f1cf76b` change did not move `notifications_unread`,
+`notifications_list` or `card_timeline`. So their Oct 20 rise (6-10% over the other NUC
+runners' medians, above) is not the code. `runner-04-NUC` is `nuc`-tagged and was correctly
+eligible, but this was its first scheduled `nightly-load-test` run, and there is no second
+sample yet. `card_search`'s 20% on that run fits both causes together: about 10% from #1723
+and about 10% from the runner.
+
+Do not treat `runner-04-NUC` as interchangeable with the other two NUC runners until more
+runs land on it. When a budget fails on that runner, first compare its p50 with the other
+runners' recent runs, as above. The current baseline was derived from this run, so its light
+endpoint budgets carry the runner's extra 6-10%.
+
+### The Oct 4/5 step on the light endpoints
+
+All four light endpoints rose 2-6% (0.8-2.1ms at p50, 3-4ms on `card_search`) between the
+Oct 4 run on `7dee839ca` and the runs from Oct 5 on, on both NUC runners. That is the
+boundary where #1800 found the `board_full` step. Per #1800, the only lock changes in that
+window are psycopg 3 (#1252) and the MCP SDK, and the MCP SDK is not imported in the job. The
+settings changes in the window add no per-request work.
+
+The driver does not reproduce it locally. On `b1f1cf76b`, with one database and 8
+interleaved rounds, psycopg 3 was not slower than psycopg2 on any of these endpoints. On the
+three lightest it was 1.4-2.2ms faster at p50, and `card_search` measured 77.5ms against
+77.9ms. That commit predates #1800's backport, so psycopg 3 was still parsing `timestamptz`
+in Python and was still not slower. psycopg2 was forced by shadowing the `psycopg` import,
+so Django fell back to psycopg2 2.9.11. A new
+connection per request (`CONN_MAX_AGE` unset) is part of both arms. The development machine
+is macOS on arm64, while CI is `python:3.12-slim` on x86_64. This test does not cover a
+platform-specific driver cost, nor the unpinned transitive dependencies and floating images
+#1800 lists.
+
+The step is about 1ms per request and well inside the 1.4x budget factor, so it was not
+chased further. If it grows, run the same driver A/B on a NUC runner rather than on a
+development machine.
+
 ## Failure notifications
 
 The scheduled run is blocking (not `allow_failure`), so a budget violation fails the pipeline.
