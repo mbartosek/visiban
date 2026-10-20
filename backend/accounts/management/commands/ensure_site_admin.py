@@ -6,7 +6,7 @@ from django.db import transaction
 from django.contrib.sites.models import Site
 from accounts.credentials import lock_user_row, require_password_change_after_admin_set
 from accounts.management._secure_file import write_secret_file
-from accounts.models import User
+from accounts.models import AdminActionLog, User
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,14 @@ class Command(BaseCommand):
             user.must_change_password = True
             user.save()
             require_password_change_after_admin_set(user)
+            # Recorded in the same transaction as the password write, so a
+            # failed log write rolls the password back. Only the target's id
+            # and username are stored, never the password or its hash.
+            AdminActionLog.record(
+                action=AdminActionLog.Action.USER_PASSWORD_SET,
+                source=AdminActionLog.Source.CLI,
+                metadata={"target_id": user.pk, "target_username": user.username},
+            )
 
         action = "Created" if created else "Promoted existing"
 

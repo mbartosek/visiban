@@ -122,7 +122,7 @@ and an audit log an admin can edit is not evidence of anything.
 | `email_settings.username_changed` | `{}` |
 | `email_settings.password_changed` | `{}` |
 | `email_settings.test_sent` | `{"result": "success"}` or `{"result": "failure"}` |
-| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin) |
+| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin; also written with `source` `cli` and no actor by `ensure_site_admin`, `provision_fuzz_token --set-random-password` and `changepassword`) |
 | `user.password_disabled` | `{"target_id": 42, "target_username": "jordan"}` |
 
 New action types may be added in any minor release; treat an unrecognized `action` as an
@@ -143,8 +143,15 @@ opaque string rather than failing on it.
     password sign-in disabled. `metadata` names the account concerned; the password and its hash
     are never stored. Changing your own password is not recorded.
 
+    The `ensure_site_admin`, `provision_fuzz_token --set-random-password` and `changepassword`
+    management commands also record `user.password_set`, with `source` `cli` and no actor (`actor_id` is
+    null). The entry is written in the same transaction as the password, so the password is
+    only changed when the entry is saved. The demo seed (`seed_demo_data --demo-site`)
+    writes no entries: it runs only with `DEMO_MODE=true`, and the demo's hourly reset empties
+    the log.
+
 !!! warning "What this log does *not* record yet"
-    The instance-wide settings and per-account password events above are covered. Granting or
+    The instance-wide settings and the password events listed above are covered. Granting or
     revoking site admin, changing `can_access_all_content`, deactivating a user, and creating or
     revoking invite links are **not** recorded — so this is not yet a complete record of
     privileged activity.
@@ -157,8 +164,9 @@ opaque string rather than failing on it.
     it exists for. Operators with data-erasure obligations should account for this table.
 
 !!! note "Direct database writes are not captured"
-    Rows are written by the admin API, the `maintenance_mode` management command, and the
-    Django admin. A change made straight through the ORM (`manage.py shell`) has no actor to
+    Rows are written by the admin API, the `maintenance_mode` management command, the
+    password management commands (`ensure_site_admin`, `changepassword`,
+    `provision_fuzz_token`), and the Django admin. A change made straight through the ORM (`manage.py shell`) has no actor to
     record and leaves no row, so an empty log means "no audited path made this change" — not
     "nothing happened".
 
