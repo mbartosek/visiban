@@ -23,7 +23,7 @@ see that class of regression; this job can.
 |---|---|---|
 | Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
-| Card search | `GET /api/v1/cards/?search=...` | The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does **not** use the `pg_trgm` GIN indexes from migration `0030_card_trigram_search_indexes`, because `icontains` renders as `UPPER(col) LIKE`, which they cannot serve. It runs as a one-board user, so only the single-board plan is measured (see [#1805](#the-october-2026-card_search-and-notifications_unread-drift-1805)) |
+| Card search | `GET /api/v1/cards/?search=...` | The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does **not** use the `pg_trgm` GIN indexes from migration `0030_card_trigram_search_indexes`, because `icontains` renders as `UPPER(col) LIKE`, which they cannot serve ([#1809](https://gitlab.com/visiban/visiban/-/issues/1809)). It runs as a one-board user, so only the single-board plan is measured ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810); see [#1805](#the-october-2026-card_search-and-notifications_unread-drift-1805)) |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
 | Notifications list | `GET /api/v1/notifications/` | The highest-QPS authenticated endpoint in the product — the frontend polls it every 15-30s |
 | Notifications unread count | `GET /api/v1/notifications/unread-count/` | Same polling cadence as the list endpoint |
@@ -396,7 +396,7 @@ change. The third is unattributed, sits inside the budget headroom, and was not 
    scheduled run on `runner-04-NUC`. On endpoints whose code did not change, it measured 6-10%
    slower than the other two NUC runners. This is one sample.
 3. **All four light endpoints stepped up 2-6% at p50 at the Oct 4/5 boundary**, on both
-   NUC runners. That is 0.8-2.1ms on the three lightest and 3-4ms on `card_search`. It is
+   NUC runners. That is 0.8-2.1ms on the three lightest and 3.2-4.4ms on `card_search`. It is
    the same boundary as the `board_full` step above. A local driver A/B did not reproduce
    it, so it is **unattributed**. It sits inside the 1.4x budget headroom and was not
    pursued.
@@ -497,7 +497,8 @@ not have caught it.
   one board, so after the fix it times the single-board index walk on
   `card_board_updated_idx`. The plan most multi-board users get (scan and sort, 13.5ms
   execution at 200 ids in the table above) is not measured nightly. A budget derived from
-  this scenario cannot see a regression on that path.
+  this scenario cannot see a regression on that path. Adding a multi-board scenario is
+  tracked in [#1810](https://gitlab.com/visiban/visiban/-/issues/1810).
 - **It never exercised the trigram indexes.** Django's `icontains` renders as
   `UPPER(col) LIKE UPPER('%term%')`. The `card_title_trgm_idx` and `card_desc_trgm_idx`
   indexes from migration 0030 are on the bare columns, so PostgreSQL cannot use them for
@@ -507,6 +508,10 @@ not have caught it.
   - With a selective term and `enable_seqscan=off`, the planner picks `cards_board_id_*`
     and filters, still without the trigram indexes. They are used only by `ILIKE`, which
     no card query issues.
+
+  Neither search site (`boards/views/cards.py` or `boards/views/card_query.py`) can use the
+  indexes, yet they still cost a GIN update on every card write. This defect is tracked in
+  [#1809](https://gitlab.com/visiban/visiban/-/issues/1809).
 
   So the scenario measures the access filter, the per-card serialization of one 51-row page,
   and the substring filter applied row by row.
@@ -527,7 +532,7 @@ endpoint budgets carry the runner's extra 6-10%.
 
 ### The Oct 4/5 step on the light endpoints
 
-All four light endpoints rose 2-6% (0.8-2.1ms at p50, 3-4ms on `card_search`) between the
+All four light endpoints rose 2-6% (0.8-2.1ms at p50, 3.2-4.4ms on `card_search`) between the
 Oct 4 run on `7dee839ca` and the runs from Oct 5 on, on both NUC runners. That is the
 boundary where #1800 found the `board_full` step. Per #1800, the only lock changes in that
 window are psycopg 3 (#1252) and the MCP SDK, and the MCP SDK is not imported in the job. The
@@ -545,7 +550,7 @@ platform-specific driver cost, nor the unpinned transitive dependencies and floa
 #1800 lists.
 
 This step is therefore **unattributed**. It is 0.8-2.1ms per request on the three lightest
-endpoints and 3-4ms on `card_search`, which is 2-6% and well inside the 1.4x budget factor,
+endpoints and 3.2-4.4ms on `card_search`, which is 2-6% and well inside the 1.4x budget factor,
 so it was not pursued. If it grows, run the same driver A/B on a NUC runner rather than on a
 development machine.
 
