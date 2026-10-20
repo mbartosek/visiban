@@ -364,34 +364,96 @@ class SessionEngineSystemCheckTests(TestCase):
 
 
 class WsOriginWildcardHostsCheckTests(TestCase):
-    """accounts.W002: recommend exact hostnames when ALLOWED_HOSTS has wildcards (#1687)."""
+    """accounts.W002: wildcard ALLOWED_HOSTS with no public origin listed (#1697)."""
 
     def _check(self):
         from accounts.checks import check_wildcard_allowed_hosts
 
         return check_wildcard_allowed_hosts(None)
 
-    @override_settings(DEBUG=False, ALLOWED_HOSTS=["*"])
-    def test_star_warns(self):
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*"],
+        CORS_ALLOWED_ORIGINS=["http://localhost:5173"],
+        CSRF_TRUSTED_ORIGINS=["http://localhost:5173"],
+    )
+    def test_star_without_public_origin_warns(self):
         from django.core import checks
 
         results = self._check()
         self.assertEqual([r.id for r in results], ["accounts.W002"])
         self.assertIsInstance(results[0], checks.Warning)
         self.assertIn("SILENCED_SYSTEM_CHECKS", results[0].hint)
+        self.assertIn("CORS_ALLOWED_ORIGINS", results[0].hint)
 
-    @override_settings(DEBUG=False, ALLOWED_HOSTS=[".example.com"])
-    def test_leading_dot_warns(self):
+    @override_settings(
+        DEBUG=False, ALLOWED_HOSTS=[".example.com"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[]
+    )
+    def test_leading_dot_without_origins_warns(self):
         self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
 
     @override_settings(
         DEBUG=False,
         ALLOWED_HOSTS=["*"],
-        CORS_ALLOWED_ORIGINS=["https://app.example.com"],
+        CORS_ALLOWED_ORIGINS=["http://[::1]:5173"],
+        CSRF_TRUSTED_ORIGINS=["https://*.example.com"],
+    )
+    def test_wildcard_origin_and_bracketed_loopback_do_not_clear_it(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*", "[::1]"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_bracketed_loopback_host_beside_wildcard_still_warns(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["[.example.com]", "[*]"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_bracketed_pattern_entries_are_patterns_not_exact_hosts(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*", ""],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_empty_host_entry_does_not_clear_it(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*", "app.example.com"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_exact_public_host_beside_wildcard_is_clean(self):
+        self.assertEqual(self._check(), [])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*"],
+        CORS_ALLOWED_ORIGINS=[],
         CSRF_TRUSTED_ORIGINS=["https://app.example.com"],
     )
-    def test_listed_origins_do_not_silence_it(self):
-        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+    def test_listed_public_origin_clears_it(self):
+        self.assertEqual(self._check(), [])
+
+    @override_settings(
+        DEBUG=False,
+        ALLOWED_HOSTS=["*"],
+        CORS_ALLOWED_ORIGINS=["https://app.example.com"],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_listed_cors_origin_clears_it(self):
+        self.assertEqual(self._check(), [])
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["app.example.com", "localhost", "127.0.0.1"])
     def test_exact_hosts_are_clean(self):

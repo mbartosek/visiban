@@ -12,9 +12,11 @@ have, so no new configuration is required:
 
 * ``CORS_ALLOWED_ORIGINS`` and ``CSRF_TRUSTED_ORIGINS`` (exact origins, the
   SPA's real origin in dev and prod), and
-* any origin whose host matches ``ALLOWED_HOSTS`` (the same rule Django and
-  Channels' ``AllowedHostsOriginValidator`` use). When ``ALLOWED_HOSTS``
-  contains ``*`` every host matches, so the check is effectively open.
+* any origin whose host equals an *exact* ``ALLOWED_HOSTS`` entry (scheme and
+  port are ignored). Pattern entries (``*`` and leading-dot such as
+  ``.example.com``) are not applied here; an install that uses them lists its
+  public origin in ``CORS_ALLOWED_ORIGINS`` or ``CSRF_TRUSTED_ORIGINS``
+  (#1697).
 """
 from urllib.parse import urlsplit
 
@@ -42,6 +44,31 @@ def _normalize(origin):
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
 
+def exact_host(entry):
+    """Return the exact host an ``ALLOWED_HOSTS`` entry names, else None.
+
+    Pattern entries (``*`` anywhere, leading dot) and empty entries are not
+    exact hosts. Brackets around an IPv6 literal are stripped first, because
+    ``urlsplit().hostname`` drops them, and the pattern checks run on the
+    stripped value so ``"[.example.com]"`` is still a pattern. Shared with
+    the ``accounts.W002`` check so the two cannot drift.
+    """
+    host = entry[1:-1] if entry.startswith("[") and entry.endswith("]") else entry
+    if not host or "*" in host or host.startswith("."):
+        return None
+    return host
+
+
+def _exact_allowed_hosts():
+    """Exact hosts from ``ALLOWED_HOSTS``.
+
+    Pattern entries are for Host-header validation; the Origin check uses
+    exact hosts and explicitly listed origins.
+    """
+    hosts = (exact_host(h) for h in getattr(settings, "ALLOWED_HOSTS", None) or [])
+    return [h for h in hosts if h]
+
+
 def origin_allowed(origin):
     """Return True when *origin* is acceptable for a WebSocket handshake."""
     parts = urlsplit(origin)
@@ -63,7 +90,7 @@ def origin_allowed(origin):
     }
     if normalized in configured:
         return True
-    return validate_host(parts.hostname, settings.ALLOWED_HOSTS)
+    return validate_host(parts.hostname, _exact_allowed_hosts())
 
 
 class OptionalOriginValidator:

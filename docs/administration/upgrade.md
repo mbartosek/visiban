@@ -460,18 +460,20 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     row-locks superuser rows, which is negligible. On installs with millions of user rows, run
     `migrate` during a maintenance window.
 
-!!! note "Browser WebSocket connections check the Origin header"
+!!! warning "Browser WebSocket connections check the Origin header"
     A WebSocket handshake that carries an `Origin` header must match `CORS_ALLOWED_ORIGINS`,
-    `CSRF_TRUSTED_ORIGINS`, or a host in `ALLOWED_HOSTS`. If your public hostname differs from
-    `ALLOWED_HOSTS`, add it there (or list the origin in `CORS_ALLOWED_ORIGINS`); otherwise browser
-    WebSocket connections are refused. Clients that send no `Origin` header are unaffected. See the
+    `CSRF_TRUSTED_ORIGINS`, or an exact host listed in `ALLOWED_HOSTS` (scheme and port are
+    ignored). `ALLOWED_HOSTS` entries of `*` or with a leading dot (such as `.example.com`) are
+    not applied to this check. **If your `ALLOWED_HOSTS` uses one of those entries, list your
+    public origin (for example `https://boards.example.com`) in `CORS_ALLOWED_ORIGINS` or
+    `CSRF_TRUSTED_ORIGINS` before upgrading; otherwise browser WebSocket connections are
+    refused.** Clients that send no `Origin` header are unaffected. See the
     [WebSocket API](../api/websockets.md#connecting).
 
-    With `DEBUG` off, `manage.py check` / `check --deploy` now emits system-check warning
-    `accounts.W002` when `ALLOWED_HOSTS` contains `*` or a leading-dot entry (such as
-    `.example.com`). List exact hostnames instead, which also keeps WebSocket origin matching exact,
-    or add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the wildcard. Origin matching
-    behavior is unchanged in 1.2.
+    With `DEBUG` off, `manage.py check` / `check --deploy` emits system-check warning
+    `accounts.W002` when `ALLOWED_HOSTS` contains `*` or a leading-dot entry and no public
+    origin is listed in `CORS_ALLOWED_ORIGINS` or `CSRF_TRUSTED_ORIGINS`. Listing the origin
+    clears it. Add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the configuration.
 
 !!! note "Group owners and last admins cannot be removed or demoted"
     Removing a group member, or changing their role, now answers `400 Bad Request` when the
