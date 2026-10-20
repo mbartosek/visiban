@@ -322,6 +322,8 @@ class ActionSchemaDeclarationTests(TestCase):
         component = self._component(self._request_schema("post", path)["$ref"])
         self.assertEqual(set(component["properties"]), {"all", "ids"})
         self.assertNotIn("required", component)
+        Notification.objects.create(recipient=self.owner, verb="v", board=self.board, card=self.card)
+        self.assertTrue(Notification.objects.filter(recipient=self.owner, read=False).exists())
         resp = self.client.post(path, {"all": True}, format="json")
         self.assertEqual(resp.status_code, 200)
         self._assert_matches("post", path, 200, resp.json())
