@@ -1674,8 +1674,7 @@ class ExportBase(TestCase):
         if user is not None:
             self.client.force_authenticate(user)
         board = board or self.board
-        # ``?format=csv`` would hit DRF's renderer negotiation (404); CSV is the
-        # no-parameter default, so it is requested by omitting the parameter.
+        # CSV is the no-parameter default; ``?format=csv`` is equivalent (#1790).
         params = {"format": fmt} if fmt == "json" else {}
         return self.client.get(f"/api/v1/boards/{board.id}/export/", params)
 

@@ -56,13 +56,11 @@ class ExportMinRoleGateTests(TestCase):
         _add_member(self.board, self.admin, BoardMembership.Role.ADMIN)
 
     def _get(self, user, fmt="csv"):
-        # ``?format=csv`` is not used here: DRF's content negotiation treats
-        # ``format=`` as a renderer-selection query param and returns 404 when
-        # it doesn't match a registered renderer. The default export format is
-        # CSV, so an empty querystring is equivalent for this gate test.
+        # ``?format=csv`` is sent explicitly (accepted since #1790) so the gate
+        # is exercised on the format-negotiation path as well as the default.
         c = APIClient()
         c.force_authenticate(user)
-        qs = "" if fmt == "csv" else f"?format={fmt}"
+        qs = f"?format={fmt}"
         return c.get(f"/api/v1/boards/{self.board.id}/export/{qs}")
 
     def test_default_viewer_threshold_allows_every_role(self):

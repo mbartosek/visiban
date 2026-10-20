@@ -255,3 +255,90 @@ class ExportJsonSwimlanePiiTests(TestCase):
         sw = data["swimlanes"][0]
         self.assertEqual(sw["contact_email"], "secret@example.com")
         self.assertEqual(sw["notes"], "Internal notes about the customer")
+
+
+class ExportFormatNegotiation1790Tests(TestCase):
+    """``?format=csv`` must negotiate to CSV, not 404 (#1790)."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        User = get_user_model()
+        self.owner = User.objects.create_user(username="fmt1790_owner", password="x")
+        self.outsider = User.objects.create_user(username="fmt1790_out", password="x")
+        self.board = Board.objects.create(name="Fmt Board", owner=self.owner)
+        self.url = f"/api/v1/boards/{self.board.id}/export/"
+        self.client = APIClient()
+        self.client.force_authenticate(self.owner)
+
+    def test_format_csv_returns_csv_identical_to_default(self):
+        default = self.client.get(self.url)
+        explicit = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(explicit.status_code, 200)
+        self.assertEqual(explicit["Content-Type"], "text/csv")
+        self.assertIn("attachment", explicit["Content-Disposition"])
+        self.assertEqual(explicit.content, default.content)
+
+    def test_omitted_and_json_unchanged(self):
+        self.assertEqual(self.client.get(self.url)["Content-Type"], "text/csv")
+        r = self.client.get(self.url, {"format": "json"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/json")
+
+    def test_format_api_still_returns_csv(self):
+        # Pinned: ``api`` is the browsable-API renderer's format key; it has
+        # always fallen through to the CSV default.
+        r = self.client.get(self.url, {"format": "api"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "text/csv")
+
+    def test_unknown_format_still_404(self):
+        self.assertEqual(self.client.get(self.url, {"format": "xml"}).status_code, 404)
+
+    def test_permissions_unchanged_for_format_csv(self):
+        self.client.force_authenticate(self.outsider)
+        self.assertEqual(self.client.get(self.url, {"format": "csv"}).status_code, 404)
+        self.client.logout()
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(self.url, {"format": "csv"}).status_code, 401)
+
+    def test_restricted_error_body_keeps_structured_code_for_format_csv(self):
+        self.board.export_min_role = "admin"
+        self.board.save(update_fields=["export_min_role"])
+        from boards.models import BoardMembership
+        from accounts.models import User as U
+        viewer = U.objects.create_user(username="fmt1790_view", password="x")
+        BoardMembership.objects.create(board=self.board, user=viewer, role="viewer")
+        self.client.force_authenticate(viewer)
+        r = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r["Content-Type"], "application/json")
+        body = json.loads(r.content)
+        self.assertEqual(body["code"], "export_restricted")
+
+    def test_errors_under_format_csv_are_json_like_format_json(self):
+        self.client.force_authenticate(None)
+        a = self.client.get(self.url, {"format": "csv"})
+        b = self.client.get(self.url, {"format": "json"})
+        self.assertEqual(a.status_code, 401)
+        self.assertEqual(a["Content-Type"], b["Content-Type"])
+        self.assertEqual(a.content, b.content)
+
+    def test_accept_json_with_format_csv_still_returns_csv(self):
+        r = self.client.get(self.url, {"format": "csv"}, HTTP_ACCEPT="application/json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "text/csv")
+
+    def test_accept_text_csv_without_format_stays_406(self):
+        # Pinned: no renderer serves text/csv, as before #1790.
+        r = self.client.get(self.url, HTTP_ACCEPT="text/csv")
+        self.assertEqual(r.status_code, 406)
+
+    def test_throttled_under_format_csv_is_json_429(self):
+        from unittest import mock
+        from boards.views.import_export import BoardExportThrottle
+        with mock.patch.object(BoardExportThrottle, "allow_request", return_value=False), \
+                mock.patch.object(BoardExportThrottle, "wait", return_value=1):
+            r = self.client.get(self.url, {"format": "csv"})
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(r["Content-Type"], "application/json")

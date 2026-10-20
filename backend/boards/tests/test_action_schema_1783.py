@@ -158,7 +158,7 @@ class ActionSchemaDeclarationTests(TestCase):
         self.assertEqual(content["text/csv"]["schema"], {"type": "string"})
         self.assertTrue(content[_JSON]["schema"]["$ref"].endswith("/BoardExport"))
         fmt = next(p for p in op["parameters"] if p["name"] == "format")
-        self.assertEqual(fmt["schema"]["enum"], ["json"])
+        self.assertEqual(fmt["schema"]["enum"], ["csv", "json"])
         url = f"/api/v1/boards/{self.board.pk}/export/"
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
@@ -167,6 +167,10 @@ class ActionSchemaDeclarationTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], _JSON)
         self._assert_matches("get", path, 200, resp.json())
+        # ``format=csv`` is a documented value and must not 404 (#1790).
+        resp = self.client.get(url, {"format": "csv"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv")
 
     # -- cards -----------------------------------------------------------------
 

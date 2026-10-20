@@ -540,13 +540,13 @@ Delete a saved filter preset. Only the owning user can delete their own filters 
 ## Export & Import
 
 ### `GET /api/v1/boards/{id}/export/`
-Export the board. Append `?format=json` for a JSON dump; omit for CSV (the default).
+Export the board. CSV is the default; append `?format=json` for a JSON dump. `?format=csv` is also accepted and returns the same CSV bytes as omitting `format` whenever the request's `Accept` header is absent or allows `application/json` or `*/*`. Under `format=csv` and `format=json`, error responses (`401`, `403`, `404`, `406`, `429`) are JSON. A request with `Accept: text/csv` alone returns `406 Not Acceptable` on the CSV paths, with or without `format`, because no renderer serves `text/csv`; send `*/*` or omit `Accept`. With `format` omitted and a browser `Accept` (`text/html`), or with `format=api`, errors render as HTML from the browsable API.
 
 **Query parameters**
 
 | Parameter | Values | Default | Description |
 |---|---|---|---|
-| `format` | `json` | _(omit for CSV)_ | Response format. Omit it for CSV. `json` is the only documented value; other values such as `csv` or `xml` return `404 Not Found` from the API's format negotiation, so do not send `format=csv`. |
+| `format` | `csv`, `json` | `csv` | Response format. Omit it, or send `csv`, for CSV; send `json` for the JSON dump. Other values such as `xml` return `404 Not Found` from the API's format negotiation. `csv` is accepted since 1.2 (#1790); earlier versions returned `404` for it, so omit `format` to target older servers. |
 
 Both formats are file downloads (`Content-Disposition: attachment`): CSV as `text/csv`, JSON as `application/json`.
 
