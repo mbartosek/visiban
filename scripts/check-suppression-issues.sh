@@ -46,7 +46,7 @@
 # cited issue is closed or missing.
 #
 # Usage:
-#   bash scripts/check-suppression-issues.sh            # real run
+#   bash scripts/check-suppression-issues.sh              # real run
 #   bash scripts/check-suppression-issues.sh --self-test   # gate self-test
 #
 # Self-test (issue #1093's meta-gate requires every bespoke CI gate to carry
