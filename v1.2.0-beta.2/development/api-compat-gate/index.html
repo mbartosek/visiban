@@ -4097,7 +4097,9 @@ rewritten as same-name <code>SerializerMethodField</code>s).</p>
 the gate's own output with an empty allow-list, sorted for stable diffs). The snapshot is
 closed: anything not already in it, including a further change to an operation that has
 entries, fails the job. Never add to it to get a pipeline green; a new finding is a real break
-or needs its own issue-referenced entry.</p>
+or needs its own issue-referenced entry. The temporary <code>#1788</code> entries described below are
+such entries, and any <code>#1783</code> entries are too if that issue adds them; none of them is part of
+the burn-down count above.</p>
 <p><strong>Burn-down result</strong> (#1695). Every one of the 51 operations with entries was checked against
 the v1.1.0 <em>view code</em> (<code>git show v1.1.0:backend/...</code>), not the v1.1.0 schema, and each entry's
 <code>reason</code> now records what v1.1.0 actually read and returned. The outcome:</p>
@@ -4115,20 +4117,23 @@ the v1.1.0 <em>view code</em> (<code>git show v1.1.0:backend/...</code>), not th
   <code>CHANGELOG.md</code>: <code>columns/reorder/</code> and <code>swimlanes/reorder/</code> used to treat a missing <code>order</code> as
   a <code>200</code> no-op and now answer <code>400</code> unless <code>order</code> is the board's full ID list. The
   upgrade-guide note for this is tracked in #1782.</li>
-<li><strong>3 <code>REMOVED_REQUEST_MEDIA_TYPE</code> entries on <code>POST /auth/password/change/</code> are a HEAD
-  schema defect, not a removal</strong> (#1781). The endpoint still accepts JSON, form, and multipart
-  bodies, but HEAD's schema has no request body at all, because
-  <code>VisibanPasswordChangeSerializer.__init__</code> calls <code>has_usable_password()</code> on <code>AnonymousUser</code>
-  during schema generation. When #1781 is fixed, the gate stops reporting these three findings
-  and instead reports <code>old_password</code> as a new required request field, which is the deliberate
-  <code>#1257</code> security break. The MR that fixes #1781 replaces the three <code>REMOVED_REQUEST_MEDIA_TYPE</code>
-  entries with three <code>NEW_REQUIRED_REQUEST_FIELD ... .old_password</code> entries under <code>#1257</code>. This
-  is the one stated exception to the no-additions rule below.</li>
+<li><strong>3 <code>REMOVED_REQUEST_MEDIA_TYPE</code> entries on <code>POST /auth/password/change/</code> were a HEAD
+  schema defect, not a removal</strong> (#1781, fixed). <code>VisibanPasswordChangeSerializer.__init__</code>
+  called <code>has_usable_password()</code> on <code>AnonymousUser</code> during schema generation, so HEAD's schema
+  lost the request body. The fix replaced them with three
+  <code>NEW_REQUIRED_REQUEST_FIELD ... .old_password</code> entries under <code>#1257</code>, the deliberate security
+  break.</li>
 </ul>
 <p>These entries stay in the file because the drift lives in the frozen baseline itself: deleting
 an entry whose finding still fires turns the job red, whether the finding is drift or a real
-break. Entries are only ever deleted (when one goes stale) or re-justified, never added,
-except for the #1781 replacement described above.</p>
+break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
+The exceptions are the #1781 replacement above and the temporary #1788 entries below.
+The #1783 entries are a third exception if that issue adds them.</p>
+<p>Four temporary <code>key</code> entries under <code>#1788</code> cover <code>NEW_REQUIRED_REQUEST_BODY</code> on <code>POST swimlanes/</code>,
+<code>PUT swimlanes/{id}/</code>, and <code>PATCH swimlanes/{id}/set-collapsed/</code> and <code>set_collapsed/</code>. The v1.1.0
+baseline lacks those bodies because <code>SwimlaneViewSet</code> crashed during schema generation; #1788
+fixes the schema, and the endpoints always required the body. Delete all four entries when the
+baseline is rolled at the v1.2.0 GA.</p>
 <p>The GA roll does not fix the schema by itself. It freezes the schema HEAD generates at that tag
 as the new baseline. Several hand-written actions still document a fallback serializer today,
 for example <code>POST groups/{id}/star/</code>, <code>PATCH groups/{id}/members/{user_id}/</code>, and analytics

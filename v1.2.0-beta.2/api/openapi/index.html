@@ -4278,6 +4278,7 @@ this paragraph is not re-synced on every future prune.</p>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">saved_filters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">pk</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="o">...</span>
 </code></pre></div>
+<p>A viewset that reads <code>self.kwargs</code>, <code>self.request.user</code>, or a URL parameter such as <code>board_pk</code> in <code>get_serializer_class()</code>, <code>get_serializer_context()</code>, <code>get_queryset()</code>, or a serializer's <code>__init__</code> must guard that code with <code>if getattr(self, "swagger_fake_view", False):</code> and return a safe default. drf-spectacular builds these views with no request and no URL kwargs, and an unguarded lookup makes it drop the serializer and silently emit an operation with no request body (<code>SwimlaneViewSet</code>, #1788; <code>VisibanPasswordChangeSerializer</code>, #1781). The failure prints <code>exception raised while getting serializer</code> to stderr and does not fail the build.</p>
 <p>See the <a href="https://drf-spectacular.readthedocs.io/en/latest/customization.html">drf-spectacular docs</a> for full customization options.</p>
 
 
