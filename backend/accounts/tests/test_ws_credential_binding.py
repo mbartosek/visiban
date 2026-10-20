@@ -412,6 +412,15 @@ class WsOriginWildcardHostsCheckTests(TestCase):
 
     @override_settings(
         DEBUG=False,
+        ALLOWED_HOSTS=["[.example.com]", "[*]"],
+        CORS_ALLOWED_ORIGINS=[],
+        CSRF_TRUSTED_ORIGINS=[],
+    )
+    def test_bracketed_pattern_entries_are_patterns_not_exact_hosts(self):
+        self.assertEqual([r.id for r in self._check()], ["accounts.W002"])
+
+    @override_settings(
+        DEBUG=False,
         ALLOWED_HOSTS=["*", ""],
         CORS_ALLOWED_ORIGINS=[],
         CSRF_TRUSTED_ORIGINS=[],

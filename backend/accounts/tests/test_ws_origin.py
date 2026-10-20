@@ -194,3 +194,10 @@ class WSOriginEdgeCaseTests(TransactionTestCase):
     @override_settings(ALLOWED_HOSTS=["", "app.example.com"])
     def test_empty_allowed_hosts_entry_is_ignored(self):
         self._assert_refused_without_consuming([(b"origin", b"https://other.example.org")])
+
+    @override_settings(
+        ALLOWED_HOSTS=["[.example.com]", "[*]"], CORS_ALLOWED_ORIGINS=[], CSRF_TRUSTED_ORIGINS=[]
+    )
+    def test_bracketed_pattern_entries_are_not_applied(self):
+        self._assert_refused_without_consuming([(b"origin", b"https://user.example.com")])
+        self._assert_refused_without_consuming([(b"origin", b"https://anything.test")])

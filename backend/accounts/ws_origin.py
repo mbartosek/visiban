@@ -44,19 +44,29 @@ def _normalize(origin):
     return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
 
 
+def exact_host(entry):
+    """Return the exact host an ``ALLOWED_HOSTS`` entry names, else None.
+
+    Pattern entries (``*`` anywhere, leading dot) and empty entries are not
+    exact hosts. Brackets around an IPv6 literal are stripped first, because
+    ``urlsplit().hostname`` drops them, and the pattern checks run on the
+    stripped value so ``"[.example.com]"`` is still a pattern. Shared with
+    the ``accounts.W002`` check so the two cannot drift.
+    """
+    host = entry[1:-1] if entry.startswith("[") and entry.endswith("]") else entry
+    if not host or "*" in host or host.startswith("."):
+        return None
+    return host
+
+
 def _exact_allowed_hosts():
-    """``ALLOWED_HOSTS`` without pattern entries (``*`` anywhere, leading dot).
+    """Exact hosts from ``ALLOWED_HOSTS``.
 
     Pattern entries are for Host-header validation; the Origin check uses
     exact hosts and explicitly listed origins.
     """
-    # urlsplit().hostname drops the brackets of an IPv6 literal, so compare
-    # against the unbracketed form of a bracketed entry such as "[::1]".
-    return [
-        h[1:-1] if h.startswith("[") and h.endswith("]") else h
-        for h in getattr(settings, "ALLOWED_HOSTS", None) or []
-        if h and "*" not in h and not h.startswith(".")
-    ]
+    hosts = (exact_host(h) for h in getattr(settings, "ALLOWED_HOSTS", None) or [])
+    return [h for h in hosts if h]
 
 
 def origin_allowed(origin):

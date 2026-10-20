@@ -341,19 +341,22 @@ def check_wildcard_allowed_hosts(app_configs, **kwargs):
 
     from django.conf import settings
 
+    from .ws_origin import exact_host
+
     if settings.DEBUG:
         return []
     hosts = getattr(settings, "ALLOWED_HOSTS", None) or []
-    if not any(h == "*" or h.startswith(".") for h in hosts):
+    if not any(h and exact_host(h) is None for h in hosts):
         return []
-    loopback = {"localhost", "127.0.0.1", "::1", "[::1]"}
+    loopback = {"localhost", "127.0.0.1", "::1"}
 
     def is_public(host):
         # An empty or wildcard host never matches a real Origin.
         return bool(host) and "*" not in host and host not in loopback
 
     # An exact public ALLOWED_HOSTS entry still matches browser origins.
-    if any(is_public(h) and h != "*" and not h.startswith(".") for h in hosts):
+    # Classified by the same normalizer the matcher uses.
+    if any(is_public(exact_host(h)) for h in hosts if h):
         return []
     origins = [
         *(getattr(settings, "CORS_ALLOWED_ORIGINS", None) or []),
