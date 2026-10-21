@@ -191,6 +191,8 @@ List direct subgroups of this group that are visible to the requesting user. Req
 ### `GET /api/v1/groups/{id}/boards/`
 List boards in this group. Requires group membership.
 
+A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed.
+
 Pass `?expand=group` to populate `group_detail` on each board (see [Expanding foreign-key fields](index.md#expanding-foreign-key-fields)). *(1.2+)* The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).
 
 ### `POST /api/v1/groups/{id}/boards/`
@@ -213,6 +215,8 @@ Since 1.2, a body that is not a JSON object, or a non-string `swimlane_name`, re
 ### `GET /api/v1/groups/{id}/descendant-boards/`
 List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.
 
+A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed. The same rule applies to `GET /api/v1/groups/{id}/boards/` and the paged variant.
+
 **Response** — array of board summary objects (same shape as `GET /api/v1/groups/{id}/boards/`). Each board's `group_detail` is always populated with a `GroupBrief` payload including the `ancestors` chain, so callers can render a full relative breadcrumb without an extra request (#845). `ancestors` is root-first and does **not** include the board's direct parent group — that name is in `group_name`.
 
 **Errors:** `404 Not Found` if the group does not exist or the caller cannot see it; `403 Forbidden` if the caller sees the group only as [navigation-only](#ancestor-groups-navigation-only) (a member of a descendant subgroup, not of this group or an ancestor).
@@ -221,7 +225,7 @@ This endpoint is never paginated: it returns the whole subtree in one array, and
 
 ### `GET /api/v1/groups/{id}/descendant-boards/paged/`
 
-*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership.
+*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.
 
 **Query parameters**
 

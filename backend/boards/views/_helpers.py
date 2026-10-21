@@ -281,10 +281,22 @@ def get_accessible_boards_queryset(user):
     boards belonging to that subgroup's ancestors, where `get_board_role()`
     would return None (#1112 rbac-check finding).
     """
-    from groups.models import get_group_ids_for_board_access
-
     if user.can_access_all_content:
         return Board.objects.all()
+    return Board.objects.filter(board_access_q(user))
+
+
+def board_access_q(user):
+    """Return the ``Q`` that matches the boards on which ``get_board_role()`` resolves a role.
+
+    The single predicate behind ``get_accessible_boards_queryset`` and the group
+    board listings (``GroupViewSet.boards`` and the descendant-boards actions,
+    #1769), so a listing and the board detail answer the same way for a stored
+    role outside ``BoardMembership.Role``. Not meaningful for a
+    ``can_access_all_content`` user (every board matches); callers skip it.
+    """
+    from groups.models import get_group_ids_for_board_access
+
     # Every term is a row-preserving predicate (owner FK, Exists, group FK ``IN``),
     # so a board can match more than one term without duplicating -- no DISTINCT.
     # Direct membership is an Exists(), not ``Q(memberships__user=...)``: the join
@@ -299,7 +311,7 @@ def get_accessible_boards_queryset(user):
     valid_explicit = BoardMembership.objects.filter(
         board=OuterRef("pk"), user=user, role__in=valid_board_roles,
     )
-    return Board.objects.filter(
+    return (
         Q(owner=user) |
         Exists(valid_explicit) |
         (
