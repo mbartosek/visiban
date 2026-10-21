@@ -261,8 +261,10 @@ def counts_toward_admin_minimum(membership):
 
     Why: the group's "at least one admin" minimum exists so someone can still act
     for the group. A deactivated account cannot, so its admin row does not count.
-    This is the single definition of that rule; ``admin_minimum_q`` is its ORM
-    equivalent and the two must change together. Side-effect free; reads
+    This is the single shared definition of the admin-minimum rule: every code
+    path that counts admins toward the minimum must call it rather than
+    re-implement it. ``admin_minimum_q`` is its ORM equivalent and the two must
+    change together. Side-effect free; reads
     ``membership.user`` (use ``select_related("user")`` to avoid a query).
     """
     return membership.role == GroupMembership.Role.ADMIN and membership.user.is_active
@@ -274,7 +276,8 @@ def admin_minimum_q(prefix=""):
     ``prefix`` is the relation path to a ``GroupMembership`` from the queried
     model (for example ``"memberships__"``); leave it empty on ``GroupMembership``
     itself. Why: callers that count or lock admins in SQL must apply the same
-    "active admin" definition as the Python predicate. Side-effect free.
+    "active admin" definition as the Python predicate (the single shared
+    definition is ``counts_toward_admin_minimum``). Side-effect free.
     """
     return Q(**{
         f"{prefix}role": GroupMembership.Role.ADMIN,
