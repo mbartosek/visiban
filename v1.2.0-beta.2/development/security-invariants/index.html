@@ -4424,7 +4424,7 @@ access described in Rule 2.</p>
 <tr>
 <td>Operator password reset</td>
 <td><code>operator_commands/management/commands/changepassword.py</code> (replaces Django's <code>changepassword</code>; the app is listed before <code>django.contrib.auth</code> in <code>INSTALLED_APPS</code> so its command name wins)</td>
-<td>The save and <code>accounts/credentials.py</code> <code>revoke_credentials_after_operator_reset</code> share one <code>transaction.atomic()</code> under <code>lock_user_row</code>: the user's PATs and DRF <code>Token</code> are deleted; sessions end because the session auth hash changes. <code>must_change_password</code> is deliberately not set (the operator is usually the account owner, as in the first-boot recovery path). The <code>accounts.E008</code> system check fails startup if a settings include removes the app and Django's command takes over. The save also writes an <code>AdminActionLog</code> entry (<code>user.password_set</code>, source <code>cli</code>, no actor, metadata <code>target_id</code> and <code>target_username</code> only) in the same transaction, so a failed log write rolls the password back (<code>accounts/tests/test_cli_password_action_log.py</code>). The <code>ensure_site_admin</code> bootstrap deliberately differs: it sets <code>must_change_password</code>, because the password it generates is temporary and is written to a file (<code>docs/getting-started/first-boot.md</code>). Tests: <code>accounts/tests/test_management_commands.py</code>, <code>accounts/tests/test_forced_change_session_exemptions.py</code></td>
+<td>The save and <code>accounts/credentials.py</code> <code>revoke_credentials_after_operator_reset</code> share one <code>transaction.atomic()</code> under <code>lock_user_row</code>: the user's PATs and DRF <code>Token</code> are deleted; sessions end because the session auth hash changes. <code>must_change_password</code> is deliberately not set (the operator is usually the account owner, as in the first-boot recovery path). The <code>accounts.E008</code> system check (which covers both <code>changepassword</code> and <code>createsuperuser</code>) fails startup if a settings include removes the app and Django's command takes over. The save also writes an <code>AdminActionLog</code> entry (<code>user.password_set</code>, source <code>cli</code>, no actor, metadata <code>target_id</code> and <code>target_username</code> only) in the same transaction, so a failed log write rolls the password back (<code>accounts/tests/test_cli_password_action_log.py</code>). The <code>ensure_site_admin</code> bootstrap deliberately differs: it sets <code>must_change_password</code>, because the password it generates is temporary and is written to a file (<code>docs/getting-started/first-boot.md</code>). Tests: <code>accounts/tests/test_management_commands.py</code>, <code>accounts/tests/test_forced_change_session_exemptions.py</code></td>
 </tr>
 <tr>
 <td>Demo-site seed password</td>
@@ -4433,8 +4433,18 @@ access described in Rule 2.</p>
 </tr>
 <tr>
 <td>Command-line password set (action log)</td>
-<td><code>accounts/management/commands/ensure_site_admin.py</code>; <code>accounts/management/commands/provision_fuzz_token.py</code> (<code>--set-random-password</code>); <code>operator_commands/management/commands/changepassword.py</code></td>
+<td><code>accounts/management/commands/ensure_site_admin.py</code>; <code>accounts/management/commands/provision_fuzz_token.py</code> (<code>--set-random-password</code>); <code>operator_commands/management/commands/changepassword.py</code>; <code>operator_commands/management/commands/createsuperuser.py</code> (replaces Django's; wraps the <code>create_superuser</code> call; no entry when the account is created with an unusable password, since no password was set)</td>
 <td>Each writes an <code>AdminActionLog</code> entry (<code>user.password_set</code>, source <code>cli</code>, no actor, metadata <code>target_id</code> and <code>target_username</code> only) in the same <code>transaction.atomic()</code> as the password save, so a failed log write rolls the password back; the password, its hash and the generated one-time password are never stored. Tests: <code>accounts/tests/test_cli_password_action_log.py</code></td>
+</tr>
+<tr>
+<td>Admin API account creation (action log)</td>
+<td><code>accounts/admin_views.py</code> <code>AdminUsersView.post</code> (<code>POST /api/v1/admin/users/</code>)</td>
+<td>Writes <code>user.password_set</code> (source <code>admin_api</code>, actor the acting admin, metadata <code>target_id</code> and <code>target_username</code> only) inside the view's <code>transaction.atomic()</code>, so a failed log write creates no account. Tests: <code>accounts/tests/test_admin_create_user_action_log_1801.py</code></td>
+</tr>
+<tr>
+<td>Benchmark user password (action log exception)</td>
+<td><code>boards/management/commands/benchmark.py</code> (<code>bench_user</code>)</td>
+<td>Explicit exception: no action log entry. The command requires <code>DEBUG</code> and creates a throwaway account with a random password that is never shown or reused. Pinned by <code>boards/tests/test_benchmark_command.py</code> <code>test_bench_user_password_set_is_not_in_the_admin_action_log</code></td>
 </tr>
 <tr>
 <td>Demo-site seed password (action log exception)</td>

@@ -4436,7 +4436,7 @@ and an audit log an admin can edit is not evidence of anything.</p>
 </tr>
 <tr>
 <td><code>user.password_set</code></td>
-<td><code>{"target_id": 42, "target_username": "jordan"}</code> (password set on an existing account, or a user added with a password, in the Django admin; also written with <code>source</code> <code>cli</code> and no actor by <code>ensure_site_admin</code>, <code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>)</td>
+<td><code>{"target_id": 42, "target_username": "jordan"}</code> (password set on an existing account, or a user added with a password, in the Django admin; also written with <code>source</code> <code>cli</code> and no actor by <code>createsuperuser</code>, <code>ensure_site_admin</code>, <code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>; written with <code>source</code> <code>admin_api</code> and the acting admin when an account is created through <code>POST /api/v1/admin/users/</code>)</td>
 </tr>
 <tr>
 <td><code>user.password_disabled</code></td>
@@ -4462,10 +4462,14 @@ when an administrator saves another account's <strong>Password</strong> form in 
 administrator adds a user with a password there; no entry is written for a user added with
 password sign-in disabled. <code>metadata</code> names the account concerned; the password and its hash
 are never stored. Changing your own password is not recorded.</p>
-<p>The <code>ensure_site_admin</code>, <code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>
+<p>Creating an account with <code>POST /api/v1/admin/users/</code> records <code>user.password_set</code> with <code>source</code>
+<code>admin_api</code> and the acting admin. The <code>createsuperuser</code>, <code>ensure_site_admin</code>,
+<code>provision_fuzz_token --set-random-password</code> and <code>changepassword</code>
 management commands also record <code>user.password_set</code>, with <code>source</code> <code>cli</code> and no actor (<code>actor_id</code> is
 null). The entry is written in the same transaction as the password, so the password is
-only changed when the entry is saved. The demo seed (<code>seed_demo_data --demo-site</code>)
+only changed when the entry is saved. <code>createsuperuser</code> writes an entry only when a password
+is set; an account created without one (<code>--noinput</code> with no <code>DJANGO_SUPERUSER_PASSWORD</code>) has
+no usable password and writes none, as with a user added without a password in the Django admin. The demo seed (<code>seed_demo_data --demo-site</code>)
 writes no entries: it runs only with <code>DEMO_MODE=true</code>, and the demo's hourly reset empties
 the log.</p>
 </div>
@@ -4487,7 +4491,7 @@ it exists for. Operators with data-erasure obligations should account for this t
 <div class="admonition note">
 <p class="admonition-title">Direct database writes are not captured</p>
 <p>Rows are written by the admin API, the <code>maintenance_mode</code> management command, the
-password management commands (<code>ensure_site_admin</code>, <code>changepassword</code>,
+password management commands (<code>ensure_site_admin</code>, <code>createsuperuser</code>, <code>changepassword</code>,
 <code>provision_fuzz_token</code>), and the Django admin. A change made straight through the ORM (<code>manage.py shell</code>) has no actor to
 record and leaves no row, so an empty log means "no audited path made this change" — not
 "nothing happened".</p>
@@ -4892,6 +4896,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </tbody>
 </table>
 <p>Returns <code>201 Created</code> with the new user object. The response does <strong>not</strong> include the password — copy it before closing if needed.</p>
+<p><em>(1.2+)</em> The account creation is recorded in the <a href="#action-log">admin action log</a> as <code>user.password_set</code> with <code>source</code> <code>admin_api</code> and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (<code>target_id</code>, <code>target_username</code>); the password and its hash are never stored.</p>
 <h3 id="patch-apiv1adminusersid"><code>PATCH /api/v1/admin/users/{id}/</code><a class="headerlink" href="#patch-apiv1adminusersid" title="Permanent link">&para;</a></h3>
 <p>Update a user's account flags. Site admin only.</p>
 <p><strong>Patchable fields</strong></p>
