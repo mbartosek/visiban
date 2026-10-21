@@ -1531,14 +1531,25 @@ backend-schema-fuzz-git-lens:
 # collide on test data; a target's mutants are dealt round-robin over its shards
 # (sizes differ by at most one). Shard sizes and the per-mutant cost behind them
 # are in the doc ("Shard arithmetic"): about 30 min of mutants plus ~5 min setup
-# per job, so `timeout: 60m` is ~1.7x the slowest estimate. At most 50 shards
-# (GitLab's `needs:` cap for the report; the self-test enforces it).
+# per job (the 2026-10-18 scheduled run showed `cards` and one `import_export`
+# shard blowing past 60m at the old 7 / 33 split, so the split was re-derived
+# from those measurements: 3 / 16 / 2 / 29 = 50). At most 50 shards (GitLab's
+# `needs:` cap for the report; the self-test enforces it). That cap is now fully
+# used, so sharding can no longer absorb a hang: mutmut lets one mutant run 10x
+# the baseline, and a single timed-out mutant costs minutes no split can remove.
+# `timeout: 90m` is therefore headroom for those outliers (~3x the ~30 min
+# average shard), not a substitute for sharding. It deliberately exceeds the
+# project's 60 m default job timeout; as of 2026-10-21 no runner caps it (all 7
+# project runners have no maximum timeout; SaaS shared runners allow up to 3 h).
 #
 # LOAD: measured 2026-10-10 (manual play of the schedule): 44 jobs, 1181
 # runner-minutes, slowest shard 39.5 min, 1 h 17 min wall clock for the whole
 # pipeline. That is too much for the Nightly schedule, so it has its own weekly
-# one; untagged, the jobs can also land on a SaaS runner. No tag pin (none fits;
-# `nuc` is for the load test). See mutation-testing.md "Runner load".
+# one. Re-measured on the scheduled run of 2026-10-18 (pipeline 2960067085, main
+# 6d440fb22): `cards` costs ~65-95 s per mutant in CI, not the ~50 s the shard
+# sizes assumed, so 5 shards (4 `cards`, 1 `import_export`) hit `timeout: 60m`
+# and the split was redone (50 jobs now). Untagged, the jobs can also land on a
+# SaaS runner. No tag pin (none fits; `nuc` is for the load test). See mutation-testing.md "Runner load".
 #
 # FLOOR: backend-mutation-report fails (exit 1) when the MERGED adjusted score
 # over all targets is under MUTATION_MIN (0.90, #1384, chosen by the maintainer
@@ -1558,8 +1569,8 @@ backend-mutation:
   image: ${DOCKERHUB_MIRROR}/python:3.12-slim
   # = sum of TARGETS' shard counts in backend/mutmut_config.py (checked by
   # `mutmut_config.py self-test --ci-file`, run in mutation-score-selftest).
-  parallel: 44
-  timeout: 60m
+  parallel: 50
+  timeout: 90m
   allow_failure: true
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $MUTATION_TEST == "true"'
@@ -4784,7 +4795,7 @@ docs-deploy:
 #   Variables   : CVE_SCAN=true OSV_SCAN=true SONAR_SCHEDULED=true
 #                 FUZZ_DEEP=true KAIZEN_YIELD_WATCH=true
 # backend-mutation keeps its own weekly schedule (4485984, Sundays 06:00
-# America/New_York, MUTATION_TEST=true): 44 shards are too heavy for the Nightly.
+# America/New_York, MUTATION_TEST=true): 50 shards are too heavy for the Nightly.
 # nightly-load-test keeps its own 00:00 America/New_York schedule
 # (LOAD_TEST_SCHEDULE=true): its latency budgets are noisy on a busy runner. The full schedule table, and
 # what red means for each job, is in docs/development/ci-gates.md.

@@ -1,6 +1,6 @@
-"""mutmut hooks and target list for the nightly backend-mutation job (#1384). Not imported by Django.
+"""mutmut hooks and target list for the weekly backend-mutation job (#1384). Not imported by Django.
 
-One table, ``TARGETS``, says what the nightly job mutates: the source file, the
+One table, ``TARGETS``, says what the weekly job mutates: the source file, the
 test files each mutant runs against, an optional class to restrict the run to,
 and how many parallel CI jobs (shards) the target is split across. Everything
 else is derived from it:
@@ -15,7 +15,7 @@ else is derived from it:
 * ``python mutmut_config.py self-test --ci-file ../.gitlab-ci.yml`` (run on MRs
   by ``mutation-score-selftest``) checks every path, test file and class exists
   and that the CI file's ``parallel:`` matches, so a renamed test file or a new
-  shard fails on the MR rather than a night later.
+  shard fails on the MR rather than a week later.
 
 ``pre_mutation`` is mutmut 2.x's per-mutant hook. mutmut is single-process, so a
 target is split across jobs by mutant: the target's mutants, in (line, index)
@@ -101,15 +101,16 @@ _IMPORT_EXPORT_TESTS = (
 )
 
 # Shard counts come from the per-mutant cost in docs/development/mutation-testing.md
-# (Nightly CI job, "Shard arithmetic"): each shard is sized to finish well inside the job's
+# (weekly CI job, "Shard arithmetic"): each shard is sized to finish well inside the job's
 # `timeout:`. Changing a count means changing `parallel:` on backend-mutation too;
 # `self-test --ci-file` fails the MR until both agree.
 # GitLab lets one job `needs:` at most 50 jobs, and backend-mutation-report needs every shard.
+# The cap is fully used (50/50): adding a target or shards means re-balancing existing counts.
 MAX_SHARDS = 50
 
 TARGETS: tuple[Target, ...] = (
-    Target("permissions", "boards/permissions.py", _RBAC_TESTS, shards=2),
-    Target("cards", "boards/services/cards.py", _CARD_SERVICE_TESTS, shards=7),
+    Target("permissions", "boards/permissions.py", _RBAC_TESTS, shards=3),
+    Target("cards", "boards/services/cards.py", _CARD_SERVICE_TESTS, shards=16),
     Target(
         "card_movement",
         "boards/models.py",
@@ -121,7 +122,7 @@ TARGETS: tuple[Target, ...] = (
         "import_export",
         "boards/views/import_export.py",
         _IMPORT_EXPORT_TESTS,
-        shards=33,
+        shards=29,
     ),
 )
 
