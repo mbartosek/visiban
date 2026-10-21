@@ -6,7 +6,7 @@ Keeping the ownership-transfer rules in one function means the REST endpoint
 """
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 
 from .models import Group, GroupMembership
 
@@ -338,3 +338,77 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
     if is_active_admin and new_role != GroupMembership.Role.ADMIN and active_admin_count <= 1:
         raise MembershipChangeRefused(LAST_ADMIN_MESSAGE)
     return membership
+
+
+# -- The at-least-one-admin minimum, as seen by a user delete ------------------
+#
+# Kept apart from ``lock_membership_for_removal_or_demotion`` on purpose: that
+# function judges one membership change, while a user delete removes every
+# membership of a set of accounts at once (the ``GroupMembership.user``
+# CASCADE), so it needs a set-wide count rather than a per-row one.
+
+
+def counts_toward_admin_minimum(membership):
+    """True when ``membership`` counts toward a group's at-least-one-admin minimum.
+
+    Only an admin row held by an active account counts: a deactivated admin
+    cannot sign in to manage the group, so a group whose only admins are
+    deactivated has no one who can act for it. ``membership.user`` must be
+    loaded (``select_related("user")``) to avoid a query per row.
+    """
+    return membership.role == GroupMembership.Role.ADMIN and membership.user.is_active
+
+
+def admin_minimum_q(prefix=""):
+    """``Q`` form of ``counts_toward_admin_minimum`` for a ``GroupMembership`` query.
+
+    ``prefix`` is the lookup path to the membership (e.g. ``"memberships__"``)
+    when the query is on another model.
+    """
+    return Q(**{f"{prefix}role": GroupMembership.Role.ADMIN, f"{prefix}user__is_active": True})
+
+
+def _groups_administered_by(user_ids):
+    return GroupMembership.objects.filter(admin_minimum_q(), user_id__in=user_ids).values("group_id")
+
+
+def lock_groups_administered_by(user_ids):
+    """Lock the rows of every group ``user_ids`` actively administer, ``FOR NO KEY UPDATE``, in pk order.
+
+    Used by the user delete before it judges ``groups_left_without_admin``:
+    the group row is the lock every membership removal, demotion and
+    ownership transfer takes first (``lock_membership_for_removal_or_demotion``,
+    ``transfer_group_ownership``), so holding it keeps the group's admin rows
+    from changing between the count and the delete. ``FOR NO KEY UPDATE``
+    leaves the ``FOR KEY SHARE`` writers (board placement, subgroup create)
+    unblocked. Must run inside ``transaction.atomic()``.
+    """
+    return list(
+        Group.objects.select_for_update(no_key=True)
+        .filter(pk__in=_groups_administered_by(list(user_ids)))
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+
+def groups_left_without_admin(user_ids):
+    """Groups that would keep no active admin if every account in ``user_ids`` were deleted.
+
+    A group counts only when one of ``user_ids`` is an active admin of it
+    (deleting an inactive admin does not lower the count), and is returned
+    when no active admin outside ``user_ids`` remains. Judged as a set, so
+    two admins that are each "not the last" are refused when deleted
+    together. Direct memberships only, as in
+    ``lock_membership_for_removal_or_demotion``. Returns group pks in pk
+    order.
+    """
+    user_ids = list(user_ids)
+    others = GroupMembership.objects.filter(
+        admin_minimum_q(), group_id=OuterRef("pk")
+    ).exclude(user_id__in=user_ids)
+    return list(
+        Group.objects.filter(pk__in=_groups_administered_by(user_ids))
+        .exclude(Exists(others))
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
