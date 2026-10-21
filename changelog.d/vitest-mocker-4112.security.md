@@ -1,1 +1,0 @@
-Bumped the dev-only test runner `vitest` and `@vitest/coverage-v8` to 4.1.12, clearing two MODERATE `@vitest/mocker` advisories (GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp) that put the `dep-scan-osv` CI job in its warning state on `main`. Test tooling only; the shipped application is unaffected.

@@ -1,1 +1,0 @@
-Floored `certifi` at 2026.10.19 in `backend/requirements.txt` to fix GHSA-6q48-6c7w-9gw2 (CRITICAL: bundled emSign root CAs with compromised intermediate keys), which the `dep-scan-osv` gate blocks on.
