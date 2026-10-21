@@ -406,7 +406,7 @@ The job started as a one-module pilot on `boards/permissions.py` (!1176) and was
 
 ### Targets
 
-The list lives in one place, `TARGETS` in `backend/mutmut_config.py`. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are enumerated with mutmut 2.5.1 on `main` at `e8be1a22f` (pragma-excluded mutants are never generated, so they are listed apart).
+The list lives in one place, `TARGETS` in `backend/mutmut_config.py`. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are enumerated with mutmut 2.5.1 on `main` at `e8be1a22f` (pragma-excluded mutants are never generated, so they are listed apart), except `cards`, whose 361 is the `total` from the 2026-10-18 CI mutmut stats (pipeline 2960067085). The roughly 115 `cards` mutants added since the 246 baseline are not yet measured for kill rate (the same situation as the `import_export` note below).
 
 | Target | Code | Mutants scored | Excluded by pragma | Tests | Shards |
 |---|---|---:|---:|---|---:|
@@ -440,25 +440,25 @@ CI is assumed twice as slow as the laptop (shared self-hosted runners, PostgreSQ
 | `card_movement` | 46 x 40 s = 31 min | 2 | 23 | ~15 min |
 | `import_export` | 1780 x 33 s = 979 min | 33 | 53-54 | ~30 min |
 
-**Re-derived from the 2026-10-18 scheduled run (#1818).** That run (pipeline 2960067085, main `6d440fb22`) timed out five shards at 60 minutes: four `cards` shards (3, 4, 6, 9) and one `import_export` shard (14, one hanging mutant). `cards.py` had grown to 361 mutants and measured ~65-95 s each in CI (not ~50 s); the job durations were:
+**Re-derived from the 2026-10-18 scheduled run (#1818).** That run (pipeline 2960067085, main `6d440fb22`) timed out five shards at 60 minutes: four `cards` jobs (3/44, 4/44, 6/44, 9/44) and one `import_export` job (14/44, one hanging mutant). `cards.py` had grown to 361 mutants and measured ~65-95 s each in CI (not ~50 s); the job durations were:
 
 | Target | Shards then | Mutants per shard then | Job wall time per shard (incl. ~5 min setup) |
 |---|---:|---:|---|
 | `permissions` | 2 | 58 | 45 m, 49 m |
 | `cards` | 7 | ~52 | 60 m (timeout), 60 m (timeout), 43 m, 60 m (timeout), 40 m, 54 m, 60 m (timeout) |
 | `card_movement` | 2 | 23 | 9 m, 28 m |
-| `import_export` | 33 | 53-54 | 19-40 m for 32 shards, one 60 m (timeout, a hanging mutant) |
+| `import_export` | 33 | 53-54 | 31 jobs 19-36 m, one 59 m, one 60 m (timeout, a hanging mutant) |
 
-Shards 4 and 9 of `cards` still had 110+ mutants untested when they were killed, and a timed-out job uploads no stats artifact, so the report exited 2 ("expected 7 shard stats files, got 3"), as designed. The new split, sized from those measurements:
+Jobs 4/44 and 9/44 (`cards`) each finished only 35 of their ~52 assigned mutants (28 killed, 7 survived) before the 60 minute kill. The timed-out jobs' stats files were written but never uploaded, so the report exited 2 ("expected 7 shard stats files, got 3"), as designed. The new split, sized from those measurements:
 
 | Target | Mutants x measured CI cost | Shards | Mutants per shard | Expected shard |
 |---|---:|---:|---:|---:|
 | `permissions` | 116 x ~45 s = 87 min | 3 | 38-39 | ~29 min |
 | `cards` | 361 x ~80 s = 481 min | 16 | 22-23 | ~30 min |
 | `card_movement` | 46 x 40 s = 31 min | 2 | 23 | ~15 min (9 m and 28 m measured) |
-| `import_export` | 1780 x ~25 s = 742 min | 29 | 61-62 | ~26 min average, ~40 min slowest |
+| `import_export` | 1780 x ~25 s = 742 min | 29 | 61-62 | ~26 min average, ~41 min slowest (36 m observed x 61/54) plus any hang |
 
-On top of the mutants each job spends about 5 minutes on setup: services, `pip install` of the backend and test requirements, and mutmut's baseline test run (up to ~2.5 min for `cards` at the CI estimate). So the slowest job was estimated at about 35 minutes with `timeout: 60m` (1.7x headroom); the 2026-10-18 run showed that estimate was too low for `cards`. With the re-derived split the average job is about 35 minutes including setup and `timeout` is now `90m`. Survivors cost a full test pass instead of a pass to the first failure; at a 3 to 4% survivor rate that adds about a minute to a shard. The 2026-10-10 sizing was an estimate; the 2026-10-18 run is the first measurement that exceeded it. A shard that times out makes the report exit 2 (not measured), never a smaller score. The default response to long shards is to raise that target's count (and `parallel:`) rather than the timeout, but the shard cap is now fully used (below), so the timeout was raised from 60m to 90m (#1818): mutmut lets a single mutant run 10x the baseline, so one hanging mutant costs minutes that no split can remove, and only timeout headroom absorbs it. If shards run long again there is no room to add shards; move the slowest target's tests or mutants, or revisit the cap, instead.
+On top of the mutants each job spends about 5 minutes on setup: services, `pip install` of the backend and test requirements, and mutmut's baseline test run (up to ~2.5 min for `cards` at the CI estimate). So the slowest job was estimated at about 35 minutes with `timeout: 60m` (1.7x headroom); the 2026-10-18 run showed that estimate was too low for `cards`. With the re-derived split the average job is about 35 minutes including setup and `timeout` is now `90m`. Survivors cost a full test pass instead of a pass to the first failure; at a 3 to 4% survivor rate that adds about a minute to a shard. The 2026-10-10 sizing was an estimate; the 2026-10-18 run is the first measurement that exceeded it. A shard that times out makes the report exit 2 (not measured), never a smaller score. The default response to long shards is to raise that target's count (and `parallel:`) rather than the timeout, but the shard cap is now fully used (below), so the timeout was raised from 60m to 90m (#1818): mutmut lets a single mutant run 10x the baseline, so one hanging mutant costs minutes that no split can remove, and only timeout headroom absorbs it. The 90 minute `timeout:` deliberately exceeds the project's 60 minute default job timeout; as of 2026-10-21 no runner caps it (all seven project runners have no maximum timeout, and GitLab SaaS shared runners allow up to 3 hours). If shards run long again there is no room to add shards; move the slowest target's tests or mutants, or revisit the cap, instead.
 
 The shard total is capped at 50: `backend-mutation-report` `needs:` every shard, and GitLab allows a job to need at most 50 jobs. `mutmut_config.py self-test` fails the MR if the total goes over (50 now: at the cap, with no room left to add a shard).
 
@@ -466,7 +466,7 @@ The shard total is capped at 50: `backend-mutation-report` `needs:` every shard,
 
 The run costs about 1270 runner-minutes of mutants plus about 220 of setup (44 x 5, at the then 44 shards) by the estimate, roughly 25 runner-hours. **Measured** on 2026-10-10 (a manual play of the mutation schedule, pipeline 2933313351, all 44 shards and the report green): the 44 shards (the count at that time) took 1181 runner-minutes in total, between 6.5 and 39.5 minutes each (mean 26.8) on five self-hosted runners, and the whole 100-job pipeline took 1 h 17 min wall clock. The estimate was therefore about 20 percent high, and the slowest shard (39.5 min) is well under `timeout: 60m`. The report job printed a merged adjusted score of 96.1% (raw 94.6%; `import_export` 95.6%, `cards` 96.7%), above the 90% floor.
 
-**Re-measured** on the scheduled run of 2026-10-18 (pipeline 2960067085, main `6d440fb22`): the pipeline succeeded overall with 6 allow-failure warnings, all one cause, five shards hitting `timeout: 60m` (see Shard arithmetic). The 44 shards at the old 7 / 33 split therefore no longer fit; #1818 moved to 50 shards and `timeout: 90m`. Expected cost is about 50 shards x ~35 min = ~29 runner-hours; not yet measured, the next scheduled run will say.
+**Re-measured** on the scheduled run of 2026-10-18 (pipeline 2960067085, main `6d440fb22`): the pipeline succeeded overall with 6 allow-failure warnings, all one cause, five shards hitting `timeout: 60m` (see Shard arithmetic). The 44 shards at the old 7 / 33 split therefore no longer fit; #1818 moved to 50 shards and `timeout: 90m`. Expected cost is about 26-29 runner-hours: 1341 mutant-minutes from the table above (87 + 481 + 31 + 742) plus 50 x 5 minutes of setup is ~26.5 hours, and 50 x ~35 min is ~29 hours. Not yet measured, the next scheduled run will say.
 
 That is too much to share a night with the other scheduled jobs, so mutation testing has its own **Weekly mutation testing** schedule (4485984, `MUTATION_TEST=true`, Sundays 06:00 `America/New_York`) and the Nightly schedule no longer carries the variable. A scheduled pipeline on `main` runs the whole pipeline, so each weekly run also runs the ordinary `main` jobs; the Nightly jobs (the schedule-gated scans and the deep fuzz) stay on the Nightly schedule. The schedules sit in the 00:00 to 07:00 ET window at least 90 minutes apart, and clear of the TruePPM project's schedules, so the runners they share are not asked for two heavy runs at once. See [CI gates](ci-gates.md) for the full schedule table. The jobs carry no `tags:`: [CI runners](../maintainers/ci-runners.md) has no pin convention for heavy scheduled jobs (`nuc` is reserved for the latency-sensitive load test, and pinning 50 jobs to two NUCs would only lengthen the queue), so like every untagged job they can also be picked up by a GitLab SaaS runner if one is available to the project. `schedule-config-check` needs `MUTATION_TEST=true` on whichever schedule runs the job.
 

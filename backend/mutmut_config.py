@@ -101,10 +101,11 @@ _IMPORT_EXPORT_TESTS = (
 )
 
 # Shard counts come from the per-mutant cost in docs/development/mutation-testing.md
-# (Nightly CI job, "Shard arithmetic"): each shard is sized to finish well inside the job's
+# (weekly CI job, "Shard arithmetic"): each shard is sized to finish well inside the job's
 # `timeout:`. Changing a count means changing `parallel:` on backend-mutation too;
 # `self-test --ci-file` fails the MR until both agree.
 # GitLab lets one job `needs:` at most 50 jobs, and backend-mutation-report needs every shard.
+# The cap is fully used (50/50): adding a target or shards means re-balancing existing counts.
 MAX_SHARDS = 50
 
 TARGETS: tuple[Target, ...] = (
