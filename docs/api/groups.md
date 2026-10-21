@@ -148,7 +148,7 @@ List group members. Requires group membership.
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | integer / null | Membership record ID. `null` for inherited members — access via an ancestor group's membership rather than a direct row on this group. A group's owner is expected to hold a direct `admin` `GroupMembership` row (created with the group, or transferred via [Transfer ownership](#transfer-ownership), which requires the new owner to already be a direct admin), so the owner's `id` here is normally not `null`. A site admin with no membership of their own does not appear in this list at all. Callers must not assume this field is always an integer. |
+| `id` | integer / null | Membership record ID. `null` for inherited members — access via an ancestor group's membership rather than a direct row on this group. A group's owner holds a direct `admin` `GroupMembership` row: it is created with the group, kept by [Transfer ownership](#transfer-ownership) (which requires the new owner to already be a direct admin and keeps the previous owner as one), and the owner's membership cannot be removed or demoted. *(1.3+)* Upgrading restores that row on any group whose owner lacked it, promoting an existing membership or adding one, so the owner's `id` here is not `null`. A site admin with no membership of their own does not appear in this list at all. Callers must not assume this field is always an integer. |
 | `user` | object | `{ "id", "username", "display_name", "avatar_url" }` |
 | `role` | string | Effective role on this group: `admin`, `member`, `collaborator`, or `viewer` |
 | `joined_at` | string / null | ISO 8601 timestamp of when the membership was created; `null` for inherited members |
@@ -174,6 +174,8 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
 Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. *(1.2+)* A removal that arrives while the group is being deleted, or while another removal of the same member is in flight, waits for it to finish and then answers `404`, with nothing written. Returns `204` when the membership is removed; *(1.2+)* removing the group owner, or the group's last active admin, returns `400 Bad Request` with the same `detail` messages as `PATCH` above (the owner leaves through [Transfer ownership](#transfer-ownership) or by deleting the group); the `400` for the last admin also applies when the remaining admins are deactivated, because only active admins count; with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
+
+*(1.3+)* Deleting a user account removes all of that user's group memberships, so the Django admin's user delete applies the same minimum: it refuses to delete the last active admin of a group, or, in a bulk delete, every active admin of one. See [Django admin](../administration/django-admin.md).
 
 ---
 

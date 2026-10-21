@@ -439,8 +439,8 @@ and the Rule 8 tests.
 ## Rule 11: A group keeps its owner as an admin member and at least one active admin
 
 **Rule.** A group's owner keeps a membership with the `admin` role, and member
-removal and demotion are refused when they would leave the group without an
-active admin. A request that would remove or demote the owner, or remove or
+removal, demotion and user deletion are refused when they would leave the group
+without an active admin. A request that would remove or demote the owner, or remove or
 demote the last active admin, is refused. Deactivated admins do not
 count. The account's active flag is read at check time and is not covered by the
 group lock. The owner leaves through ownership transfer or by deleting the group.
@@ -455,13 +455,29 @@ a different admin cannot both pass.
 | Group member role change and removal (REST) | `groups/views.py` `GroupViewSet.update_member` | `groups/services.py` `lock_membership_for_removal_or_demotion`: group row `FOR NO KEY UPDATE`, then the admin rows and the target row in one pk-ordered statement; refused with `400` |
 | Group ownership transfer (REST) | `groups/views.py` `GroupViewSet.transfer_ownership` | `groups/services.py` `transfer_group_ownership`: the new owner must already be an admin and the previous owner stays an admin; the group row is locked `FOR UPDATE`, which queues with the member-change lock |
 | Group ownership transfer (Django admin) | `groups/admin.py` `GroupAdmin` transfer action | The same `transfer_group_ownership` function |
-| User delete (Django admin) | `accounts/admin.py` `VisibanUserAdmin` delete | `user_deletion_refusals` refuses deleting a group owner |
+| User delete (Django admin: delete page, `delete_model`, `delete_queryset` and the **Delete selected users** action) | `accounts/admin.py` `VisibanUserAdmin.delete_view`, `delete_model`, `delete_queryset`, `guarded_delete_selected` | `user_deletion_refusals` refuses deleting a group owner, and refuses a delete that would leave a group the targets actively administer with no active admin outside the deleted set (`groups/services.py` `groups_left_without_admin`, counting with the shared `admin_minimum_q` / `counts_toward_admin_minimum` predicate). Under the delete's locks, `VisibanUserAdmin._lock_and_check_admins` takes those groups' rows `FOR NO KEY UPDATE` (`lock_groups_administered_by`) after the user rows, so the delete and a member change or ownership transfer on the same group queue |
+
+The Django admin is the only route that deletes accounts, apart from the shell
+and the `benchmark` management command's own fixture account: the admin API
+and the site-admin panel deactivate instead, there is no self-service account
+delete, and there is no OSS deprovisioning hook.
+The `GroupMembership.user` cascade it runs is not visible to
+`GroupMembershipEntryPointTests`, which is why the row above names its own check.
 
 Coverage: `groups/tests/test_group_member_guards.py` (owner and last-admin
 refusals on both methods, a demotion queued behind an ownership transfer, and
 `GroupMembershipEntryPointTests`, which scans the backend for a function that
 deletes or demotes a `GroupMembership` and requires it to call
-`lock_membership_for_removal_or_demotion` or be allowlisted with a reason).
+`lock_membership_for_removal_or_demotion` or be allowlisted with a reason);
+`accounts/tests/test_admin_user_delete_group_admin.py` (the user delete on the
+delete page and the bulk action, a set judged as a whole, an inactive admin not
+counted, the re-check under the locks, and on PostgreSQL a delete and a demotion
+queued on the group row in both orders).
+
+Existing data: migration `groups/0022_restore_group_owner_admin_rows` gives
+every group's owner a direct `admin` membership, promoting a non-admin row or
+adding a missing one, so the owner half of the rule holds for every existing
+group (`groups/tests/test_group_owner_admin_repair_1786.py`).
 
 ## How to add a rule
 

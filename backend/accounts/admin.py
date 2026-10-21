@@ -165,6 +165,21 @@ def user_deletion_refusals(targets, actor):
     CASCADE), so ownership of every owned group is transferred first, and a
     non-superuser actor may delete only accounts that are not another staff,
     superuser or site-admin account (``_is_protected_other_account``).
+
+    The delete also removes the targets' group memberships
+    (``GroupMembership.user`` is CASCADE), so it keeps the group rule that
+    ``lock_membership_for_removal_or_demotion`` keeps for a single membership
+    change: every group the targets actively administer must keep an active
+    admin outside the set (``groups.services.groups_left_without_admin``).
+    Under the delete's locks the rows of those groups are held from statement
+    1 on (``lock_groups_administered_by``), so a membership removal, demotion
+    or ownership transfer on them queues behind the delete. The lock covers
+    the groups the targets actively administer when statement 1 runs; a group
+    in which a target becomes an admin after that is counted by the statement
+    3 re-check but its row is not held. The other admins' account rows are not
+    locked, so their active flag is the one read at check time; a superuser
+    ownership transfer to an active member recovers a group left without an
+    active admin.
     """
     from .admin_views import deactivation_refusal
 
@@ -186,6 +201,7 @@ def user_deletion_refusals(targets, actor):
             reason = "This account cannot be deleted."
         reasons.append(f"{target}: {reason}")
     from groups.models import Group
+    from groups.services import groups_left_without_admin
 
     for target in targets:
         if not actor.is_superuser and _is_protected_other_account(actor, target):
@@ -211,6 +227,15 @@ def user_deletion_refusals(targets, actor):
             )
             if not outside.exists():
                 reasons.append(f"Cannot delete {singular if single else plural}.")
+    # Judged as a set, like the administrator flags above: two admins that are
+    # each "not the last" of a group can be its last two.
+    stranded = groups_left_without_admin(target_pks)
+    if stranded:
+        whom = "the last active admin" if single else "every active admin"
+        reasons.append(
+            f"Cannot delete {whom} of a group (groups: {len(stranded)}). Make "
+            "another active member an admin of the group first."
+        )
     return reasons
 
 
@@ -542,6 +567,16 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         actor_row = next((u for u in locked if u.pk == actor.pk), None)
         if actor_row is None or not actor_row.is_active:
             raise PermissionDenied
+        # The groups the targets actively administer at this point, so for
+        # those groups the last-admin count in ``user_deletion_refusals`` (and
+        # its re-check in statement 3) judges admin rows that no member change
+        # or ownership transfer can alter until this transaction ends. Group
+        # rows after user rows: a group writer holding a group row needs at
+        # most ``FOR KEY SHARE`` on a user row, which this statement's
+        # ``FOR NO KEY UPDATE`` does not block.
+        from groups.services import lock_groups_administered_by
+
+        lock_groups_administered_by(pks)
         pk_set = set(pks)
         targets = [u for u in locked if u.pk in pk_set]
         if not actor_row.is_superuser and any(
@@ -634,7 +669,8 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         can be this delete (a server error); nothing is lost and the delete
         can be retried. Rows of tables that are not scoped to a card (invite
         links, board export log, group rows and so on) are not locked here
-        and are not covered by this argument.
+        and are not covered by this argument; statement 1 takes only the
+        rows of the groups the targets administer, for the group-admin rule.
         """
         pk_list = list(pks)
         lock_cards_for_cascade(
