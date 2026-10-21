@@ -4653,9 +4653,9 @@ public origin (for example <code>https://boards.example.com</code>) in <code>COR
 refused.</strong> Clients that send no <code>Origin</code> header are unaffected. See the
 <a href="../../api/websockets/#connecting">WebSocket API</a>.</p>
 <p>With <code>DEBUG</code> off, <code>manage.py check</code> / <code>check --deploy</code> emits system-check warning
-<code>accounts.W002</code> when <code>ALLOWED_HOSTS</code> contains <code>*</code> or a leading-dot entry and no public
-origin is listed in <code>CORS_ALLOWED_ORIGINS</code> or <code>CSRF_TRUSTED_ORIGINS</code>. Listing the origin
-clears it. Add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to accept the configuration.</p>
+<code>accounts.W002</code> when <code>ALLOWED_HOSTS</code> contains <code>*</code> or a leading-dot entry, no public
+origin is listed in <code>CORS_ALLOWED_ORIGINS</code> or <code>CSRF_TRUSTED_ORIGINS</code>, and no exact public host is
+listed in <code>ALLOWED_HOSTS</code>. Listing the origin clears it. Add <code>"accounts.W002"</code> to <code>SILENCED_SYSTEM_CHECKS</code> to accept the configuration.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Group owners and last active admins cannot be removed or demoted</p>
