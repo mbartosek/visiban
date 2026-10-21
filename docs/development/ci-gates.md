@@ -177,7 +177,7 @@ schedule that sets `CVE_SCAN` (Nightly), so it needs no schedule of its own. The
 `compose-prod-drill`) skip any schedule that sets `SONAR_SCHEDULED`, so they run on the
 load-test and weekly mutation schedules. The load test keeps its own schedule, three hours
 earlier than the Nightly one, because its latency budgets are noisy on a busy runner. Mutation
-testing keeps its own weekly schedule because 50 shards are about 26-29 runner-hours (see
+testing keeps its own weekly schedule because 50 shards are about 27-29 runner-hours (see
 [Runner load](mutation-testing.md#runner-load)), which did not fit alongside the Nightly jobs. `backend-schema-fuzz`, the MR job, never runs on
 a schedule; `backend-schema-fuzz-deep` replaces it there.
 

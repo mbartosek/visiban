@@ -1,6 +1,6 @@
-"""mutmut hooks and target list for the nightly backend-mutation job (#1384). Not imported by Django.
+"""mutmut hooks and target list for the weekly backend-mutation job (#1384). Not imported by Django.
 
-One table, ``TARGETS``, says what the nightly job mutates: the source file, the
+One table, ``TARGETS``, says what the weekly job mutates: the source file, the
 test files each mutant runs against, an optional class to restrict the run to,
 and how many parallel CI jobs (shards) the target is split across. Everything
 else is derived from it:
@@ -15,7 +15,7 @@ else is derived from it:
 * ``python mutmut_config.py self-test --ci-file ../.gitlab-ci.yml`` (run on MRs
   by ``mutation-score-selftest``) checks every path, test file and class exists
   and that the CI file's ``parallel:`` matches, so a renamed test file or a new
-  shard fails on the MR rather than a night later.
+  shard fails on the MR rather than a week later.
 
 ``pre_mutation`` is mutmut 2.x's per-mutant hook. mutmut is single-process, so a
 target is split across jobs by mutant: the target's mutants, in (line, index)
