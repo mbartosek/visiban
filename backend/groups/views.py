@@ -807,7 +807,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             # The helper takes the group row first (``FOR NO KEY UPDATE``, which
             # also queues behind a group delete and then finds the group gone,
             # so a missing group answers 404) and refuses to demote the owner
-            # or the last admin, judged under the same locks as the write.
+            # or the last active admin, judged under the same locks as the write.
             # Taking a weaker group lock first would risk a lock-upgrade
             # deadlock against an ownership transfer.
             try:

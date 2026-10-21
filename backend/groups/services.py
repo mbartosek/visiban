@@ -256,26 +256,58 @@ OWNER_MEMBERSHIP_MESSAGE = (
 LAST_ADMIN_MESSAGE = "A group must keep at least one admin."
 
 
+def counts_toward_admin_minimum(membership):
+    """True when ``membership`` is an admin row held by an active account.
+
+    Why: the group's "at least one admin" minimum exists so someone can still act
+    for the group. A deactivated account cannot, so its admin row does not count.
+    This is the single shared definition of the admin-minimum rule: every code
+    path that counts admins toward the minimum must call it rather than
+    re-implement it. ``admin_minimum_q`` is its ORM equivalent and the two must
+    change together. Side-effect free; reads
+    ``membership.user`` (use ``select_related("user")`` to avoid a query).
+    """
+    return membership.role == GroupMembership.Role.ADMIN and membership.user.is_active
+
+
+def admin_minimum_q(prefix=""):
+    """``Q`` filter matching the rows ``counts_toward_admin_minimum`` accepts.
+
+    ``prefix`` is the relation path to a ``GroupMembership`` from the queried
+    model (for example ``"memberships__"``); leave it empty on ``GroupMembership``
+    itself. Why: callers that count or lock admins in SQL must apply the same
+    "active admin" definition as the Python predicate (the single shared
+    definition is ``counts_toward_admin_minimum``). Side-effect free.
+    """
+    return Q(**{
+        f"{prefix}role": GroupMembership.Role.ADMIN,
+        f"{prefix}user__is_active": True,
+    })
+
+
 def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
     """Lock and return the membership of ``user_id``, refusing a change that would strand the group.
 
     ``new_role=None`` means the membership is being removed; otherwise it is the
     role being written. Returns ``None`` when the group or the membership is
     gone. Raises ``MembershipChangeRefused`` when the change would remove or
-    demote the group's owner, or remove or demote the group's last admin.
+    demote the group's owner, or remove or demote the group's last active
+    admin (deactivated admins do not count toward the minimum).
     Must run inside ``transaction.atomic()``, and the caller must write the
     change in that same transaction.
 
-    Why: an owner holds the admin role, and a group with no admin can only be
+    Why: an owner holds the admin role, and a group with no active admin can only be
     repaired by its owner (transfer or delete), so both rules protect the
-    invariant "the owner is a member and the group has an admin". The checks
+    invariant "the owner is a member and the group has an active admin". The checks
     are judged under locks, not on a read taken before the write. The group
     row (``FOR NO KEY UPDATE``) is what serializes callers of this function
     with each other and with ``transfer_group_ownership``: without it, two
     requests that each remove a different one of two admins would each count
     two admins, both pass, and leave none. The admin and target membership
     rows are then locked in pk order as defense in depth, for a writer that
-    changes a membership row without taking the group lock first.
+    changes a membership row without taking the group lock first. Whether an
+    account is active is read at check time; the group lock does not cover the
+    account's active flag.
     """
     locked_group = (
         Group.objects.select_for_update(no_key=True).filter(pk=group_id)
@@ -292,14 +324,17 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
         .filter(Q(role=GroupMembership.Role.ADMIN) | Q(user_id=user_id), group_id=group_id)
         .order_by("pk")
     )
-    admin_count = sum(1 for m in rows if m.role == GroupMembership.Role.ADMIN)
+    # Only active admins count toward the minimum: a deactivated admin cannot act.
+    active_admin_count = sum(1 for m in rows if counts_toward_admin_minimum(m))
     membership = next((m for m in rows if m.user_id == user_id), None)
     if membership is None:
         return None
     if user_id == owner_id and new_role != GroupMembership.Role.ADMIN:
         # An owner "demoted" to admin is a no-op, so only a real change is refused.
         raise MembershipChangeRefused(OWNER_MEMBERSHIP_MESSAGE)
-    is_admin = membership.role == GroupMembership.Role.ADMIN
-    if is_admin and new_role != GroupMembership.Role.ADMIN and admin_count <= 1:
+    # Changing a deactivated admin cannot reduce the active-admin count, so only an
+    # active admin is held to the minimum.
+    is_active_admin = counts_toward_admin_minimum(membership)
+    if is_active_admin and new_role != GroupMembership.Role.ADMIN and active_admin_count <= 1:
         raise MembershipChangeRefused(LAST_ADMIN_MESSAGE)
     return membership
