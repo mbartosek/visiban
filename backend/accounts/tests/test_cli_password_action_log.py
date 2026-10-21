@@ -155,3 +155,57 @@ class ChangePasswordLogTests(TestCase):
                 self._run()
         self.user.refresh_from_db()
         self.assertEqual(self.user.password, before)
+
+
+class CreateSuperuserLogTests(TestCase):
+    """Django's ``createsuperuser`` is overridden by ``operator_commands`` (#1801)."""
+
+    PW = "a-Strong-new-pass-1801"
+
+    def _noinput(self, username="root1801", password=PW):
+        env = {"DJANGO_SUPERUSER_PASSWORD": password} if password else {}
+        with patch.dict(os.environ, env):
+            call_command(
+                "createsuperuser",
+                interactive=False,
+                username=username,
+                email="root1801@example.com",
+                stdout=StringIO(),
+            )
+
+    def test_override_wins(self):
+        from django.core.management import get_commands
+
+        self.assertEqual(get_commands()["createsuperuser"], "operator_commands")
+
+    def test_noinput_with_password_is_recorded(self):
+        self._noinput()
+        user = User.objects.get(username="root1801")
+        self.assertTrue(user.is_superuser)
+        entry = AdminActionLog.objects.get(action=SET)
+        _assert_entry_is_secret_free(self, entry, user)
+        self.assertNotIn(self.PW, repr(entry.metadata))
+
+    def test_interactive_is_recorded(self):
+        stdin = StringIO()
+        stdin.isatty = lambda: True
+        with patch("getpass.getpass", side_effect=[self.PW, self.PW]), patch(
+            "builtins.input", side_effect=["root1801i", "root1801i@example.com"]
+        ):
+            call_command("createsuperuser", stdin=stdin, stdout=StringIO())
+        user = User.objects.get(username="root1801i")
+        entry = AdminActionLog.objects.get(action=SET)
+        _assert_entry_is_secret_free(self, entry, user)
+
+    def test_unusable_password_records_nothing(self):
+        # No password was set, so there is no password set to record.
+        self._noinput(password=None)
+        user = User.objects.get(username="root1801")
+        self.assertFalse(user.has_usable_password())
+        self.assertFalse(AdminActionLog.objects.exists())
+
+    def test_log_failure_leaves_no_account(self):
+        with patch.object(AdminActionLog, "record", side_effect=RuntimeError("log down")):
+            with self.assertRaises(RuntimeError):
+                self._noinput()
+        self.assertFalse(User.objects.filter(username="root1801").exists())

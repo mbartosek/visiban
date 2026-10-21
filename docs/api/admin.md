@@ -122,7 +122,7 @@ and an audit log an admin can edit is not evidence of anything.
 | `email_settings.username_changed` | `{}` |
 | `email_settings.password_changed` | `{}` |
 | `email_settings.test_sent` | `{"result": "success"}` or `{"result": "failure"}` |
-| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin; also written with `source` `cli` and no actor by `ensure_site_admin`, `provision_fuzz_token --set-random-password` and `changepassword`) |
+| `user.password_set` | `{"target_id": 42, "target_username": "jordan"}` (password set on an existing account, or a user added with a password, in the Django admin; also written with `source` `cli` and no actor by `createsuperuser`, `ensure_site_admin`, `provision_fuzz_token --set-random-password` and `changepassword`; written with `source` `admin_api` and the acting admin when an account is created through `POST /api/v1/admin/users/`) |
 | `user.password_disabled` | `{"target_id": 42, "target_username": "jordan"}` |
 
 New action types may be added in any minor release; treat an unrecognized `action` as an
@@ -143,10 +143,14 @@ opaque string rather than failing on it.
     password sign-in disabled. `metadata` names the account concerned; the password and its hash
     are never stored. Changing your own password is not recorded.
 
-    The `ensure_site_admin`, `provision_fuzz_token --set-random-password` and `changepassword`
+    Creating an account with `POST /api/v1/admin/users/` records `user.password_set` with `source`
+    `admin_api` and the acting admin. The `createsuperuser`, `ensure_site_admin`,
+    `provision_fuzz_token --set-random-password` and `changepassword`
     management commands also record `user.password_set`, with `source` `cli` and no actor (`actor_id` is
     null). The entry is written in the same transaction as the password, so the password is
-    only changed when the entry is saved. The demo seed (`seed_demo_data --demo-site`)
+    only changed when the entry is saved. `createsuperuser` writes an entry only when a password
+    is set; an account created without one (`--noinput` with no `DJANGO_SUPERUSER_PASSWORD`) has
+    no usable password and writes none, as with a user added without a password in the Django admin. The demo seed (`seed_demo_data --demo-site`)
     writes no entries: it runs only with `DEMO_MODE=true`, and the demo's hourly reset empties
     the log.
 
@@ -165,7 +169,7 @@ opaque string rather than failing on it.
 
 !!! note "Direct database writes are not captured"
     Rows are written by the admin API, the `maintenance_mode` management command, the
-    password management commands (`ensure_site_admin`, `changepassword`,
+    password management commands (`ensure_site_admin`, `createsuperuser`, `changepassword`,
     `provision_fuzz_token`), and the Django admin. A change made straight through the ORM (`manage.py shell`) has no actor to
     record and leaves no row, so an empty log means "no audited path made this change" — not
     "nothing happened".
@@ -417,6 +421,8 @@ Create a new local account. Site admin only.
 | `force_password_reset` | No | Default `true` — the user must set a new password on first login |
 
 Returns `201 Created` with the new user object. The response does **not** include the password — copy it before closing if needed.
+
+*(1.2+)* The account creation is recorded in the [admin action log](#action-log) as `user.password_set` with `source` `admin_api` and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (`target_id`, `target_username`); the password and its hash are never stored.
 
 ### `PATCH /api/v1/admin/users/{id}/`
 Update a user's account flags. Site admin only.
