@@ -108,8 +108,8 @@ _IMPORT_EXPORT_TESTS = (
 MAX_SHARDS = 50
 
 TARGETS: tuple[Target, ...] = (
-    Target("permissions", "boards/permissions.py", _RBAC_TESTS, shards=2),
-    Target("cards", "boards/services/cards.py", _CARD_SERVICE_TESTS, shards=7),
+    Target("permissions", "boards/permissions.py", _RBAC_TESTS, shards=3),
+    Target("cards", "boards/services/cards.py", _CARD_SERVICE_TESTS, shards=16),
     Target(
         "card_movement",
         "boards/models.py",
@@ -121,7 +121,7 @@ TARGETS: tuple[Target, ...] = (
         "import_export",
         "boards/views/import_export.py",
         _IMPORT_EXPORT_TESTS,
-        shards=33,
+        shards=29,
     ),
 )
 
