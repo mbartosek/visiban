@@ -144,6 +144,7 @@ nav:
     - Scheduled Jobs: administration/scheduled-jobs.md
     - Authentication: administration/authentication.md
     - Demo Data: administration/demo-data.md
+    - Card History Retention: administration/card-history-retention.md
     - Django Admin: administration/django-admin.md
     - Media Storage Security: administration/media-security.md
     - Container Image Retention: administration/container-image-retention.md

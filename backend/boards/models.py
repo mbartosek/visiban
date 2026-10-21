@@ -654,7 +654,8 @@ class CardMovement(models.Model):
 
     Append-only (#1469). Hard-deleting a card keeps its movements: ``card`` is
     SET_NULL and ``card_uid`` / ``card_title`` keep the card identifiable.
-    Only deleting the whole board removes them, through ``board`` (CASCADE).
+    Only deleting the whole board removes them, through ``board`` (CASCADE),
+    apart from an operator's audited ``purge_card_history`` run (#1797).
     ``save()`` refuses to update an existing row and ``delete()`` always
     refuses; both are a guard against accidental application writes, not
     tamper-proofing — a queryset ``update()``/``delete()`` bypasses them, and
@@ -855,7 +856,9 @@ class CardMovement(models.Model):
         """Refused (#1469): movements leave only with their board.
 
         The board-delete cascade deletes them with a queryset-level SQL delete
-        that never calls this method, so that path is unaffected.
+        that never calls this method, so that path is unaffected. So does the
+        operator's ``purge_card_history`` command (#1797), the one deliberate,
+        audited exception.
         """
         raise AppendOnlyViolation(
             "CardMovement rows are append-only; a movement is removed only by deleting its board."

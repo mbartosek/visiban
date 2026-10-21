@@ -988,6 +988,11 @@ class AdminActionLog(models.Model):
             "user.password_disabled",
             "User password sign-in disabled by an administrator",
         )
+        # The purge_card_history command (#1797) deleted retained CardMovement
+        # rows, which is otherwise append-only. The metadata records the
+        # selector and the deleted count; the purged titles and notes are never
+        # recorded, since erasing them is the point.
+        CARD_HISTORY_PURGED = "card_history.purged", "Card movement history purged"
 
     class Source(models.TextChoices):
         """Which operator path performed the action."""
