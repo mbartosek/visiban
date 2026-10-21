@@ -77,11 +77,30 @@ class GroupBoardListingRoleValidationTests(TestCase):
             self.assertIn(own.id, self._ids(surface))
 
     def test_invalid_only_group_role_lists_no_boards(self):
+        # Only the ``boards`` surface discriminates against the previous code;
+        # the two descendant surfaces already skipped such a membership and
+        # are regression guards here.
         GroupMembership.objects.filter(pk=self.gm.pk).update(role="bogus")
         self.assertIsNone(get_board_role(self.member, Board.objects.get(pk=self.board.pk)))
         self.assertEqual(self._ids("boards"), set())
         for surface in ("descendant", "paged"):
             self.assertEqual(self._ids(surface), set())
+
+    def test_invalid_nearest_ancestor_role_falls_through_to_farther_valid_one(self):
+        """The ladder skips an invalid group role and keeps walking up, so a
+        valid membership on the root still grants the child board."""
+        GroupMembership.objects.create(group=self.child, user=self.member, role="viewer")
+        GroupMembership.objects.filter(group=self.child, user=self.member).update(role="bogus")
+        self.assertEqual(
+            get_board_role(self.member, Board.objects.get(pk=self.child_board.pk)),
+            "viewer",
+        )
+        for surface in ("descendant", "paged"):
+            self.assertIn(self.child_board.id, self._ids(surface))
+        # The ``boards`` surface lists the child group's own boards.
+        r = self.client.get(f"/api/v1/groups/{self.child.id}/boards/")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertIn(self.child_board.id, {b["id"] for b in r.json()})
 
     def test_site_wide_access_user_lists_every_board(self):
         BoardMembership.objects.create(board=self.board, user=self.member, role="viewer")

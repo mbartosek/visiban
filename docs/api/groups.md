@@ -191,6 +191,8 @@ List direct subgroups of this group that are visible to the requesting user. Req
 ### `GET /api/v1/groups/{id}/boards/`
 List boards in this group. Requires group membership.
 
+A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed.
+
 Pass `?expand=group` to populate `group_detail` on each board (see [Expanding foreign-key fields](index.md#expanding-foreign-key-fields)). *(1.2+)* The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).
 
 ### `POST /api/v1/groups/{id}/boards/`
@@ -223,7 +225,7 @@ This endpoint is never paginated: it returns the whole subtree in one array, and
 
 ### `GET /api/v1/groups/{id}/descendant-boards/paged/`
 
-*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership.
+*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.
 
 **Query parameters**
 
