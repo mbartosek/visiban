@@ -24,7 +24,7 @@ see that class of regression; this job can.
 | Board list | `GET /api/v1/boards/` | Run as the board owner (`demo1`) so the access query spans the 20-member board. Per-board member and card counts are independent correlated subqueries and the access filter no longer joins memberships (#1723). Budget 55ms ([#1767](https://gitlab.com/visiban/visiban/-/issues/1767)) |
 | Board fetch | `GET /api/v1/boards/{id}/full/` | Serializes every card on the board, unpaginated — the single most volume-sensitive read in the product |
 | Card search | `GET /api/v1/cards/?search=...` | The cross-board card query: access filter, a 51-row cursor page and a row-by-row substring filter. It does **not** use the `pg_trgm` GIN indexes from migration `0030_card_trigram_search_indexes`, because `icontains` renders as `UPPER(col) LIKE`, which they cannot serve ([#1809](https://gitlab.com/visiban/visiban/-/issues/1809)). The `card_search` scenario runs as a one-board user, so it measures only the single-board plan; `card_search_multi_board` runs the same request as `demo3`, who can access 200 boards ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810); see [#1805](#the-october-2026-card_search-and-notifications_unread-drift-1805)) |
-| Card search, many boards | `GET /api/v1/cards/?search=...` as `demo3` | The same query as above for a user with 200 accessible boards, which is expected to get PostgreSQL's scan-and-sort plan instead of the index walk (not yet confirmed on this fixture; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) re-derives from the first NUC run). **Pending budget:** measured and recorded every night but not gated until [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns its budget (see [Pending budgets](#pending-budgets)) |
+| Card search, many boards | `GET /api/v1/cards/?search=...` as `demo3` | The same query as above for a user with 200 accessible boards, which is expected to get PostgreSQL's scan-and-sort plan instead of the index walk (not confirmed on this fixture: no `EXPLAIN` was run). Budget 120ms, derived in [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) |
 | Card timeline | `GET /api/v1/boards/{board_id}/cards/{id}/timeline/` | Exercises the composite indexes added in migration `0045_add_activity_comment_composite_indexes` |
 | Notifications list | `GET /api/v1/notifications/` | The highest-QPS authenticated endpoint in the product — the frontend polls it every 15-30s |
 | Notifications unread count | `GET /api/v1/notifications/unread-count/` | Same polling cadence as the list endpoint |
@@ -67,7 +67,7 @@ python manage.py seed_demo_data --force --scale 20 --extra-boards 199 --with-not
   the `demo1` `board_list` scenario and every `demo2` scenario can see the same boards as before.
   The `cards` table does grow by about 67% (about 3,980 cards in total), so those scenarios are
   expected, not proven, to be unaffected; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808)
-  re-derives the whole file from the first NUC run with this fixture.
+  re-derived the whole file from the first NUC run with this fixture (job 17348200339).
   The job's `LOAD_TEST_EXTRA_BOARDS` variable sets the count, and the script fails before
   timing anything if `demo3` can access fewer than `--min-multi-boards` boards (default 50; the CI job
   passes `LOAD_TEST_EXTRA_BOARDS + 1`, so a seed that silently shrinks fails).
@@ -164,9 +164,9 @@ For that case a baseline entry may set `"budget_p95_ms": null` together with
 It is not a silent default: the self-test fails a scenario whose budget is null without a valid
 `#NNNN` reference, or with no baseline entry at all, and asserts that a pending scenario can
 never produce a violation. When the issue assigns the budget, replace `budget_p95_ms` and delete
-`pending_budget` in the same whole-file re-derivation. Currently pending:
+`pending_budget` in the same whole-file re-derivation. Nothing is pending now:
 `card_search_multi_board` ([#1810](https://gitlab.com/visiban/visiban/-/issues/1810) added the
-scenario; [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns the budget).
+scenario) got its budget in [#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
 The `suppressions-check` CI job fails, naming the entry and the issue, if the cited issue
 closes while the entry is still pending ([#1812](https://gitlab.com/visiban/visiban/-/issues/1812);
 see [Suppression markers](suppressions.md#what-ci-enforces)).
@@ -273,6 +273,21 @@ budget_p95_ms = ceil(measured_p95_ms * 1.4 / 5) * 5
     below. The previous derivation ran
     on `gitlab-runner-nuc-2-visiban`; both are NUC-class
     (`nuc`-tagged) runners, so the file was re-derived as a whole rather than patched.
+
+!!! note "Re-derived after the #1800, #1805 and #1810 changes — #1808"
+    The whole file was re-derived on 2026-10-21 from job 17348200339 (pipeline 2971900609, a
+    manual run of the nightly schedule on `main` at `58a4299b5`, on
+    `gitlab-runner-nuc-2-visiban`, tag `nuc`). It is the first NUC run with the #1800 backport,
+    the #1805 card filter and the #1810 `card_search_multi_board` scenario with its 199 extra
+    boards. Measured p95 and budget, in ms: `board_list` 38.3 / 55, `board_full` 1227.5 / 1720,
+    `card_search` 73.1 / 105, `card_search_multi_board` 85.2 / 120 (its first budget),
+    `card_timeline` 40.1 / 60, `notifications_list` 38.5 / 55, `notifications_unread` 27.6 / 40.
+    `card_search` fell from 155 to 105ms and the three light endpoints fell by 0-5ms. **`board_full`
+    went up from 1695 to 1720ms:** this sample's p95 (1227.5ms) is above the previous
+    derivation's (1210.5ms), so the #1800 backport does not show as a lowering on it. This is
+    one run, and the two derivations ran on different runners (`runner-04-NUC` before), so
+    it is not a clean before/after of the code. `card_search_multi_board` p95 was 85.2ms against 73.1ms for the one-board
+    `card_search`; no `EXPLAIN` was run on this fixture, so the plan is still unconfirmed.
 
 ## The October 2026 `board_full` drift — #1800
 
@@ -407,10 +422,10 @@ With the backport in place:
 The backport removes roughly a third to a half of the driver step, not all of it. The
 remainder is attributed in [the next section](#the-remaining-driver-step-1807). Expect
 `board_full` to settle above its level without psycopg 3, not back at it. The committed budget
-(1695ms) was derived from a run before this fix, so it may be looser than the endpoint now
-needs. Re-derive it at the next re-derivation by following the procedure above, from a run
-that includes this fix. Never hand-edit it. That re-derivation is tracked in
-[#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
+(1695ms) was derived from a run before this fix. [#1808](https://gitlab.com/visiban/visiban/-/issues/1808)
+re-derived it from a NUC run that includes the fix (job 17348200339): measured p95 was 1227.5ms
+and the budget is now 1720ms, higher than before, so the backport does not show as a lowering
+on that single sample. Never hand-edit it.
 
 ### The remaining driver step — #1807
 
@@ -575,8 +590,8 @@ How it was measured, so it can be repeated:
 
 Per round, the psycopg 3 step was +45, +78, +44 and +36ms with the collector on, and +25, +27,
 +25 and +28ms with it off. This was measured on a development machine, not a NUC runner.
-Re-deriving the `board_full` budget from a NUC run that includes #1800 is
-[#1808](https://gitlab.com/visiban/visiban/-/issues/1808).
+The `board_full` budget was re-derived from a NUC run that includes #1800 in
+[#1808](https://gitlab.com/visiban/visiban/-/issues/1808); see the note under "Re-deriving the baseline".
 
 ### What #1800 did not explain
 
@@ -618,10 +633,10 @@ change. The third is unattributed, sits inside the budget headroom, and was not 
    pursued.
 
 `card_timeline` and `notifications_list`, which the #1767 re-derivation also moved up, rose
-only through effects 2 and 3. The budgets were **not** re-derived here, because no NUC run has
-measured the fix yet. That is tracked in
-[#1808](https://gitlab.com/visiban/visiban/-/issues/1808). Until #1808 lands, the
-`card_search` budget stays at 155ms, against a local p95 of about 57ms with the fix.
+only through effects 2 and 3. The budgets were **not** re-derived here, because no NUC run
+had measured the fix yet. [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) then re-derived
+them from job 17348200339: the `card_search` budget fell from 155 to 105ms against a NUC p95 of
+73.1ms (about 57ms locally).
 
 ### What the scheduled runs show
 
@@ -718,11 +733,8 @@ not have caught it.
   [#1810](https://gitlab.com/visiban/visiban/-/issues/1810) added it: the same request as
   `card_search`, run as `demo3`, who owns 199 small extra boards (`--extra-boards 199`) and is a
   member of the load-test board, so the card SELECT filters on a 200-id literal list. Its
-  budget is **pending**: it is measured and recorded nightly but not gated, because no NUC run
-  of this code exists yet and a budget may not come from a local run.
-  [#1808](https://gitlab.com/visiban/visiban/-/issues/1808) assigns it in its one-pass
-  re-derivation of the whole baseline from the first NUC run that includes it. Do not
-  hand-edit it.
+  budget is 120ms ([#1808](https://gitlab.com/visiban/visiban/-/issues/1808), from NUC job
+  17348200339, measured p95 85.2ms). Do not hand-edit it.
 - **It never exercised the trigram indexes.** Django's `icontains` renders as
   `UPPER(col) LIKE UPPER('%term%')`. The `card_title_trgm_idx` and `card_desc_trgm_idx`
   indexes from migration 0030 are on the bare columns, so PostgreSQL cannot use them for

@@ -306,27 +306,30 @@ pb_real "$TMP/pb-curl-500"
 check "real fetch: inconclusive lookup fails open (exit 0)" "$([ "$CASE_RC" -eq 0 ] && echo 0 || echo 1)"
 check "real fetch: inconclusive lookup warns" "$(echo "$CASE_OUT" | grep -q "WARNING" && echo 0 || echo 1)"
 
-# The real baseline in this repo parses and yields its known pending entry.
-check "repo baseline: card_search_multi_board is detected as pending" \
-  "$(pending_budget_entries "$REPO_ROOT/backend/nightly-load-test-baseline.json" | grep -q '^card_search_multi_board' && echo 0 || echo 1)"
+# The real baseline in this repo parses. It carries no pending entry once every
+# budget is derived (#1808), so assert the scan runs clean rather than that a
+# particular entry is pending.
+check "repo baseline: parses and is scanned without error" \
+  "$(pending_budget_entries "$REPO_ROOT/backend/nightly-load-test-baseline.json" >/dev/null 2>&1 && echo 0 || echo 1)"
 
 # === main() END TO END (#1812) ==============================================
 # Everything above sources the gate minus its `main` line, so nothing proved
 # main() composes the two scans' exit codes (a `|| true` on the pending scan
 # once left every check green). Run the real script against the real repo with
-# the mock hook (no network): 1808 is the issue the repo's baseline cites.
+# the mock hook (no network). The real baseline has no pending entry, so
+# CHECK_SUPPRESSION_BASELINE points main() at the "pending" fixture, which cites #7001.
 set +e
-E2E_OUT="$(CHECK_SUPPRESSION_MOCK_CLOSED=1808 bash "$GATE" 2>&1)"
+E2E_OUT="$(CHECK_SUPPRESSION_BASELINE="$TMP/pb/pending.json" CHECK_SUPPRESSION_MOCK_CLOSED=7001 bash "$GATE" 2>&1)"
 E2E_RC=$?
 set -e
 check "end to end: a closed pending_budget issue makes the script exit 1" "$([ "$E2E_RC" -eq 1 ] && echo 0 || echo 1)"
 check "end to end: failure names card_search_multi_board and says CLOSED" \
   "$(echo "$E2E_OUT" | grep -q "card_search_multi_board" && echo "$E2E_OUT" | grep -q "CLOSED" && echo 0 || echo 1)"
 set +e
-E2E_OUT="$(CHECK_SUPPRESSION_MOCK_CLOSED=1 bash "$GATE" 2>&1)"
+E2E_OUT="$(CHECK_SUPPRESSION_BASELINE="$TMP/pb/pending.json" CHECK_SUPPRESSION_MOCK_CLOSED=1 bash "$GATE" 2>&1)"
 E2E_RC=$?
 set -e
-check "end to end: the same run with #1808 not closed exits 0" "$([ "$E2E_RC" -eq 0 ] && echo 0 || echo 1)"
+check "end to end: the same run with #7001 not closed exits 0" "$([ "$E2E_RC" -eq 0 ] && echo 0 || echo 1)"
 
 echo ""
 if [[ "$fail" -eq 0 ]]; then
