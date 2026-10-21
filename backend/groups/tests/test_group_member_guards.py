@@ -85,6 +85,26 @@ class MemberGuardTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self._role(self.admin2), ADMIN)
 
+    def test_deactivated_admin_can_be_demoted(self):
+        User.objects.filter(pk=self.admin2.pk).update(is_active=False)
+        self.client.force_authenticate(self.owner)
+        r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._role(self.admin2), MEMBER)
+
+    def test_only_deactivated_admins_besides_actor_refuses_actor_change(self):
+        # The actor is the only active admin; every other admin is deactivated.
+        extra = User.objects.create_user(username="gextra2", password="pw")
+        GroupMembership.objects.create(group=self.group, user=extra, role=ADMIN)
+        User.objects.filter(pk__in=[self.owner.pk, extra.pk]).update(is_active=False)
+        r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        r = self.client.delete(_url(self.group, self.admin2))
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(self._role(self.admin2), ADMIN)
+
     def test_deactivated_admin_is_still_removable(self):
         # Removing a deactivated admin cannot reduce the active-admin count.
         User.objects.filter(pk=self.admin2.pk).update(is_active=False)
@@ -128,6 +148,24 @@ class MemberGuardTests(TestCase):
         outsider = User.objects.create_user(username="gout", password="pw")
         r = self.client.delete(_url(self.group, outsider))
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class AdminMinimumPredicateTests(TestCase):
+    def test_python_and_orm_definitions_agree(self):
+        from groups.services import admin_minimum_q, counts_toward_admin_minimum
+
+        owner = User.objects.create_user(username="pown", password="pw")
+        group = Group.objects.create(name="Pred", owner=owner)
+        for name, role, active in [
+            ("p1", ADMIN, True), ("p2", ADMIN, False), ("p3", MEMBER, True), ("p4", MEMBER, False),
+        ]:
+            u = User.objects.create_user(username=name, password="pw", is_active=active)
+            GroupMembership.objects.create(group=group, user=u, role=role)
+        rows = list(GroupMembership.objects.filter(group=group).select_related("user"))
+        expected = {m.pk for m in rows if counts_toward_admin_minimum(m)}
+        orm = set(GroupMembership.objects.filter(admin_minimum_q(), group=group).values_list("pk", flat=True))
+        self.assertEqual(orm, expected)
+        self.assertEqual(len(expected), 1)
 
 
 @skipUnless(connection.vendor == "postgresql", "row locks are only observable on PostgreSQL")

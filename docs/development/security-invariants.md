@@ -439,9 +439,10 @@ and the Rule 8 tests.
 ## Rule 11: A group keeps its owner as an admin member and at least one admin
 
 **Rule.** A group's owner keeps a membership with the `admin` role, and a group
-keeps at least one active admin. A request that would remove or demote the owner, or
-remove or demote the last active admin, is refused. Deactivated admins do not count. The owner leaves through ownership
-transfer or by deleting the group.
+keeps at least one active admin. A request that would remove or demote the owner,
+or remove or demote the last active admin, is refused. Deactivated admins do not
+count. The account's active flag is read at check time and is not covered by the
+group lock. The owner leaves through ownership transfer or by deleting the group.
 
 **Why.** A group with no admin can only be repaired by its owner. Both checks
 are judged under the group row lock, so two concurrent requests that each change

@@ -475,9 +475,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     origin is listed in `CORS_ALLOWED_ORIGINS` or `CSRF_TRUSTED_ORIGINS`. Listing the origin
     clears it. Add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the configuration.
 
-!!! note "Group owners and last admins cannot be removed or demoted"
+!!! note "Group owners and last active admins cannot be removed or demoted"
     Removing a group member, or changing their role, now answers `400 Bad Request` when the
-    member is the group's owner or its last admin. Transfer ownership first, or make another
+    member is the group's owner or its last active admin (deactivated admins do not count). Transfer ownership first, or make another
     member an admin. Clients that remove or demote members should show the response's
     `detail` message. See the [Groups API](../api/groups.md#members).
 
