@@ -113,6 +113,24 @@ class PurgeCardHistoryTests(TestCase):
             self._run("--card", live.uid, "--yes")
         self.assertEqual(self._remaining([pk]), {pk})
 
+    def test_include_live_cards_still_matches_a_deleted_card_by_uid(self):
+        # The flag widens the scope; a deleted card's rows (card NULL) are
+        # matched through their card_uid snapshot, not the FK.
+        uid, deleted = self._deleted_card_with_moves(
+            self.board, _utc(2026, 1, 5), _utc(2026, 1, 6)
+        )
+        _, other = self._deleted_card_with_moves(self.board, _utc(2026, 1, 5))
+        live_pk = self._move(self._card(self.board), _utc(2026, 1, 5))
+
+        out = self._run("--card", uid, "--include-live-cards", "--yes")
+
+        self.assertIn("Deleted 2 movement row(s)", out)
+        self.assertEqual(self._remaining(deleted), set())
+        self.assertEqual(self._remaining(other + [live_pk]), set(other + [live_pk]))
+        entry = AdminActionLog.objects.get()
+        self.assertEqual(entry.metadata["deleted_count"], 2)
+        self.assertTrue(entry.metadata["selector"]["include_live_cards"])
+
     def test_live_cards_need_a_card_or_board_selector(self):
         live = self._card(self.board)
         pk = self._move(live, _utc(2026, 1, 5))

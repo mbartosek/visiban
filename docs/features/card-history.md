@@ -30,13 +30,13 @@ Movement records are append-only: once written, they are not edited or removed.
 
 - **Deleting a card keeps its movements.** This covers deleting the card itself and deleting the column or swimlane it is in. Each record keeps the card's UID and title (`card_uid`, `card_title`) as of when it was recorded (for movements from before 1.2 and for imported ones, as of the upgrade or import), so the board's **History** view still lists it under the original card. A deleted card no longer appears under the **Swimlane** filter, which filters by the card's current swimlane.
 - **Each movement keeps the title recorded with it.** While a card exists, its history is listed under its current title. Once it is deleted, each movement is listed under the title the card had at that move, so a card renamed before it was deleted appears under its earlier titles too.
-- **Deleting the board removes all of its movements**, including those of cards deleted earlier. Apart from that, only a superuser can remove them, with the `purge_card_history` command (see [Card History Retention](../administration/card-history-retention.md)).
+- **Deleting the board removes all of its movements**, including those of cards deleted earlier. Apart from that, since 1.3 only a superuser can remove them, with the `purge_card_history` command (see [Card History Retention](../administration/card-history-retention.md)).
 - **Metrics are unchanged.** The Summary and Analytics views and the stale-card check count only cards that still exist, as before. A deleted card's movements do not count toward throughput, cycle time or dwell time.
 - **Exports don't include them yet.** JSON and CSV board export write movements per card, so a deleted card's history is not exported (#1796).
 
 In the Django admin (`/admin/`), movement records can be viewed but not added, edited or deleted; earlier releases allowed edits and deletes there. The admin list shows, and searches, the card UID and the card's title **as recorded at the time of each move**, not a renamed card's current title. Moving a card to another board in the admin keeps its movement history attached to the card's current board.
 
-A deleted card's title and any movement notes stay visible to the board's members until the board is deleted or a superuser purges them on request (since 1.2, #1797). [Card History Retention](../administration/card-history-retention.md) covers the purge command and the other places a deleted card's title can remain.
+A deleted card's title and any movement notes stay visible to the board's members until the board is deleted or a superuser purges them on request (since 1.3, #1797). [Card History Retention](../administration/card-history-retention.md) covers the purge command and the other places a deleted card's title can remain.
 
 Before 1.2, deleting a card also deleted its movement history.
 

@@ -861,7 +861,8 @@ class CardMovement(models.Model):
         audited exception.
         """
         raise AppendOnlyViolation(
-            "CardMovement rows are append-only; a movement is removed only by deleting its board."
+            "CardMovement rows are append-only; a movement is removed only by deleting "
+            "its board or by an operator's purge_card_history run."
         )
 
 

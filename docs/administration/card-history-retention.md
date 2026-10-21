@@ -1,6 +1,6 @@
 # Card History Retention
 
-> **Added in 1.2** (#1797)
+> **Added in 1.3** (#1797)
 
 Since 1.2, deleting a card keeps its movement history (#1469). This page covers what that history keeps, who can see it, how long it lasts, and how a superuser erases it on request with the `purge_card_history` management command.
 
@@ -21,15 +21,17 @@ See [Card History](../features/card-history.md#deleted-cards-keep-their-history)
 
 ### Other places a deleted card's title can remain
 
-`purge_card_history` erases movement records only. A deleted card's title can also remain in:
+`purge_card_history` erases movement records only. A deleted card's title can also remain in the places below, and the command does not touch any of them.
 
-- **The board [change feed](../api/events.md)** (`GET /api/v1/boards/{id}/events/`). Each event stores its broadcast payload, which can include the card's title. Events expire after the retention window that the [`prune_board_events`](scheduled-jobs.md) job enforces (30 days by default).
-- **Board exports** downloaded before the card was deleted, and any copies made of them.
+- **The board [change feed](../api/events.md)** (`GET /api/v1/boards/{id}/events/`). Each event stores its broadcast payload verbatim, and `card.moved` events carry the card's title and the movement's notes. The command does not remove change-feed events; extending it to them is tracked in #1816. The current mitigation is the [`prune_board_events`](scheduled-jobs.md) job, which deletes events older than its retention window (30 days by default). The job is **off** by default (`SCHEDULE_PRUNE_BOARD_EVENTS`), so unless you have enabled it or run the command yourself, change-feed events are never removed.
+- **The Django admin log** (`django_admin_log`). Any change made to a card in the Django admin, including deleting it there, records the card's title (`object_repr`) in the admin's own history. Visiban does not prune this table.
+- **Attachment files** in media storage. A card hard-deleted through the app can leave its attachment files behind in storage (tracked in #1817).
+- **Copies outside the instance:** notification emails already sent, deliveries to installed extensions, board exports downloaded before the card was deleted, and any copies made of them.
 - **Database backups** taken before the purge.
 
 ## Purging retained history
 
-> **Added in 1.2** (#1797)
+> **Added in 1.3** (#1797)
 
 ```bash
 # Dry run (the default): report how many records would be deleted

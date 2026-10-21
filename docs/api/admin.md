@@ -94,8 +94,8 @@ and an audit log an admin can edit is not evidence of anything.
 |---|---|---|
 | `id` | integer | Unique row id |
 | `action` | string | What happened, as `<subject>.<verb>` — see the table below |
-| `actor_id` | integer / null | User who performed the action; `null` when there was no authenticated actor. May reference an account that has since been deleted |
-| `actor_username` | string | Username captured at the time of the action; `""` when there was no authenticated actor |
+| `actor_id` | integer / null | User who performed the action; `null` when the action has no recorded actor (most management commands; `purge_card_history` records the superuser named by its `--actor` option). May reference an account that has since been deleted |
+| `actor_username` | string | Username captured at the time of the action; `""` when the action has no recorded actor |
 | `source` | `"admin_api"` / `"django_admin"` / `"cli"` | Which operator path was used |
 | `metadata` | object | Action-specific detail. Keys are additive-only |
 | `created_at` | string | ISO 8601 timestamp |
@@ -152,7 +152,8 @@ opaque string rather than failing on it.
     the log.
 
 !!! warning "What this log does *not* record yet"
-    The instance-wide settings and the password events listed above are covered. Granting or
+    The instance-wide settings, the password events and the card-history purges listed above
+    are covered. Granting or
     revoking site admin, changing `can_access_all_content`, deactivating a user, and creating or
     revoking invite links are **not** recorded — so this is not yet a complete record of
     privileged activity.
@@ -167,7 +168,7 @@ opaque string rather than failing on it.
 !!! note "Direct database writes are not captured"
     Rows are written by the admin API, the `maintenance_mode` management command, the
     password management commands (`ensure_site_admin`, `changepassword`,
-    `provision_fuzz_token`), and the Django admin. A change made straight through the ORM (`manage.py shell`) has no actor to
+    `provision_fuzz_token`), the `purge_card_history` management command, and the Django admin. A change made straight through the ORM (`manage.py shell`) has no actor to
     record and leaves no row, so an empty log means "no audited path made this change" — not
     "nothing happened".
 
