@@ -473,10 +473,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     [WebSocket API](../api/websockets.md#connecting).
 
     With `DEBUG` off, `manage.py check` / `check --deploy` emits system-check warning
-    `accounts.W002` when `ALLOWED_HOSTS` contains `*` or a leading-dot entry no public
+    `accounts.W002` when `ALLOWED_HOSTS` contains `*` or a leading-dot entry, no public
     origin is listed in `CORS_ALLOWED_ORIGINS` or `CSRF_TRUSTED_ORIGINS`, and no exact public host is
-    listed in `ALLOWED_HOSTS`. Listing the origin
-    clears it. Add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the configuration.
+    listed in `ALLOWED_HOSTS`. Listing the origin clears it. Add `"accounts.W002"` to `SILENCED_SYSTEM_CHECKS` to accept the configuration.
 
 !!! note "Group owners and last active admins cannot be removed or demoted"
     Removing a group member, or changing their role, now answers `400 Bad Request` when the
