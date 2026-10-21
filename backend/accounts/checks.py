@@ -222,30 +222,38 @@ def check_pending_action_middleware_installed(app_configs, **kwargs):
     return []
 
 
+_OPERATOR_COMMANDS = ("changepassword", "createsuperuser")
+
+
 @checks.register(checks.Tags.security)
 def check_operator_changepassword_command(app_configs, **kwargs):
-    """Fail if ``changepassword`` does not resolve to the project's command (registry Rule 3).
+    """Fail if an operator command does not resolve to the project's command (registry Rule 3).
 
-    The operator reset path revokes issued tokens only through
-    ``operator_commands``, which must precede ``django.contrib.auth`` in
+    Covers ``changepassword`` (token revocation on the operator reset path) and
+    ``createsuperuser`` (the admin action log entry, #1801). Both are provided
+    by ``operator_commands``, which must precede ``django.contrib.auth`` in
     ``INSTALLED_APPS``. A later settings include (the enterprise one) can
     replace ``INSTALLED_APPS`` wholesale and silently restore Django's command.
     """
     from django.core.management import get_commands
 
-    provider = get_commands().get("changepassword")
-    if provider == "operator_commands":
-        return []
-    return [
-        checks.Error(
-            f"The changepassword command is provided by {provider!r}, not by operator_commands.",
-            hint=(
-                'Keep "operator_commands" in INSTALLED_APPS, before "django.contrib.auth". '
-                "See docs/development/security-invariants.md, Rule 3."
-            ),
-            id="accounts.E008",
+    commands = get_commands()
+    errors = []
+    for name in _OPERATOR_COMMANDS:
+        provider = commands.get(name)
+        if provider == "operator_commands":
+            continue
+        errors.append(
+            checks.Error(
+                f"The {name} command is provided by {provider!r}, not by operator_commands.",
+                hint=(
+                    'Keep "operator_commands" in INSTALLED_APPS, before "django.contrib.auth". '
+                    "See docs/development/security-invariants.md, Rule 3."
+                ),
+                id="accounts.E008",
+            )
         )
-    ]
+    return errors
 
 
 @checks.register(checks.Tags.security)

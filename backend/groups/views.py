@@ -807,7 +807,7 @@ class GroupViewSet(viewsets.ModelViewSet):
             # The helper takes the group row first (``FOR NO KEY UPDATE``, which
             # also queues behind a group delete and then finds the group gone,
             # so a missing group answers 404) and refuses to demote the owner
-            # or the last admin, judged under the same locks as the write.
+            # or the last active admin, judged under the same locks as the write.
             # Taking a weaker group lock first would risk a lock-upgrade
             # deadlock against an ownership transfer.
             try:
@@ -911,7 +911,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         _require_group_member(request.user, group)
 
         if request.method == "GET":
-            # Group membership implies access to all boards in the group —
+            # Group membership implies access to the boards in the group —
             # no separate BoardMembership required. This means a viewer-role
             # group member can see all board names and metadata in the group
             # even without an explicit BoardMembership row. This is intentional:
@@ -921,9 +921,15 @@ class GroupViewSet(viewsets.ModelViewSet):
             # Annotations mirror BoardViewSet.get_queryset() so BoardSerializer
             # can use the cached values instead of issuing 3 extra queries per board.
             from boards.models import BoardFavorite
-            from boards.views._helpers import annotate_board_counts
+            from boards.views._helpers import annotate_board_counts, board_access_q
+            boards = Board.objects.filter(group=group)
+            if not request.user.can_access_all_content:
+                # Same role validation as board detail: a stored role outside
+                # the allowed set resolves to no access there, so it does not
+                # list the board here either (#1769).
+                boards = boards.filter(board_access_q(request.user))
             boards = annotate_board_counts(
-                Board.objects.filter(group=group).select_related("owner", "group", "group__parent")
+                boards.select_related("owner", "group", "group__parent")
             ).annotate(
                 _is_starred=Exists(
                     BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)
@@ -1059,14 +1065,16 @@ class GroupViewSet(viewsets.ModelViewSet):
         not a re-implementation of it.
 
         The visible set is intersected with get_group_ids_for_board_access(),
-        the group set the board list uses, so for boards with valid stored
-        roles a board listed here is one on which get_board_role() resolves a
-        role; that function's descendant reach matches the role ladder's
-        ancestor reach. The returned queryset carries no explicit ordering —
+        the group set the board list uses, and filtered with the same
+        predicate as get_accessible_boards_queryset() (``board_access_q``), so
+        a board listed here is exactly one on which get_board_role() resolves
+        a role, including for a stored role outside the allowed set (that
+        grants nothing and blocks group inheritance). The descendant reach
+        matches the role ladder's ancestor reach. The returned queryset carries no explicit ordering —
         each caller decides (the bare list keeps ``Board.Meta.ordering``).
         """
         from boards.models import Board, BoardFavorite
-        from boards.views._helpers import annotate_board_counts
+        from boards.views._helpers import annotate_board_counts, board_access_q
         from .models import get_group_ids_for_board_access, _GROUP_TRAVERSAL_MAX_DEPTH
 
         # Collect the groups whose boards this user may access, then filter to
@@ -1105,6 +1113,8 @@ class GroupViewSet(viewsets.ModelViewSet):
             # is a separate field path that has its own N+1 if not joined here.
             .select_related("owner", "group", "group__parent")
         )
+        if not request.user.can_access_all_content:
+            boards = boards.filter(board_access_q(request.user))
         boards = annotate_board_counts(boards).annotate(
             _is_starred=Exists(
                 BoardFavorite.objects.filter(board=OuterRef("pk"), user=request.user)

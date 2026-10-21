@@ -18,7 +18,7 @@ Every password must be at least **12 characters** long and pass Django's standar
 too similar to the user's username, email, or name; not a commonly used password; and not
 entirely numeric. The same policy applies on every path that sets a password — registration and
 invite-link sign-up, the password-reset link, both change-password API endpoints, admin-created
-accounts, the Django admin, and the interactive `createsuperuser` / `changepassword` management commands (`createsuperuser` still offers its own "bypass validation" prompt).
+accounts, the Django admin, and the interactive `createsuperuser` / `changepassword` management commands (`createsuperuser` still offers its own "bypass validation" prompt). Creating an account with `createsuperuser` and a password, or through the admin users API, is recorded in the [admin action log](../api/admin.md).
 
 The policy is checked only when a password is set. Accounts created before 1.2, when some of
 these paths accepted 8 characters, keep working and are asked for a 12-character password the

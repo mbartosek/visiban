@@ -748,14 +748,30 @@ class OperatorChangepasswordCheckTests(SimpleTestCase):
         self.assertEqual(check_operator_changepassword_command(None), [])
 
     def test_django_builtin_provider_fails(self):
-        with mock.patch("django.core.management.get_commands", return_value={"changepassword": "django.contrib.auth"}):
+        both = {"changepassword": "operator_commands", "createsuperuser": "operator_commands"}
+        with mock.patch(
+            "django.core.management.get_commands",
+            return_value={**both, "changepassword": "django.contrib.auth"},
+        ):
             errors = check_operator_changepassword_command(None)
         self.assertEqual([e.id for e in errors], ["accounts.E008"])
+        self.assertIn("changepassword", errors[0].msg)
+
+    def test_createsuperuser_builtin_provider_fails(self):
+        """#1801: createsuperuser records the action log entry only through the override."""
+        both = {"changepassword": "operator_commands", "createsuperuser": "operator_commands"}
+        with mock.patch(
+            "django.core.management.get_commands",
+            return_value={**both, "createsuperuser": "django.contrib.auth"},
+        ):
+            errors = check_operator_changepassword_command(None)
+        self.assertEqual([e.id for e in errors], ["accounts.E008"])
+        self.assertIn("createsuperuser", errors[0].msg)
 
     def test_missing_command_fails(self):
         with mock.patch("django.core.management.get_commands", return_value={}):
             errors = check_operator_changepassword_command(None)
-        self.assertEqual([e.id for e in errors], ["accounts.E008"])
+        self.assertEqual([e.id for e in errors], ["accounts.E008", "accounts.E008"])
 
     def test_check_is_registered(self):
         from django.core import checks

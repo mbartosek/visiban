@@ -148,7 +148,7 @@ List group members. Requires group membership.
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | integer / null | Membership record ID. `null` for inherited members — access via an ancestor group's membership rather than a direct row on this group. A group's owner is expected to hold a direct `admin` `GroupMembership` row (created with the group, or transferred via [Transfer ownership](#transfer-ownership), which requires the new owner to already be a direct admin), so the owner's `id` here is normally not `null`. A site admin with no membership of their own does not appear in this list at all. Callers must not assume this field is always an integer. |
+| `id` | integer / null | Membership record ID. `null` for inherited members — access via an ancestor group's membership rather than a direct row on this group. A group's owner holds a direct `admin` `GroupMembership` row: it is created with the group, kept by [Transfer ownership](#transfer-ownership) (which requires the new owner to already be a direct admin and keeps the previous owner as one), and the owner's membership cannot be removed or demoted. *(1.3+)* Upgrading restores that row on any group whose owner lacked it, promoting an existing membership or adding one, so the owner's `id` here is not `null`. A site admin with no membership of their own does not appear in this list at all. Callers must not assume this field is always an integer. |
 | `user` | object | `{ "id", "username", "display_name", "avatar_url" }` |
 | `role` | string | Effective role on this group: `admin`, `member`, `collaborator`, or `viewer` |
 | `joined_at` | string / null | ISO 8601 timestamp of when the membership was created; `null` for inherited members |
@@ -168,12 +168,14 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 *(1.2+)* Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
 
-*(1.2+)* A role change that would demote the group owner, or demote the group's last admin, returns `400 Bad Request` with a `detail` message (`The group owner's membership cannot be removed or demoted. Transfer ownership first.` or `A group must keep at least one admin.`) and writes nothing. Setting the owner's role to `admin` is accepted. The check runs under row locks, so two requests that would each demote a different one of two admins cannot both succeed.
+*(1.2+)* A role change that would demote the group owner, or demote the group's last active admin, returns `400 Bad Request` with a `detail` message (`The group owner's membership cannot be removed or demoted. Transfer ownership first.` or `A group must keep at least one admin.`) and writes nothing. Setting the owner's role to `admin` is accepted. Only active admins count toward the minimum; a deactivated admin does not. The check runs under row locks, so two requests that would each demote a different one of two admins cannot both succeed.
 
 *(1.2+)* A role change that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers a role change whose membership was removed while it waited.
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
-Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. *(1.2+)* A removal that arrives while the group is being deleted, or while another removal of the same member is in flight, waits for it to finish and then answers `404`, with nothing written. Returns `204` when the membership is removed; *(1.2+)* removing the group owner, or the group's last admin, returns `400 Bad Request` with the same `detail` messages as `PATCH` above (the owner leaves through [Transfer ownership](#transfer-ownership) or by deleting the group); with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
+Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. *(1.2+)* A removal that arrives while the group is being deleted, or while another removal of the same member is in flight, waits for it to finish and then answers `404`, with nothing written. Returns `204` when the membership is removed; *(1.2+)* removing the group owner, or the group's last active admin, returns `400 Bad Request` with the same `detail` messages as `PATCH` above (the owner leaves through [Transfer ownership](#transfer-ownership) or by deleting the group); the `400` for the last admin also applies when the remaining admins are deactivated, because only active admins count; with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
+
+*(1.3+)* Deleting a user account removes all of that user's group memberships, so the Django admin's user delete applies the same minimum: it refuses to delete the last active admin of a group, or, in a bulk delete, every active admin of one. See [Django admin](../administration/django-admin.md).
 
 ---
 
@@ -190,6 +192,8 @@ List direct subgroups of this group that are visible to the requesting user. Req
 
 ### `GET /api/v1/groups/{id}/boards/`
 List boards in this group. Requires group membership.
+
+A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed.
 
 Pass `?expand=group` to populate `group_detail` on each board (see [Expanding foreign-key fields](index.md#expanding-foreign-key-fields)). *(1.2+)* The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).
 
@@ -213,6 +217,8 @@ Since 1.2, a body that is not a JSON object, or a non-string `swimlane_name`, re
 ### `GET /api/v1/groups/{id}/descendant-boards/`
 List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.
 
+A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed. The same rule applies to `GET /api/v1/groups/{id}/boards/` and the paged variant.
+
 **Response** — array of board summary objects (same shape as `GET /api/v1/groups/{id}/boards/`). Each board's `group_detail` is always populated with a `GroupBrief` payload including the `ancestors` chain, so callers can render a full relative breadcrumb without an extra request (#845). `ancestors` is root-first and does **not** include the board's direct parent group — that name is in `group_name`.
 
 **Errors:** `404 Not Found` if the group does not exist or the caller cannot see it; `403 Forbidden` if the caller sees the group only as [navigation-only](#ancestor-groups-navigation-only) (a member of a descendant subgroup, not of this group or an ancestor).
@@ -221,7 +227,7 @@ This endpoint is never paginated: it returns the whole subtree in one array, and
 
 ### `GET /api/v1/groups/{id}/descendant-boards/paged/`
 
-*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership.
+*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.
 
 **Query parameters**
 
