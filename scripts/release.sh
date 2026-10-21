@@ -111,6 +111,65 @@ security_deferred_gate_for_tag() {
   fi
 }
 
+# ─── Idempotent release-MR merge + merge-commit SHA (#1821) ──────────────────
+#
+# mr_api_field <mr-num> <field> — prints one top-level field of the MR's API
+# object ('' when absent/null or the API call fails). Callers decide what an
+# empty answer means; this never aborts under `set -e`.
+mr_api_field() {
+  glab api "projects/:id/merge_requests/$1" 2>/dev/null \
+    | python3 -c "import json,sys; v=json.load(sys.stdin).get('$2'); print('' if v is None else v)" 2>/dev/null || true
+}
+
+# merge_release_mr <mr-num> — merges the release MR unless something else already did.
+#
+# GitLab auto-merge on the release MR (or a human) can merge it the moment its
+# pipeline goes green, before this script reaches `glab mr merge`. That call then
+# exits non-zero on an already-merged MR and `set -e` used to kill the script before
+# the main-pipeline gate, the tag and the GitLab release (v1.2.0-beta.1, beta.3).
+# So read the state first, and on a merge failure re-read it (the merge can land
+# between our read and our call). Only "still not merged" stays fatal.
+merge_release_mr() {
+  local mr="$1" state
+  state="$(mr_api_field "$mr" state)"
+  if [[ "$state" == "merged" ]]; then
+    echo "MR !${mr} already merged (e.g. by auto-merge); continuing."
+    return 0
+  fi
+  if glab mr merge "$mr" --yes; then
+    return 0
+  fi
+  state="$(mr_api_field "$mr" state)"
+  if [[ "$state" == "merged" ]]; then
+    echo "MR !${mr} was merged while we were merging it (e.g. by auto-merge); continuing."
+    return 0
+  fi
+  echo "Error: 'glab mr merge ${mr}' failed and MR !${mr} is not merged (state: '${state:-unknown}'). Merge manually, then tag." >&2
+  return 1
+}
+
+# resolve_mr_merge_sha <mr-num> — prints the commit the MR produced on main.
+#
+# Not `git rev-parse HEAD` after `git pull`: if anything else landed on main
+# between the merge and the pull, HEAD is a later commit and we would gate and
+# tag the wrong one. Uses merge_commit_sha, falling back to squash_commit_sha
+# (squash/fast-forward projects leave merge_commit_sha empty). Fails closed when
+# neither is set or the commit is not in the local checkout's history.
+resolve_mr_merge_sha() {
+  local mr="$1" sha
+  sha="$(mr_api_field "$mr" merge_commit_sha)"
+  [[ -n "$sha" ]] || sha="$(mr_api_field "$mr" squash_commit_sha)"
+  if [[ -z "$sha" ]]; then
+    echo "Error: could not determine MR !${mr}'s merge commit (no merge_commit_sha or squash_commit_sha). Refusing to tag an unverified commit." >&2
+    return 1
+  fi
+  if ! git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
+    echo "Error: MR !${mr}'s merge commit ${sha:0:8} is not in local main's history. Fetch/pull and re-check before tagging." >&2
+    return 1
+  fi
+  echo "$sha"
+}
+
 # ─── :latest drift guard ─────────────────────────────────────────────────────
 #
 # check_latest_not_drifted — returns 1 (with the repair commands) when :latest
@@ -536,6 +595,50 @@ dependencies:
   else
     echo "SELF-TEST FAILED: check_security_deferred_clear honors RELEASE_SKIP_SECURITY_DEFERRED_CHECK=1" >&2; rc=1
   fi
+
+  # merge_release_mr / resolve_mr_merge_sha (#1821): stub `glab` replays numbered API
+  # responses ($stub/api.N, the last one repeats) and a configurable `mr merge` exit code.
+  stub="$tmp/1821-stub"; mkdir -p "$stub/bin"
+  cat > "$stub/bin/glab" <<'STUB'
+#!/usr/bin/env bash
+d="$GLAB_STUB_DIR"
+if [[ "$1" == "api" ]]; then
+  n=$(( $(cat "$d/n" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$d/n"
+  f="$d/api.$n"; [[ -f "$f" ]] || f="$(ls "$d"/api.* | sort -V | tail -1)"
+  cat "$f"
+elif [[ "$1 $2" == "mr merge" ]]; then
+  echo x > "$d/merge-called"; exit "$(cat "$d/merge_rc")"
+fi
+STUB
+  chmod +x "$stub/bin/glab"
+  _stub_reset() { rm -f "$stub"/api.* "$stub"/n "$stub"/merge-called; echo "$1" > "$stub/merge_rc"; }
+  _mr_case() { # <label> <merge_rc> <want_rc> <want_merge_called:0|1> <api-json>...
+    local label="$1" mrc="$2" want="$3" wantcall="$4" i=0 got=0 called=0; shift 4
+    _stub_reset "$mrc"; for j in "$@"; do i=$((i+1)); echo "$j" > "$stub/api.$i"; done
+    GLAB_STUB_DIR="$stub" PATH="$stub/bin:$PATH" merge_release_mr 7 >/dev/null 2>&1 || got=$?
+    [[ -f "$stub/merge-called" ]] && called=1
+    if [[ $got -eq $want && $called -eq $wantcall ]]; then echo "SELF-TEST OK: $label"
+    else echo "SELF-TEST FAILED: $label (rc=$got merge_called=$called)" >&2; rc=1; fi
+  }
+  _mr_case "merge_release_mr skips the merge call when the MR is already merged" 1 0 0 '{"state":"merged"}'
+  _mr_case "merge_release_mr tolerates a merge that lands during the race" 1 0 1 '{"state":"opened"}' '{"state":"merged"}'
+  _mr_case "merge_release_mr merges an open MR" 0 0 1 '{"state":"opened"}'
+  _mr_case "merge_release_mr stays fatal on a genuine merge failure" 1 1 1 '{"state":"opened"}' '{"state":"opened"}'
+
+  git init -q "$tmp/1821-repo" && git -C "$tmp/1821-repo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a \
+    && git -C "$tmp/1821-repo" -c user.name=t -c user.email=t@t commit -q --allow-empty -m b
+  sha_a="$(git -C "$tmp/1821-repo" rev-parse HEAD~1)"
+  _sha_case() { # <label> <want> <api-json>
+    _stub_reset 0; echo "$3" > "$stub/api.1"
+    local got; got="$(cd "$tmp/1821-repo" && GLAB_STUB_DIR="$stub" PATH="$stub/bin:$PATH" resolve_mr_merge_sha 7 2>/dev/null)" || true
+    if [[ "$got" == "$2" ]]; then echo "SELF-TEST OK: $1"
+    else echo "SELF-TEST FAILED: $1 (got '$got', wanted '$2')" >&2; rc=1; fi
+  }
+  # sha_a is an ancestor of HEAD but not HEAD: proves the MR's commit is used, not main's tip.
+  _sha_case "resolve_mr_merge_sha uses merge_commit_sha, not HEAD" "$sha_a" "{\"merge_commit_sha\":\"$sha_a\",\"squash_commit_sha\":null}"
+  _sha_case "resolve_mr_merge_sha falls back to squash_commit_sha" "$sha_a" "{\"merge_commit_sha\":null,\"squash_commit_sha\":\"$sha_a\"}"
+  _sha_case "resolve_mr_merge_sha fails closed with no SHA" "" '{"merge_commit_sha":null,"squash_commit_sha":null}'
+  _sha_case "resolve_mr_merge_sha fails closed when the SHA is not in local history" "" '{"merge_commit_sha":"0123456789abcdef0123456789abcdef01234567"}'
 
   [[ $rc -eq 0 ]] && echo "release: self-test passed."
   exit $rc
@@ -979,7 +1082,7 @@ if [[ "$PIPELINE_STATUS" != "success" ]]; then
 fi
 
 echo "Pipeline green. Merging MR !${MR_NUM}..."
-glab mr merge "$MR_NUM" --yes
+merge_release_mr "$MR_NUM" || exit 1
 
 # Wait for the merge to actually land.
 echo "Waiting for merge to complete..."
@@ -1004,7 +1107,7 @@ git pull origin main
 # `merge_request_event` pipeline that just passed. Tagging from a commit whose
 # own branch pipeline never ran, or failed, publishes from an unproven state —
 # confirm the pipeline AT THIS COMMIT, not merely the newest one on the branch.
-MERGE_SHA=$(git rev-parse HEAD)
+MERGE_SHA=$(resolve_mr_merge_sha "$MR_NUM") || exit 1
 echo "Confirming main's own pipeline at ${MERGE_SHA:0:8}..."
 MAIN_PIPELINE_STATUS=""
 for _ in $(seq 1 90); do  # up to 15 minutes
@@ -1025,8 +1128,8 @@ if [[ "$MAIN_PIPELINE_STATUS" != "success" ]]; then
   exit 1
 fi
 
-# Tag the merged result
-git tag "$TAG"
+# Tag the MR's merge commit (lightweight), not whatever HEAD is after the pull.
+git tag "$TAG" "$MERGE_SHA"
 git push origin "$TAG"
 
 echo "Pushed tag $TAG"

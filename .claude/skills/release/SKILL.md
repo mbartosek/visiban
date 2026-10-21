@@ -173,11 +173,16 @@ The script will automatically:
    then "completes" immediately regardless of the pipeline's real state, and a background
    watcher's "finished" notification carries no information. Read the pipeline's actual
    status after the loop returns; don't trust that it returned.
-9. Merge the MR only once that pipeline is confirmed green
+9. Merge the MR only once that pipeline is confirmed green. If the MR is already merged
+   (most often GitLab auto-merge fired the moment the pipeline went green), the script logs
+   "already merged" and continues; so does a merge that lands between its state check and its
+   `glab mr merge` call. Any other `glab mr merge` failure on a not-merged MR still aborts (#1821)
 10. **Confirm the pipeline at the merge commit itself** — on `main`, at that exact SHA — is
    also green before tagging. A merge-request pipeline going green is not the same promise
    as the subsequent `push` pipeline on `main`, which can run a different job set
-11. Tag the merge commit and push the tag
+11. Tag the MR's merge commit (its `merge_commit_sha`, falling back to `squash_commit_sha`;
+   the script fails closed if neither is set or the commit is not in local `main`) and push
+   the tag — not whatever `HEAD` is after the pull
 12. Create a GitLab release with notes from the CHANGELOG (the same notes approved in Step 1c)
 
 Do not interrupt the script. If it fails, read the error output before taking any action —
