@@ -221,7 +221,10 @@ run_scan() {
 # carries a `pending_budget` but also a non-null `budget_p95_ms` is gated
 # normally, so it is not pending and is ignored here (a stale marker on a
 # gated entry blocks nothing, and the issue closing is expected).
-BASELINE_FILE="backend/nightly-load-test-baseline.json"
+# CHECK_SUPPRESSION_BASELINE is a test seam: the end-to-end test points main() at a
+# fixture with a pending entry, because the real baseline carries none once every
+# budget is derived (#1808).
+BASELINE_FILE="${CHECK_SUPPRESSION_BASELINE:-backend/nightly-load-test-baseline.json}"
 
 # pending_budget_entries <baseline_file> — prints "<name><TAB><iid>" per
 # pending entry. Returns non-zero if the file is not parseable JSON.
