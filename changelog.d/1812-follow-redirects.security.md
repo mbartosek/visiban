@@ -1,1 +1,0 @@
-Bumped the `follow-redirects` npm override to 1.16.1 to fix GHSA-8r9p-f939-6h3c and GHSA-q3jh-wrc6-jgq8 (credential header exposure on cross-origin redirects), which the `dep-scan-osv` gate now blocks on.
