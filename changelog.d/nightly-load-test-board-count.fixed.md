@@ -1,0 +1,1 @@
+Fixed the nightly load test failing on its multi-board check: board counting now reads the pagination `count` instead of a `next` link the boards list does not return, so the 200-board fixture is no longer counted as 50.

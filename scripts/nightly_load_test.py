@@ -236,6 +236,15 @@ def _self_test():
             failures.append(f"{label}: guard did not raise on a bad input")
         except RuntimeError:
             pass
+    # Board counting (#1810): the OffsetCountPagination envelope has no `next`, so the
+    # first page's 50 results must not be mistaken for the user's total.
+    for body, want in (
+        ({"count": 200, "offset": 0, "page_size": 50, "results": [{}] * 50}, 200),
+        ({"results": [{}] * 3}, 3),
+        ([{}] * 4, 4),
+    ):
+        if _boards_in_page(body) != want:
+            failures.append(f"_boards_in_page({str(body)[:40]}...) != {want}")
     _b, _w, _msg = _evaluate_budget("board_full", 2000, {"board_full": {"budget_p95_ms": 1000}})
     if _w is not False or not _msg:
         failures.append("_evaluate_budget did not flag an over-budget scenario")
@@ -326,19 +335,26 @@ def _check_multi_board_count(count, minimum):
         )
 
 
+def _boards_in_page(body):
+    """Total boards a /boards/ response says exist for the user.
+
+    The list uses OffsetCountPagination: {count, offset, page_size, results}, with
+    no ``next`` link, so walking ``next`` stops after page 1 (50 boards) however
+    many the user can access. ``count`` is the whole-queryset total. A bare list
+    (unpaginated) is its own total.
+    """
+    if isinstance(body, dict) and "count" in body:
+        return body["count"]
+    if isinstance(body, dict):
+        return len(body["results"])
+    return len(body)
+
+
 def _count_accessible_boards(session, base_url):
-    """Number of boards visible to *session*'s user (follows pagination)."""
-    url = f"{base_url}/api/v1/boards/"
-    total = 0
-    while url:
-        r = session.get(url, timeout=30)
-        r.raise_for_status()
-        body = r.json()
-        if not isinstance(body, dict) or "results" not in body:
-            return total + len(body)
-        total += len(body["results"])
-        url = body.get("next")
-    return total
+    """Number of boards visible to *session*'s user."""
+    r = session.get(f"{base_url}/api/v1/boards/", timeout=30)
+    r.raise_for_status()
+    return _boards_in_page(r.json())
 
 
 def _time_requests(session, url, iterations, warmup):
