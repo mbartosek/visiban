@@ -113,11 +113,32 @@ class PurgeCardHistoryTests(TestCase):
             self._run("--card", live.uid, "--yes")
         self.assertEqual(self._remaining([pk]), {pk})
 
+    def test_live_cards_need_a_card_or_board_selector(self):
+        live = self._card(self.board)
+        pk = self._move(live, _utc(2026, 1, 5))
+        for args in (["--before", "2030-01-01"], ["--since", "2000-01-01"]):
+            with self.subTest(args=args):
+                with self.assertRaisesMessage(CommandError, "needs --card or --board"):
+                    self._run(*args, "--include-live-cards", "--yes")
+        self.assertEqual(self._remaining([pk]), {pk})
+        self.assertFalse(AdminActionLog.objects.exists())
+
+    def test_date_only_selector_sweeps_deleted_cards_on_every_board(self):
+        _, a = self._deleted_card_with_moves(self.board, _utc(2026, 1, 5))
+        _, b = self._deleted_card_with_moves(self.other_board, _utc(2026, 1, 5))
+        live_pk = self._move(self._card(self.board), _utc(2026, 1, 5))
+        self._run("--before", "2026-02-01", "--yes")
+        self.assertEqual(self._remaining(a + b + [live_pk]), {live_pk})
+
     def test_malformed_arguments_are_refused(self):
         for args, message in (
             (["--card", "short"], "16 hex"),
+            (["--card", "zzzzzzzzzzzzzzzz"], "16 hex"),
             (["--board", "nope"], "no board"),
             (["--board", "999999"], "no board"),
+            (["--board", "²"], "no board"),
+            (["--board", "9" * 40], "no board"),
+            (["--board", "g" * 16], "no board"),
             (["--since", "yesterday"], "--since must be"),
             (["--before", "2026-13-40"], "--before must be"),
             (["--since", "2026-02-01", "--before", "2026-01-01"], "earlier than"),

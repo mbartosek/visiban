@@ -50,15 +50,15 @@ On Kubernetes, run the same command with `kubectl exec` in a backend pod.
 | `--board BOARD` | Only history on this board, given as its numeric ID or its UID. |
 | `--since DATE` | Only movements at or after this moment. |
 | `--before DATE` | Only movements strictly before this moment. |
-| `--include-live-cards` | Also delete matching history of cards that still exist. |
+| `--include-live-cards` | Also delete matching history of cards that still exist. Needs `--card` or `--board`. |
 | `--yes` | Delete. Without it the command only reports what would be deleted. |
 
 Dates are `YYYY-MM-DD` (midnight UTC at the start of that day) or an ISO 8601 datetime (UTC when it has no offset). `--since 2026-03-01 --before 2026-04-01` covers exactly March.
 
 How the command behaves:
 
-- **Selectors combine.** `--card`, `--board`, `--since` and `--before` all apply together. At least one is required; there is no form that purges everything.
-- **Deleted cards only, by default.** Without `--include-live-cards`, only history of cards that no longer exist is matched, and naming a card that still exists with `--card` is refused. A live card's history feeds its own timeline and the board's metrics, so erasing it is a separate, explicit choice.
+- **Selectors combine.** `--card`, `--board`, `--since` and `--before` all apply together. At least one is required; there is no form that purges everything. A date range alone covers deleted cards on every board.
+- **Deleted cards only, by default.** Without `--include-live-cards`, only history of cards that no longer exist is matched, and naming a card that still exists with `--card` is refused. A live card's history feeds its own timeline and the board's metrics, so erasing it is a separate, explicit choice, and it must be narrowed with `--card` or `--board`: a date range alone is refused with `--include-live-cards`.
 - **Dry run by default.** The dry run prints counts of records, cards and boards, never titles. Re-run with `--yes` to delete.
 - **Recorded.** A purge that deletes anything writes one `card_history.purged` entry to the [admin action log](../api/admin.md#action-log) with source `cli`, the `--actor` account, the selector used and the number of records deleted. The entry never contains a purged title or note. A run that matches nothing writes no entry.
 - **All or nothing.** The records are deleted in the same transaction that writes the log entry. If the entry cannot be written, nothing is deleted.

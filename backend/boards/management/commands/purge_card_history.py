@@ -17,7 +17,8 @@ Safety rails, each a design decision recorded in #1797:
 
 - **Deleted cards only by default.** Only rows whose card no longer exists
   (``card IS NULL``) are matched. A live card's history feeds its timeline and
-  the board's metrics, so erasing it needs ``--include-live-cards``.
+  the board's metrics, so erasing it needs ``--include-live-cards`` plus a
+  ``--card`` or ``--board`` selector (never a date range alone).
 - **No empty selector.** At least one of ``--card``, ``--board``, ``--since``
   or ``--before`` is required, and they combine with AND. There is no
   purge-everything form.
@@ -38,6 +39,7 @@ Usage::
 """
 
 import datetime
+import re
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
@@ -51,7 +53,10 @@ from accounts.models import AdminActionLog
 from boards.models import Board, Card, CardMovement
 
 # Card and board uids are 16 lowercase hex characters (boards/uid.py).
-_UID_LENGTH = 16
+_UID_RE = re.compile(r"[0-9a-f]{16}")
+# A board id given on the command line: ASCII digits only (str.isdigit() also
+# accepts e.g. "²", which int() rejects), short enough to fit a bigint.
+_BOARD_ID_RE = re.compile(r"[0-9]{1,18}")
 
 
 def _parse_moment(value, option):
@@ -145,6 +150,15 @@ class Command(BaseCommand):
                 "Refusing to run without a selector: give at least one of --card, "
                 "--board, --since or --before."
             )
+        if include_live and card_uid is None and board_value is None:
+            # A date range alone spans every board. For deleted cards' history
+            # that is a legitimate retention sweep; for live cards it would
+            # erase active timelines and metrics instance-wide on one mistyped
+            # date, so live history must be narrowed to a card or a board.
+            raise CommandError(
+                "--include-live-cards needs --card or --board; a date range alone "
+                "would erase live cards' history on every board."
+            )
 
         rows = CardMovement.objects.all()
         if not include_live:
@@ -152,7 +166,7 @@ class Command(BaseCommand):
 
         if card_uid is not None:
             card_uid = card_uid.strip().lower()
-            if len(card_uid) != _UID_LENGTH:
+            if not _UID_RE.fullmatch(card_uid):
                 raise CommandError("--card must be a card uid (16 hex characters).")
             if include_live:
                 # A live card is matched through its FK as well as the
@@ -250,9 +264,11 @@ class Command(BaseCommand):
 
     def _resolve_board(self, value):
         value = value.strip()
-        if len(value) == _UID_LENGTH:
+        # A 16-character value is read as a uid first; ids that long do not
+        # occur, so an all-digit uid is not mistaken for one.
+        if _UID_RE.fullmatch(value.lower()):
             board = Board.objects.filter(uid=value.lower()).first()
-        elif value.isdigit():
+        elif _BOARD_ID_RE.fullmatch(value):
             board = Board.objects.filter(pk=int(value)).first()
         else:
             board = None
