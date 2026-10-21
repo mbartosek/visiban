@@ -42,6 +42,27 @@ class BenchmarkCommandHardFailureTests(TestCase):
         self.assertNotIn("✅  GET /api/boards/{id}/full/", out.getvalue())
 
 
+class BenchmarkUserActionLogExceptionTests(TestCase):
+    """#1801: documented exception to the admin action log.
+
+    ``benchmark`` requires DEBUG and creates a throwaway ``bench_user`` with a
+    random password that is never shown, so it writes no ``user.password_set``
+    entry. See the "Benchmark user password" row of
+    docs/development/security-invariants.md.
+    """
+
+    @override_settings(DEBUG=True)
+    def test_bench_user_password_set_is_not_in_the_admin_action_log(self):
+        from accounts.models import AdminActionLog
+
+        call_command("benchmark", stdout=StringIO(), stderr=StringIO())
+        self.assertFalse(
+            AdminActionLog.objects.filter(
+                action=AdminActionLog.Action.USER_PASSWORD_SET
+            ).exists()
+        )
+
+
 class BenchmarkCommandAllowedHostsTests(TestCase):
     """The command must work under a restrictive ALLOWED_HOSTS, matching the
     dev container's ``ALLOWED_HOSTS=localhost,127.0.0.1`` (no "testserver")."""
