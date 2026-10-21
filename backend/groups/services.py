@@ -345,27 +345,8 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
 # Kept apart from ``lock_membership_for_removal_or_demotion`` on purpose: that
 # function judges one membership change, while a user delete removes every
 # membership of a set of accounts at once (the ``GroupMembership.user``
-# CASCADE), so it needs a set-wide count rather than a per-row one.
-
-
-def counts_toward_admin_minimum(membership):
-    """True when ``membership`` counts toward a group's at-least-one-admin minimum.
-
-    Only an admin row held by an active account counts: a deactivated admin
-    cannot sign in to manage the group, so a group whose only admins are
-    deactivated has no one who can act for it. ``membership.user`` must be
-    loaded (``select_related("user")``) to avoid a query per row.
-    """
-    return membership.role == GroupMembership.Role.ADMIN and membership.user.is_active
-
-
-def admin_minimum_q(prefix=""):
-    """``Q`` form of ``counts_toward_admin_minimum`` for a ``GroupMembership`` query.
-
-    ``prefix`` is the lookup path to the membership (e.g. ``"memberships__"``)
-    when the query is on another model.
-    """
-    return Q(**{f"{prefix}role": GroupMembership.Role.ADMIN, f"{prefix}user__is_active": True})
+# CASCADE), so it needs a set-wide count rather than a per-row one. It counts
+# with the same shared definition, ``admin_minimum_q`` above.
 
 
 def _groups_administered_by(user_ids):

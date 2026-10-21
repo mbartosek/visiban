@@ -175,7 +175,7 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
 Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. *(1.2+)* A removal that arrives while the group is being deleted, or while another removal of the same member is in flight, waits for it to finish and then answers `404`, with nothing written. Returns `204` when the membership is removed; *(1.2+)* removing the group owner, or the group's last active admin, returns `400 Bad Request` with the same `detail` messages as `PATCH` above (the owner leaves through [Transfer ownership](#transfer-ownership) or by deleting the group); the `400` for the last admin also applies when the remaining admins are deactivated, because only active admins count; with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
 
-*(1.3+)* Deleting a user account removes all of that user's group memberships, so the Django admin's user delete applies the same minimum: it refuses to delete the last active admin of a group, or, in a bulk delete, every active admin of one. Only active admins count toward the minimum there. See [Django admin](../administration/django-admin.md).
+*(1.3+)* Deleting a user account removes all of that user's group memberships, so the Django admin's user delete applies the same minimum: it refuses to delete the last active admin of a group, or, in a bulk delete, every active admin of one. See [Django admin](../administration/django-admin.md).
 
 ---
 
