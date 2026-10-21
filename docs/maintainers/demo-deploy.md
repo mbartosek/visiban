@@ -285,6 +285,56 @@ kubectl -n visiban-demo logs deploy/visiban-demo-frontend --tail=20
   in front (Cloudflare cache rules) is caching `index.html`. A hard reload clears it for one
   visitor.
 
+## Troubleshooting: Cloudflare Error 1033 and node DiskPressure
+
+**Signature:** try.visiban.com (and any other hostname on the node's tunnel) shows
+**Cloudflare Error 1033**, "Cloudflare Tunnel error". 1033 only means no `cloudflared`
+connector is registered for the tunnel. It does not say why, so work down this list.
+
+**Root cause seen on 2026-10-21 (#1820):** the node's root filesystem filled past the
+kubelet's eviction threshold (`nodefs.available<10%`). The kubelet set `DiskPressure`,
+tainted the node `node.kubernetes.io/disk-pressure:NoSchedule`, and evicted every pod,
+`cloudflared` included. Replacement pods then sat `Pending` because nothing could schedule
+onto a tainted node. The demo was down about 5.5 hours because nothing alerted. Both demos
+and the tunnel failed together, which is the tell: check the node before debugging any one
+release.
+
+The kubelet's root directory is on `/`, **not** on the k3s data volume
+(`/var/lib/rancher`), so that volume can be nearly empty while `/` is full. Check `/`.
+
+```bash
+# on the node
+kubectl -n cloudflared get pods                       # none Running => no connector
+kubectl describe node <node> | grep -i -E 'taints|DiskPressure'
+df -h /                                               # >90% used is the trigger
+kubectl get pods -A | grep -v -E 'Running|Completed'  # Evicted / Pending everywhere
+```
+
+A pod's `status.message` of `The node had condition: [DiskPressure]` confirms it.
+
+**Fix:**
+
+1. Free space on `/`, safest first: `journalctl --vacuum-size=200M`, `apt-get clean`,
+   `docker builder prune -af`, `docker image prune -af`. Read `docker ps -a` before any
+   volume prune, and never prune the datastores' PersistentVolumes.
+2. If the volume group has free extents (`vgs`), grow the root LV online:
+   `lvextend -r -l +100%FREE /dev/<vg>/<root-lv>`.
+3. Wait for `DiskPressure` to go `False`. The kubelet holds the condition for
+   `eviction-pressure-transition-period` (5 minutes by default) after space recovers. If
+   the taint is still there after that with `df` healthy, `systemctl restart k3s` clears
+   it. That briefly interrupts every pod on the node.
+4. Remove the leftovers: `kubectl delete pod -A --field-selector=status.phase=Failed`.
+   Pending pods and the StatefulSets (`*-postgresql-0`, `*-valkey-*`) start on their own
+   once the taint is gone. Do not delete them.
+5. Confirm from inside the cluster, because Cloudflare's bot protection returns `403` to
+   `curl` and so says nothing about the origin:
+   `kubectl -n visiban-demo run curlt --rm -it --restart=Never --image=curlimages/curl -- curl -sI http://visiban-demo-frontend.visiban-demo.svc.cluster.local:80`
+   should return `200`. Then load the site in a browser and sign in.
+
+If `cloudflared` pods are Running and the error persists, check the tunnel's status in
+Zero Trust → Networks → Tunnels (a rotated or deleted tunnel token looks identical), and
+read `kubectl -n cloudflared logs deploy/cloudflared`.
+
 ## Deployment record
 
 Fill this in on every (re)deploy. An empty cell is an unverified claim.
