@@ -947,6 +947,14 @@ class AdminUsersView(APIView):
         )
         user.must_change_password = data.get("force_password_reset", True)
         user.save(update_fields=["must_change_password"])
+        # Inside this view's transaction, so a failed log write creates no
+        # account. Only id and username are stored, never the password.
+        AdminActionLog.record(
+            action=AdminActionLog.Action.USER_PASSWORD_SET,
+            source=AdminActionLog.Source.ADMIN_API,
+            actor=request.user,
+            metadata={"target_id": user.pk, "target_username": user.username},
+        )
 
         return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
