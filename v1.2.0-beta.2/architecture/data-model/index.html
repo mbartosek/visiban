@@ -3222,6 +3222,8 @@
       
         
       
+        
+      
     
     
     
@@ -3487,6 +3489,34 @@
     
   
     Demo Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../administration/card-history-retention/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Card History Retention
   
 
     
@@ -4213,7 +4243,7 @@ in). A fourth, <code>git_lens</code>, adds one model but is off by default — s
 <h3 id="sitesetting-siteemailsetting">SiteSetting / SiteEmailSetting<a class="headerlink" href="#sitesetting-siteemailsetting" title="Permanent link">&para;</a></h3>
 <p>Two accounts-app singletons (always <code>pk=1</code>, fetched via <code>.get()</code>), split so a value that must never reach the audit log — the SMTP password — cannot live next to values that always do. <code>SiteSetting</code> holds <code>registration_mode</code> (open / invite_only / closed), <code>uploads_enabled</code>, and instance-wide <code>maintenance_mode</code> plus its notice; both are read on nearly every request through a 60-second cache invalidated on write. <code>SiteEmailSetting</code> holds outbound SMTP configuration, gated by <code>config_source</code> (<code>env</code> or <code>database</code>) — the two sources are never merged field-by-field, only switched wholesale, so a half-filled database row cannot silently blend with environment variables.</p>
 <h3 id="adminactionlog">AdminActionLog<a class="headerlink" href="#adminactionlog" title="Permanent link">&para;</a></h3>
-<p>Append-only record of a fixed, enumerable set of instance-wide admin actions (#1126): maintenance mode toggled, the maintenance notice changed, registration mode changed, uploads toggled, outbound-email configuration changes, and password events (set or disabled for another account in the Django admin, and passwords set by the <code>ensure_site_admin</code>, <code>changepassword</code> and <code>provision_fuzz_token</code> management commands, source <code>cli</code>). <code>actor_id</code> and <code>actor_username</code> are plain columns, not a foreign key — a FK's <code>on_delete=SET_NULL</code> would let deleting a user erase who performed a privileged action, which is the one thing this table exists to answer. There is deliberately no retention pruner; volume is a handful of rows a month. See <a href="../open-core-boundary/#audit-log-split">Open-core boundary § Audit log</a> for why this stays in OSS rather than the enterprise compliance audit log.</p>
+<p>Append-only record of a fixed, enumerable set of instance-wide admin actions (#1126): maintenance mode toggled, the maintenance notice changed, registration mode changed, uploads toggled, outbound-email configuration changes, and password events (set or disabled for another account in the Django admin, and passwords set by the <code>ensure_site_admin</code>, <code>changepassword</code> and <code>provision_fuzz_token</code> management commands, source <code>cli</code>), and card-history purges (<code>card_history.purged</code>, written by the <code>purge_card_history</code> management command with the <code>--actor</code> superuser as actor; #1797). <code>actor_id</code> and <code>actor_username</code> are plain columns, not a foreign key — a FK's <code>on_delete=SET_NULL</code> would let deleting a user erase who performed a privileged action, which is the one thing this table exists to answer. There is deliberately no retention pruner; volume is a handful of rows a month. See <a href="../open-core-boundary/#audit-log-split">Open-core boundary § Audit log</a> for why this stays in OSS rather than the enterprise compliance audit log.</p>
 <h3 id="board">Board<a class="headerlink" href="#board" title="Permanent link">&para;</a></h3>
 <p><code>enforce_wip_limits</code> (default true) blocks moving, creating, or restoring a card into a column that is at or over its WIP limit with a 409 response (board import is exempt). Board admins can override with <code>?force=true</code>. When <code>enforce_wip_hard</code> is also true, the limit becomes a hard stop for all roles including admins — no override is possible.</p>
 <p><code>enforce_weight_limits</code> (default true) blocks moving, creating, or restoring a card into a column that would exceed its weight budget, and raising a card's weight past it. Like WIP limits, board admins can override unless hard mode is active.</p>
@@ -4316,7 +4346,7 @@ per-model signal would have been invisible to half the events. The funnel also s
 <p>A fourth Django app, <code>git_lens</code>, is registered only when <code>GIT_LENS_ENABLED=true</code> (default <code>false</code>) — its tables, routes, and one model, <code>LensConnection</code>, stay entirely dormant otherwise. <code>LensConnection</code> is a one-to-one link from a <code>Board</code> to an external GitHub or GitLab repository (<code>provider</code>, <code>repo_slug</code>, plus <code>column_dim</code> / <code>swimlane_dim</code> for how issues map onto the board's grid), backing the <a href="../../features/issue-board-lens/">Issue Board Lens</a> feature: a shareable, read-only board derived from a repo's issues and merge/pull request state. It reuses the host board's RBAC rather than defining its own.</p>
 <h2 id="key-design-decisions">Key design decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h2>
 <p><strong>CardMovement is append-only.</strong> Every time a card changes column or swimlane a new <code>CardMovement</code> row is created. Application code never edits what a movement records and never deletes one (the only updates are bookkeeping: filling the board and card snapshot columns, re-pointing <code>board</code> when the admin moves a card, and nulling <code>card</code> when a card is deleted), providing a full audit trail: since 1.2 (#1469) <code>CardMovement.save()</code> refuses to rewrite an existing row, <code>delete()</code> on a row always refuses, and the Django admin shows movements read-only. This is a guard against accidental writes, not tamper-proofing — a queryset <code>update()</code>/<code>delete()</code> or raw SQL bypasses it.</p>
-<p><strong>A card's movements outlive the card; a board's do not.</strong> <code>CardMovement.card</code> is <code>on_delete=SET_NULL</code> (#1469): hard-deleting a card (directly, or by deleting the column or swimlane it is in) keeps its movements, with <code>card</code> set to <code>NULL</code>. Each row also carries <code>board</code> (the board it happened on, <code>on_delete=CASCADE</code>) and <code>card_uid</code> / <code>card_title</code> (the card's uid and title when the row was recorded; rows from before the 1.2 upgrade and imported rows carry them as of the upgrade or import), so a deleted card's history stays on its board's History view under its original uid and title. Deleting the whole board is the explicit destructive act that removes every movement on it, through <code>board</code>.</p>
+<p><strong>A card's movements outlive the card; a board's do not.</strong> <code>CardMovement.card</code> is <code>on_delete=SET_NULL</code> (#1469): hard-deleting a card (directly, or by deleting the column or swimlane it is in) keeps its movements, with <code>card</code> set to <code>NULL</code>. Each row also carries <code>board</code> (the board it happened on, <code>on_delete=CASCADE</code>) and <code>card_uid</code> / <code>card_title</code> (the card's uid and title when the row was recorded; rows from before the 1.2 upgrade and imported rows carry them as of the upgrade or import), so a deleted card's history stays on its board's History view under its original uid and title. Deleting the whole board is the explicit destructive act that removes every movement on it, through <code>board</code>. The one other way a movement leaves is the superuser-run <code>purge_card_history</code> management command (#1797), which deletes matching rows (by default only deleted cards') with a queryset delete and writes a <code>card_history.purged</code> <code>AdminActionLog</code> entry in the same transaction; see <a href="../../administration/card-history-retention/">Card History Retention</a>.</p>
 <p><strong>BoardMembership is explicit per board.</strong> A user can have different roles on different boards. Group membership is inherited automatically (see <a href="../../features/rbac/inheritance/">Group Inheritance</a>) but can be overridden by an explicit <code>BoardMembership</code> row.</p>
 <p><strong>Column positions use a two-pass update.</strong> To avoid <code>unique_together(board, position)</code> conflicts when reordering, columns are first shifted to high temporary positions, then assigned final positions.</p>
 <p><strong>Card positions are per-cell.</strong> Position is scoped to <code>(board, column, swimlane)</code>. When a card moves cells, siblings in both source and target cells are renumbered.</p>
