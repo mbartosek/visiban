@@ -476,8 +476,8 @@ queued on the group row in both orders).
 
 Existing data: migration `groups/0022_restore_group_owner_admin_rows` gives
 every group's owner a direct `admin` membership, promoting a non-admin row or
-adding a missing one, so the owner half of the rule holds for groups created
-before the member guards (`groups/tests/test_group_owner_admin_repair_1786.py`).
+adding a missing one, so the owner half of the rule holds for every existing
+group (`groups/tests/test_group_owner_admin_repair_1786.py`).
 
 ## How to add a rule
 

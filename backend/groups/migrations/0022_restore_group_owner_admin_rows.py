@@ -2,6 +2,9 @@ from django.db import migrations
 from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
+# Bounds the size of each INSERT and of each promotion pass; the migration is
+# atomic, so every chunk commits together and chunking does not shorten any
+# lock hold. The affected set is expected to be a handful of rows.
 _CHUNK = 500
 
 
@@ -10,10 +13,9 @@ def restore_owner_admin_rows(apps, schema_editor):
 
     A group's owner holds a direct admin membership: the group is created
     with one, ownership transfer requires and keeps one, and the member
-    guards refuse removing or demoting it. A group whose owner row was
-    removed or demoted before those guards existed is brought back to that
-    shape here: an existing non-admin row is promoted, a missing row is
-    created. No other membership is touched.
+    guards refuse removing or demoting it. Any group not in that shape is
+    brought to it here: an existing non-admin owner row is promoted, a
+    missing one is created. No other membership is touched.
 
     A data migration, not a management command, so every install reaches the
     documented state on upgrade without an operator step. Idempotent: a
