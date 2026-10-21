@@ -75,6 +75,30 @@ class MemberGuardTests(TestCase):
         self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
         self.assertEqual(self._role(self.admin2), ADMIN)
 
+    def test_deactivated_admin_does_not_count_toward_the_minimum(self):
+        # The owner (an admin) is deactivated, so admin2 is the only active admin.
+        User.objects.filter(pk=self.owner.pk).update(is_active=False)
+        r = self.client.delete(_url(self.group, self.admin2))
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._role(self.admin2), ADMIN)
+
+    def test_deactivated_admin_is_still_removable(self):
+        # Removing a deactivated admin cannot reduce the active-admin count.
+        User.objects.filter(pk=self.admin2.pk).update(is_active=False)
+        self.client.force_authenticate(self.owner)
+        r = self.client.delete(_url(self.group, self.admin2))
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_active_admin_removable_while_another_active_admin_remains(self):
+        extra = User.objects.create_user(username="gextra", password="pw")
+        GroupMembership.objects.create(group=self.group, user=extra, role=ADMIN)
+        User.objects.filter(pk=self.owner.pk).update(is_active=False)
+        r = self.client.delete(_url(self.group, extra))
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+
     def test_non_last_admin_removable_and_demotable(self):
         r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
         # admin2 demotes itself while the owner remains an admin.
@@ -145,6 +169,44 @@ class ConcurrentAdminRemovalTests(TransactionTestCase):
         self.assertEqual(codes, [204, 400], results)
         self.assertEqual(
             GroupMembership.objects.filter(group=group, role=ADMIN).count(), 1
+        )
+
+    def test_two_active_admins_removed_concurrently_with_a_deactivated_admin(self):
+        a = User.objects.create_user(username="gia", password="pw")
+        b = User.objects.create_user(username="gib", password="pw")
+        idle = User.objects.create_user(username="gii", password="pw", is_active=False)
+        owner = User.objects.create_user(username="gio", password="pw")
+        group = Group.objects.create(name="Trio", owner=owner)
+        GroupMembership.objects.create(group=group, user=owner, role=MEMBER)
+        GroupMembership.objects.create(group=group, user=idle, role=ADMIN)
+        GroupMembership.objects.create(group=group, user=a, role=ADMIN)
+        GroupMembership.objects.create(group=group, user=b, role=ADMIN)
+
+        barrier = threading.Barrier(2)
+        results = {}
+
+        def worker(actor, target):
+            try:
+                client = APIClient()
+                client.force_authenticate(actor)
+                barrier.wait(timeout=10)
+                results[target.pk] = client.delete(_url(group, target)).status_code
+            finally:
+                connections.close_all()
+
+        threads = [
+            threading.Thread(target=worker, args=(a, b)),
+            threading.Thread(target=worker, args=(b, a)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=60)
+
+        # Three admin rows but only two are active: exactly one removal may succeed.
+        self.assertEqual(sorted(results.values()), [204, 400], results)
+        self.assertEqual(
+            GroupMembership.objects.filter(group=group, role=ADMIN, user__is_active=True).count(), 1
         )
 
 

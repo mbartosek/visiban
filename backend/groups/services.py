@@ -262,7 +262,8 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
     ``new_role=None`` means the membership is being removed; otherwise it is the
     role being written. Returns ``None`` when the group or the membership is
     gone. Raises ``MembershipChangeRefused`` when the change would remove or
-    demote the group's owner, or remove or demote the group's last admin.
+    demote the group's owner, or remove or demote the group's last active
+    admin (deactivated admins do not count toward the minimum).
     Must run inside ``transaction.atomic()``, and the caller must write the
     change in that same transaction.
 
@@ -292,14 +293,19 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
         .filter(Q(role=GroupMembership.Role.ADMIN) | Q(user_id=user_id), group_id=group_id)
         .order_by("pk")
     )
-    admin_count = sum(1 for m in rows if m.role == GroupMembership.Role.ADMIN)
+    # Only active admins count toward the minimum: a deactivated admin cannot act.
+    active_admin_count = sum(
+        1 for m in rows if m.role == GroupMembership.Role.ADMIN and m.user.is_active
+    )
     membership = next((m for m in rows if m.user_id == user_id), None)
     if membership is None:
         return None
     if user_id == owner_id and new_role != GroupMembership.Role.ADMIN:
         # An owner "demoted" to admin is a no-op, so only a real change is refused.
         raise MembershipChangeRefused(OWNER_MEMBERSHIP_MESSAGE)
-    is_admin = membership.role == GroupMembership.Role.ADMIN
-    if is_admin and new_role != GroupMembership.Role.ADMIN and admin_count <= 1:
+    # Changing a deactivated admin cannot reduce the active-admin count, so only an
+    # active admin is held to the minimum.
+    is_active_admin = membership.role == GroupMembership.Role.ADMIN and membership.user.is_active
+    if is_active_admin and new_role != GroupMembership.Role.ADMIN and active_admin_count <= 1:
         raise MembershipChangeRefused(LAST_ADMIN_MESSAGE)
     return membership
