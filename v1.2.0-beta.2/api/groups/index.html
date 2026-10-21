@@ -4721,6 +4721,7 @@
 <h2 id="boards">Boards<a class="headerlink" href="#boards" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiv1groupsidboards"><code>GET /api/v1/groups/{id}/boards/</code><a class="headerlink" href="#get-apiv1groupsidboards" title="Permanent link">&para;</a></h3>
 <p>List boards in this group. Requires group membership.</p>
+<p>A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed.</p>
 <p>Pass <code>?expand=group</code> to populate <code>group_detail</code> on each board (see <a href="../#expanding-foreign-key-fields">Expanding foreign-key fields</a>). <em>(1.2+)</em> The ancestor chain is resolved with one bulk fetch, so the query count does not grow with the number of boards (#1316).</p>
 <h3 id="post-apiv1groupsidboards"><code>POST /api/v1/groups/{id}/boards/</code><a class="headerlink" href="#post-apiv1groupsidboards" title="Permanent link">&para;</a></h3>
 <p>Create a board in this group. Requires group admin. Boards created here inherit the group's <code>shared_labels</code> and <code>allowed_priorities</code> automatically. The seeded <code>allowed_priorities</code> value is not enforced on cards (see <a href="../../architecture/field-enforcement/">Field Enforcement</a>).</p>
@@ -4760,11 +4761,12 @@
 <p>Since 1.2, a body that is not a JSON object, or a non-string <code>swimlane_name</code>, returns <code>400 Bad Request</code> (a non-string <code>swimlane_name</code>, and a numeric or boolean body, returned <code>500</code> before).</p>
 <h3 id="get-apiv1groupsiddescendant-boards"><code>GET /api/v1/groups/{id}/descendant-boards/</code><a class="headerlink" href="#get-apiv1groupsiddescendant-boards" title="Permanent link">&para;</a></h3>
 <p>List all boards in this group and all of its descendant subgroups that the requesting user can access. This answers "what boards live anywhere inside this group subtree?" — including boards in deeply nested subgroups. Requires group membership.</p>
+<p>A board is listed only when the caller's role on it resolves the same way as for board detail; a board the caller cannot open is not listed. The same rule applies to <code>GET /api/v1/groups/{id}/boards/</code> and the paged variant.</p>
 <p><strong>Response</strong> — array of board summary objects (same shape as <code>GET /api/v1/groups/{id}/boards/</code>). Each board's <code>group_detail</code> is always populated with a <code>GroupBrief</code> payload including the <code>ancestors</code> chain, so callers can render a full relative breadcrumb without an extra request (#845). <code>ancestors</code> is root-first and does <strong>not</strong> include the board's direct parent group — that name is in <code>group_name</code>.</p>
 <p><strong>Errors:</strong> <code>404 Not Found</code> if the group does not exist or the caller cannot see it; <code>403 Forbidden</code> if the caller sees the group only as <a href="#ancestor-groups-navigation-only">navigation-only</a> (a member of a descendant subgroup, not of this group or an ancestor).</p>
 <p>This endpoint is never paginated: it returns the whole subtree in one array, and <code>offset</code> / <code>page_size</code> in the query string are ignored. For a root group in a large organization that can be every board the caller can see; use the paged variant below to fetch it in bounded pages.</p>
 <h3 id="get-apiv1groupsiddescendant-boardspaged"><code>GET /api/v1/groups/{id}/descendant-boards/paged/</code><a class="headerlink" href="#get-apiv1groupsiddescendant-boardspaged" title="Permanent link">&para;</a></h3>
-<p><em>(1.2+)</em> The same boards as <code>GET /api/v1/groups/{id}/descendant-boards/</code>, with the same access rules and the same per-board payload (including <code>group_detail.ancestors</code>), returned in pages (#1317). Requires group membership.</p>
+<p><em>(1.2+)</em> The same boards as <code>GET /api/v1/groups/{id}/descendant-boards/</code>, with the same access rules and the same per-board payload (including <code>group_detail.ancestors</code>), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.</p>
 <p><strong>Query parameters</strong></p>
 <table>
 <thead>

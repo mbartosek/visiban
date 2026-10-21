@@ -4239,7 +4239,7 @@ re-checks.</p>
 </tr>
 <tr>
 <td>REST board list, detail, star, update/destroy and cross-board card query</td>
-<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code> (used by <code>boards/views/boards.py</code> <code>BoardViewSet.get_queryset</code> and <code>boards/views/card_query.py</code> <code>CardQueryViewSet</code>); <code>groups/models.py</code> <code>get_group_ids_for_board_access</code></td>
+<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code> and its predicate <code>board_access_q</code> (used by <code>boards/views/boards.py</code> <code>BoardViewSet.get_queryset</code> and <code>boards/views/card_query.py</code> <code>CardQueryViewSet</code>; <code>board_access_q</code> is also applied by <code>groups/views.py</code> <code>GroupViewSet.boards</code> GET, <code>descendant_boards</code> and <code>descendant_boards_paged</code>); <code>groups/models.py</code> <code>get_group_ids_for_board_access</code></td>
 <td>Group-derived board access is read from current <code>GroupMembership</code> rows only (the same source as <code>get_board_role</code>, with the same depth reach), so removing a membership ends access</td>
 </tr>
 <tr>
@@ -4946,7 +4946,7 @@ arrives by any other route, any non-API write.</p>
 </tr>
 <tr>
 <td>Board list and card query scoping</td>
-<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code></td>
+<td><code>boards/views/_helpers.py</code> <code>get_accessible_boards_queryset</code>, <code>board_access_q</code>; <code>groups/views.py</code> <code>GroupViewSet.boards</code> GET, <code>_descendant_boards_queryset</code> (serves <code>descendant_boards</code> and <code>descendant_boards_paged</code>)</td>
 <td>A stored board membership role outside <code>BoardMembership.Role.values</code> admits no board through that membership and, as in <code>get_board_role</code>, is not overridden by group membership; the board owner is admitted regardless</td>
 </tr>
 <tr>
