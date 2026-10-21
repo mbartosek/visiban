@@ -447,7 +447,7 @@ CI is assumed twice as slow as the laptop (shared self-hosted runners, PostgreSQ
 | `permissions` | 2 | 58 | 45 m, 49 m |
 | `cards` | 7 | ~52 | 60 m (timeout), 60 m (timeout), 43 m, 60 m (timeout), 40 m, 54 m, 60 m (timeout) |
 | `card_movement` | 2 | 23 | 9 m, 28 m |
-| `import_export` | 33 | 53-54 | 31 jobs 19-36 m, one 59 m, one 60 m (timeout, a hanging mutant) |
+| `import_export` | 33 | 53-54 | 31 jobs 19-40 m, one 59 m, one 60 m (timeout, a hanging mutant) |
 
 Jobs 4/44 and 9/44 (`cards`) each finished only 35 of their ~52 assigned mutants (28 killed, 7 survived) before the 60 minute kill. The timed-out jobs' stats files were written but never uploaded, so the report exited 2 ("expected 7 shard stats files, got 3"), as designed. The new split, sized from those measurements:
 
@@ -456,7 +456,7 @@ Jobs 4/44 and 9/44 (`cards`) each finished only 35 of their ~52 assigned mutants
 | `permissions` | 116 x ~45 s = 87 min | 3 | 38-39 | ~29 min |
 | `cards` | 361 x ~80 s = 481 min | 16 | 22-23 | ~30 min |
 | `card_movement` | 46 x 40 s = 31 min | 2 | 23 | ~15 min (9 m and 28 m measured) |
-| `import_export` | 1780 x ~25 s = 742 min | 29 | 61-62 | ~26 min average, ~41 min slowest (36 m observed x 61/54) plus any hang |
+| `import_export` | 1780 x ~25 s = 742 min | 29 | 61-62 | ~26 min average, ~45 min slowest (40 m observed x 61/54, about 2x headroom under `timeout: 90m`) plus any hang |
 
 On top of the mutants each job spends about 5 minutes on setup: services, `pip install` of the backend and test requirements, and mutmut's baseline test run (up to ~2.5 min for `cards` at the CI estimate). So the slowest job was estimated at about 35 minutes with `timeout: 60m` (1.7x headroom); the 2026-10-18 run showed that estimate was too low for `cards`. With the re-derived split the average job is about 35 minutes including setup and `timeout` is now `90m`. Survivors cost a full test pass instead of a pass to the first failure; at a 3 to 4% survivor rate that adds about a minute to a shard. The 2026-10-10 sizing was an estimate; the 2026-10-18 run is the first measurement that exceeded it. A shard that times out makes the report exit 2 (not measured), never a smaller score. The default response to long shards is to raise that target's count (and `parallel:`) rather than the timeout, but the shard cap is now fully used (below), so the timeout was raised from 60m to 90m (#1818): mutmut lets a single mutant run 10x the baseline, so one hanging mutant costs minutes that no split can remove, and only timeout headroom absorbs it. The 90 minute `timeout:` deliberately exceeds the project's 60 minute default job timeout; as of 2026-10-21 no runner caps it (all seven project runners have no maximum timeout, and GitLab SaaS shared runners allow up to 3 hours). If shards run long again there is no room to add shards; move the slowest target's tests or mutants, or revisit the cap, instead.
 
