@@ -156,11 +156,20 @@ merge_release_mr() {
 # (squash/fast-forward projects leave merge_commit_sha empty). Fails closed when
 # neither is set or the commit is not in the local checkout's history.
 resolve_mr_merge_sha() {
-  local mr="$1" sha
-  sha="$(mr_api_field "$mr" merge_commit_sha)"
-  [[ -n "$sha" ]] || sha="$(mr_api_field "$mr" squash_commit_sha)"
+  local mr="$1" sha="" attempt delay=5
+  # Test-only: honored solely under --self-test (same gating as SECURITY_DEFERRED_SCRIPT).
+  [[ "$_RELEASE_SELFTEST" == 1 ]] && delay="${MR_SHA_RETRY_SLEEP:-$delay}"
+  # state=merged can be visible a moment before GitLab populates the SHA fields; failing
+  # closed there would leave the release half-done (merged, untagged). Retry the lookup only
+  # for the missing-SHA case; the local-history check below stays immediately fatal.
+  for attempt in 1 2 3 4 5; do
+    sha="$(mr_api_field "$mr" merge_commit_sha)"
+    [[ -n "$sha" ]] || sha="$(mr_api_field "$mr" squash_commit_sha)"
+    [[ -n "$sha" ]] && break
+    [[ $attempt -lt 5 ]] && sleep "$delay"
+  done
   if [[ -z "$sha" ]]; then
-    echo "Error: could not determine MR !${mr}'s merge commit (no merge_commit_sha or squash_commit_sha). Refusing to tag an unverified commit." >&2
+    echo "Error: could not determine MR !${mr}'s merge commit (no merge_commit_sha or squash_commit_sha after 5 attempts). Refusing to tag an unverified commit." >&2
     return 1
   fi
   if ! git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
@@ -638,6 +647,17 @@ STUB
   _sha_case "resolve_mr_merge_sha uses merge_commit_sha, not HEAD" "$sha_a" "{\"merge_commit_sha\":\"$sha_a\",\"squash_commit_sha\":null}"
   _sha_case "resolve_mr_merge_sha falls back to squash_commit_sha" "$sha_a" "{\"merge_commit_sha\":null,\"squash_commit_sha\":\"$sha_a\"}"
   _sha_case "resolve_mr_merge_sha fails closed with no SHA" "" '{"merge_commit_sha":null,"squash_commit_sha":null}'
+  # Retry: SHA populated only on a later read succeeds; never populated fails closed after 5 reads.
+  _stub_reset 0; echo '{"merge_commit_sha":null,"squash_commit_sha":null}' > "$stub/api.1"
+  echo '{"merge_commit_sha":null,"squash_commit_sha":null}' > "$stub/api.2"
+  echo "{\"merge_commit_sha\":\"$sha_a\"}" > "$stub/api.5"
+  got="$(cd "$tmp/1821-repo" && MR_SHA_RETRY_SLEEP=0 GLAB_STUB_DIR="$stub" PATH="$stub/bin:$PATH" resolve_mr_merge_sha 7 2>/dev/null)" || true
+  if [[ "$got" == "$sha_a" ]]; then echo "SELF-TEST OK: resolve_mr_merge_sha retries until the SHA is populated"
+  else echo "SELF-TEST FAILED: resolve_mr_merge_sha retries until the SHA is populated (got '$got')" >&2; rc=1; fi
+  _stub_reset 0; echo '{"merge_commit_sha":null,"squash_commit_sha":null}' > "$stub/api.1"
+  got="$(cd "$tmp/1821-repo" && MR_SHA_RETRY_SLEEP=0 GLAB_STUB_DIR="$stub" PATH="$stub/bin:$PATH" resolve_mr_merge_sha 7 2>/dev/null)" && gotrc=0 || gotrc=$?
+  if [[ $gotrc -ne 0 && -z "$got" && "$(cat "$stub/n")" -eq 10 ]]; then echo "SELF-TEST OK: resolve_mr_merge_sha fails closed after 5 attempts (merge+squash read each)"
+  else echo "SELF-TEST FAILED: resolve_mr_merge_sha must fail closed after 5 attempts (rc=$gotrc reads=$(cat "$stub/n"))" >&2; rc=1; fi
   _sha_case "resolve_mr_merge_sha fails closed when the SHA is not in local history" "" '{"merge_commit_sha":"0123456789abcdef0123456789abcdef01234567"}'
 
   [[ $rc -eq 0 ]] && echo "release: self-test passed."
