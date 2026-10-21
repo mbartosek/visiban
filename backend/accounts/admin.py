@@ -173,10 +173,13 @@ def user_deletion_refusals(targets, actor):
     admin outside the set (``groups.services.groups_left_without_admin``).
     Under the delete's locks the rows of those groups are held from statement
     1 on (``lock_groups_administered_by``), so a membership removal, demotion
-    or ownership transfer on them queues behind the delete. The other admins'
-    account rows are not locked, so a deactivation of the remaining admin that
-    commits between the check and the delete is not seen; a superuser
-    ownership transfer to an active member recovers such a group.
+    or ownership transfer on them queues behind the delete. The lock covers
+    the groups the targets actively administer when statement 1 runs; a group
+    in which a target becomes an admin after that is counted by the statement
+    3 re-check but its row is not held. The other admins' account rows are not
+    locked, so their active flag is the one read at check time; a superuser
+    ownership transfer to an active member recovers a group left without an
+    active admin.
     """
     from .admin_views import deactivation_refusal
 
@@ -564,9 +567,10 @@ class VisibanUserAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, UserAdm
         actor_row = next((u for u in locked if u.pk == actor.pk), None)
         if actor_row is None or not actor_row.is_active:
             raise PermissionDenied
-        # The groups the targets administer, so the last-admin count in
-        # ``user_deletion_refusals`` (and its re-check in statement 3) judges
-        # admin rows that cannot change until this transaction ends. Group
+        # The groups the targets actively administer at this point, so for
+        # those groups the last-admin count in ``user_deletion_refusals`` (and
+        # its re-check in statement 3) judges admin rows that no member change
+        # or ownership transfer can alter until this transaction ends. Group
         # rows after user rows: a group writer holding a group row needs at
         # most ``FOR KEY SHARE`` on a user row, which this statement's
         # ``FOR NO KEY UPDATE`` does not block.

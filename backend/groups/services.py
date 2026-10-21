@@ -378,8 +378,11 @@ def lock_groups_administered_by(user_ids):
     Used by the user delete before it judges ``groups_left_without_admin``:
     the group row is the lock every membership removal, demotion and
     ownership transfer takes first (``lock_membership_for_removal_or_demotion``,
-    ``transfer_group_ownership``), so holding it keeps the group's admin rows
-    from changing between the count and the delete. ``FOR NO KEY UPDATE``
+    ``transfer_group_ownership``), so holding it keeps those callers from
+    changing the locked groups' admin rows between the count and the delete.
+    The set is the groups ``user_ids`` actively administer when this runs; a
+    group they become admins of later is not locked by this call, and the
+    admins' active flag is read, not locked. ``FOR NO KEY UPDATE``
     leaves the ``FOR KEY SHARE`` writers (board placement, subgroup create)
     unblocked. Must run inside ``transaction.atomic()``.
     """
