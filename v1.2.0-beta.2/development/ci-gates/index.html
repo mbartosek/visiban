@@ -4391,7 +4391,7 @@ So the project keeps <strong>three</strong> schedules (#1383, #1384), not one pe
 <td><code>0 6 * * 0</code> (Sunday 06:00 ET)</td>
 <td><code>MUTATION_TEST=true</code></td>
 <td>maintainers (schedule owner: <code>kellyhair</code>)</td>
-<td><code>backend-mutation</code> (44 shards) and <code>backend-mutation-report</code> (both <code>allow_failure: true</code> until the follow-up on #1384 makes the report blocking)</td>
+<td><code>backend-mutation</code> (50 shards) and <code>backend-mutation-report</code> (both <code>allow_failure: true</code> until the follow-up on #1384 makes the report blocking)</td>
 <td><strong>Yellow <code>backend-mutation-report</code>:</strong> either the merged adjusted mutation score is under the 0.90 floor (exit 1; the log names any target under it on its own), or the run was not measured (exit 2: a shard or target died, or finished with untested mutants). The log says which. See <a href="../mutation-testing/">Mutation testing</a>.</td>
 </tr>
 </tbody>
@@ -4403,7 +4403,7 @@ schedule that sets <code>CVE_SCAN</code> (Nightly), so it needs no schedule of i
 <code>compose-prod-drill</code>) skip any schedule that sets <code>SONAR_SCHEDULED</code>, so they run on the
 load-test and weekly mutation schedules. The load test keeps its own schedule, three hours
 earlier than the Nightly one, because its latency budgets are noisy on a busy runner. Mutation
-testing keeps its own weekly schedule because 44 shards are about 20 runner-hours (see
+testing keeps its own weekly schedule because 50 shards are about 27-29 runner-hours (see
 <a href="../mutation-testing/#runner-load">Runner load</a>), which did not fit alongside the Nightly jobs. <code>backend-schema-fuzz</code>, the MR job, never runs on
 a schedule; <code>backend-schema-fuzz-deep</code> replaces it there.</p>
 <p><code>seed-demo-data</code> has no schedule on purpose (#1232): it is manual-only on <code>main</code>, because the
