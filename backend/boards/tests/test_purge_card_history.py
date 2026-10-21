@@ -16,6 +16,7 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 from accounts.models import AdminActionLog, User
 from boards.models import Board, Card, CardMovement, Column, Swimlane
@@ -286,7 +287,38 @@ class PurgeCardHistoryTests(TestCase):
         self.assertNotIn(SECRET_NOTE, blob)
 
     def test_action_is_filterable_in_the_action_log_api(self):
-        self.assertIn(PURGED, AdminActionLog.Action.values)
+        uid, _ = self._deleted_card_with_moves(self.board, _utc(2026, 1, 5))
+        self._run("--card", uid, "--yes")
+        AdminActionLog.record(
+            action=AdminActionLog.Action.UPLOADS_DISABLED,
+            source=AdminActionLog.Source.ADMIN_API,
+        )
+        site_admin = User.objects.create_user(
+            username="siteadmin", password="pw-1797-x!", is_site_admin=True
+        )
+        client = APIClient()
+        client.force_authenticate(site_admin)
+
+        resp = client.get("/api/v1/admin/action-log/", {"action": PURGED})
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        results = resp.json()["results"]
+        self.assertEqual([r["action"] for r in results], [PURGED])
+        self.assertEqual(results[0]["actor_username"], "root")
+        self.assertEqual(results[0]["source"], "cli")
+        self.assertEqual(results[0]["metadata"]["deleted_count"], 1)
+        self.assertNotIn(SECRET_TITLE, resp.content.decode())
+
+    def test_include_live_cards_matches_a_live_row_without_a_uid_snapshot(self):
+        # A row the previous release wrote mid-upgrade has a card but no
+        # card_uid yet; --card must still find it through the card FK.
+        live = self._card(self.board)
+        pk = self._move(live, _utc(2026, 1, 5))
+        CardMovement.objects.filter(pk=pk).update(card_uid="", card_title="")
+
+        self._run("--card", live.uid, "--include-live-cards", "--yes")
+
+        self.assertEqual(self._remaining([pk]), set())
 
     def test_no_match_records_nothing(self):
         out = self._run("--board", str(self.board.pk), "--yes")

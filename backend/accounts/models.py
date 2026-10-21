@@ -932,7 +932,8 @@ class AdminActionLog(models.Model):
     ---------
     There is deliberately no pruner. ``BoardEvent`` has one because it records
     every board mutation; this table records deliberate admin actions (instance
-    settings and administrator-set account passwords) and grows slowly, so a retention job would be machinery with
+    settings, administrator-set account passwords and operator card-history
+    purges, ``card_history.purged``) and grows slowly, so a retention job would be machinery with
     nothing to do. Retention *policy* tooling is an enterprise concern per the
     open-core boundary — if volume ever justifies pruning (e.g. once #785 adds
     impersonation events), that is the point to revisit, not before.

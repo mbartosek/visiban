@@ -26,7 +26,7 @@ Find the movement timeline in the card detail panel's **Activity** tab.
 
 > **Changed in 1.2** (#1469)
 
-Movement records are append-only: once written, they are not edited or removed.
+Movement records are append-only: once written, they are not edited, and they are removed only with their board or by a superuser's `purge_card_history` run (since 1.3; see [Card History Retention](../administration/card-history-retention.md)).
 
 - **Deleting a card keeps its movements.** This covers deleting the card itself and deleting the column or swimlane it is in. Each record keeps the card's UID and title (`card_uid`, `card_title`) as of when it was recorded (for movements from before 1.2 and for imported ones, as of the upgrade or import), so the board's **History** view still lists it under the original card. A deleted card no longer appears under the **Swimlane** filter, which filters by the card's current swimlane.
 - **Each movement keeps the title recorded with it.** While a card exists, its history is listed under its current title. Once it is deleted, each movement is listed under the title the card had at that move, so a card renamed before it was deleted appears under its earlier titles too.
