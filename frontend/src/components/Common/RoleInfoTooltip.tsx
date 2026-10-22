@@ -29,7 +29,7 @@ export default function RoleInfoTooltip({ children, label = "Role information" }
       <button
         ref={btnRef}
         type="button"
-        className="w-5 h-5 rounded-full border border-line-strong text-xs text-fg-tertiary hover:text-fg hover:border-line-emphasis flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+        className="w-6 h-6 rounded-full border border-line-strong text-xs text-fg-tertiary hover:text-fg hover:border-line-emphasis flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
         aria-label={label}
         tabIndex={0}
         onMouseEnter={show}
