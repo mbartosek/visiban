@@ -292,6 +292,22 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   moveSubmittingRef.current = moveSubmitting || moveForcing;
   const moveTargetRef = useRef({ column: moveTargetColumn, swimlane: moveTargetSwimlane });
   moveTargetRef.current = { column: moveTargetColumn, swimlane: moveTargetSwimlane };
+  // Latest live card and localCard, read by async handlers AFTER their await so
+  // an onUpdated payload never reflects the render the click happened in (#1777).
+  const liveCardRef = useRef(card);
+  liveCardRef.current = card;
+  const localCardRef = useRef(localCard);
+  localCardRef.current = localCard;
+  // Base for every onUpdated payload that changes one field (checklist counts,
+  // attachment count). Built from the live `card` prop, NOT from localCard:
+  // localCard is seeded once and only follows version/location, so spreading it
+  // wrote a remotely renamed title, labels, weight or assignee back into
+  // board.cards (#1777). The version takes the higher of the two because an own
+  // move/save may have synced it into localCard before the prop catches up.
+  const liveCardBase = (): Card => ({
+    ...liveCardRef.current,
+    version: Math.max(liveCardRef.current.version, localCardRef.current.version),
+  });
   const localLocationRef = useRef({ column: localCard.column, swimlane: localCard.swimlane });
   localLocationRef.current = { column: localCard.column, swimlane: localCard.swimlane };
   useEffect(() => {
@@ -614,7 +630,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       const attachment = await uploadCardAttachment(board.id, localCard.id, file);
       setAttachments((prev) => [attachment, ...prev]);
       setLocalCard((c) => ({ ...c, attachment_count: c.attachment_count + 1 }));
-      onUpdated({ ...localCard, attachment_count: localCard.attachment_count + 1 });
+      {
+        const base = liveCardBase();
+        onUpdated({ ...base, attachment_count: base.attachment_count + 1 });
+      }
     } catch {
       setAttachError("Could not upload attachment.");
     } finally {
@@ -634,7 +653,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       await deleteCardAttachment(board.id, localCard.id, id);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
       setLocalCard((c) => ({ ...c, attachment_count: Math.max(0, c.attachment_count - 1) }));
-      onUpdated({ ...localCard, attachment_count: Math.max(0, localCard.attachment_count - 1) });
+      {
+        const base = liveCardBase();
+        onUpdated({ ...base, attachment_count: Math.max(0, base.attachment_count - 1) });
+      }
     } catch {
       setAttachError("Could not delete attachment.");
     } finally {
@@ -655,7 +677,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       const item = await addChecklistItem(board.id, card.id, newItemText.trim());
       setChecklist((prev) => [...prev, item]);
       setNewItemText("");
-      onUpdated({ ...localCard, checklist_total: localCard.checklist_total + 1 });
+      {
+        const base = liveCardBase();
+        onUpdated({ ...base, checklist_total: base.checklist_total + 1 });
+      }
     } catch {
       setChecklistError("Could not add item.");
     } finally {
@@ -697,7 +722,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       checklistAddInFlight.current = false;
       if (added.length > 0) {
         setChecklist((prev) => [...prev, ...added]);
-        onUpdated({ ...localCard, checklist_total: localCard.checklist_total + added.length });
+        {
+          const base = liveCardBase();
+          onUpdated({ ...base, checklist_total: base.checklist_total + added.length });
+        }
       }
     }
   };
@@ -714,7 +742,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       const newChecklist = checklist.map((i) => (i.id === item.id ? updated : i));
       setChecklist(newChecklist);
       const done = newChecklist.filter((i) => i.is_checked).length;
-      onUpdated({ ...localCard, checklist_done: done, checklist_total: newChecklist.length });
+      onUpdated({ ...liveCardBase(), checklist_done: done, checklist_total: newChecklist.length });
     } catch {
       setChecklistError("Could not update item.");
     } finally {
@@ -731,7 +759,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       const newChecklist = checklist.filter((i) => i.id !== itemId);
       setChecklist(newChecklist);
       const done = newChecklist.filter((i) => i.is_checked).length;
-      onUpdated({ ...localCard, checklist_total: newChecklist.length, checklist_done: done });
+      onUpdated({ ...liveCardBase(), checklist_total: newChecklist.length, checklist_done: done });
     } catch {
       setChecklistError("Could not delete item.");
     } finally {
