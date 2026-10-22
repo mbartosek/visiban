@@ -48,6 +48,14 @@ functions and to `registration_token_kind` (Rule 4 dispatch). It does not
 enumerate Rule 3 (the revocation table is a review checklist), Rule 5, Rule 9
 or Rule 10 (review checklists, pinned by the tests named under each), and it
 does not test locking; the concurrent tests for each consume-once path do.
+Rules 11 and 12 are enumerated by their own tests instead:
+`groups/tests/test_group_member_guards.py` `GroupMembershipEntryPointTests`
+(Rule 11) and `boards/tests/test_analytics_panel_min_role_1826.py`
+`AnalyticsExtensionsEntryPointTests` (Rule 12). Both rules also keep their
+shared function outside `visiban/authorization.py` (`groups/services.py`
+`lock_membership_for_removal_or_demotion` and `boards/permissions.py`
+`analytics_extensions_for_role`), an accepted deviation from step 5 of
+[How to add a rule](#how-to-add-a-rule).
 [Authorization Entry Points](authorization-entry-points.md) says what each
 entry point calls and how that test finds them.
 
