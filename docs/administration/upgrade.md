@@ -358,8 +358,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 ### Upgrading to 1.2.x
 
 !!! note "OpenAPI component names changed for `/auth/user/` and the dj-rest-auth responses"
-    No field name or shape on the wire changed, but a client generated from the OpenAPI schema names these
-    types differently, so regenerating one renames them. The 1.2 names are the contract from
+    The rename itself changes no field, but a client generated from the OpenAPI schema names these
+    types differently, so regenerating one renames them. Other 1.2 changes to these shapes are in
+    the changelog and the API docs. The 1.2 names are the contract from
     1.2.0 on; the 1.1 names are not pinned back (#1834).
 
     | 1.1 component | 1.2 component | Used by |
