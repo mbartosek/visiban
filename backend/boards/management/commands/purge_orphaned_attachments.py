@@ -17,8 +17,10 @@ Safety rails:
   a request still in flight.
 - **Re-checked before each delete.** The database is queried again
   immediately before a file is removed, so a row created in the meantime wins.
-- **No paths in logs.** Paths are printed to the operator's terminal only,
-  never sent through the application logger.
+- **No paths by default.** File names can carry a user's original upload name,
+  so they are printed only at ``--verbosity 2``, and never sent through the
+  application logger. Under a CronJob, stdout may be collected, so the default
+  output is counts only.
 
 Run it against the node that holds the files: with ``FileSystemStorage`` on
 per-node volumes it sees only the local node's files.
@@ -30,6 +32,7 @@ Usage::
 """
 
 import datetime
+import unicodedata
 
 from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand, CommandError
@@ -39,6 +42,10 @@ from boards.models import CardAttachment
 
 ROOT = "attachments"
 _DEFAULT_MIN_AGE_HOURS = 24
+
+
+def _nfc(name):
+    return unicodedata.normalize("NFC", name)
 
 
 def _walk(storage):
@@ -79,13 +86,19 @@ class Command(BaseCommand):
         cutoff = timezone.now() - datetime.timedelta(hours=min_age_hours)
 
         # Stream the referenced names into a set; only names are held, not rows.
-        referenced = set(CardAttachment.objects.values_list("file", flat=True).iterator())
+        # Names are compared NFC-normalized: some filesystems (macOS) return
+        # NFD names from listdir for a file stored under its NFC name, and an
+        # exact match would read a live attachment as an orphan.
+        referenced = {_nfc(n) for n in CardAttachment.objects.values_list("file", flat=True).iterator()}
 
-        orphans = [name for name in _walk(storage) if name not in referenced]
+        orphans = [name for name in _walk(storage) if _nfc(name) not in referenced]
         found = deleted = skipped_young = 0
         for name in orphans:
             # Only orphans pay for a modified-time lookup (one HEAD on S3).
-            modified = storage.get_modified_time(name)
+            try:
+                modified = storage.get_modified_time(name)
+            except FileNotFoundError:
+                continue  # removed since listing, e.g. by a concurrent delete
             if timezone.is_naive(modified):
                 modified = timezone.make_aware(modified)
             if modified > cutoff:
@@ -93,18 +106,20 @@ class Command(BaseCommand):
                 continue
             found += 1
             if not options["yes"]:
-                self.stdout.write(f"would delete {name}")
+                if options["verbosity"] >= 2:
+                    self.stdout.write(f"would delete {name}")
                 continue
             # A row may have appeared since the snapshot above.
-            if CardAttachment.objects.filter(file=name).exists():
+            if CardAttachment.objects.filter(file__in={name, _nfc(name)}).exists():
                 continue
             try:
                 storage.delete(name)
             except Exception as exc:
-                self.stderr.write(f"failed to delete {name}: {type(exc).__name__}")
+                self.stderr.write(f"failed to delete an orphaned file: {type(exc).__name__}")
                 continue
             deleted += 1
-            self.stdout.write(f"deleted {name}")
+            if options["verbosity"] >= 2:
+                self.stdout.write(f"deleted {name}")
 
         verb = f"deleted {deleted}" if options["yes"] else f"{found} would be deleted (rerun with --yes)"
         self.stdout.write(f"Orphaned attachment files: {verb}; {skipped_young} too recent to touch.")

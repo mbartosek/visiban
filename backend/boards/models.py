@@ -1017,7 +1017,10 @@ def remove_file_of_deleted_attachment(sender, instance, **kwargs):
     repair path for a file this misses.
     """
     file_name = instance.file.name if instance.file else ""
-    if not file_name:
+    # Uploads always land under attachments/; refuse anything else (or a ``..``
+    # that stays inside MEDIA_ROOT) so a name written by a future import path
+    # can never make this receiver delete a file outside that tree.
+    if not file_name.startswith("attachments/") or ".." in file_name.split("/"):
         return
     file_storage = instance.file.storage
     pk = instance.pk

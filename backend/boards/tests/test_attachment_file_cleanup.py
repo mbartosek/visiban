@@ -117,6 +117,14 @@ class AttachmentFileRemovalTests(_MediaTestCase):
             self.card.delete()
         self.assertEqual(CardAttachment.objects.count(), 0)
 
+    def test_name_outside_attachments_tree_is_never_deleted(self):
+        outside = default_storage.save("avatars/keep.txt", ContentFile(b"x"))
+        for bad in (outside, "attachments/../avatars/keep.txt"):
+            CardAttachment.objects.create(card=self.card, file=bad, filename="b", size=1)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.card.delete()
+        self.assertTrue(default_storage.exists(outside))
+
     def test_storage_failure_is_swallowed_and_logs_class_only(self):
         name = self._attach()
         with patch("django.core.files.storage.FileSystemStorage.delete", side_effect=OSError("secret/path")):
@@ -138,9 +146,29 @@ class PurgeOrphanedAttachmentsTests(_MediaTestCase):
         orphan = self._attach(row=False)
         self._age(orphan, 48)
         out = self._run()
-        self.assertIn("would delete", out)
+        self.assertNotIn(orphan, out)
         self.assertIn("1 would be deleted", out)
         self.assertTrue(default_storage.exists(orphan))
+
+    def test_names_only_printed_at_verbosity_2(self):
+        orphan = self._attach(row=False)
+        self._age(orphan, 48)
+        self.assertNotIn(orphan, self._run())
+        self.assertIn(orphan, self._run("--verbosity", "2"))
+
+    def test_file_vanishing_mid_run_is_skipped(self):
+        orphan = self._attach(row=False)
+        self._age(orphan, 48)
+        with patch("django.core.files.storage.FileSystemStorage.get_modified_time", side_effect=FileNotFoundError):
+            self.assertIn("0 would be deleted", self._run())
+
+    def test_unicode_normalization_does_not_orphan_a_live_file(self):
+        import unicodedata
+        nfc = unicodedata.normalize("NFC", "attachments/2026/10/caf\u00e9.txt")
+        nfd = unicodedata.normalize("NFD", nfc)
+        CardAttachment.objects.create(card=self.card, file=nfc, filename="c", size=1)
+        with patch("boards.management.commands.purge_orphaned_attachments._walk", return_value=iter([nfd])):
+            self.assertIn("0 would be deleted", self._run())
 
     def test_yes_deletes_only_old_orphans(self):
         old = self._attach(name="attachments/2026/10/old.txt", row=False)
@@ -164,7 +192,7 @@ class PurgeOrphanedAttachmentsTests(_MediaTestCase):
         real_exists = CardAttachment.objects.filter
 
         def late_row(*args, **kwargs):
-            if "file" in kwargs:
+            if "file__in" in kwargs:
                 CardAttachment.objects.create(card=self.card, file=orphan, filename="f", size=1)
             return real_exists(*args, **kwargs)
 
