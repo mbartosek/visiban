@@ -656,6 +656,7 @@ When two related numeric inputs belong to the same conceptual setting (e.g. thre
 ## Typography
 
 - **Minimum text size for informational content is `text-xs` (12px).** Never use `text-[10px]` or smaller arbitrary pixel sizes for stats, labels, status text, or any text the user is meant to read. Sub-12px arbitrary sizes are reserved for decorative single-glyph indicators where the meaning is carried by an adjacent label or `title` attribute (e.g. the rotated column abbreviation in a collapsed column header).
+- **Info-tooltip triggers (`RoleInfoTooltip`) are `w-6 h-6 text-xs`** (24px minimum target, 12px glyph floor) (#1857). A child `<strong>` inside an on-tint strip (`JoinedNotice`) uses the same `*-on-tint` text token, never plain `text-<hue>`.
 - Page headings: `text-xl font-semibold text-fg`
 - Page-level section headings (Dashboard-style landmark regions like "My Boards", "Groups", "Favorite Boards"): `text-lg font-semibold text-fg`. These are top-level navigation regions on a full page, not sub-sections inside a card or panel. Pair each heading with an `id` and `aria-labelledby` on the enclosing `<section>` so the landmark has an accessible name.
 - Section headings (sub-sections inside a card, panel, or modal): `text-sm font-medium text-fg-tertiary uppercase tracking-wide`
