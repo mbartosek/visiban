@@ -62,6 +62,8 @@ describe('RoleInfoTooltip typography (#1857)', () => {
     render(<RoleInfoTooltip>content</RoleInfoTooltip>)
     const btn = screen.getByRole('button', { name: 'Role information' })
     expect(btn.className).toContain('text-xs')
+    expect(btn.className).toContain('w-6')
+    expect(btn.className).toContain('h-6')
     expect(btn.className).not.toContain('text-[10px]')
   })
 })
