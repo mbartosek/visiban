@@ -396,7 +396,7 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     records can now only be viewed — add, edit and delete are gone. Summary and Analytics
     numbers are unchanged. See [Card History](../features/card-history.md#deleted-cards-keep-their-history) (#1469).
     A deleted card's title and movement notes now stay visible to the board's members until
-    the board is deleted. Since 1.3, a superuser can erase them on request with the
+    the board is deleted. Since 1.2, a superuser can erase them on request with the
     `purge_card_history` management command; see
     [Card History Retention](card-history-retention.md) (#1797).
 
