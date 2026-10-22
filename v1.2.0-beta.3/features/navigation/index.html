@@ -4186,19 +4186,20 @@
 </thead>
 <tbody>
 <tr>
-<td><code>sidebar-collapsed</code></td>
+<td><code>user:prefs:sidebar-collapsed</code></td>
 <td><code>"true"</code> | <code>"false"</code></td>
 <td>Whether the sidebar is in icon-rail mode</td>
 </tr>
 <tr>
-<td><code>sidebar-groups-expanded</code></td>
+<td><code>user:prefs:sidebar-groups-expanded</code></td>
 <td>JSON array of group IDs (numbers)</td>
 <td>Which groups have their board list open</td>
 </tr>
 </tbody>
 </table>
-<p><code>sidebar-collapsed</code> is written on every toggle; <code>sidebar-groups-expanded</code> on every group expand or collapse. Both are read synchronously during component initialization, so there's no flash of the default state on load.</p>
-<p>If <code>sidebar-groups-expanded</code> can't be parsed as valid JSON, the error is silently caught and the set of expanded groups starts empty.</p>
+<p><code>user:prefs:sidebar-collapsed</code> is written on every toggle; <code>user:prefs:sidebar-groups-expanded</code> on every group expand or collapse. Both are read synchronously during component initialization, so there's no flash of the default state on load.</p>
+<p>Before 1.2 these keys were named <code>sidebar-collapsed</code> and <code>sidebar-groups-expanded</code>. On first load the old value is copied to the new key and the old key is removed; if the new key already exists it wins. The theme preference moved the same way (<code>visiban-theme</code> to <code>user:prefs:theme</code>, and its <code>visiban-theme-synced</code> sentinel to <code>user:prefs:theme-synced</code>).</p>
+<p>If <code>user:prefs:sidebar-groups-expanded</code> can't be parsed as valid JSON, the error is silently caught and the set of expanded groups starts empty.</p>
 <h2 id="active-board-highlight">Active board highlight<a class="headerlink" href="#active-board-highlight" title="Permanent link">&para;</a></h2>
 <p>The sidebar reads the current URL via React Router's <code>useLocation</code> hook and extracts a board ID from paths matching <code>/boards/&lt;id&gt;</code>. The matching board item gets a blue highlight (<code>bg-blue-600/20 text-blue-400 font-medium</code>); other board items use muted slate text. The active ID is derived from the route on every render, so navigating away clears the highlight immediately, with no extra state management.</p>
 <h2 id="mobile-behavior">Mobile behavior<a class="headerlink" href="#mobile-behavior" title="Permanent link">&para;</a></h2>
