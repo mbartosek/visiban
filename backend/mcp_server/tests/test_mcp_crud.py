@@ -390,12 +390,24 @@ class ListCardsPagingTests(CrudToolsTestCase):
         )
         self.assertEqual(result["total"], 3)
 
-    def test_negative_paging_is_a_validation_error(self):
-        for arg in ("limit", "offset"):
-            with self.subTest(arg=arg):
-                result = self._call("list_cards", self.raw_token, board_id=self.board.id, **{arg: -1})
-                self.assertEqual(result["error"]["code"], "validation_error")
-                self.assertIn(arg, result["error"]["errors"])
+    def test_negative_limit_is_a_validation_error(self):
+        result = self._call("list_cards", self.raw_token, board_id=self.board.id, limit=-1)
+        self.assertEqual(result["error"]["code"], "validation_error")
+        self.assertIn("limit", result["error"]["errors"])
+
+    def test_negative_offset_clamps_to_zero(self):
+        # #1823: lenient like REST's parse_offset, not a validation_error.
+        result = self._call(
+            "list_cards", self.raw_token, board_id=self.board.id, include_meta=True, offset=-1,
+        )
+        self.assertNotIn("error", result)
+        self.assertEqual(result["offset"], 0)
+
+    def test_parse_paging_non_int_offset_is_zero(self):
+        from mcp_server.tools import _parse_paging
+        for bad in ("abc", 1.5, True, -7):
+            with self.subTest(offset=bad):
+                self.assertEqual(_parse_paging(None, bad)[1], 0)
 
     def test_oversized_offset_is_a_validation_error(self):
         result = self._call("list_cards", self.raw_token, board_id=self.board.id, offset=2**63)

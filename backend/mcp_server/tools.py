@@ -590,30 +590,35 @@ _LIST_CARDS_MAX_ROWS = 200
 
 
 def _parse_paging(limit, offset):
-    """Validate list_cards ``limit``/``offset`` like REST's ``_parse_card_list_param``.
+    """Validate list_cards ``limit``/``offset`` like REST's card list.
 
-    Strict on purpose (a bad value is a clean ``validation_error``, never a
-    500 or a silently-ignored param): negatives are rejected. As in REST,
-    ``limit`` is clamped to the cap BEFORE any range check, so an oversized
-    limit is a reasonable request, not an error, while an ``offset`` above
+    ``limit`` is strict: negatives are rejected and it is clamped to the cap
+    BEFORE any range check, so an oversized limit is a reasonable request, not
+    an error. ``offset`` is lenient (#1823), as ``visiban.request_shape.parse_offset``
+    is on REST: a negative or non-integer value is 0; only a value above
     ``MAX_OFFSET`` is rejected. Over the MCP transport the tool's input schema
-    has already coerced the argument to an int (or rejected it); the
-    non-int branch only guards direct Python callers.
+    has already coerced the argument to an int (or rejected it); the non-int
+    branches only guard direct Python callers.
     """
     errors = {}
-    values = {}
-    for name, raw, default in (("limit", limit, _LIST_CARDS_MAX_ROWS), ("offset", offset, 0)):
-        if raw is None:
-            values[name] = default
-        elif not isinstance(raw, int) or raw < 0:
-            errors[name] = ["Must be a non-negative integer."]
-        else:
-            values[name] = min(raw, _LIST_CARDS_MAX_ROWS) if name == "limit" else raw
-            if values[name] > MAX_OFFSET:
-                errors[name] = ["Must be a valid integer offset."]
+    if limit is None:
+        page_limit = _LIST_CARDS_MAX_ROWS
+    elif not isinstance(limit, int) or limit < 0:
+        errors["limit"] = ["Must be a non-negative integer."]
+        page_limit = _LIST_CARDS_MAX_ROWS
+    else:
+        page_limit = min(limit, _LIST_CARDS_MAX_ROWS)
+
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        page_offset = 0
+    elif offset > MAX_OFFSET:
+        errors["offset"] = ["Must be a valid integer offset."]
+        page_offset = 0
+    else:
+        page_offset = offset
     if errors:
         raise ValidationFailed(errors)
-    return values["limit"], values["offset"]
+    return page_limit, page_offset
 
 
 def _cards_page(board, *, column_id=None, swimlane_id=None, assignee=None,

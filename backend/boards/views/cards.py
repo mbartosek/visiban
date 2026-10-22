@@ -284,7 +284,8 @@ _CARD_LIST_SCHEMA = extend_schema(
             description=(
                 f"Maximum cards to return (default and maximum {_CARD_LIST_MAX_ROWS}; "
                 "larger values are clamped to the maximum). `0` returns an empty "
-                "array with the headers set. A negative or non-integer value is a 400."
+                "array with the headers set. A negative or non-integer value is a 400 "
+                'with `{"detail": ..., "code": "invalid_query_param"}`.'
             ),
         ),
         OpenApiParameter(
@@ -294,7 +295,7 @@ _CARD_LIST_SCHEMA = extend_schema(
             required=False,
             description=(
                 "Number of matching cards to skip (default 0). A negative or "
-                "non-integer value is a 400."
+                "non-integer value is treated as 0, as on every other endpoint."
             ),
         ),
         OpenApiParameter(
@@ -316,31 +317,41 @@ _CARD_LIST_SCHEMA = extend_schema(
             ),
         ),
     ],
+    responses={
+        200: CardSerializer(many=True),
+        400: OpenApiResponse(
+            description=(
+                "`limit` is negative or not an integer (`code: invalid_query_param`). "
+                "(An `offset` above 2^62 also returns 400, in the field-keyed form "
+                '`{"offset": ["..."]}` shared with the other endpoints.)'
+            ),
+            response=inline_serializer(
+                name="CardListInvalidQueryParam",
+                fields={"detail": serializers.CharField(), "code": serializers.CharField()},
+            ),
+        ),
+    },
 )
 
 
-def _parse_card_list_param(request, name, default, maximum=None):
-    """Parse an optional non-negative integer query param for the card list (#1724).
+def _parse_card_limit(request, maximum):
+    """Parse the card list's optional ``limit`` query param (#1724, #1823).
 
-    Strict on purpose: these params are new, so there is no lenient legacy
-    behavior to preserve, and silently treating ``limit=abc`` as the default
-    would recreate the "client cannot tell what it got" bug this fixes.
-    Absent or blank means ``default``; ``maximum`` (when given) clamps rather
-    than rejects, since asking for more than the cap is a reasonable request.
+    ``limit`` stays strict: silently treating ``limit=abc`` as the default
+    would recreate the "client cannot tell what it got" bug #1724 fixed. A bad
+    value is a ``{detail, code}`` 400 with ``code: "invalid_query_param"`` (the
+    project's coded-error shape), not DRF's field-keyed ``{"limit": [...]}``.
+    Absent or blank means ``maximum``; larger values clamp rather than reject,
+    since asking for more than the cap is a reasonable request.
     """
-    raw = request.query_params.get(name, "")
+    raw = request.query_params.get("limit", "")
     if raw == "":
-        return default
+        return maximum
     if not (raw.isascii() and raw.isdigit()):
-        raise serializers.ValidationError({name: "Must be a non-negative integer."})
-    # Past 19 digits the value exceeds MAX_OFFSET anyway; skipping int() also
+        raise CodedValidationError("invalid_query_param", "limit must be a non-negative integer.")
+    # Past 19 digits the value exceeds the cap anyway; skipping int() also
     # sidesteps Python's int-from-str digit limit (a ValueError -> 500).
-    value = int(raw) if len(raw) <= 19 else MAX_OFFSET + 1
-    if maximum is not None:
-        value = min(value, maximum)
-    if value > MAX_OFFSET:
-        raise serializers.ValidationError({name: "Must be a valid integer offset."})
-    return value
+    return min(int(raw), maximum) if len(raw) <= 19 else maximum
 
 
 _ENTER_COLUMN_409 = (
@@ -520,8 +531,11 @@ class CardViewSet(viewsets.ModelViewSet):
         # see. The (board, role) tuple is cached, so get_queryset() reuses it.
         self._board()
         # Then validate params, still before any card query.
-        limit = _parse_card_list_param(request, "limit", self._LIST_MAX_ROWS, maximum=self._LIST_MAX_ROWS)
-        offset = _parse_card_list_param(request, "offset", 0)
+        limit = _parse_card_limit(request, self._LIST_MAX_ROWS)
+        # Lenient like every other offset in the API (#1823): a negative or
+        # non-integer offset is 0, not a 400. Only a value past MAX_OFFSET is
+        # rejected, by parse_offset itself.
+        offset = parse_offset(request)
 
         queryset = self.filter_queryset(self.get_queryset())
         # Make the order total: `position` (the default) and every other

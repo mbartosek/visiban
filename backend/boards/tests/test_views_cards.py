@@ -823,16 +823,32 @@ class CardListTruncationSignalTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()), 3)
 
-    def test_invalid_params_are_400(self):
-        for params in (
-            {"limit": "-1"}, {"limit": "abc"}, {"limit": "1.5"},
-            {"offset": "-1"}, {"offset": "x"}, {"offset": str(2**62 + 1)},
-            {"offset": "9" * 5000},
-        ):
+    def test_bad_limit_is_coded_400(self):
+        # #1823: the project's {detail, code} shape, not DRF's field-keyed one.
+        for params in ({"limit": "-1"}, {"limit": "abc"}, {"limit": "1.5"}):
             with self.subTest(params=params):
                 r = self.client.get(self.url, params)
                 self.assertEqual(r.status_code, 400)
-                self.assertIn(next(iter(params)), r.json())
+                body = r.json()
+                self.assertEqual(body["code"], "invalid_query_param")
+                self.assertIsInstance(body["detail"], str)
+                self.assertNotIn("limit", body)
+
+    def test_bad_offset_clamps_to_zero(self):
+        # #1823: same leniency as parse_offset everywhere else.
+        self._seed(3)
+        for offset in ("-1", "abc", "1.5", "9" * 5000):
+            with self.subTest(offset=offset):
+                r = self.client.get(self.url, {"offset": offset})
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(len(r.json()), 3)
+                self.assertEqual(r["X-Total-Count"], "3")
+                self.assertEqual(r["X-Truncated"], "false")
+
+    def test_offset_above_max_is_still_400(self):
+        r = self.client.get(self.url, {"offset": str(2**62 + 1)})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("offset", r.json())
 
     def test_huge_limit_is_clamped_not_rejected(self):
         self._seed(3)

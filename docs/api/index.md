@@ -131,7 +131,7 @@ Some list endpoints deliberately **do not** use it. Check the endpoint's own pag
 | Endpoint | Shape |
 |---|---|
 | `GET /cards/` | Cursor pagination: `{results, next_cursor}`. See [Cards API](cards.md) |
-| `GET /boards/{id}/cards/` | Bare array, capped at 200 rows, with `X-Total-Count` / `X-Truncated` headers and optional `limit` / `offset`. See [Cards API](cards.md) |
+| `GET /boards/{id}/cards/` | Bare array, capped at 200 rows, with `X-Total-Count` / `X-Truncated` headers and optional `limit` / `offset`. A deliberate second pagination style: it keeps `limit` (not `page_size`) because the response has no envelope to carry a `count`, and the same `limit` / `total` / `truncated` vocabulary is what MCP `list_cards` exposes, so the two stay in step. A negative or non-integer `offset` is `0`, like every other endpoint; a bad `limit` is a `400` with `{detail, code: "invalid_query_param"}`. See [Cards API](cards.md) |
 | `GET /boards/{id}/movements/` and `GET /boards/{id}/cards/archived/` | The standard envelope, but the page size is fixed at `50` and `page_size` is ignored; only `offset` pages |
 | `GET /boards/{id}/cards/{card_id}/timeline/` | `limit` (default 50, max 200) and `offset`, with `next` / `previous` links. See [Cards API](cards.md) |
 | `GET /boards/{id}/events/` | `{results, next}` cursor feed. See [Change Feed](events.md) |
