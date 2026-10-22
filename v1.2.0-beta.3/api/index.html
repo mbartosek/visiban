@@ -4074,7 +4074,7 @@
 </tr>
 <tr>
 <td><code>GET /boards/{id}/cards/</code></td>
-<td>Bare array, capped at 200 rows, with <code>X-Total-Count</code> / <code>X-Truncated</code> headers and optional <code>limit</code> / <code>offset</code>. See <a href="cards/">Cards API</a></td>
+<td>Bare array, capped at 200 rows, with <code>X-Total-Count</code> / <code>X-Truncated</code> headers and optional <code>limit</code> / <code>offset</code>. A deliberate second pagination style: it keeps <code>limit</code> (not <code>page_size</code>) because the response has no envelope to carry a <code>count</code>, and the same <code>limit</code> / <code>total</code> / <code>truncated</code> vocabulary is what MCP <code>list_cards</code> exposes, so the two stay in step. A negative or non-integer <code>offset</code> is <code>0</code>, like every other endpoint; a bad <code>limit</code> is a <code>400</code> with <code>{detail, code: "invalid_query_param"}</code>. An <code>offset</code> above 2^62 is rejected by the shared <code>parse_offset</code> with a field-keyed <code>400</code> (<code>{"offset": "..."}</code>), as on every endpoint that takes <code>offset</code>. See <a href="cards/">Cards API</a></td>
 </tr>
 <tr>
 <td><code>GET /boards/{id}/movements/</code> and <code>GET /boards/{id}/cards/archived/</code></td>

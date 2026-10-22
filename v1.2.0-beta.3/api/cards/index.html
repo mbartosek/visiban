@@ -4619,11 +4619,11 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 <tbody>
 <tr>
 <td><code>?limit=&lt;n&gt;</code></td>
-<td>Maximum cards to return. Default and maximum <code>200</code>; a larger value is clamped to <code>200</code>. <code>0</code> returns <code>[]</code> with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns <code>400</code></td>
+<td>Maximum cards to return. Default and maximum <code>200</code>; a larger value is clamped to <code>200</code>. <code>0</code> returns <code>[]</code> with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns <code>400</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code></td>
 </tr>
 <tr>
 <td><code>?offset=&lt;n&gt;</code></td>
-<td>Number of matching cards to skip. Default <code>0</code>. An offset past the end returns <code>[]</code>. A blank value means the default; a negative or non-integer value returns <code>400</code></td>
+<td>Number of matching cards to skip. Default <code>0</code>. An offset past the end returns <code>[]</code>. A blank value means the default; a negative or non-integer value is treated as <code>0</code>, as on every other endpoint (<em>Changed in 1.2, #1823</em>). Only a value above 2^62 returns <code>400</code>, with the field-keyed body <code>{"offset": "..."}</code> (unlike a bad <code>limit</code>, which is <code>{detail, code}</code>)</td>
 </tr>
 <tr>
 <td><code>?search=&lt;q&gt;</code></td>
@@ -5078,7 +5078,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <tbody>
 <tr>
 <td><code>offset</code></td>
-<td>Pagination offset (default: <code>0</code>). A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": [...]}</code>.</td>
+<td>Pagination offset (default: <code>0</code>). A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": "..."}</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -5325,7 +5325,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <td><code>offset</code></td>
 <td>integer</td>
 <td><code>0</code></td>
-<td>Zero-based page offset. A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": [...]}</code>.</td>
+<td>Zero-based page offset. A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": "..."}</code>.</td>
 </tr>
 <tr>
 <td><code>event_types</code></td>
