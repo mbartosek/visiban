@@ -224,24 +224,33 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     setSelectedMovement(null);
   }, []);
 
-  // Escape closes the slide-in through the shared stack at priority 30 (side
-  // panels), above BoardView's history-to-board handler at 15, so one keypress
-  // closes only the slide-in. Returning false when nothing is open lets Escape
-  // fall through to the board handler.
+  // Escape closes the slide-in through the shared stack at priority 18: above
+  // BoardView's history-to-board handler (15), so one keypress closes only the
+  // slide-in, and below every open menu or dropdown (25) so a menu that is open
+  // at the same time (filter dropdown, user menu) takes Escape first. The panel
+  // has no backdrop or focus trap, which is why it must not outrank them.
+  // Returning false when nothing is open lets Escape fall through.
   useEscapeStack(() => {
     if (selectedMovement === null) return false;
     setSelectedMovement(null);
-  }, 30);
+  }, 18);
 
-  // Keyboard navigation. Arrows must not be swallowed while a filter input or
-  // an open dropdown menu has focus, and Enter only opens the slide-in when a
-  // table row itself has focus (so it never hijacks a button or input).
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+
+  // The table owns the arrow/Enter keys only while focus is on body or inside
+  // the rows. Arrows from any other control (filter triggers, the slide-in's
+  // Close/Next buttons, an open menu) belong to that control.
+  const focusIsInTable = (target: EventTarget | null) =>
+    target === document.body || (target instanceof Node && !!tbodyRef.current?.contains(target));
+
+  // Keyboard navigation. shouldIgnoreShortcut stays as an explicit typing
+  // guard; Enter additionally requires a focused history row.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!data?.results.length) return;
       if (shouldIgnoreShortcut(e.target)) return;
+      if (!focusIsInTable(e.target)) return;
       const target = e.target instanceof HTMLElement ? e.target : null;
-      if (target?.closest('[role="menu"], [role="listbox"], [role="menuitem"]')) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setFocusedIndex((i) => Math.min((i ?? -1) + 1, data.results.length - 1));
@@ -255,22 +264,39 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
+  // focusIsInTable only reads refs and document.body
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, focusedIndex]);
 
-  // Scroll the focused row into view when focus moves.
-  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  // Scroll the focused row into view and give it real DOM focus when focus
+  // moves, so Enter (which only acts on a focused row) works after arrows.
+  // Skipped while a filter control owns focus so a pointer-set index never
+  // steals it.
   useEffect(() => {
     if (focusedIndex === null || !tbodyRef.current) return;
     const row = tbodyRef.current.children[focusedIndex] as HTMLElement | undefined;
     row?.scrollIntoView?.({ block: "nearest" });
-    // Roving focus: move real DOM focus to the row so Enter (which only acts
-    // on a focused row) works after arrow navigation. Skip while a filter
-    // control owns focus so a pointer-selected index never steals it.
-    const active = document.activeElement;
-    if (row && active !== row && (active === document.body || tbodyRef.current.contains(active))) {
+    if (row && document.activeElement !== row && focusIsInTable(document.activeElement)) {
       row.focus?.();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedIndex]);
+
+  // The slide-in takes focus on open and unmounts on close, which drops focus
+  // to body. Give it back to the row that opened it, but only when focus was
+  // actually lost (a filter change that closes the panel leaves focus alone).
+  const openedIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (selectedMovement) {
+      openedIdRef.current = selectedMovement.id;
+      return;
+    }
+    const id = openedIdRef.current;
+    openedIdRef.current = null;
+    if (id === null || document.activeElement !== document.body) return;
+    const row = tbodyRef.current?.querySelector<HTMLElement>(`[data-movement-id="${id}"]`);
+    row?.focus();
+  }, [selectedMovement]);
 
   // Dropdown options derived from board metadata.
   const swimlaneOptions = board.swimlanes
@@ -322,21 +348,18 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
             options={swimlaneOptions}
             selected={filters.swimlaneId}
             onChange={(v) => applyFilters({ ...filters, swimlaneId: v })}
-            escapePriority={34}
           />
           <SingleSelectDropdown
             label="Column"
             options={columnOptions}
             selected={filters.columnId}
             onChange={(v) => applyFilters({ ...filters, columnId: v })}
-            escapePriority={34}
           />
           <SingleSelectDropdown
             label="User"
             options={userOptions}
             selected={filters.userId}
             onChange={(v) => applyFilters({ ...filters, userId: v })}
-            escapePriority={34}
           />
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-xs text-fg-muted">From</span>
@@ -418,6 +441,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
                         tabIndex={isFocused || (focusedIndex === null && idx === 0) ? 0 : -1}
                         aria-current={isSelected ? "true" : undefined}
                         data-testid="history-row"
+                        data-movement-id={m.id}
                         className={`border-b border-line-subtle cursor-pointer transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-primary-emphasis ${
                           isSelected
                             ? "bg-info/10"
