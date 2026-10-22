@@ -5718,6 +5718,7 @@
 </tr>
 </tbody>
 </table>
+<p><em>(1.2+)</em> An invalid <code>days</code> or <code>stalled_days</code> returns <code>400 Bad Request</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code> (before 1.2 the body had <code>detail</code> only), the API-wide shape for a bad query parameter — see <a href="../#error-responses">Error responses</a>.</p>
 <p><strong>Response shape:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"days"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
@@ -7806,12 +7807,12 @@ See <a href="../websockets/#swimlane-field-events-since-12">WebSockets</a> for t
 <p>A <code>swimlane.updated</code> WebSocket event is broadcast to all connected board clients on success.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The deprecated snake_case alias <code>set_collapsed</code> (with underscore) is retained for 1.x backward compatibility and emits the same response but additionally includes the following response headers:</p>
+<p>The deprecated snake_case alias <code>set_collapsed</code> (with underscore) is retained for 1.x backward compatibility and emits the same response. A successful (<code>2xx</code>) response from it additionally includes the following headers; an error response (<code>400</code>, <code>403</code>, <code>404</code>) does not:</p>
 <ul>
 <li><code>Deprecation: true</code> — signals that this URL path is deprecated (RFC 8594).</li>
 <li><code>Link: &lt;canonical-url&gt;; rel="successor-version"</code> — points to the canonical kebab-case path (RFC 8288).</li>
 </ul>
-<p>Prefer the kebab-case form <code>set-collapsed</code>. The underscore alias will be removed in 2.0.</p>
+<p>Prefer the kebab-case form <code>set-collapsed</code>. The underscore alias will be removed in 2.0. <em>(1.2+)</em> The OpenAPI schema marks the alias operation <code>deprecated: true</code>; the canonical <code>set-collapsed</code> operation is not deprecated.</p>
 </div>
 <h3 id="post-apiv1boardsidswimlanesreorder"><code>POST /api/v1/boards/{id}/swimlanes/reorder/</code><a class="headerlink" href="#post-apiv1boardsidswimlanesreorder" title="Permanent link">&para;</a></h3>
 <p>Reorder swimlanes. Requires board admin.</p>

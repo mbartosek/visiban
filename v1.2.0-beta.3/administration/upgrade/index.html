@@ -4675,8 +4675,10 @@ listed in <code>ALLOWED_HOSTS</code>. Listing the origin clears it. Add <code>"a
 <p class="admonition-title">Group owners and last active admins cannot be removed or demoted</p>
 <p>Removing a group member, or changing their role, now answers <code>400 Bad Request</code> when the
 member is the group's owner or its last active admin (deactivated admins do not count). Transfer ownership first, or make another
-member an admin. Clients that remove or demote members should show the response's
-<code>detail</code> message. See the <a href="../../api/groups/#members">Groups API</a>.</p>
+member an admin. The response carries a machine-readable <code>code</code>: <code>group_owner_protected</code>
+for the owner, <code>group_last_admin</code> for the last active admin. Clients that remove or demote
+members should branch on <code>code</code> and show the response's <code>detail</code> message to people.
+See the <a href="../../api/groups/#members">Groups API</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title"><code>is_starred</code> omitted from WebSocket board and group events</p>
