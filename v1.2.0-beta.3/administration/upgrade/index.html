@@ -4535,6 +4535,15 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
+<p class="admonition-title">Attachment files are now removed when their card, column, swimlane or board is deleted</p>
+<p>Before 1.2, deleting a card (or its column, swimlane or board) left its attachment files in
+media storage. From 1.2 they are removed once the delete commits. Files already left behind
+by earlier deletes are not touched by the upgrade. To find and remove them, run
+<code>purge_orphaned_attachments</code> (a dry run unless you pass <code>--yes</code>); see
+<a href="../media-security/#removing-orphaned-attachment-files">Removing orphaned attachment files</a>
+(#1817).</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">OpenAPI component names changed for <code>/auth/user/</code> and the dj-rest-auth responses</p>
 <p>The rename itself changes no field, but a client generated from the OpenAPI schema names these
 types differently, so regenerating one renames them. Other 1.2 changes to these shapes are in

@@ -3573,6 +3573,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#removing-orphaned-attachment-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removing orphaned attachment files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#related-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4213,6 +4224,34 @@ policy, restrict <code>AllowedOrigins</code> to your application's own domain.</
 Google-managed / Azure-managed) or customer-managed keys (SSE-KMS / CMEK)
 according to your compliance requirements. Visiban does not require a
 specific key type.</p>
+<hr />
+<h2 id="removing-orphaned-attachment-files">Removing orphaned attachment files<a class="headerlink" href="#removing-orphaned-attachment-files" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1817)</p>
+</blockquote>
+<p>Deleting a card, column, swimlane or board, or deleting attachments in the Django admin, removes the attachment files from storage once the delete commits. If the delete rolls back, the files stay. A file is also kept while another attachment row still points at the same path.</p>
+<p>Some files can still be left with no attachment row pointing at them:</p>
+<ul>
+<li>files from deletes made before upgrading to 1.2, which never removed them</li>
+<li>files whose removal failed (for example, storage was unavailable at the time)</li>
+<li>files from an upload whose request failed after the file was written</li>
+</ul>
+<p><code>purge_orphaned_attachments</code> finds and removes them. It is a dry run unless you pass <code>--yes</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Report orphaned files without deleting anything</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>backend<span class="w"> </span>python<span class="w"> </span>manage.py<span class="w"> </span>purge_orphaned_attachments
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Delete them</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>backend<span class="w"> </span>python<span class="w"> </span>manage.py<span class="w"> </span>purge_orphaned_attachments<span class="w"> </span>--yes
+</code></pre></div>
+<ul>
+<li>It only looks under <code>attachments/</code> in the configured default storage.</li>
+<li>It skips files modified within the last 24 hours, because an upload writes the file before its row. Change this with <code>--min-age-hours N</code> (at least 1).</li>
+<li>It checks the database again immediately before each deletion.</li>
+<li>It prints counts only. Add <code>--verbosity 2</code> to list file names, which can contain a user's original upload name; avoid that under a scheduled job whose output is collected. It never writes paths to the application log.</li>
+<li>Removal runs one file at a time after the delete commits, inside the request that deleted. On local storage that is quick. Deleting a board with thousands of attachments on S3-style storage can take long enough to hit a proxy timeout even though the delete itself committed; any file not removed is picked up by the next run of this command.</li>
+<li>Bulk database operations that fire no signals, such as <code>TRUNCATE</code> (which <code>seed_demo_data --reset-database</code> uses) or raw SQL deletes, leave their files behind; this command removes them.</li>
+<li>With the default <code>FileSystemStorage</code> on a volume that is not shared between replicas, it sees only the files on the node it runs on. Run it on each node.</li>
+</ul>
 <hr />
 <h2 id="related-settings">Related settings<a class="headerlink" href="#related-settings" title="Permanent link">&para;</a></h2>
 <table>
