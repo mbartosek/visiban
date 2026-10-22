@@ -3122,3 +3122,64 @@ describe('CardDetail — onUpdated payloads follow the live card (#1777)', () =>
     })
   })
 })
+
+describe('CardDetail — label saves follow the live card (#1840)', () => {
+  const bug = { id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+  const remote = { id: 101, uid: 'lbluid000002', name: 'Remote', color: '#10B981' }
+  const other = { id: 102, uid: 'lbluid000003', name: 'Other', color: '#3B82F6' }
+  const makeLabelBoard = () => ({ ...makeBoard(), labels: [bug, remote, other] })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdateCard.mockImplementation((_b: number, _c: number, patch: Record<string, unknown>) =>
+      Promise.resolve({ ...makeCard(), ...patch, version: 9 }))
+  })
+
+  const lastBody = () => mockUpdateCard.mock.calls.at(-1)![2] as { label_ids: number[] }
+
+  it('a toggle after a remote label add keeps the remote label in label_ids', async () => {
+    const props = { ...defaultProps(), board: makeLabelBoard() }
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ labels: [remote], version: 4 })} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Other' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    expect(lastBody().label_ids.sort((a, b) => a - b)).toEqual([101, 102])
+  })
+
+  it('toggling off a label that was added remotely removes only that label', async () => {
+    const props = { ...defaultProps(), board: makeLabelBoard() }
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ labels: [bug, remote], version: 4 })} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remote' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    expect(lastBody().label_ids).toEqual([100])
+  })
+
+  it('a label removed remotely renders inactive and is not sent back', async () => {
+    const props = {
+      ...defaultProps(),
+      board: makeLabelBoard(),
+      card: makeCard({ labels: [bug, remote] }),
+    }
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ labels: [bug], version: 4 })} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Other' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    expect(lastBody().label_ids.sort((a, b) => a - b)).toEqual([100, 102])
+  })
+
+  it('a label create after a remote label add keeps the remote label in label_ids', async () => {
+    const { createLabel } = await import('../api/boards')
+    ;(createLabel as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 99, uid: 'x', name: 'Urgent', color: '#ff0000' })
+    const props = { ...defaultProps(), board: makeLabelBoard() }
+    const user = userEvent.setup()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ labels: [remote], version: 4 })} />)
+    await user.click(screen.getByText('+ New label'))
+    const input = screen.getByPlaceholderText('Label name')
+    fireEvent.change(input, { target: { value: 'Urgent' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    expect(lastBody().label_ids.sort((a, b) => a - b)).toEqual([99, 101])
+  })
+})

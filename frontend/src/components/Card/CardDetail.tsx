@@ -333,7 +333,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       setLocalCard((c) => (
         c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
           ? c
-          : { ...c, version: card.version, column: card.column, swimlane: card.swimlane }
+          : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels }
       ));
       return;
     }
@@ -341,10 +341,14 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       setLocalCard((c) => (c.version === card.version ? c : { ...c, version: card.version }));
       return;
     }
+    // Labels follow the live card here too (#1840): label toggle/create build
+    // their label_ids from localCard.labels, and the label buttons render their
+    // active state from it, so a label another session added or removed must
+    // land in localCard or the next toggle PATCHes a stale list over it.
     setLocalCard((c) => (
       c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
         ? c
-        : { ...c, version: card.version, column: card.column, swimlane: card.swimlane }
+        : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels }
     ));
     // An open popover closes with the user's selection or error in it. Say so
     // in the panel, unless the card landed exactly where the popover was
