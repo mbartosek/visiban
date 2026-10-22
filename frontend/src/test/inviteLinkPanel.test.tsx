@@ -504,6 +504,18 @@ describe('InviteLinkPanel', () => {
     )
   })
 
+  it('the Admin hint does not point at the email form when email is unavailable (#1727)', async () => {
+    mockGetSiteConfig.mockResolvedValue({ ...siteConfig, invite_email_available: false })
+    const user = userEvent.setup()
+    render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
+    await screen.findByText('No invite links.')
+    await user.click(await screen.findByRole('button', { name: 'New link' }))
+    expect(await screen.findByText(
+      "Invite links can't grant Admin. To make someone an admin, change their role after they join."
+    )).toBeInTheDocument()
+    expect(screen.queryByText(/email them an invite/)).not.toBeInTheDocument()
+  })
+
   it('a default group link create sends 7 days, never null (#1727)', async () => {
     mockCreateInviteLink.mockResolvedValue(fakeCreatedLink)
     const user = userEvent.setup()

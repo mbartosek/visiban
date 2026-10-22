@@ -110,8 +110,11 @@ const ALREADY_USED_REVOKE_ERROR = "This invite was already used, so it can't be 
 const GENERIC_REVOKE_ERROR = "Could not revoke invite.";
 
 // The group email form above still offers Admin; say why the link form doesn't (#1727).
+// The email route is named only while that form is shown (emailAvailable !== false).
 const GROUP_LINK_ADMIN_HINT =
   "Invite links can't grant Admin. To make someone an admin, email them an invite or change their role after they join.";
+const GROUP_LINK_ADMIN_HINT_NO_EMAIL =
+  "Invite links can't grant Admin. To make someone an admin, change their role after they join.";
 
 const ROLE_COLORS: Record<string, string> = {
   admin: "bg-palette-purple text-palette-purple-pale",
@@ -610,7 +613,11 @@ export default function InviteLinkPanel({
         onChange={setFormSingleUse}
       />
 
-      {!isBoard && <p className="text-xs text-fg-muted">{GROUP_LINK_ADMIN_HINT}</p>}
+      {!isBoard && (
+        <p className="text-xs text-fg-muted">
+          {emailAvailable === false ? GROUP_LINK_ADMIN_HINT_NO_EMAIL : GROUP_LINK_ADMIN_HINT}
+        </p>
+      )}
 
       {/* Board (#439): whether a new person can sign up from a link depends on
           the site's registration mode — shareable links never admit a new
