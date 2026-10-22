@@ -848,7 +848,7 @@ class CardListTruncationSignalTests(TestCase):
     def test_offset_above_max_is_still_400(self):
         r = self.client.get(self.url, {"offset": str(2**62 + 1)})
         self.assertEqual(r.status_code, 400)
-        self.assertIn("offset", r.json())
+        self.assertEqual(r.json()["code"], "invalid_query_param")
 
     def test_huge_limit_is_clamped_not_rejected(self):
         self._seed(3)
@@ -958,7 +958,8 @@ class CardListTruncationSignalTests(TestCase):
     def test_400_schema_validates_every_real_card_list_400(self):
         # #1823: validate REAL 400 bodies against the generated schema, so the
         # declared shape cannot drift from what the endpoint returns (the coded
-        # limit error, parse_offset's field-keyed string, django-filter errors).
+        # limit error, parse_offset's coded error, django-filter errors, which
+        # keep their field-keyed entry beside detail/code since #1832).
         import jsonschema
         from drf_spectacular.generators import SchemaGenerator
 
@@ -974,13 +975,14 @@ class CardListTruncationSignalTests(TestCase):
                 r = self.client.get(self.url, params)
                 self.assertEqual(r.status_code, 400, r.content)
                 jsonschema.validate(r.json(), body_schema)
-        # The coded branch is genuinely constrained, not just "any object".
-        coded = body_schema["anyOf"][0]
-        with self.assertRaises(jsonschema.ValidationError):
-            jsonschema.validate({"detail": "x", "code": "other"}, coded)
+        # The schema is genuinely constrained, not just "any object": every
+        # 400 must carry detail and code: "invalid_query_param" (#1832).
+        for bad in ({"detail": "x", "code": "other"}, {"offset": "x"}, {"assignee": ["x"]}):
+            with self.assertRaises(jsonschema.ValidationError):
+                jsonschema.validate(bad, body_schema)
         self.assertEqual(
             self.client.get(self.url, {"offset": str(2**62 + 1)}).json(),
-            {"offset": "Must be a valid integer offset."},
+            {"detail": f"offset must not exceed {2**62}.", "code": "invalid_query_param"},
         )
 
 

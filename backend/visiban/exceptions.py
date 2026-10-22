@@ -27,6 +27,25 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 
 
+# The ``code`` for a refused query parameter (#1825, #1832): the one 400 shape
+# for bad query parameters across the API (docs/api/index.md, "Error
+# responses"), raised as ``CodedValidationError(INVALID_QUERY_PARAM, ...)``.
+INVALID_QUERY_PARAM = "invalid_query_param"
+
+# OpenAPI schema for that 400 body, shared by every operation that raises it.
+# Extra keys are allowed because the django-filter errors keep their 1.1
+# field-keyed entries next to ``detail``/``code`` (see visiban.filters).
+INVALID_QUERY_PARAM_SCHEMA = {
+    "type": "object",
+    "required": ["detail", "code"],
+    "properties": {
+        "detail": {"type": "string"},
+        "code": {"type": "string", "enum": [INVALID_QUERY_PARAM]},
+    },
+    "additionalProperties": True,
+}
+
+
 class CodedValidationError(APIException):
     """A 400 with a string ``code`` and string ``detail`` — the 1.1 shape."""
 

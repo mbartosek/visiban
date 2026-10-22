@@ -57,6 +57,8 @@ page; treat it as opaque.
 | `?cursor=<opaque>` | Page cursor from a previous response's `next_cursor` |
 | `?page_size=<n>` | Rows per page (default 50, max 200) |
 
+A filter value that fails its type check (`?updated_since=x`, `?assignee=x`) returns `400` with `{"updated_since": ["Enter a valid date/time."], "detail": "updated_since: Enter a valid date/time.", "code": "invalid_query_param"}`: the [bad query parameter](index.md#error-responses) shape, plus a field-keyed entry for the parameter.
+
 **Card response fields:** the same fields as the card response field table under
 `GET /api/v1/boards/{board_id}/cards/{id}/` below, plus `board` (the board's integer ID) —
 single-board endpoints omit `board` because the URL already scopes to one board; a cross-board
@@ -98,7 +100,7 @@ Rows are ordered by `ordering` with the card ID as a tiebreaker, so a walk over 
 | Parameter | Description |
 |---|---|
 | `?limit=<n>` | Maximum cards to return. Default and maximum `200`; a larger value is clamped to `200`. `0` returns `[]` with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns `400` with `{"detail": "...", "code": "invalid_query_param"}` |
-| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value is treated as `0`, as on every other endpoint (*Changed in 1.2, #1823*). Only a value above 2^62 returns `400`, with the field-keyed body `{"offset": "..."}` (unlike a bad `limit`, which is `{detail, code}`) |
+| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value is treated as `0`, as on every other endpoint (*Changed in 1.2, #1823*). Only a value above 2^62 returns `400`, with `{"detail": "...", "code": "invalid_query_param"}` like a bad `limit` |
 | `?search=<q>` | Filter by title and description (partial, case-insensitive) |
 | `?assignee=<id>` | Filter by assignee user ID |
 | `?unassigned=true` | Return only cards with no assignee |
@@ -109,6 +111,8 @@ Rows are ordered by `ordering` with the card ID as a tiebreaker, so a walk over 
 | `?due_after=<YYYY-MM-DD>` | Cards with a due date on or after this date (ISO 8601) |
 | `?overdue=true` | Cards past their due date (due date is set and is before today) |
 | `?ordering=<field>` | Sort results. Prefix with `-` for descending. Allowed fields: `position` (default), `due_date`, `created_at`, `priority`. Example: `?ordering=-due_date` |
+
+A filter value that fails its type check returns `400` with the field-keyed body this endpoint has returned since 1.1, plus `detail` and `code` (*added in 1.2, #1832*): `?assignee=x` gives `{"assignee": ["Enter a number."], "detail": "assignee: Enter a number.", "code": "invalid_query_param"}`. Branch on `code`. See [Error responses](index.md#error-responses).
 
 ### `POST /api/v1/boards/{board_id}/cards/`
 Create a card. Requires member or above. The target column must have `allow_card_creation` enabled.
@@ -349,7 +353,7 @@ List all archived cards for the board, newest archived first. Available to all b
 
 | Parameter | Description |
 |---|---|
-| `offset` | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": "..."}`. |
+| `offset` | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"detail": "...", "code": "invalid_query_param"}`. |
 
 **Response** — paginated envelope, page size fixed at 50:
 
@@ -524,7 +528,7 @@ Use this endpoint when you need a single list combining moves, comments, field e
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `limit` | integer | `50` | Page size. Capped at `200`; a negative value is treated as `0`. |
-| `offset` | integer | `0` | Zero-based page offset. A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": "..."}`. |
+| `offset` | integer | `0` | Zero-based page offset. A negative value is treated as `0`; a value above `2^62` returns `400` with `{"detail": "...", "code": "invalid_query_param"}`. |
 | `event_types` | string | _(all)_ | Comma-separated filter groups. Valid values: `move`, `comment`, `field`, `checklist`, `attachment`, `system`. Omit to include all event types. |
 
 `event_types` group mapping:
@@ -609,7 +613,7 @@ Use this endpoint when you need a single list combining moves, comments, field e
 
 | Status | Description |
 |---|---|
-| `400 Bad Request` | `event_types` names a group not in the allowed set — `{"detail": "Invalid event_types: ... Valid groups: ..."}` |
+| `400 Bad Request` | `event_types` names a group not in the allowed set — `{"detail": "Invalid event_types: ... Valid groups: ...", "code": "invalid_query_param"}` (`code` added in 1.2) |
 | `404 Not Found` | Requesting user has no access to the board |
 | `404 Not Found` | Card does not exist or does not belong to this board |
 

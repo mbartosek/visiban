@@ -22,6 +22,7 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.exceptions import INVALID_QUERY_PARAM, INVALID_QUERY_PARAM_SCHEMA, CodedValidationError
 from visiban.request_shape import coerce_int_id, optional_text, require_json_object
 
 from .. import broadcast as _broadcast
@@ -94,15 +95,18 @@ def _parse_events_cursor(raw):
     Rejected rather than silently clamped: a client that sends a malformed
     cursor has lost its place, and quietly restarting it from the beginning of
     the feed would replay history it already processed without telling it.
+    The 400 is ``{detail, code: "invalid_query_param"}``, the API's shape for a
+    bad query parameter (#1832); the feed is new in 1.2, so no field-keyed
+    body for it ever shipped.
     """
     if raw in (None, ""):
         return 0
     try:
         after = int(raw)
     except (TypeError, ValueError):
-        raise ValidationError({"after": "Must be an integer event id."}) from None
+        raise CodedValidationError(INVALID_QUERY_PARAM, "after must be an integer event id.") from None
     if after < 0:
-        raise ValidationError({"after": "Must not be negative."})
+        raise CodedValidationError(INVALID_QUERY_PARAM, "after must not be negative.")
     return after
 
 
@@ -118,9 +122,9 @@ def _parse_events_limit(raw):
     try:
         limit = int(raw)
     except (TypeError, ValueError):
-        raise ValidationError({"limit": "Must be an integer."}) from None
+        raise CodedValidationError(INVALID_QUERY_PARAM, "limit must be an integer.") from None
     if not 1 <= limit <= _EVENTS_MAX_LIMIT:
-        raise ValidationError({"limit": f"Must be between 1 and {_EVENTS_MAX_LIMIT}."})
+        raise CodedValidationError(INVALID_QUERY_PARAM, f"limit must be between 1 and {_EVENTS_MAX_LIMIT}.")
     return limit
 
 
@@ -717,7 +721,13 @@ class BoardViewSet(
                     ),
                 },
             ),
-            400: OpenApiResponse(description="`after` or `limit` is not a valid integer, or is out of range."),
+            400: OpenApiResponse(
+                description=(
+                    "`after` or `limit` is not a valid integer, or is out of range "
+                    '(`{"detail": ..., "code": "invalid_query_param"}`).'
+                ),
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
             410: OpenApiResponse(
                 description="The cursor has been pruned; the caller must re-sync via /full/.",
                 response=inline_serializer(

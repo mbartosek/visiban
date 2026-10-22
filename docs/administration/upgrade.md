@@ -518,6 +518,15 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     members should branch on `code` and show the response's `detail` message to people.
     See the [Groups API](../api/groups.md#members).
 
+!!! note "Bad query parameters answer `code: \"invalid_query_param\"`"
+    A refused query parameter now answers `400` with `{detail, code}` and
+    `code: "invalid_query_param"`. On endpoints that existed in 1.1 the change is additive:
+    a bad filter value on `GET /api/v1/boards/{id}/cards/` (`?assignee=x`) keeps its
+    field-keyed entry (`{"assignee": ["Enter a number."]}`) and gains `detail` and `code`,
+    and an unknown `event_types` group on the card timeline keeps `detail` and gains `code`.
+    An `offset` above `2^62`, which was a `500` in 1.1, is now this `400`. Clients should
+    branch on `code`. See [Error responses](../api/index.md#error-responses).
+
 !!! note "`is_starred` omitted from WebSocket board and group events"
     `board.created`, `board.updated`, `group.created` and `group.updated` payloads now carry
     `is_starred` only for the user who made the change; every other subscriber receives the

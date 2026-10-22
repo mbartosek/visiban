@@ -114,8 +114,8 @@ Keep calling with `after` set to the previous response's `next` until `next` is
 
 | Status | Body | Condition |
 |---|---|---|
-| `400 Bad Request` | `{"after": ["Must be an integer event id."]}` | `after` is not an integer, or is negative. |
-| `400 Bad Request` | `{"limit": ["Must be between 1 and 500."]}` | `limit` is not an integer, or is out of range. |
+| `400 Bad Request` | `{"detail": "after must be an integer event id.", "code": "invalid_query_param"}` | `after` is not an integer, or is negative (`"after must not be negative."`). |
+| `400 Bad Request` | `{"detail": "limit must be between 1 and 500.", "code": "invalid_query_param"}` | `limit` is not an integer (`"limit must be an integer."`), or is out of range. |
 | `404 Not Found` | — | No board with that id, or the requesting user has no access to it. |
 | `410 Gone` | `{"detail": "...", "code": "cursor_expired", "resync_url": "http://.../api/v1/boards/42/full/"}` | The cursor has been pruned and newer events exist, so continuity cannot be proven. Re-sync via `resync_url` and resume from the newest `event_id` seen after that. |
 

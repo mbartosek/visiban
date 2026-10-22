@@ -8,6 +8,8 @@ These helpers keep the rejection in one place and always a 400.
 """
 from rest_framework.exceptions import ParseError, ValidationError
 
+from visiban.exceptions import INVALID_QUERY_PARAM, CodedValidationError
+
 
 # Largest value a 64-bit signed integer column can hold; anything bigger makes
 # the ORM raise OverflowError (SQLite) or DataError (PostgreSQL) -> a 500.
@@ -79,7 +81,12 @@ def parse_offset(request, param="offset"):
     non-numeric value is 0 and a negative value clamps to 0 (a negative slice
     bound is an AssertionError -> 500 on a queryset). A value past ``MAX_OFFSET``
     cannot be a real row position and overflows in the database driver
-    (#1696), so it is rejected with the same field-keyed 400 as #1669.
+    (#1696), so it is rejected with a 400.
+
+    That 400 is ``{detail, code: "invalid_query_param"}``, the API's shape for a
+    bad query parameter (#1832). It is not field-keyed even on endpoints that
+    shipped in 1.1: there, a value this large was a 500, so no 400 body for it
+    ever shipped and this one is new everywhere.
     """
     raw = request.query_params.get(param, 0)
     try:
@@ -89,5 +96,5 @@ def parse_offset(request, param="offset"):
     if value < 0:
         return 0
     if value > MAX_OFFSET:
-        raise ValidationError({param: "Must be a valid integer offset."})
+        raise CodedValidationError(INVALID_QUERY_PARAM, f"{param} must not exceed {MAX_OFFSET}.")
     return value

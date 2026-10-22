@@ -104,7 +104,7 @@ and an audit log an admin can edit is not evidence of anything.
 
 | Status | Body | When |
 |---|---|---|
-| `400 Bad Request` | `{"action": ["'<value>' is not a valid action."]}` | The `action` query param does not match one of the values in the table below |
+| `400 Bad Request` | `{"detail": "'<value>' is not a valid action.", "code": "invalid_query_param"}` | The `action` query param does not match one of the values in the table below |
 
 **Actions**
 
@@ -737,7 +737,7 @@ Every board's [invites](boards.md#board-invites) — emailed invites and shareab
 
 | Param | Description |
 |---|---|
-| `status` | `pending` (default), `used`, `expired`, `revoked` or `all`. Any other value is `400 {"status": ["'<value>' is not a valid status."]}`. Filtering follows the same precedence as the `status` field — revoked > used > expired > pending — so each invite is listed under exactly the status it reports. |
+| `status` | `pending` (default), `used`, `expired`, `revoked` or `all`. Any other value is `400 {"detail": "'<value>' is not a valid status.", "code": "invalid_query_param"}`. Filtering follows the same precedence as the `status` field — revoked > used > expired > pending — so each invite is listed under exactly the status it reports. |
 | `offset` | Zero-based row offset (default `0`). |
 | `page_size` | Rows per page (default `50`, max `200`). |
 
@@ -791,7 +791,7 @@ The token and the address an invite was emailed to are never returned.
 
 | Status | Body | When |
 |---|---|---|
-| `400 Bad Request` | `{"status": ["'bogus' is not a valid status."]}` | Unknown `status` value. |
+| `400 Bad Request` | `{"detail": "'bogus' is not a valid status.", "code": "invalid_query_param"}` | Unknown `status` value. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | No credentials. |
 | `403 Forbidden` | `{"detail": "You must be a site administrator to perform this action."}` | Not a site admin — including a board admin, or an account with all-content access but no site admin. A site admin with a pending forced password change gets `403` `"You must change your password before continuing."`, and one with a pending forced username change gets `403` `"You must choose a new username before continuing."`, until they complete it. |
 

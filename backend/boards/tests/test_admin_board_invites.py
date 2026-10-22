@@ -165,7 +165,10 @@ class AdminBoardInviteListTests(_Fixture, TestCase):
     def test_invalid_status_is_400(self):
         r = self.client.get(LIST_URL + "?status=bogus")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("status", r.json())
+        # The API's bad-query-param shape (#1832), not a field-keyed body.
+        self.assertEqual(
+            r.json(), {"detail": "'bogus' is not a valid status.", "code": "invalid_query_param"},
+        )
 
     def test_pagination_count_and_order(self):
         base = timezone.now() - timedelta(days=1)

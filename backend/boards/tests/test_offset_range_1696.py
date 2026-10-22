@@ -35,7 +35,12 @@ class OffsetRangeTests(TestCase):
         for name, url in self.urls.items():
             r = self.client.get(url, {"offset": HUGE})
             self.assertEqual(r.status_code, 400, name)
-            self.assertIn("offset", r.json(), name)
+            # The API's bad-query-param shape (#1832), not a field-keyed body.
+            self.assertEqual(
+                r.json(),
+                {"detail": f"offset must not exceed {2**62}.", "code": "invalid_query_param"},
+                name,
+            )
 
     def test_just_past_max_is_400_and_max_is_empty_page(self):
         for name, url in self.urls.items():

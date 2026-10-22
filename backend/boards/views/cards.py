@@ -21,7 +21,7 @@ from drf_spectacular.utils import (
 from django.conf import settings as django_settings
 from accounts.models import User, get_uploads_enabled
 from accounts.permissions import TokenHasScope
-from visiban.exceptions import CodedValidationError
+from visiban.exceptions import INVALID_QUERY_PARAM, INVALID_QUERY_PARAM_SCHEMA, CodedValidationError
 from visiban.request_shape import MAX_OFFSET, parse_offset
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
@@ -295,7 +295,8 @@ _CARD_LIST_SCHEMA = extend_schema(
             required=False,
             description=(
                 "Number of matching cards to skip (default 0). A negative or "
-                "non-integer value is treated as 0, as on every other endpoint."
+                "non-integer value is treated as 0, as on every other endpoint. "
+                'A value above 2^62 is a 400 with `{"detail": ..., "code": "invalid_query_param"}`.'
             ),
         ),
         OpenApiParameter(
@@ -321,28 +322,16 @@ _CARD_LIST_SCHEMA = extend_schema(
         200: CardSerializer(many=True),
         400: OpenApiResponse(
             description=(
-                "A bad `limit` (negative or not an integer) returns the coded "
-                '`{"detail": ..., "code": "invalid_query_param"}`. Every other 400 is '
-                "DRF's field-keyed shape: `offset` above 2^62 "
-                '(`{"offset": "Must be a valid integer offset."}`) and malformed '
-                'filter values such as `assignee` or `due_before` '
-                '(`{"assignee": ["Enter a number."]}`).'
+                "Every 400 is the coded "
+                '`{"detail": ..., "code": "invalid_query_param"}` (#1832): a bad '
+                "`limit` (negative or not an integer), an `offset` above 2^62, and a "
+                "filter value that fails its type check, such as `assignee` or "
+                "`due_before`. A filter error also keeps the field-keyed entry it "
+                "has had since 1.1 next to `detail` and `code` "
+                '(`{"assignee": ["Enter a number."], "detail": "assignee: Enter a number.", '
+                '"code": "invalid_query_param"}`).'
             ),
-            # Raw anyOf, not PolymorphicProxySerializer (always oneOf): the coded
-            # body also matches the generic object branch, so oneOf would reject it.
-            response={
-                "anyOf": [
-                    {
-                        "type": "object",
-                        "required": ["detail", "code"],
-                        "properties": {
-                            "detail": {"type": "string"},
-                            "code": {"type": "string", "enum": ["invalid_query_param"]},
-                        },
-                    },
-                    {"type": "object", "additionalProperties": True},
-                ],
-            },
+            response=INVALID_QUERY_PARAM_SCHEMA,
         ),
     },
 )
@@ -362,7 +351,7 @@ def _parse_card_limit(request, maximum):
     if raw == "":
         return maximum
     if not (raw.isascii() and raw.isdigit()):
-        raise CodedValidationError("invalid_query_param", "limit must be a non-negative integer.")
+        raise CodedValidationError(INVALID_QUERY_PARAM, "limit must be a non-negative integer.")
     # Past 19 digits the value exceeds the cap anyway; skipping int() also
     # sidesteps Python's int-from-str digit limit (a ValueError -> 500).
     return min(int(raw), maximum) if len(raw) <= 19 else maximum
@@ -760,15 +749,21 @@ class CardViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="List archived cards for a board with offset pagination",
-        responses=inline_serializer(
-            name="ArchivedCardsPage",
-            fields={
-                "count": serializers.IntegerField(),
-                "offset": serializers.IntegerField(),
-                "page_size": serializers.IntegerField(),
-                "results": CardSerializer(many=True),
-            },
-        ),
+        responses={
+            200: inline_serializer(
+                name="ArchivedCardsPage",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "offset": serializers.IntegerField(),
+                    "page_size": serializers.IntegerField(),
+                    "results": CardSerializer(many=True),
+                },
+            ),
+            400: OpenApiResponse(
+                description='`offset` is above 2^62 (`{"detail": ..., "code": "invalid_query_param"}`).',
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
+        },
     )
     @action(detail=False, methods=["get"], url_path="archived")
     def archived(self, request, board_pk=None):
@@ -1075,15 +1070,24 @@ class CardViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         summary="Unified, paginated timeline of card movements and field-change activities",
-        responses=inline_serializer(
-            name="CardTimelinePage",
-            fields={
-                "count": serializers.IntegerField(),
-                "next": serializers.CharField(allow_null=True),
-                "previous": serializers.CharField(allow_null=True),
-                "results": CardTimelineEntrySerializer(many=True),
-            },
-        ),
+        responses={
+            200: inline_serializer(
+                name="CardTimelinePage",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "next": serializers.CharField(allow_null=True),
+                    "previous": serializers.CharField(allow_null=True),
+                    "results": CardTimelineEntrySerializer(many=True),
+                },
+            ),
+            400: OpenApiResponse(
+                description=(
+                    "`event_types` names an unknown group, or `offset` is above 2^62 "
+                    '(`{"detail": ..., "code": "invalid_query_param"}`).'
+                ),
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
+        },
     )
     @action(detail=True, methods=["get"])
     def timeline(self, request, board_pk=None, pk=None):
@@ -1121,11 +1125,14 @@ class CardViewSet(viewsets.ModelViewSet):
         # so validation accepts it.
         valid_groups = set(self._TIMELINE_ACTIVITY_GROUPS.keys()) | {"move"}
         invalid = [g for g in requested_groups if g not in valid_groups]
+        # ``{detail}`` since 1.1; ``code`` is added (#1832) so it matches every
+        # other bad query parameter. Additive, so 1.1 clients reading
+        # ``detail`` are unaffected.
         if invalid:
-            return Response(
-                {"detail": f"Invalid event_types: {', '.join(sorted(set(invalid)))}. "
-                           f"Valid groups: {', '.join(sorted(valid_groups))}."},
-                status=status.HTTP_400_BAD_REQUEST,
+            raise CodedValidationError(
+                INVALID_QUERY_PARAM,
+                f"Invalid event_types: {', '.join(sorted(set(invalid)))}. "
+                f"Valid groups: {', '.join(sorted(valid_groups))}.",
             )
 
         include_moves = not requested_groups or "move" in requested_groups

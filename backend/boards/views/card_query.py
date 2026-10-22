@@ -24,7 +24,6 @@ from django.utils import timezone
 from rest_framework import mixins, serializers, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
-from django_filters.rest_framework import DjangoFilterBackend
 
 from accounts.permissions import TokenHasScope
 from accounts.serializers import BoardUserSerializer
@@ -32,6 +31,7 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.filters import CodedDjangoFilterBackend
 from visiban.pagination import CardQueryCursorPagination
 
 from ..models import Card
@@ -276,12 +276,13 @@ class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     throttle_classes = [CardQueryRateThrottle]
     serializer_class = CardQuerySerializer
     filterset_class = CardQueryFilter
-    # DjangoFilterBackend only — the global default also includes
+    # The filter backend only (CodedDjangoFilterBackend: DjangoFilterBackend
+    # plus the #1832 ``detail``/``code`` on its 400) — the global default also includes
     # rest_framework.filters.OrderingFilter, which CardQueryCursorPagination
     # deliberately does not rely on (see its docstring): letting OrderingFilter
     # supply cursor ordering would allow any single serializer field with no
     # forced tiebreaker, breaking cursor stability on ties.
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [CodedDjangoFilterBackend]
     pagination_class = CardQueryCursorPagination
 
     def get_queryset(self):
