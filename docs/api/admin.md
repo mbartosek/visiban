@@ -521,7 +521,7 @@ After a successful deactivation with transfers, `owned_boards` will be `[]` — 
 | `400 Bad Request` | A board in the `transfers` list does not belong to this user |
 | `409 Conflict` | User owns one or more boards and no `transfers` were provided |
 
-If a `transfers` item is malformed (missing or non-integer `board_id` or `transfer_to`), the `400` body keys the item errors by zero-based item index, for example `{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}`; valid items are omitted. Before 1.2 (Django REST framework 3.17) this was an array with one entry per item.
+If a `transfers` item is malformed (missing or non-integer `board_id` or `transfer_to`), the `400` body keys the item errors by zero-based item index, for example `{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}`; valid items are omitted. Through 1.2.0-beta.1 (Django REST framework 3.17) this was an array with one entry per item.
 
 ### `POST /api/v1/admin/users/{id}/clear-lockout/`
 
