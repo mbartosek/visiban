@@ -4576,7 +4576,7 @@ and title; deleting the whole board still removes them. In the Django admin, mov
 records can now only be viewed — add, edit and delete are gone. Summary and Analytics
 numbers are unchanged. See <a href="../../features/card-history/#deleted-cards-keep-their-history">Card History</a> (#1469).
 A deleted card's title and movement notes now stay visible to the board's members until
-the board is deleted. Since 1.3, a superuser can erase them on request with the
+the board is deleted. Since 1.2, a superuser can erase them on request with the
 <code>purge_card_history</code> management command; see
 <a href="../card-history-retention/">Card History Retention</a> (#1797).</p>
 <p>Migrations <code>boards/0078</code>–<code>0081</code> add three columns to <code>card_movements</code>, make <code>card_id</code>
