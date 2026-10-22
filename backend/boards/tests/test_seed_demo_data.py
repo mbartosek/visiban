@@ -241,7 +241,10 @@ class SeedGroupCustomFieldAndSubResourceTests(TestCase):
         _seed()
         group = Group.objects.get(name=DEMO_GROUP_NAME)
         self.assertTrue(GroupLabel.objects.filter(group=group).exists())
-        self.assertTrue(GroupInviteLink.objects.filter(group=group).exists())
+        link = GroupInviteLink.objects.get(group=group)
+        # A shareable group link always expires and never grants admin (#1727).
+        self.assertIsNotNone(link.expires_at)
+        self.assertNotEqual(link.role, GroupInviteLink.Role.ADMIN)
 
     def test_custom_field_definition_and_value_created(self):
         _seed()

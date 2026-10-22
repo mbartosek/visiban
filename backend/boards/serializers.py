@@ -4080,10 +4080,11 @@ class BoardInviteLinkEmailSerializer(serializers.Serializer):
 class BoardInviteLinkCreateSerializer(serializers.Serializer):
     """Input for ``POST /boards/<id>/invite-links/`` — a shareable link (#439).
 
-    ``expiry_days`` is required and has no "never" option, unlike group links:
-    a shareable board link is a bearer credential that may be pasted anywhere,
-    so it must age out on its own. Admin and the moderator flag are not
-    grantable by invite.
+    ``expiry_days`` is required and has no "never" option: a shareable board
+    link is a bearer credential that may be pasted anywhere, so it must age
+    out on its own (group links follow the same rule since #1727, with a
+    7-day default instead of a required field). Admin and the moderator flag
+    are not grantable by invite.
     """
 
     name = serializers.CharField(max_length=100, required=False, default="", allow_blank=True)

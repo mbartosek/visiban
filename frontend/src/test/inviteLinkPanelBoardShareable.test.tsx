@@ -106,6 +106,8 @@ describe('InviteLinkPanel — board shareable links (#439)', () => {
     const [roleCombo, expiryCombo] = within(form).getAllByRole('combobox')
     expect(roleCombo).toHaveTextContent('Member')
     expect(expiryCombo).toHaveTextContent('7 days')
+    // The group-only Admin hint (#1727): board email invites never offer Admin either.
+    expect(screen.queryByText(/Invite links can't grant Admin/)).not.toBeInTheDocument()
 
     await user.click(roleCombo)
     const roles = screen.getAllByRole('option').map((o) => o.textContent)

@@ -62,11 +62,15 @@ Group admins can generate up to **5 active invite links** per group from the gro
 | Setting | Options |
 |---|---|
 | **Name** | Optional label to identify the link's purpose |
-| **Role** | `admin`, `member`, `collaborator`, or `viewer` (the role granted on join) |
-| **Expiry** | 1 day, 7 days, 30 days, or Never |
+| **Role** | `member`, `collaborator`, or `viewer` (the role granted on join) |
+| **Expiry** | 1 day, 7 days (the default), or 30 days |
 | **Single-use** | When enabled, the link is deactivated after the first person uses it |
 
 > **Added in 1.1** — single-use invite links (#689)
+
+> **Changed in 1.2** — a shareable link can no longer grant `admin` and always expires (#1727)
+
+A shareable link works for anyone who holds it, wherever it ends up being pasted, so it cannot make someone a group admin (which would make them an admin of every board in the group and its subgroups) and it cannot live forever. To make someone an admin, [email them an invite](#emailing-an-invite-link), which works only for their address, or change their role after they join. Links created before 1.2 with the `admin` role or no expiry keep working: they show **Admin** or **Never** in the panel, and you can revoke them there.
 
 Anyone with the link joins with the role assigned to that link. Expired links show a visual indicator and can't be used to join. Used single-use links display a status badge and consumed-at timestamp in the invite links list. Each link can be revoked independently — existing members are not affected.
 

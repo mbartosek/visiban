@@ -28,7 +28,7 @@ class GroupInviteLinkTokenExposureTests(TestCase):
         self.client.force_authenticate(self.admin)
         # Create a few invite links
         GroupInviteLink.generate(group=self.group, created_by=self.admin, role="member")
-        GroupInviteLink.generate(group=self.group, created_by=self.admin, role="admin")
+        GroupInviteLink.generate(group=self.group, created_by=self.admin, role="viewer")
 
     def test_list_response_has_no_token_field(self):
         """The 'token' key must not appear in any invite link in the list."""

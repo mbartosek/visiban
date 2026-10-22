@@ -523,6 +523,13 @@ class GroupInviteLink(models.Model):
         # without an address would silently create an invite anyone can use.
         if delivery == cls.Delivery.EMAIL and recipient_hash is None:
             raise ValueError("An emailed group invite needs a recipient_email.")
+        # A shareable link never grants admin (#1727): it is a bearer
+        # credential, and a group admin is board admin across the subtree.
+        # The create serializer refuses it first; this keeps any other caller
+        # (a management command, a future endpoint) from minting one. Rows
+        # minted before #1727 are untouched and still redeem.
+        if delivery == cls.Delivery.LINK and role == cls.Role.ADMIN:
+            raise ValueError("A shareable group invite link cannot grant admin.")
         raw = cls.GROUP_INVITE_PREFIX + secrets.token_hex(20)
         instance = cls.objects.create(
             group=group,

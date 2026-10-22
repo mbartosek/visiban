@@ -1408,9 +1408,9 @@ class GroupViewSet(viewsets.ModelViewSet):
         if not create_serializer.is_valid():
             return Response(create_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         validated = create_serializer.validated_data
-        expires_at = None
-        if validated["expiry_days"] is not None:
-            expires_at = timezone.now() + datetime.timedelta(days=validated["expiry_days"])
+        # Always set (#1727): the serializer refuses null and defaults an
+        # omitted value, so a new shareable link can never be open-ended.
+        expires_at = timezone.now() + datetime.timedelta(days=validated["expiry_days"])
 
         with transaction.atomic():
             # The group row first (#1719), FOR NO KEY UPDATE: a create behind

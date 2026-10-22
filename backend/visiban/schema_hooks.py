@@ -160,6 +160,10 @@ _PINNED_ENUMS = {
     ("BoardInviteLinkCreateRequest", "expiry_days"): "BoardInviteExpiryDaysEnum",
     ("BoardInviteLinkCreateResponse", "role"): "BoardInviteRoleEnum",
     ("AdminBoardInviteLink", "role"): "BoardInviteRoleEnum",
+    # Shareable group links grant every group role except admin (#1727): a
+    # choice set narrower than the response's ``role``, which would otherwise
+    # hash-rename RoleEnum too.
+    ("GroupInviteLinkCreateRequest", "role"): "GroupInviteLinkRoleEnum",
 }
 
 

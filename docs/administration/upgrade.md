@@ -408,6 +408,41 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     admin of them (now `403` for a visible group, `404` for one the caller cannot see) (#1678,
     #1703).
 
+!!! warning "Shareable group invite links can no longer grant admin and always expire"
+    A shareable group invite link is a bearer credential: anyone who holds it can join with its
+    role. Creating one (`POST /api/v1/groups/{id}/invite-links/` and the **New link** form) now
+    follows the same rule as board invite links:
+
+    - **`role: "admin"` is refused** with `400`. A group admin is board admin on every board in
+      the group and its subgroups, so admin is now granted only by an
+      [emailed invite](../features/groups.md#emailing-an-invite-link), which works only for the
+      address it was sent to, or by changing a member's role.
+    - **Every new link expires.** `expiry_days` is 1 to 30 and defaults to 7 when omitted;
+      `null` (never expires) and values over 30 are refused with `400`. The form offers 1, 7 or
+      30 days and no longer offers **Never**.
+
+    Emailed invites are unchanged. Links created before upgrading are not changed: an existing
+    admin link or never-expiring link keeps working until it is revoked. **Review existing links
+    and revoke the ones you no longer want.** Group admins see them in the group's
+    **Invite links** panel, where they show the **Admin** role or **Never** as their expiry. To
+    list them across the instance:
+
+    ```bash
+    docker compose -f docker-compose.prod.yml run --rm backend \
+      python manage.py shell -c "
+    from django.db.models import Q
+    from groups.models import GroupInviteLink
+    links = GroupInviteLink.objects.filter(
+        delivery='link', is_active=True, used_at__isnull=True,
+    ).filter(Q(role='admin') | Q(expires_at__isnull=True))
+    for group_name, prefix, role, expires_at in links.values_list('group__name', 'prefix', 'role', 'expires_at'):
+        print(group_name, prefix, role, expires_at or 'never')
+    "
+    ```
+
+    **Check any script or integration** that creates group invite links with `role: "admin"`,
+    `expiry_days: null` or `expiry_days` over 30 (#1727).
+
 !!! warning "Analytics extension panels without `min_role` are now admin-only"
     Panels registered through `ANALYTICS_EXTENSIONS` (enterprise or third-party analytics
     add-ons) now declare the lowest board role that may see them with a `min_role` attribute.

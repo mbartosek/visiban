@@ -157,7 +157,8 @@ class GroupInviteLinkCreateSerializerTests(TestCase):
         self.assertTrue(s.is_valid(), s.errors)
         self.assertEqual(s.validated_data["role"], GroupInviteLink.Role.MEMBER)
         self.assertFalse(s.validated_data["single_use"])
-        self.assertIsNone(s.validated_data["expiry_days"])
+        # A shareable link always expires (#1727): omitted means 7 days.
+        self.assertEqual(s.validated_data["expiry_days"], 7)
 
 
 # ---------------------------------------------------------------------------

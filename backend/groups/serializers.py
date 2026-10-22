@@ -839,23 +839,53 @@ class GroupInviteLinkSerializer(serializers.ModelSerializer):
         return obj.created_by.username if obj.created_by_id else None
 
 
+# Lifetime bounds for a shareable group invite link (#1727), the same limits as
+# board invite links and emailed group invites. A shareable link is a bearer
+# credential that may be pasted anywhere, so it must age out on its own.
+GROUP_INVITE_LINK_DEFAULT_EXPIRY_DAYS = 7
+GROUP_INVITE_LINK_MAX_EXPIRY_DAYS = 30
+
+# The roles a shareable group link may grant (#1727): every group role except
+# admin. A group admin inherits board admin on every board in the subtree, and
+# whoever holds a shareable link holds that grant, so admin is granted only by
+# an emailed invite, which is bound to one recipient address (#1678).
+GROUP_INVITE_LINK_ROLE_CHOICES = [
+    (value, label) for value, label in GroupInviteLink.Role.choices
+    if value != GroupInviteLink.Role.ADMIN
+]
+
+
 class GroupInviteLinkCreateSerializer(serializers.Serializer):
-    """Validates input for creating a new GroupInviteLink."""
+    """Validates input for creating a new shareable GroupInviteLink.
+
+    Validated at creation only (#1727): links minted before the admin and
+    lifetime limits keep their stored role and ``expires_at`` and redeem as
+    before. There is no update endpoint for a link, so nothing can raise an
+    existing link's role or clear its expiry.
+    """
 
     name = serializers.CharField(max_length=100, required=False, default="", allow_blank=True)
     role = serializers.ChoiceField(
-        choices=GroupInviteLink.Role.choices,
+        choices=GROUP_INVITE_LINK_ROLE_CHOICES,
         required=False,
         default=GroupInviteLink.Role.MEMBER,
     )
-    expiry_days = serializers.IntegerField(required=False, allow_null=True, default=None, min_value=1)
+    # Omitted means the 7-day default; an explicit null ("never expires", the
+    # pre-#1727 meaning) is refused rather than defaulted, so a client that
+    # still asks for a never-expiring link learns it did not get one.
+    expiry_days = serializers.IntegerField(
+        required=False,
+        default=GROUP_INVITE_LINK_DEFAULT_EXPIRY_DAYS,
+        min_value=1,
+        max_value=GROUP_INVITE_LINK_MAX_EXPIRY_DAYS,
+    )
     single_use = serializers.BooleanField(required=False, default=False)
 
 
 # Upper bound on an emailed group invite's lifetime (#731). Emailed links never
 # get a "never expires" option: each one is a live credential sitting in a
 # third party's inbox, so it must age out on its own.
-GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS = 30
+GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS = GROUP_INVITE_LINK_MAX_EXPIRY_DAYS
 
 
 class GroupInviteLinkEmailSerializer(serializers.Serializer):
@@ -873,7 +903,7 @@ class GroupInviteLinkEmailSerializer(serializers.Serializer):
     )
     expiry_days = serializers.IntegerField(
         required=False,
-        default=7,
+        default=GROUP_INVITE_LINK_DEFAULT_EXPIRY_DAYS,
         min_value=1,
         max_value=GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS,
     )
