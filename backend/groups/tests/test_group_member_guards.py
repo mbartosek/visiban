@@ -25,6 +25,12 @@ ADMIN = GroupMembership.Role.ADMIN
 MEMBER = GroupMembership.Role.MEMBER
 
 
+# The exact refusal bodies (#1825): ``code`` is the public, stable reason, so the
+# literal strings are asserted here rather than the services constants.
+_OWNER_REFUSED = {"detail": OWNER_MEMBERSHIP_MESSAGE, "code": "group_owner_protected"}
+_LAST_ADMIN_REFUSED = {"detail": LAST_ADMIN_MESSAGE, "code": "group_last_admin"}
+
+
 def _url(group, user):
     return f"/api/v1/groups/{group.pk}/members/{user.pk}/"
 
@@ -47,13 +53,13 @@ class MemberGuardTests(TestCase):
     def test_owner_removal_refused(self):
         r = self.client.delete(_url(self.group, self.owner))
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], OWNER_MEMBERSHIP_MESSAGE)
+        self.assertEqual(r.json(), _OWNER_REFUSED)
         self.assertTrue(GroupMembership.objects.filter(group=self.group, user=self.owner).exists())
 
     def test_owner_demotion_refused(self):
         r = self.client.patch(_url(self.group, self.owner), {"role": "member"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], OWNER_MEMBERSHIP_MESSAGE)
+        self.assertEqual(r.json(), _OWNER_REFUSED)
         self.assertEqual(self._role(self.owner), ADMIN)
 
     def test_owner_set_to_admin_is_accepted(self):
@@ -65,14 +71,14 @@ class MemberGuardTests(TestCase):
         GroupMembership.objects.filter(group=self.group, user=self.owner).update(role=MEMBER)
         r = self.client.delete(_url(self.group, self.admin2))
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(r.json(), _LAST_ADMIN_REFUSED)
         self.assertEqual(self._role(self.admin2), ADMIN)
 
     def test_last_admin_demotion_refused(self):
         GroupMembership.objects.filter(group=self.group, user=self.owner).update(role=MEMBER)
         r = self.client.patch(_url(self.group, self.admin2), {"role": "viewer"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(r.json(), _LAST_ADMIN_REFUSED)
         self.assertEqual(self._role(self.admin2), ADMIN)
 
     def test_deactivated_admin_does_not_count_toward_the_minimum(self):
@@ -80,7 +86,7 @@ class MemberGuardTests(TestCase):
         User.objects.filter(pk=self.owner.pk).update(is_active=False)
         r = self.client.delete(_url(self.group, self.admin2))
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(r.json(), _LAST_ADMIN_REFUSED)
         r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self._role(self.admin2), ADMIN)
@@ -99,10 +105,10 @@ class MemberGuardTests(TestCase):
         User.objects.filter(pk__in=[self.owner.pk, extra.pk]).update(is_active=False)
         r = self.client.patch(_url(self.group, self.admin2), {"role": "member"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(r.json(), _LAST_ADMIN_REFUSED)
         r = self.client.delete(_url(self.group, self.admin2))
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(r.json()["detail"], LAST_ADMIN_MESSAGE)
+        self.assertEqual(r.json(), _LAST_ADMIN_REFUSED)
         self.assertEqual(self._role(self.admin2), ADMIN)
 
     def test_deactivated_admin_is_still_removable(self):
@@ -283,7 +289,7 @@ class MemberChangeVsOwnershipTransferTests(_GroupDeleteRaceBase):
         transferred, demoted = self._race(self.COMMIT_HOLD, self._transfer, self._demote_heir)
         self.assertEqual(transferred.status_code, 200, transferred.content[:300])
         self.assertEqual(demoted.status_code, 400, demoted.content[:300])
-        self.assertEqual(demoted.json()["detail"], OWNER_MEMBERSHIP_MESSAGE)
+        self.assertEqual(demoted.json(), _OWNER_REFUSED)
         self.assertEqual(Group.objects.get(pk=self.group_id).owner_id, self.heir.pk)
         self.assertEqual(
             GroupMembership.objects.get(group_id=self.group_id, user=self.heir).role, ADMIN

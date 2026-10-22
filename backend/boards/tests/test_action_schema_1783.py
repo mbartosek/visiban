@@ -149,6 +149,10 @@ class ActionSchemaDeclarationTests(TestCase):
         resp = self.client.get(f"/api/v1/boards/{self.board.pk}/analytics/", {"days": 0})
         self.assertEqual(resp.status_code, 400)
         self._assert_matches("get", path, 400, resp.json())
+        # The one 400 shape for a bad query parameter (#1825): code is required.
+        ref = op["responses"]["400"]["content"][_JSON]["schema"]["$ref"]
+        self.assertTrue(ref.endswith("/BoardAnalyticsBadRequest"))
+        self.assertEqual(sorted(self._component(ref)["required"]), ["code", "detail"])
 
     def test_export_documents_csv_and_json_downloads(self):
         path = "/api/v1/boards/{id}/export/"
@@ -240,6 +244,31 @@ class ActionSchemaDeclarationTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self._assert_matches("patch", path, 200, resp.json())
 
+    def test_member_refusals_document_their_code(self):
+        # #1825: the owner and last-active-admin refusals carry a string code.
+        path = "/api/v1/groups/{id}/members/{user_id}/"
+        delete_ref = self._op("delete", path)["responses"]["400"]["content"][_JSON]["schema"]["$ref"]
+        self.assertTrue(delete_ref.endswith("/GroupMemberRemoveRefused"))
+        self.assertEqual(sorted(self._component(delete_ref)["required"]), ["code", "detail"])
+        patch_ref = self._op("patch", path)["responses"]["400"]["content"][_JSON]["schema"]["$ref"]
+        self.assertTrue(patch_ref.endswith("/GroupMemberRoleUpdateRefused"))
+        # PATCH also answers 400 for a bad role, with detail only.
+        self.assertEqual(self._component(patch_ref)["required"], ["detail"])
+        group = self._group()  # self.owner owns it and is its only admin
+        url = f"/api/v1/groups/{group.pk}/members/{self.owner.pk}/"
+        resp = self.client.patch(url, {"role": "member"}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["code"], "group_owner_protected")
+        self._assert_matches("patch", path, 400, resp.json())
+        resp = self.client.patch(url, {"role": "bogus"}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        self.assertNotIn("code", resp.json())
+        self._assert_matches("patch", path, 400, resp.json())
+        resp = self.client.delete(url)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["code"], "group_owner_protected")
+        self._assert_matches("delete", path, 400, resp.json())
+
     def test_transfer_ownership_documents_both_required_keys(self):
         path = "/api/v1/groups/{id}/transfer-ownership/"
         op = self._op("post", path)
@@ -274,9 +303,34 @@ class ActionSchemaDeclarationTests(TestCase):
     def test_change_password_documents_its_body(self):
         path = "/api/v1/auth/change-password/"
         self.assertTrue(self._op("post", path)["requestBody"]["required"])
-        component = self._component(self._request_schema("post", path)["$ref"])
+        ref = self._request_schema("post", path)["$ref"]
+        # Named for its route (#1825), apart from dj-rest-auth's
+        # /auth/password/change/ body (old_password, new_password1/2).
+        self.assertTrue(ref.endswith("/AuthChangePasswordRequest"), ref)
+        self.assertNotIn("ChangePasswordRequest", self.schema["components"]["schemas"])
+        component = self._component(ref)
         self.assertEqual(set(component["properties"]), {"current_password", "new_password"})
         self.assertEqual(component["required"], ["new_password"])
+        other = self._request_schema("post", "/api/v1/auth/password/change/")["$ref"]
+        self.assertIn("old_password", self._component(other)["properties"])
+
+    def test_dj_rest_auth_password_bodies_keep_their_1_1_component_names(self):
+        # #1825: the Visiban* serializer subclasses are pinned to the names 1.1
+        # published, so generated clients see no type rename.
+        schemas = self.schema["components"]["schemas"]
+        for path, name in (
+            ("/api/v1/auth/password/change/", "PasswordChangeRequest"),
+            ("/api/v1/auth/password/reset/confirm/", "PasswordResetConfirmRequest"),
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(self._request_schema("post", path)["$ref"].endswith(f"/{name}"))
+        self.assertNotIn("VisibanPasswordChangeRequest", schemas)
+        self.assertNotIn("VisibanPasswordResetConfirmRequest", schemas)
+        # The Visiban-owned /auth/change-password/ body stays a separate component.
+        self.assertNotEqual(
+            self._request_schema("post", "/api/v1/auth/change-password/")["$ref"],
+            self._request_schema("post", "/api/v1/auth/password/change/")["$ref"],
+        )
 
     def test_choose_username_documents_its_body_and_user_response(self):
         path = "/api/v1/auth/choose-username/"

@@ -699,8 +699,12 @@ class ChangePasswordView(APIView):
     @extend_schema(
         # Schema only (#1783): the body was undocumented. The view reads these
         # two keys by hand; a missing new_password is a 400.
+        # Named for its route, /auth/change-password/ (#1825): "ChangePassword"
+        # read as the body of dj-rest-auth's /auth/password/change/
+        # (PasswordChangeRequest, `old_password`), a different shape.
+        # The component name is schema-only; no wire field changes.
         request=inline_serializer(
-            name="ChangePassword",
+            name="AuthChangePassword",
             fields={
                 "current_password": serializers.CharField(
                     required=False,

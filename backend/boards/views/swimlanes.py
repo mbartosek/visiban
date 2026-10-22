@@ -83,24 +83,42 @@ def _require_live_swimlane_definitions(field_pairs):
 # _set_collapsed_impl reads only is_collapsed (#1788); without this the schema
 # documented the full swimlane body. Admin-only, so the response is always the
 # admin serializer. Schema-only: no runtime effect.
-_SET_COLLAPSED_SCHEMA = extend_schema(
-    # A raw schema, not a serializer: spectacular turns every PATCH serializer
-    # into an all-optional "Patched*" body, but the view answers 400 without
-    # is_collapsed, so the body and field must be documented as required (the
-    # body's own `required` flag is set by schema_hooks.require_declared_request_bodies).
-    request={
-        "application/json": {
-            "type": "object",
-            "properties": {
-                "is_collapsed": {
-                    "type": "boolean",
-                    "description": "The default collapsed state for every board member. Must be a boolean.",
+#
+# A factory, not one shared decorator, so the snake_case ``set_collapsed`` alias
+# alone is marked ``deprecated`` in the schema (#1825): it is due for removal in
+# 2.0 (#986 already sends the Deprecation header at runtime), while the
+# canonical ``set-collapsed`` route is not deprecated.
+def _set_collapsed_schema(**extra):
+    return extend_schema(
+        # A raw schema, not a serializer: spectacular turns every PATCH serializer
+        # into an all-optional "Patched*" body, but the view answers 400 without
+        # is_collapsed, so the body and field must be documented as required (the
+        # body's own `required` flag is set by schema_hooks.require_declared_request_bodies).
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "is_collapsed": {
+                        "type": "boolean",
+                        "description": "The default collapsed state for every board member. Must be a boolean.",
+                    },
                 },
-            },
-            "required": ["is_collapsed"],
-        }
-    },
-    responses=SwimlaneAdminSerializer,
+                "required": ["is_collapsed"],
+            }
+        },
+        responses=SwimlaneAdminSerializer,
+        **extra,
+    )
+
+
+_SET_COLLAPSED_SCHEMA = _set_collapsed_schema()
+_SET_COLLAPSED_DEPRECATED_SCHEMA = _set_collapsed_schema(
+    deprecated=True,
+    description=(
+        "Deprecated alias of `PATCH .../set-collapsed/`, removed in 2.0. Same body and "
+        "responses. A successful (2xx) response also carries `Deprecation: true` and a "
+        "`Link` header naming the canonical route; error responses do not."
+    ),
 )
 
 
@@ -294,7 +312,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
         """
         return self._set_collapsed_impl(request, pk)
 
-    @_SET_COLLAPSED_SCHEMA
+    @_SET_COLLAPSED_DEPRECATED_SCHEMA
     @action(detail=True, methods=["patch"], url_path="set_collapsed")
     def set_collapsed(self, request, board_pk=None, pk=None):
         """Deprecated snake_case alias for ``set-collapsed`` (#816).

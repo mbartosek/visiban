@@ -246,14 +246,27 @@ def transfer_group_ownership(
 
 
 class MembershipChangeRefused(Exception):
-    """A membership removal or demotion was refused; ``str(exc)`` is the user-facing message."""
+    """A membership removal or demotion was refused.
+
+    ``str(exc)`` is the user-facing message and ``exc.code`` the stable,
+    machine-readable reason (#1825). Why both: the message is prose that may
+    be reworded, so a client that branches on the reason (for example, to offer
+    "Transfer ownership" instead of a retry) must compare ``code``, which is
+    part of the public ``{detail, code}`` error contract and never changes.
+    """
+
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.code = code
 
 
 OWNER_MEMBERSHIP_MESSAGE = (
     "The group owner's membership cannot be removed or demoted. "
     "Transfer ownership first."
 )
+OWNER_MEMBERSHIP_CODE = "group_owner_protected"
 LAST_ADMIN_MESSAGE = "A group must keep at least one admin."
+LAST_ADMIN_CODE = "group_last_admin"
 
 
 def counts_toward_admin_minimum(membership):
@@ -331,12 +344,12 @@ def lock_membership_for_removal_or_demotion(group_id, user_id, new_role=None):
         return None
     if user_id == owner_id and new_role != GroupMembership.Role.ADMIN:
         # An owner "demoted" to admin is a no-op, so only a real change is refused.
-        raise MembershipChangeRefused(OWNER_MEMBERSHIP_MESSAGE)
+        raise MembershipChangeRefused(OWNER_MEMBERSHIP_MESSAGE, OWNER_MEMBERSHIP_CODE)
     # Changing a deactivated admin cannot reduce the active-admin count, so only an
     # active admin is held to the minimum.
     is_active_admin = counts_toward_admin_minimum(membership)
     if is_active_admin and new_role != GroupMembership.Role.ADMIN and active_admin_count <= 1:
-        raise MembershipChangeRefused(LAST_ADMIN_MESSAGE)
+        raise MembershipChangeRefused(LAST_ADMIN_MESSAGE, LAST_ADMIN_CODE)
     return membership
 
 

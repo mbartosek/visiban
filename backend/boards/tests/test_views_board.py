@@ -121,24 +121,39 @@ class BoardAnalyticsTests(TestCase):
     def test_analytics_non_integer_days_returns_400(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?days=abc")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"detail": "Query param 'days' must be a positive integer.", "code": "invalid_query_param"})
 
     def test_analytics_zero_days_returns_400(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?days=0")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"detail": "Query param 'days' must be a positive integer.", "code": "invalid_query_param"})
 
     def test_analytics_negative_days_returns_400(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?days=-5")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(r.json(), {"detail": "Query param 'days' must be a positive integer.", "code": "invalid_query_param"})
 
     def test_analytics_days_exceeds_cap_returns_400(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?days=366")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("365", r.json()["detail"])
+        self.assertEqual(r.json()["code"], "invalid_query_param")
 
     def test_analytics_stalled_days_exceeds_cap_returns_400(self):
         r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?stalled_days=91")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("90", r.json()["detail"])
+        self.assertEqual(r.json(), {"detail": "Query param 'stalled_days' must not exceed 90.", "code": "invalid_query_param"})
+
+    def test_analytics_bad_stalled_days_returns_coded_400(self):
+        # #1825: every bad query parameter answers {detail, code: invalid_query_param}.
+        for value in ("abc", "0", "-1"):
+            with self.subTest(stalled_days=value):
+                r = self.client.get(f"/api/v1/boards/{self.board.id}/analytics/?stalled_days={value}")
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    r.json(),
+                    {"detail": "Query param 'stalled_days' must be a positive integer.", "code": "invalid_query_param"},
+                )
 
     def test_analytics_period_filter_affects_dwell_times(self):
         """Period window clamps dwell time so all periods show non-null heatmap data.

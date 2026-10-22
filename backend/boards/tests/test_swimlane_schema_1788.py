@@ -76,3 +76,12 @@ class SwimlaneSchemaTests(TestCase):
             body = op["requestBody"]["content"]["application/json"]["schema"]
             self.assertEqual(list(body["properties"]), ["is_collapsed"], path)
             self.assertEqual(body["required"], ["is_collapsed"], path)
+
+    def test_only_the_snake_case_alias_is_deprecated(self):
+        # #1825: set_collapsed is the alias removed in 2.0; set-collapsed is canonical.
+        canonical, alias = (self.schema["paths"][path]["patch"] for path in _COLLAPSE)
+        self.assertNotIn("deprecated", canonical)
+        self.assertIs(alias.get("deprecated"), True)
+        # Same body and response on both routes.
+        self.assertEqual(canonical["requestBody"], alias["requestBody"])
+        self.assertEqual(canonical["responses"], alias["responses"])

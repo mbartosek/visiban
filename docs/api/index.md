@@ -72,6 +72,33 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 - Permission errors return `403 Forbidden`; missing resources return `404 Not Found`
 - *(1.2+)* Board-scoped routes answer `404 Not Found` to a caller with no access to the board, the same as for a board that does not exist. `403 Forbidden` means the caller can see the board but their role is too low for the action
 
+### Error responses
+
+Many errors carry a machine-readable `code` next to the human-readable `detail`:
+
+```json
+{ "detail": "Query param 'days' must not exceed 365.", "code": "invalid_query_param" }
+```
+
+`code` is a stable string (for example `export_restricted`, `feature_disabled`, `invite_email_cap_reached`, `group_owner_protected`). When a response has a `code`, compare it rather than `detail`: the `detail` text is for people and may be reworded in any release. Not every error has a `code`; each endpoint's page documents its error bodies. Validation errors on a request body are usually field-keyed (`{"<field>": [...]}`), but some hand-validated bodies answer `{"detail": "..."}` with no `code` instead, for example an invalid `role` on `PATCH /groups/{id}/members/{user_id}/` (`{"detail": "Must be one of: admin, member, collaborator, viewer"}`).
+
+*(1.2+)* **Bad query parameters.** The target shape for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`. These parameters answer with it:
+
+- `GET /boards/{id}/analytics/`: `days` and `stalled_days`
+- `GET /boards/{id}/cards/`: `limit`
+
+These parameters still answer `400` with a field-keyed body (`{"<param>": ...}`) and no `code`; moving them to the shape above is tracked in #1832:
+
+- `GET /boards/{id}/events/`: `after` and `limit`
+- An `offset` above `2^62` on `GET /boards/{id}/movements/`, `GET /boards/{id}/cards/`, `GET /boards/{id}/cards/archived/` and `GET /boards/{id}/cards/{id}/timeline/`
+- `GET /admin/action-log/`: `action`
+- `GET /admin/board-invite-links/`: `status`
+- Card filter parameters whose value fails the filter's type check, on `GET /boards/{id}/cards/` (for example `assignee=x` answers `{"assignee": ["Enter a number."]}` and `due_before=x` answers `{"due_before": ["Enter a valid date."]}`) and on `GET /cards/` (`updated_since=x` answers `{"updated_since": ["Enter a valid date/time."]}`)
+
+One parameter answers a third shape, `{detail}` with no `code`: an unknown group in `event_types` on `GET /boards/{id}/cards/{id}/timeline/` (`{"detail": "Invalid event_types: ..."}`).
+
+Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
+
 ### Pagination
 
 Most list endpoints return the **standard paginated envelope**. A client must read the list from `results`, not from the top level of the response:
@@ -162,7 +189,7 @@ One legacy endpoint still accepts a `snake_case` alias for backward compatibilit
 |---|---|
 | `PATCH /boards/<id>/swimlanes/<id>/set-collapsed/` | `PATCH /boards/<id>/swimlanes/<id>/set_collapsed/` |
 
-The snake_case path remains routable through every 1.x release. It will be removed in 2.0 after a full minor-release deprecation window.
+The snake_case path remains routable through every 1.x release. It will be removed in 2.0 after a full minor-release deprecation window. *(1.2+)* The OpenAPI schema marks the alias operation `deprecated: true`.
 
 ### Expanding foreign-key fields
 

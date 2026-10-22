@@ -7,7 +7,7 @@ from django.db.models import Exists, OuterRef, Q
 
 from rest_framework.generics import get_object_or_404
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -61,6 +61,44 @@ _GROUP_MEMBER_ROLE_REQUEST = {
     },
     "required": ["role"],
 }
+
+# The 400 bodies of PATCH/DELETE groups/{id}/members/{user_id}/ (#1825). The
+# owner and last-active-admin refusals carry a string ``code`` (the 1.2
+# ``{detail, code}`` error shape) so clients branch on it rather than on the
+# prose. DELETE has no other 400, so ``code`` is required there; PATCH also
+# answers 400 for an invalid ``role`` or a non-object body, which carry
+# ``detail`` only, so ``code`` is optional on its component.
+_MEMBER_REFUSED_CODE_HELP = (
+    "`group_owner_protected`: the target is the group owner. "
+    "`group_last_admin`: the target is the group's last active admin."
+)
+_GROUP_MEMBER_REMOVE_400 = OpenApiResponse(
+    description="Removing the group owner or the group's last active admin is refused; nothing is written.",
+    response=inline_serializer(
+        name="GroupMemberRemoveRefused",
+        fields={
+            "detail": drf_serializers.CharField(),
+            "code": drf_serializers.CharField(help_text=_MEMBER_REFUSED_CODE_HELP),
+        },
+    ),
+)
+_GROUP_MEMBER_ROLE_UPDATE_400 = OpenApiResponse(
+    description=(
+        "`role` is missing or invalid, the body is not a JSON object, or the change would "
+        "demote the group owner or the group's last active admin (these two carry `code`). "
+        "Nothing is written."
+    ),
+    response=inline_serializer(
+        name="GroupMemberRoleUpdateRefused",
+        fields={
+            "detail": drf_serializers.CharField(),
+            "code": drf_serializers.CharField(
+                required=False,
+                help_text="Present only on a refused demotion. " + _MEMBER_REFUSED_CODE_HELP,
+            ),
+        },
+    ),
+)
 
 
 def _sanitize_group_allowed_priorities(value):
@@ -617,14 +655,14 @@ class GroupViewSet(viewsets.ModelViewSet):
             for media_type in ("application/json", "application/x-www-form-urlencoded", "multipart/form-data")
         },
         # The membership row without the list-only is_inherited/inherited_from.
-        responses=GroupMemberRoleUpdateSerializer,
+        responses={200: GroupMemberRoleUpdateSerializer, 400: _GROUP_MEMBER_ROLE_UPDATE_400},
     )
     @extend_schema(
         summary="Remove a member",
         methods=["DELETE"],
         responses={
             204: None,
-            400: inline_serializer(name="GroupMemberRemoveRefused", fields={"detail": drf_serializers.CharField()}),
+            400: _GROUP_MEMBER_REMOVE_400,
         },
     )
     @action(detail=True, methods=["patch", "delete"], url_path=r"members/(?P<user_id>[0-9]+)")
@@ -712,7 +750,7 @@ class GroupViewSet(viewsets.ModelViewSet):
                 try:
                     locked = lock_membership_for_removal_or_demotion(group.pk, target_user.pk)
                 except MembershipChangeRefused as exc:
-                    return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"detail": str(exc), "code": exc.code}, status=status.HTTP_400_BAD_REQUEST)
                 if locked is None:
                     raise NotFound
                 GroupMembership.objects.filter(pk=locked.pk).delete()
@@ -815,7 +853,7 @@ class GroupViewSet(viewsets.ModelViewSet):
                     group.pk, target_user.pk, new_role=role,
                 )
             except MembershipChangeRefused as exc:
-                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": str(exc), "code": exc.code}, status=status.HTTP_400_BAD_REQUEST)
             if membership is None:
                 raise NotFound
             membership.role = role

@@ -366,6 +366,8 @@ Time-in-stage heatmap derived from `CardMovement` records.
 | `days` | integer | `30` | Must be a positive integer (`≥ 1`, `≤ 365`). Returns `400` if non-integer, `≤ 0`, or `> 365`. |
 | `stalled_days` | integer | board's `staleness_threshold_days` | When provided, overrides the board setting for stalled-card detection in this request only. Must be a positive integer (`≥ 1`, `≤ 90`). Returns `400` if non-integer, `≤ 0`, or `> 90`. Omit to use the board's configured threshold. |
 
+*(1.2+)* An invalid `days` or `stalled_days` returns `400 Bad Request` with `{"detail": "...", "code": "invalid_query_param"}` (before 1.2 the body had `detail` only), the API-wide shape for a bad query parameter — see [Error responses](index.md#error-responses).
+
 **Response shape:**
 
 ```json
@@ -1620,12 +1622,12 @@ This sets the board-wide default for all users — it is a board structure prefe
 A `swimlane.updated` WebSocket event is broadcast to all connected board clients on success.
 
 !!! note
-    The deprecated snake_case alias `set_collapsed` (with underscore) is retained for 1.x backward compatibility and emits the same response but additionally includes the following response headers:
+    The deprecated snake_case alias `set_collapsed` (with underscore) is retained for 1.x backward compatibility and emits the same response. A successful (`2xx`) response from it additionally includes the following headers; an error response (`400`, `403`, `404`) does not:
 
     - `Deprecation: true` — signals that this URL path is deprecated (RFC 8594).
     - `Link: <canonical-url>; rel="successor-version"` — points to the canonical kebab-case path (RFC 8288).
 
-    Prefer the kebab-case form `set-collapsed`. The underscore alias will be removed in 2.0.
+    Prefer the kebab-case form `set-collapsed`. The underscore alias will be removed in 2.0. *(1.2+)* The OpenAPI schema marks the alias operation `deprecated: true`; the canonical `set-collapsed` operation is not deprecated.
 
 ### `POST /api/v1/boards/{id}/swimlanes/reorder/`
 Reorder swimlanes. Requires board admin.

@@ -494,8 +494,10 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 !!! note "Group owners and last active admins cannot be removed or demoted"
     Removing a group member, or changing their role, now answers `400 Bad Request` when the
     member is the group's owner or its last active admin (deactivated admins do not count). Transfer ownership first, or make another
-    member an admin. Clients that remove or demote members should show the response's
-    `detail` message. See the [Groups API](../api/groups.md#members).
+    member an admin. The response carries a machine-readable `code`: `group_owner_protected`
+    for the owner, `group_last_admin` for the last active admin. Clients that remove or demote
+    members should branch on `code` and show the response's `detail` message to people.
+    See the [Groups API](../api/groups.md#members).
 
 !!! note "`is_starred` omitted from WebSocket board and group events"
     `board.created`, `board.updated`, `group.created` and `group.updated` payloads now carry
