@@ -25,12 +25,15 @@ from rest_framework import mixins, serializers, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
 
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+
 from accounts.permissions import TokenHasScope
 from accounts.serializers import BoardUserSerializer
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.exceptions import INVALID_QUERY_PARAM_SCHEMA
 from visiban.filters import CodedDjangoFilterBackend
 from visiban.pagination import CardQueryCursorPagination
 
@@ -240,6 +243,21 @@ class CardQueryFilter(django_filters.FilterSet):
 # ViewSet
 # ---------------------------------------------------------------------------
 
+@extend_schema_view(
+    list=extend_schema(
+        responses={
+            200: CardQuerySerializer(many=True),
+            400: OpenApiResponse(
+                description=(
+                    "A malformed `cursor`, or a filter value that fails its type check "
+                    '(`{"detail": ..., "code": "invalid_query_param"}`; a filter error also '
+                    "keeps its field-keyed entry, e.g. `updated_since`)."
+                ),
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
+        },
+    ),
+)
 class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """GET /api/v1/cards/ — paginated, filterable, cross-board card query.
 

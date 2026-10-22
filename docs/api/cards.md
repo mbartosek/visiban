@@ -54,7 +54,7 @@ page; treat it as opaque.
 | `?include_archived=true` | Include archived cards. Omit or `false` to exclude them (the default, matching the endpoints below) |
 | `?search=<q>` | Filter by title and description (partial, case-insensitive) |
 | `?ordering=<field>` | Sort results. Allowed values: `updated_at` (default: `-updated_at`, i.e. most recently updated first), `-updated_at`, `created_at`, `-created_at`. Every value is a 2-tuple with an `id` tiebreaker under the hood, so cursor pagination stays stable when many cards share the same timestamp. An unrecognized value falls back to the default rather than erroring. `due_date` is deliberately not an ordering option — it is nullable, and a nullable cursor field can silently skip or duplicate rows across a page boundary. |
-| `?cursor=<opaque>` | Page cursor from a previous response's `next_cursor` |
+| `?cursor=<opaque>` | Page cursor from a previous response's `next_cursor`. A cursor the server did not issue (undecodable, or with a position that is not a timestamp) returns `400` with `{"detail": "cursor is not a valid page cursor.", "code": "invalid_query_param"}` |
 | `?page_size=<n>` | Rows per page (default 50, max 200) |
 
 A filter value that fails its type check (`?updated_since=x`, `?assignee=x`) returns `400` with `{"updated_since": ["Enter a valid date/time."], "detail": "updated_since: Enter a valid date/time.", "code": "invalid_query_param"}`: the [bad query parameter](index.md#error-responses) shape, plus a field-keyed entry for the parameter.

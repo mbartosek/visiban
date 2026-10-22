@@ -519,8 +519,9 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     See the [Groups API](../api/groups.md#members).
 
 !!! note "Bad query parameters answer `code: \"invalid_query_param\"`"
-    A refused query parameter now answers `400` with `{detail, code}` and
-    `code: "invalid_query_param"`. On endpoints that existed in 1.1 the change is additive:
+    Refused query parameters (listed under [Error responses](../api/index.md#error-responses))
+    now answer `400` with `{detail, code}` and `code: "invalid_query_param"`. On endpoints
+    that existed in 1.1 the change is additive:
     a bad filter value on `GET /api/v1/boards/{id}/cards/` (`?assignee=x`) keeps its
     field-keyed entry (`{"assignee": ["Enter a number."]}`) and gains `detail` and `code`,
     and an unknown `event_types` group on the card timeline keeps `detail` and gains `code`.

@@ -5,7 +5,9 @@
 
 - 1.2-new 400s, converted outright: board events ``after``/``limit``,
   ``offset`` above 2^62 (``parse_offset``; a 500 in 1.1, field-keyed only in
-  1.2 pre-releases), admin action-log ``action``, admin board-invite ``status``.
+  1.2 pre-releases), admin action-log ``action``, admin board-invite ``status``,
+  and a malformed ``GET /cards/`` ``cursor`` (DRF's 404, or a 500 for a bad
+  position).
 - card timeline ``event_types``: ``{detail}`` since 1.1, ``code`` added.
 - django-filter type errors: field-keyed since 1.1 on the board card list, so
   the field entry stays and ``detail``/``code`` are added beside it.
@@ -13,6 +15,8 @@
 Each operation's declared 400 schema is also checked against the real bodies,
 so the OpenAPI contract cannot drift from what the endpoints return.
 """
+import base64
+
 import jsonschema
 from django.test import SimpleTestCase, TestCase
 from drf_spectacular.generators import SchemaGenerator
@@ -153,6 +157,32 @@ class InvalidQueryParamBodiesTests(TestCase):
         r = self.assert_200("card_query", {"updated_since": "2000-01-01T00:00:00Z"})
         self.assertEqual([c["id"] for c in r.json()["results"]], [self.card.id])
 
+    def test_card_query_bad_cursor(self):
+        """A malformed or hand-built cursor is a coded 400, not DRF's 404 or a 500."""
+        body = _coded("cursor is not a valid page cursor.")
+
+        def enc(raw):
+            return base64.b64encode(raw.encode()).decode()
+
+        for cursor in (
+            "garbage",                                   # not base64 -> DRF's 404 before
+            enc("o=abc"),                                # bad offset token -> DRF's 404 before
+            enc("r=x"),                                  # bad reverse token -> DRF's 404 before
+            enc("p=notadate"),                           # position not a datetime -> 500 before
+            enc("p=2026-13-45 00:00:00+00:00"),          # matches the format, invalid date
+            enc("p=2026-01-01 00:00:00+17:52"),          # offset Postgres cannot store
+        ):
+            with self.subTest(cursor=cursor):
+                self.assert_400("card_query", {"cursor": cursor}, body)
+
+    def test_card_query_issued_cursor_still_pages(self):
+        second = Card.objects.create(board=self.board, column=self.col, swimlane=self.swim, title="y")
+        first = self.assert_200("card_query", {"page_size": 1}).json()
+        self.assertIsNotNone(first["next_cursor"])
+        page2 = self.assert_200("card_query", {"page_size": 1, "cursor": first["next_cursor"]}).json()
+        seen = [first["results"][0]["id"], page2["results"][0]["id"]]
+        self.assertEqual(sorted(seen), sorted([self.card.id, second.id]))
+
     def test_two_bad_filters_are_both_reported(self):
         r = self._get("card_list", {"assignee": "x", "due_before": "y"})
         self.assertEqual(r.status_code, 400)
@@ -192,6 +222,7 @@ class InvalidQueryParamBodiesTests(TestCase):
             ],
             ("/api/v1/admin/action-log/", "action_log"): [{"action": "bogus"}],
             ("/api/v1/admin/board-invite-links/", "board_invites"): [{"status": "bogus"}],
+            ("/api/v1/cards/", "card_query"): [{"cursor": "garbage"}, {"updated_since": "x"}],
         }
         for (path, name), param_sets in cases.items():
             body_schema = schema["paths"][path]["get"]["responses"]["400"]["content"][
