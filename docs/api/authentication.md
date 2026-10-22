@@ -377,7 +377,7 @@ Tokens created before 1.2 retain the old behavior here and can still mint and re
 
 ### Session-only account-security endpoints
 
-A few account-security operations ignore token scopes entirely and refuse every token credential with `403 Forbidden`, because a `write` scope is not meant to carry authority over how the account is signed in to: `DELETE /api/v1/auth/me/connected-accounts/{provider}/` (1.2, #1794), setting a first password, and changing the account email (see their endpoint sections). Use the browser session for these.
+A few account-security operations ignore token scopes entirely: a request authenticated with a token credential (a personal access token of any scope, or the login API token) is refused with `403 Forbidden`, because a `write` scope is not meant to carry authority over how the account is signed in to. The rule applies per operation: `DELETE /api/v1/auth/me/connected-accounts/{provider}/` is always refused (1.2, #1794); setting a first password is refused only for an account with no usable password; and changing the account email is refused only when the request changes the address (sending the stored value back unchanged is accepted). See their endpoint sections. Use the browser session for these.
 
 ### Scopes never widen access
 

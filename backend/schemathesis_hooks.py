@@ -43,13 +43,16 @@ operations get a disposable row minted per call (`_mint_disposable`) so they can
 destroy the shared fixture other operations rely on.
 
 Still 404 on purpose (no seedable id, or the id is in the request body):
-`/auth/me/connected-accounts/{provider}/` (session only since #1794: the token fuzz client
-gets a declared 403 before the provider lookup),
 `/boards/{id}/invite-links/{link_id}/` (unseeded id, and a member fails the admin check
 first), `/auth/me/pending-email/resend/` (needs a pending email change),
 `/auth/registration/verify-email/` (needs a signup key), `/boards/import/trello/` (no
 Trello export), `/cards/{id}/move/` (target ids live in the body). The confirm-email routes
 are excluded in the job (#1321).
+
+`/auth/me/connected-accounts/{provider}/` used to be on that list (it needs a linked social
+account). Since #1794 it is session only, so this job's token gets a declared 403 before
+any provider lookup: a role-style 403, not a missing-id 404. The counts above predate that
+and were not re-measured.
 
 Admin-only endpoints (`/api/v1/admin/...`) are excluded on purpose too: #1080 requires
 `provision_fuzz_token` to refuse an admin/superuser account, so this job's token can
