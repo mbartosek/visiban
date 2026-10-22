@@ -2,7 +2,9 @@
 
 Some API fields read as rules rather than values: `wip_limit`, `allowed_priorities`, `default_board_member_role`, `is_required`. A client that reads one of them will assume the server enforces it. Since 1.2 some of those clients are AI agents talking to the [MCP server](../features/mcp-server.md), and an agent cannot notice that a rule is only advisory. It reads the schema and acts on it.
 
-This page classifies every constraint-shaped field in the OSS models and serializers, and records what each one actually binds. *Added in 1.2 (#1077).*
+> **Added in 1.2** (#1077)
+
+This page classifies every constraint-shaped field in the OSS models and serializers, and records what each one actually binds.
 
 ## The three classes
 

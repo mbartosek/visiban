@@ -143,7 +143,7 @@ The hosted demo behind a Cloudflare Tunnel uses `2` (Cloudflare appends the visi
 
 ## Optional features (off by default)
 
-Two features are dormant until an operator opts in. Set these in your `.env` file (Docker Compose). Helm support for these flags is tracked in #1835, then restart the backend. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.
+Two features are dormant until an operator opts in. Set these in your `.env` file, then run `docker compose up -d` to recreate the backend with them (`docker compose restart` does not re-read `.env`). Turning `GIT_LENS_ENABLED` on adds the `git_lens` app and its tables, so a migration must run; in the production stack the `backend-init` service does that on `up -d`. Helm support for these flags is tracked in #1835. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -256,7 +256,7 @@ EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
 
 ### Configuring SMTP from the admin UI
 
-*New in 1.2.*
+> **Added in 1.2**
 
 Site admins can configure outbound email from **Admin → Settings → Email** without shell
 access or a container restart — useful on managed and cloud deployments.

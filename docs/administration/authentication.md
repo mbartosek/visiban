@@ -77,7 +77,9 @@ Visiban never attaches a provider to an existing account automatically just beca
 
 Users manage their providers in **Settings → Security → Connected accounts**, where they can connect any provider configured on the instance or disconnect one. Visiban won't let anyone remove their last way to sign in: a user without a password must keep at least one connected provider. A provider that's already connected to a different Visiban account can't be connected a second time.
 
-A user who has a password is asked to enter it again before a new provider is connected, unless they confirmed it, or signed in with a provider, in the last five minutes. In the Visiban app this takes three steps on pages served by the backend, which are unbranded: the user confirms the password, clicks **Continue** on the page that follows, and then goes through the provider a second time. No second **Connect** click in Settings is needed. Signing in to the app with a username and password does not count as a recent confirmation, so a user who has just signed in that way is still asked once. A user without a password isn't asked; instead, their primary email address receives a notice that a sign-in provider was connected. Signing in with a provider is not affected. *Added in 1.2.*
+> **Added in 1.2**
+
+A user who has a password is asked to enter it again before a new provider is connected, unless they confirmed it, or signed in with a provider, in the last five minutes. In the Visiban app this takes three steps on pages served by the backend, which are unbranded: the user confirms the password, clicks **Continue** on the page that follows, and then goes through the provider a second time. No second **Connect** click in Settings is needed. Signing in to the app with a username and password does not count as a recent confirmation, so a user who has just signed in that way is still asked once. A user without a password isn't asked; instead, their primary email address receives a notice that a sign-in provider was connected. Signing in with a provider is not affected.
 
 <a id="generic-oidc"></a>
 
