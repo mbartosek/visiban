@@ -765,13 +765,32 @@ class OperatorChangepasswordCheckTests(SimpleTestCase):
             return_value={**both, "createsuperuser": "django.contrib.auth"},
         ):
             errors = check_operator_changepassword_command(None)
-        self.assertEqual([e.id for e in errors], ["accounts.E008"])
+        self.assertEqual([e.id for e in errors], ["accounts.E009"])
         self.assertIn("createsuperuser", errors[0].msg)
+
+    def test_silencing_one_id_leaves_the_other_active(self):
+        """#1824: each override has its own stable ID, so waiving one cannot hide the other."""
+        from django.core.management.base import BaseCommand, SystemCheckError
+
+        def reported(silenced):
+            with (
+                mock.patch("django.core.management.get_commands", return_value={}),
+                override_settings(SILENCED_SYSTEM_CHECKS=silenced),
+            ):
+                try:
+                    BaseCommand().check(tags=["security"], display_num_errors=False)
+                except SystemCheckError as exc:
+                    return {i for i in ("accounts.E008", "accounts.E009") if i in str(exc)}
+            return set()
+
+        self.assertEqual(reported([]), {"accounts.E008", "accounts.E009"})
+        self.assertEqual(reported(["accounts.E008"]), {"accounts.E009"})
+        self.assertEqual(reported(["accounts.E009"]), {"accounts.E008"})
 
     def test_missing_command_fails(self):
         with mock.patch("django.core.management.get_commands", return_value={}):
             errors = check_operator_changepassword_command(None)
-        self.assertEqual([e.id for e in errors], ["accounts.E008", "accounts.E008"])
+        self.assertEqual([e.id for e in errors], ["accounts.E008", "accounts.E009"])
 
     def test_check_is_registered(self):
         from django.core import checks

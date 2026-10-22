@@ -222,7 +222,12 @@ def check_pending_action_middleware_installed(app_configs, **kwargs):
     return []
 
 
-_OPERATOR_COMMANDS = ("changepassword", "createsuperuser")
+# One stable ID per command so SILENCED_SYSTEM_CHECKS can waive each
+# independently (#1824); IDs are never reused or renumbered.
+_OPERATOR_COMMANDS = (
+    ("changepassword", "accounts.E008"),
+    ("createsuperuser", "accounts.E009"),
+)
 
 
 @checks.register(checks.Tags.security)
@@ -234,12 +239,14 @@ def check_operator_changepassword_command(app_configs, **kwargs):
     by ``operator_commands``, which must precede ``django.contrib.auth`` in
     ``INSTALLED_APPS``. A later settings include (the enterprise one) can
     replace ``INSTALLED_APPS`` wholesale and silently restore Django's command.
+    ``changepassword`` reports ``accounts.E008`` and ``createsuperuser`` reports
+    ``accounts.E009``.
     """
     from django.core.management import get_commands
 
     commands = get_commands()
     errors = []
-    for name in _OPERATOR_COMMANDS:
+    for name, check_id in _OPERATOR_COMMANDS:
         provider = commands.get(name)
         if provider == "operator_commands":
             continue
@@ -250,7 +257,7 @@ def check_operator_changepassword_command(app_configs, **kwargs):
                     'Keep "operator_commands" in INSTALLED_APPS, before "django.contrib.auth". '
                     "See docs/development/security-invariants.md, Rule 3."
                 ),
-                id="accounts.E008",
+                id=check_id,
             )
         )
     return errors

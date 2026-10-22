@@ -1286,6 +1286,14 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     accounts with a shorter password keep logging in and are asked for 12+ characters only the
     next time they change it. No migration is involved.
 
+!!! note "Startup checks guard the `changepassword` and `createsuperuser` overrides"
+    Visiban replaces Django's `changepassword` and `createsuperuser` commands with its own
+    (`operator_commands`) so operator password changes revoke credentials and are written to the
+    admin action log. A settings include that replaces `INSTALLED_APPS` and drops the app now
+    fails `manage.py check` with `accounts.E008` (`changepassword`) or `accounts.E009`
+    (`createsuperuser`) (#1801, #1824). Fix the `INSTALLED_APPS` order rather than silencing
+    the check; if you must, each ID can be listed in `SILENCED_SYSTEM_CHECKS` independently.
+
 !!! warning "`POST /api/v1/auth/password/change/` now requires `old_password`"
     This dj-rest-auth endpoint previously changed the password for any authenticated caller
     without checking the current one (#1257). Any script or integration that calls it must now
