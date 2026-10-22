@@ -33,7 +33,7 @@ function dispatch(e: KeyboardEvent): void {
  * Priority conventions:
  *   48 — canceling an in-flight load inside a modal (Import Board sample load)
  *   40 — modals and overlays
- *   31 — card-face custom-field quick-edit popover (CustomFieldQuickEditPopover, #1856)
+ *   32 — card-face custom-field quick-edit popover (CustomFieldQuickEditPopover, #1856)
  *   30 — side panels (card detail, archived cards)
  *   25 — dropdowns (SelectDropdown, FilterBar, BulkActionToolbar) — via useDropdownEscape
  *   20 — inline confirmation dialogs (bulk delete confirm)

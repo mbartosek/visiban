@@ -53,7 +53,7 @@ describe("CustomFieldQuickEditPopover", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("consumes Escape so board-level handlers (selection-clear 10, focus-exit 12, view-toggle 15) never fire (#1856)", () => {
+  it("consumes Escape so board-level handlers (selection-clear 10, focus-exit 12, view-toggle 15) never fire (#1856); stack-ordering proxy, the real BoardView case is in boardView.test.tsx", () => {
     const onDismiss = vi.fn();
     const clearSelection = vi.fn();
     const exitFocus = vi.fn();
