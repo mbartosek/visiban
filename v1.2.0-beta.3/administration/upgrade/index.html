@@ -4534,6 +4534,57 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <hr />
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
+<div class="admonition note">
+<p class="admonition-title">OpenAPI component names changed for <code>/auth/user/</code> and the dj-rest-auth responses</p>
+<p>The rename itself changes no field, but a client generated from the OpenAPI schema names these
+types differently, so regenerating one renames them. Other 1.2 changes to these shapes are in
+the changelog and the API docs. The 1.2 names are the contract from
+1.2.0 on; the 1.1 names are not pinned back (#1834).</p>
+<table>
+<thead>
+<tr>
+<th>1.1 component</th>
+<th>1.2 component</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>User</code></td>
+<td><code>CurrentUser</code></td>
+<td><code>GET</code>/<code>PUT</code>/<code>PATCH /api/v1/auth/user/</code> response</td>
+</tr>
+<tr>
+<td><code>UserRequest</code></td>
+<td><code>CurrentUserRequest</code></td>
+<td><code>PUT /api/v1/auth/user/</code> body</td>
+</tr>
+<tr>
+<td><code>PatchedUserRequest</code></td>
+<td><code>PatchedCurrentUserRequest</code></td>
+<td><code>PATCH /api/v1/auth/user/</code> body</td>
+</tr>
+<tr>
+<td><code>Login</code>, <code>Registration</code></td>
+<td><code>Token</code></td>
+<td><code>POST /api/v1/auth/login/</code> and <code>registration/</code> response</td>
+</tr>
+<tr>
+<td><code>VisibanPasswordReset</code></td>
+<td><code>PasswordResetResponse</code></td>
+<td><code>POST /api/v1/auth/password/reset/</code> response</td>
+</tr>
+<tr>
+<td><code>PasswordResetConfirm</code></td>
+<td><code>PasswordResetConfirmResponse</code></td>
+<td><code>POST /api/v1/auth/password/reset/confirm/</code> response</td>
+</tr>
+</tbody>
+</table>
+<p><code>User</code> still exists in 1.2 as the <code>POST /api/v1/auth/choose-username/</code> response; it is just
+no longer what <code>/auth/user/</code> returns. Request component names for login, registration, and
+password reset are unchanged.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Status codes changed on board-scoped and member routes</p>
 <p>Requests from a caller with no access to a board now return <code>404 Not Found</code> on every
