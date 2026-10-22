@@ -98,7 +98,7 @@ Rows are ordered by `ordering` with the card ID as a tiebreaker, so a walk over 
 | Parameter | Description |
 |---|---|
 | `?limit=<n>` | Maximum cards to return. Default and maximum `200`; a larger value is clamped to `200`. `0` returns `[]` with the headers set (a count-only request). A blank value means the default; a negative or non-integer value returns `400` with `{"detail": "...", "code": "invalid_query_param"}` |
-| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value is treated as `0`, as on every other endpoint (*Changed in 1.2, #1823*). Only a value above 2^62 returns `400`, with the field-keyed body `{"offset": [...]}` (unlike a bad `limit`, which is `{detail, code}`) |
+| `?offset=<n>` | Number of matching cards to skip. Default `0`. An offset past the end returns `[]`. A blank value means the default; a negative or non-integer value is treated as `0`, as on every other endpoint (*Changed in 1.2, #1823*). Only a value above 2^62 returns `400`, with the field-keyed body `{"offset": "..."}` (unlike a bad `limit`, which is `{detail, code}`) |
 | `?search=<q>` | Filter by title and description (partial, case-insensitive) |
 | `?assignee=<id>` | Filter by assignee user ID |
 | `?unassigned=true` | Return only cards with no assignee |
@@ -349,7 +349,7 @@ List all archived cards for the board, newest archived first. Available to all b
 
 | Parameter | Description |
 |---|---|
-| `offset` | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": [...]}`. |
+| `offset` | Pagination offset (default: `0`). A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": "..."}`. |
 
 **Response** — paginated envelope, page size fixed at 50:
 
@@ -524,7 +524,7 @@ Use this endpoint when you need a single list combining moves, comments, field e
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `limit` | integer | `50` | Page size. Capped at `200`; a negative value is treated as `0`. |
-| `offset` | integer | `0` | Zero-based page offset. A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": [...]}`. |
+| `offset` | integer | `0` | Zero-based page offset. A negative value is treated as `0`; a value above `2^62` returns `400` with `{"offset": "..."}`. |
 | `event_types` | string | _(all)_ | Comma-separated filter groups. Valid values: `move`, `comment`, `field`, `checklist`, `attachment`, `system`. Omit to include all event types. |
 
 `event_types` group mapping:

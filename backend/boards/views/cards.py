@@ -15,7 +15,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import (
-    extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiResponse, PolymorphicProxySerializer, OpenApiTypes,
+    extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiResponse, OpenApiTypes,
 )
 
 from django.conf import settings as django_settings
@@ -321,25 +321,28 @@ _CARD_LIST_SCHEMA = extend_schema(
         200: CardSerializer(many=True),
         400: OpenApiResponse(
             description=(
-                "Either `limit` is negative or not an integer "
-                '(`{"detail": ..., "code": "invalid_query_param"}`), or `offset` is '
-                'above 2^62 (the field-keyed form `{"offset": ["..."]}` shared with '
-                "the other endpoints)."
+                "A bad `limit` (negative or not an integer) returns the coded "
+                '`{"detail": ..., "code": "invalid_query_param"}`. Every other 400 is '
+                "DRF's field-keyed shape: `offset` above 2^62 "
+                '(`{"offset": "Must be a valid integer offset."}`) and malformed '
+                'filter values such as `assignee` or `due_before` '
+                '(`{"assignee": ["Enter a number."]}`).'
             ),
-            response=PolymorphicProxySerializer(
-                component_name="CardListBadQueryParam",
-                serializers=[
-                    inline_serializer(
-                        name="CardListInvalidQueryParam",
-                        fields={"detail": serializers.CharField(), "code": serializers.CharField()},
-                    ),
-                    inline_serializer(
-                        name="CardListOffsetTooLarge",
-                        fields={"offset": serializers.ListField(child=serializers.CharField())},
-                    ),
+            # Raw anyOf, not PolymorphicProxySerializer (always oneOf): the coded
+            # body also matches the generic object branch, so oneOf would reject it.
+            response={
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "required": ["detail", "code"],
+                        "properties": {
+                            "detail": {"type": "string"},
+                            "code": {"type": "string", "enum": ["invalid_query_param"]},
+                        },
+                    },
+                    {"type": "object", "additionalProperties": True},
                 ],
-                resource_type_field_name=None,
-            ),
+            },
         ),
     },
 )
@@ -351,7 +354,7 @@ def _parse_card_limit(request, maximum):
     ``limit`` stays strict: silently treating ``limit=abc`` as the default
     would recreate the "client cannot tell what it got" bug #1724 fixed. A bad
     value is a ``{detail, code}`` 400 with ``code: "invalid_query_param"`` (the
-    project's coded-error shape), not DRF's field-keyed ``{"limit": [...]}``.
+    project's coded-error shape), not DRF's field-keyed ``{"limit": "..."}``.
     Absent or blank means ``maximum``; larger values clamp rather than reject,
     since asking for more than the cap is a reasonable request.
     """

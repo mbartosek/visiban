@@ -954,18 +954,34 @@ class CardListTruncationSignalTests(TestCase):
         headers = op["responses"]["200"]["headers"]
         self.assertIn("X-Total-Count", headers)
         self.assertIn("X-Truncated", headers)
-        # #1823: the 400 covers both the coded limit error and the field-keyed
-        # offset-too-large error parse_offset still raises.
-        ref = op["responses"]["400"]["content"]["application/json"]["schema"]
-        name = ref["$ref"].rsplit("/", 1)[1]
-        one_of = schema["components"]["schemas"][name]["oneOf"]
-        refs = {o["$ref"].rsplit("/", 1)[1] for o in one_of}
-        self.assertEqual(refs, {"CardListInvalidQueryParam", "CardListOffsetTooLarge"})
-        self.assertEqual(
-            set(schema["components"]["schemas"]["CardListInvalidQueryParam"]["properties"]),
-            {"detail", "code"},
+
+    def test_400_schema_validates_every_real_card_list_400(self):
+        # #1823: validate REAL 400 bodies against the generated schema, so the
+        # declared shape cannot drift from what the endpoint returns (the coded
+        # limit error, parse_offset's field-keyed string, django-filter errors).
+        import jsonschema
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        op = schema["paths"]["/api/v1/boards/{board_pk}/cards/"]["get"]
+        body_schema = op["responses"]["400"]["content"]["application/json"]["schema"]
+        cases = (
+            {"limit": "abc"}, {"limit": "-1"}, {"offset": str(2**62 + 1)},
+            {"assignee": "x"}, {"due_before": "x"},
         )
-        self.assertIn("offset", schema["components"]["schemas"]["CardListOffsetTooLarge"]["properties"])
+        for params in cases:
+            with self.subTest(params=params):
+                r = self.client.get(self.url, params)
+                self.assertEqual(r.status_code, 400, r.content)
+                jsonschema.validate(r.json(), body_schema)
+        # The coded branch is genuinely constrained, not just "any object".
+        coded = body_schema["anyOf"][0]
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({"detail": "x", "code": "other"}, coded)
+        self.assertEqual(
+            self.client.get(self.url, {"offset": str(2**62 + 1)}).json(),
+            {"offset": "Must be a valid integer offset."},
+        )
 
 
 class CardListQueryCountTests(TestCase):
