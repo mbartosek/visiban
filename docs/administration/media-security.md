@@ -171,6 +171,8 @@ docker compose exec backend python manage.py purge_orphaned_attachments --yes
 - It skips files modified within the last 24 hours, because an upload writes the file before its row. Change this with `--min-age-hours N` (at least 1).
 - It checks the database again immediately before each deletion.
 - It prints counts only. Add `--verbosity 2` to list file names, which can contain a user's original upload name; avoid that under a scheduled job whose output is collected. It never writes paths to the application log.
+- Removal runs one file at a time after the delete commits, inside the request that deleted. On local storage that is quick. Deleting a board with thousands of attachments on S3-style storage can take long enough to hit a proxy timeout even though the delete itself committed; any file not removed is picked up by the next run of this command.
+- Bulk database operations that fire no signals, such as `TRUNCATE` (which `seed_demo_data --reset-database` uses) or raw SQL deletes, leave their files behind; this command removes them.
 - With the default `FileSystemStorage` on a volume that is not shared between replicas, it sees only the files on the node it runs on. Run it on each node.
 
 ---

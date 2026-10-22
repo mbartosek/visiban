@@ -20,9 +20,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.test import TestCase, override_settings
+from django.urls import reverse
+from rest_framework.test import APIClient
 
 from accounts.models import User
-from boards.models import Board, Card, CardAttachment, Column, Swimlane
+from boards.models import Board, BoardMembership, Card, CardAttachment, Column, Swimlane
+from boards.services.cards import delete_boards_locked
 
 
 class _MediaTestCase(TestCase):
@@ -81,6 +84,38 @@ class AttachmentFileRemovalTests(_MediaTestCase):
 
     def test_queryset_delete(self):
         self._delete_removes_file(CardAttachment.objects.all().delete)
+
+    def test_card_delete_endpoint(self):
+        BoardMembership.objects.create(board=self.board, user=self.user, role=BoardMembership.Role.ADMIN)
+        name = self._attach()
+        client = APIClient()
+        client.force_authenticate(self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = client.delete(f"/api/v1/boards/{self.board.pk}/cards/{self.card.pk}/")
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(default_storage.exists(name))
+
+    def test_delete_boards_locked(self):
+        # The seed commands' --wipe path.
+        name = self._attach()
+        with self.captureOnCommitCallbacks(execute=True):
+            delete_boards_locked(Board.objects.filter(pk=self.board.pk))
+        self.assertFalse(default_storage.exists(name))
+
+    def test_django_admin_delete_selected(self):
+        name = self._attach()
+        root = User.objects.create_superuser(username="root1817", password="pw-1817-x!")
+        client = APIClient()
+        client.force_login(root)
+        att = CardAttachment.objects.get()
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = client.post(
+                reverse("admin:boards_cardattachment_changelist"),
+                {"action": "delete_selected", "_selected_action": [att.pk], "post": "yes"},
+            )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(CardAttachment.objects.count(), 0)
+        self.assertFalse(default_storage.exists(name))
 
     def test_file_survives_until_commit(self):
         name = self._attach()
