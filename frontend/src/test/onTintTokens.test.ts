@@ -149,6 +149,11 @@ describe('card metadata on an aging tint (#1844)', () => {
   // mounts there (CustomFieldLink, MultiSelectChips). The source scan below keeps this list honest.
   const META = ['fg-secondary', 'fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
   const TINTED = ['warning', 'stale', 'stale2x', 'stale3x'] as const
+  // CardItem plus every component it mounts inside the metadata row (nested ones included:
+  // MultiSelectChips mounts ChoiceValue). The import guard below keeps this list complete.
+  const CARD_FACE_FILES = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue', 'ExternalRefGlyph']
+  // Sibling components CardItem imports that never render inside the row: they are portaled.
+  const PORTALED = ['CardPeekPopover', 'CustomFieldQuickEditPopover']
   const themes = [
     ['dark', darkBlock],
     ['light', lightBlock],
@@ -230,6 +235,15 @@ describe('card metadata on an aging tint (#1844)', () => {
     }
   })
 
+  it('every sibling component CardItem and the row components import is scanned or portaled', () => {
+    for (const f of CARD_FACE_FILES) {
+      const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
+      for (const m of src.matchAll(/from "\.\/([A-Za-z]+)"/g)) {
+        expect(CARD_FACE_FILES.includes(m[1]) || PORTALED.includes(m[1]), `${f}.tsx imports ./${m[1]}`).toBe(true)
+      }
+    }
+  })
+
   // A new metadata element in a color outside META (for example plain `text-warning` or
   // `text-primary-soft`) would not be rescoped, so it fails here until it is either rescoped or listed
   // with a reason. Every `text-<x>` utility is checked except size, alignment, wrap and overflow ones,
@@ -246,8 +260,7 @@ describe('card metadata on an aging tint (#1844)', () => {
       'fg', // card title and the aging tooltip (bg-sunken); pinned in the #1841 ramp test above
       'on-primary', // selection checkbox tick on its solid bg-primary-emphasis fill, outside the metadata row
     ])
-    const files = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue']
-    for (const f of files) {
+    for (const f of CARD_FACE_FILES) {
       const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
       for (const m of src.matchAll(/\btext-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(\/\d+)?/g)) {
         const [whole, name, alpha] = m
@@ -270,7 +283,7 @@ describe('card metadata on an aging tint (#1844)', () => {
     const rebound = ['fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
     expect([...rebound].sort()).toEqual(Object.keys(remap).sort())
     const re = /\b(?:bg|border|ring|outline|fill|stroke|decoration|divide|shadow|from|via|to|accent|caret|placeholder)-(?:fg-tertiary|fg-muted|fg-faint|info|danger|success)(?![a-z-])/g
-    for (const f of ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue']) {
+    for (const f of CARD_FACE_FILES) {
       const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
       for (const [cls] of src.matchAll(re)) expect(intended.has(cls), `${f}.tsx uses ${cls}`).toBe(true)
     }

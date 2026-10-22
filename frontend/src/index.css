@@ -215,8 +215,9 @@ body {
   .metaClass in src/utils/agingTint.ts). It rescopes the text tokens the row
   uses to their on-tint values for that subtree only, so every element in the
   row, including child components such as CustomFieldLink and
-  MultiSelectChips, clears 4.5:1 on every stage in both themes without a
-  per-element class. Each referenced token flips with [data-theme], so no
+  MultiSelectChips, clears 4.5:1 at rest on every stage in both themes without
+  a per-element class (the transient drag preview at opacity-95 is a documented
+  exception, frontend/CLAUDE.md § Card aging ramp). Each referenced token flips with [data-theme], so no
   light-mode copy is needed. Untinted cards never get the class.
   onTintTokens.test.ts parses this block and pins the resulting ratios.
   fg-faint is the dense empty-field ghost (a field name, and a button for
