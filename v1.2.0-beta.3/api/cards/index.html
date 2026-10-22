@@ -4561,7 +4561,7 @@ page; treat it as opaque.</p>
 </tr>
 <tr>
 <td><code>?cursor=&lt;opaque&gt;</code></td>
-<td>Page cursor from a previous response's <code>next_cursor</code></td>
+<td>Page cursor from a previous response's <code>next_cursor</code>. A cursor that cannot be decoded, or whose position is not a timestamp Postgres can store (not a valid date and time, or a UTC offset of 16 hours or more), returns <code>400</code> with <code>{"detail": "cursor is not a valid page cursor.", "code": "invalid_query_param"}</code></td>
 </tr>
 <tr>
 <td><code>?page_size=&lt;n&gt;</code></td>
@@ -4569,6 +4569,7 @@ page; treat it as opaque.</p>
 </tr>
 </tbody>
 </table>
+<p>A filter value that fails its type check (<code>?updated_since=x</code>, <code>?assignee=x</code>) returns <code>400</code> with <code>{"updated_since": ["Enter a valid date/time."], "detail": "updated_since: Enter a valid date/time.", "code": "invalid_query_param"}</code>: the <a href="../#error-responses">bad query parameter</a> shape, plus a field-keyed entry for the parameter.</p>
 <p><strong>Card response fields:</strong> the same fields as the card response field table under
 <code>GET /api/v1/boards/{board_id}/cards/{id}/</code> below, plus <code>board</code> (the board's integer ID) —
 single-board endpoints omit <code>board</code> because the URL already scopes to one board; a cross-board
@@ -4623,7 +4624,7 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 </tr>
 <tr>
 <td><code>?offset=&lt;n&gt;</code></td>
-<td>Number of matching cards to skip. Default <code>0</code>. An offset past the end returns <code>[]</code>. A blank value means the default; a negative or non-integer value is treated as <code>0</code>, as on every other endpoint (<em>Changed in 1.2, #1823</em>). Only a value above 2^62 returns <code>400</code>, with the field-keyed body <code>{"offset": "..."}</code> (unlike a bad <code>limit</code>, which is <code>{detail, code}</code>)</td>
+<td>Number of matching cards to skip. Default <code>0</code>. An offset past the end returns <code>[]</code>. A blank value means the default; a negative or non-integer value is treated as <code>0</code>, as on every other endpoint (<em>Changed in 1.2, #1823</em>). Only a value above 2^62 returns <code>400</code>, with <code>{"detail": "...", "code": "invalid_query_param"}</code> like a bad <code>limit</code></td>
 </tr>
 <tr>
 <td><code>?search=&lt;q&gt;</code></td>
@@ -4667,6 +4668,7 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 </tr>
 </tbody>
 </table>
+<p>A filter value that fails its type check returns <code>400</code> with the field-keyed body this endpoint has returned since 1.1, plus <code>detail</code> and <code>code</code> (<em>added in 1.2, #1832</em>): <code>?assignee=x</code> gives <code>{"assignee": ["Enter a number."], "detail": "assignee: Enter a number.", "code": "invalid_query_param"}</code>. Branch on <code>code</code>. See <a href="../#error-responses">Error responses</a>.</p>
 <h3 id="post-apiv1boardsboard_idcards"><code>POST /api/v1/boards/{board_id}/cards/</code><a class="headerlink" href="#post-apiv1boardsboard_idcards" title="Permanent link">&para;</a></h3>
 <p>Create a card. Requires member or above. The target column must have <code>allow_card_creation</code> enabled.</p>
 <p>The target column's WIP and weight limits are enforced exactly as on a <a href="#wip-weight-limit-enforcement">move</a> into it: <code>409</code> with <code>wip_limit_exceeded</code>, <code>wip_hard_blocked</code>, or <code>weight_limit_exceeded</code>, and a board admin may pass the optional <code>?force=true</code> query parameter to override a soft limit (a non-admin gets <code>403</code>; hard mode has no override). <em>Changed in 1.2 (#1428): creates were not checked before.</em></p>
@@ -5078,7 +5080,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <tbody>
 <tr>
 <td><code>offset</code></td>
-<td>Pagination offset (default: <code>0</code>). A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": "..."}</code>.</td>
+<td>Pagination offset (default: <code>0</code>). A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -5325,7 +5327,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <td><code>offset</code></td>
 <td>integer</td>
 <td><code>0</code></td>
-<td>Zero-based page offset. A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"offset": "..."}</code>.</td>
+<td>Zero-based page offset. A negative value is treated as <code>0</code>; a value above <code>2^62</code> returns <code>400</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code>.</td>
 </tr>
 <tr>
 <td><code>event_types</code></td>
@@ -5480,7 +5482,7 @@ blocking, whose <code>blocker_count</code> drops as a result.</p>
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>event_types</code> names a group not in the allowed set — <code>{"detail": "Invalid event_types: ... Valid groups: ..."}</code></td>
+<td><code>event_types</code> names a group not in the allowed set — <code>{"detail": "Invalid event_types: ... Valid groups: ...", "code": "invalid_query_param"}</code> (<code>code</code> added in 1.2)</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>

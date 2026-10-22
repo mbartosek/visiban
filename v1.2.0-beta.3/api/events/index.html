@@ -4206,13 +4206,13 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"after": ["Must be an integer event id."]}</code></td>
-<td><code>after</code> is not an integer, or is negative.</td>
+<td><code>{"detail": "after must be an integer event id.", "code": "invalid_query_param"}</code></td>
+<td><code>after</code> is not an integer, or is negative (<code>"after must not be negative."</code>).</td>
 </tr>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"limit": ["Must be between 1 and 500."]}</code></td>
-<td><code>limit</code> is not an integer, or is out of range.</td>
+<td><code>{"detail": "limit must be between 1 and 500.", "code": "invalid_query_param"}</code></td>
+<td><code>limit</code> is not an integer (<code>"limit must be an integer."</code>), or is out of range.</td>
 </tr>
 <tr>
 <td><code>404 Not Found</code></td>

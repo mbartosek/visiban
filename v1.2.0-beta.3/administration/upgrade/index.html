@@ -4732,6 +4732,17 @@ members should branch on <code>code</code> and show the response's <code>detail<
 See the <a href="../../api/groups/#members">Groups API</a>.</p>
 </div>
 <div class="admonition note">
+<p class="admonition-title">Bad query parameters answer <code>code: \"invalid_query_param\"</code></p>
+<p>Refused query parameters (listed under <a href="../../api/#error-responses">Error responses</a>)
+now answer <code>400</code> with <code>{detail, code}</code> and <code>code: "invalid_query_param"</code>. On endpoints
+that existed in 1.1 the change is additive:
+a bad filter value on <code>GET /api/v1/boards/{id}/cards/</code> (<code>?assignee=x</code>) keeps its
+field-keyed entry (<code>{"assignee": ["Enter a number."]}</code>) and gains <code>detail</code> and <code>code</code>,
+and an unknown <code>event_types</code> group on the card timeline keeps <code>detail</code> and gains <code>code</code>.
+An <code>offset</code> above <code>2^62</code>, which was a <code>500</code> in 1.1, is now this <code>400</code>. Clients should
+branch on <code>code</code>. See <a href="../../api/#error-responses">Error responses</a>.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title"><code>is_starred</code> omitted from WebSocket board and group events</p>
 <p><code>board.created</code>, <code>board.updated</code>, <code>group.created</code> and <code>group.updated</code> payloads now carry
 <code>is_starred</code> only for the user who made the change; every other subscriber receives the

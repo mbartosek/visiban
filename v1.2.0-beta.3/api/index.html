@@ -4009,30 +4009,34 @@
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
-<p><strong>Bad query parameters.</strong> The target shape for a query parameter whose value is refused (not an integer, out of range) is <code>400 Bad Request</code> with <code>{detail, code}</code> and <code>code: "invalid_query_param"</code>. These parameters answer with it:</p>
+<p><strong>Bad query parameters.</strong> The query parameters listed below answer a refused value (not an integer, out of range, not one of the allowed values, a cursor the server cannot use) with <code>400 Bad Request</code>, <code>{detail, code}</code> and <code>code: "invalid_query_param"</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"offset must not exceed 4611686018427387904."</span><span class="p">,</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"invalid_query_param"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>This covers:</p>
 <ul>
 <li><code>GET /boards/{id}/analytics/</code>: <code>days</code> and <code>stalled_days</code></li>
 <li><code>GET /boards/{id}/cards/</code>: <code>limit</code></li>
 <li><code>GET /boards/{id}/movements/</code>: <code>moved_after</code>, <code>moved_before</code>, <code>swimlane_id</code>, <code>to_column_id</code> and <code>moved_by_id</code></li>
-</ul>
-<p>These parameters still answer <code>400</code> with a field-keyed body (<code>{"&lt;param&gt;": ...}</code>) and no <code>code</code>; moving them to the shape above is tracked in #1832:</p>
-<ul>
 <li><code>GET /boards/{id}/events/</code>: <code>after</code> and <code>limit</code></li>
 <li>An <code>offset</code> above <code>2^62</code> on <code>GET /boards/{id}/movements/</code>, <code>GET /boards/{id}/cards/</code>, <code>GET /boards/{id}/cards/archived/</code> and <code>GET /boards/{id}/cards/{id}/timeline/</code></li>
+<li><code>GET /boards/{id}/cards/{id}/timeline/</code>: an unknown group in <code>event_types</code>. Before 1.2 this body was <code>{detail}</code> only; <code>code</code> is added</li>
 <li><code>GET /admin/action-log/</code>: <code>action</code></li>
 <li><code>GET /admin/board-invite-links/</code>: <code>status</code></li>
-<li>Card filter parameters whose value fails the filter's type check, on <code>GET /boards/{id}/cards/</code> (for example <code>assignee=x</code> answers <code>{"assignee": ["Enter a number."]}</code> and <code>due_before=x</code> answers <code>{"due_before": ["Enter a valid date."]}</code>) and on <code>GET /cards/</code> (<code>updated_since=x</code> answers <code>{"updated_since": ["Enter a valid date/time."]}</code>)</li>
+<li><code>GET /cards/</code>: a <code>cursor</code> that cannot be decoded, or whose position is not a timestamp Postgres can store (not a valid date and time, or a UTC offset of 16 hours or more)</li>
+<li>Card filter parameters whose value fails the filter's type check, on <code>GET /boards/{id}/cards/</code> and <code>GET /cards/</code>. These also keep the field-keyed entry the board card list has answered with since 1.1, so a 1.1 client that reads it is unaffected:</li>
 </ul>
-<p>One parameter answers a third shape, <code>{detail}</code> with no <code>code</code>: an unknown group in <code>event_types</code> on <code>GET /boards/{id}/cards/{id}/timeline/</code> (<code>{"detail": "Invalid event_types: ..."}</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"assignee"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Enter a number."</span><span class="p">],</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"assignee: Enter a number."</span><span class="p">,</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"invalid_query_param"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Branch on <code>code</code>, not on which parameter key is present.</p>
 <p>Some parameters are clamped or ignored rather than refused; each endpoint's page says which.</p>
 <h3 id="pagination">Pagination<a class="headerlink" href="#pagination" title="Permanent link">&para;</a></h3>
 <p>Most list endpoints return the <strong>standard paginated envelope</strong>. A client must read the list from <code>results</code>, not from the top level of the response:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">123</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"page_size"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">123</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"offset"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">"page_size"</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4078,7 +4082,7 @@
 </tr>
 <tr>
 <td><code>GET /boards/{id}/cards/</code></td>
-<td>Bare array, capped at 200 rows, with <code>X-Total-Count</code> / <code>X-Truncated</code> headers and optional <code>limit</code> / <code>offset</code>. A deliberate second pagination style: it keeps <code>limit</code> (not <code>page_size</code>) because the response has no envelope to carry a <code>count</code>, and the same <code>limit</code> / <code>total</code> / <code>truncated</code> vocabulary is what MCP <code>list_cards</code> exposes, so the two stay in step. A negative or non-integer <code>offset</code> is <code>0</code>, like every other endpoint; a bad <code>limit</code> is a <code>400</code> with <code>{detail, code: "invalid_query_param"}</code>. An <code>offset</code> above 2^62 is rejected by the shared <code>parse_offset</code> with a field-keyed <code>400</code> (<code>{"offset": "..."}</code>), as on every endpoint that takes <code>offset</code>. See <a href="cards/">Cards API</a></td>
+<td>Bare array, capped at 200 rows, with <code>X-Total-Count</code> / <code>X-Truncated</code> headers and optional <code>limit</code> / <code>offset</code>. A deliberate second pagination style: it keeps <code>limit</code> (not <code>page_size</code>) because the response has no envelope to carry a <code>count</code>, and the same <code>limit</code> / <code>total</code> / <code>truncated</code> vocabulary is what MCP <code>list_cards</code> exposes, so the two stay in step. A negative or non-integer <code>offset</code> is <code>0</code>, like every other endpoint; a bad <code>limit</code> is a <code>400</code> with <code>{detail, code: "invalid_query_param"}</code>. An <code>offset</code> above 2^62 is a <code>400</code> with <code>{detail, code: "invalid_query_param"}</code>, as on every endpoint that takes <code>offset</code>. See <a href="cards/">Cards API</a></td>
 </tr>
 <tr>
 <td><code>GET /boards/{id}/movements/</code> and <code>GET /boards/{id}/cards/archived/</code></td>
@@ -4109,7 +4113,7 @@
 <p>While a site admin has <a href="admin/#maintenance-mode">maintenance mode</a> turned on, <strong>any</strong>
 non-safe-method request (anything other than <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code>, <code>TRACE</code>) from a non-site-admin
 caller — on any endpoint documented in this reference — is rejected with <code>503 Service Unavailable</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"maintenance_mode"</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Upgrading to 1.2 — back by 14:00 UTC."</span><span class="w"> </span><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"maintenance_mode"</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Upgrading to 1.2 — back by 14:00 UTC."</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p>The response carries <code>Retry-After: 120</code> so clients back off rather than retry immediately.
 <code>detail</code> is the operator's configured notice, or a built-in default when they left it blank.

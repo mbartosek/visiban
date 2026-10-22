@@ -4402,7 +4402,7 @@ and an audit log an admin can edit is not evidence of anything.</p>
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"action": ["'&lt;value&gt;' is not a valid action."]}</code></td>
+<td><code>{"detail": "'&lt;value&gt;' is not a valid action.", "code": "invalid_query_param"}</code></td>
 <td>The <code>action</code> query param does not match one of the values in the table below</td>
 </tr>
 </tbody>
@@ -5425,7 +5425,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tbody>
 <tr>
 <td><code>status</code></td>
-<td><code>pending</code> (default), <code>used</code>, <code>expired</code>, <code>revoked</code> or <code>all</code>. Any other value is <code>400 {"status": ["'&lt;value&gt;' is not a valid status."]}</code>. Filtering follows the same precedence as the <code>status</code> field — revoked &gt; used &gt; expired &gt; pending — so each invite is listed under exactly the status it reports.</td>
+<td><code>pending</code> (default), <code>used</code>, <code>expired</code>, <code>revoked</code> or <code>all</code>. Any other value is <code>400 {"detail": "'&lt;value&gt;' is not a valid status.", "code": "invalid_query_param"}</code>. Filtering follows the same precedence as the <code>status</code> field — revoked &gt; used &gt; expired &gt; pending — so each invite is listed under exactly the status it reports.</td>
 </tr>
 <tr>
 <td><code>offset</code></td>
@@ -5532,7 +5532,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"status": ["'bogus' is not a valid status."]}</code></td>
+<td><code>{"detail": "'bogus' is not a valid status.", "code": "invalid_query_param"}</code></td>
 <td>Unknown <code>status</code> value.</td>
 </tr>
 <tr>
