@@ -54,7 +54,8 @@
   --info-on-tint: 147 197 253;     /* blue-300 */
   --muted-on-tint: 203 213 225;    /* slate-300 — on `bg-fg-muted/20` */
   /* Checklist-complete text on an aging-tinted card face (#1844, via .card-aging-meta below). Same as
-     --success-on-tint here; light needs a darker step because green-800 is 3.80:1 on the 3x stage. */
+     --success-on-tint here; light needs a darker step because green-800 is 3.80:1 on the 3x stage.
+     Intentionally not exposed in tailwind.config: it is only reached through the .card-aging-meta rescope. */
   --success-on-aging-tint: 134 239 172; /* green-300 */
   /* Urgent (#1594): dark-red fill/border + text pair, matching the board's PRIORITY_COLORS urgent (#B91C1C).
      --urgent-on-tint is red-200 on `bg-urgent/20` over surface (slate-800): 9.5:1 (11.3:1 on sunken). */
@@ -218,10 +219,13 @@ body {
   per-element class. Each referenced token flips with [data-theme], so no
   light-mode copy is needed. Untinted cards never get the class.
   onTintTokens.test.ts parses this block and pins the resulting ratios.
+  fg-faint is the dense empty-field ghost (a field name, and a button for
+  checkbox/dropdown fields); its dashed border and dash still mark it as unset.
 */
 .card-aging-meta {
   --fg-tertiary: var(--muted-on-tint);
   --fg-muted: var(--muted-on-tint);
+  --fg-faint: var(--muted-on-tint);
   --info: var(--info-on-tint);
   --danger: var(--danger-on-tint);
   --success: var(--success-on-aging-tint);

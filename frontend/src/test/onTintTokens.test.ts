@@ -147,7 +147,7 @@ describe('card metadata on an aging tint (#1844)', () => {
   const resolve = (block: string, token: string) => rgbOf(block, remap[token] ?? token)
   // Every plain text token the metadata row renders, in CardItem and in the child components it
   // mounts there (CustomFieldLink, MultiSelectChips). The source scan below keeps this list honest.
-  const META = ['fg-secondary', 'fg-tertiary', 'fg-muted', 'info', 'danger', 'success']
+  const META = ['fg-secondary', 'fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
   const TINTED = ['warning', 'stale', 'stale2x', 'stale3x'] as const
   const themes = [
     ['dark', darkBlock],
@@ -171,15 +171,23 @@ describe('card metadata on an aging tint (#1844)', () => {
     expect(remap).toEqual({
       'fg-tertiary': 'muted-on-tint',
       'fg-muted': 'muted-on-tint',
+      'fg-faint': 'muted-on-tint',
       info: 'info-on-tint',
       danger: 'danger-on-tint',
       success: 'success-on-aging-tint',
     })
   })
 
-  it('success-on-aging-tint is declared in both theme blocks', () => {
+  it('success-on-aging-tint is declared in both theme blocks and kept out of tailwind', () => {
     expect(darkBlock).toContain('--success-on-aging-tint:')
     expect(lightBlock).toContain('--success-on-aging-tint:')
+    expect(tw).not.toContain('success-on-aging-tint')
+  })
+
+  // fg-secondary is not rescoped; frontend/CLAUDE.md says it currently renders the same tone as
+  // muted-on-tint. If either token moves, this fails and the doc sentence must be revisited.
+  it('fg-secondary currently equals muted-on-tint in both themes', () => {
+    for (const [, block] of themes) expect(rgbOf(block, 'fg-secondary')).toEqual(rgbOf(block, 'muted-on-tint'))
   })
 
   it.each(TINTED.flatMap((st) => themes.map(([n, b], i) => [st, n, b, i] as const)))(
@@ -228,7 +236,6 @@ describe('card metadata on an aging tint (#1844)', () => {
     const allowed = new Set([
       ...META,
       'fg', // card title and the aging tooltip (bg-sunken); pinned in the #1841 ramp test above
-      'fg-faint', // dense empty-field ghost: a deliberate placeholder, below AA untinted too
     ])
     const files = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue']
     for (const f of files) {
@@ -237,6 +244,23 @@ describe('card metadata on an aging tint (#1844)', () => {
         if (m[2]) continue // explicit on-tint tokens (urgency badge), pinned in the #1841 test above
         expect(allowed.has(m[1]), `${f}.tsx uses text-${m[1]}`).toBe(true)
       }
+    }
+  })
+
+  // The rescope rebinds the token, not just its text utility, so a fill, border, ring or decoration
+  // in a rebound token inside the row would also shift. Each such use must be listed here with a reason.
+  it('every non-text utility on a rebound token is listed with a reason', () => {
+    const intended = new Set([
+      'border-fg-tertiary', // dotted quick-edit underline under a chip value: follows the rescoped text tone
+      'bg-info', // selected-card fill on the card root, outside the metadata row (and dropped under a tint)
+    ])
+    // Literal regex (no RegExp constructor); the token list must match the rescope exactly.
+    const rebound = ['fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
+    expect([...rebound].sort()).toEqual(Object.keys(remap).sort())
+    const re = /\b(?:bg|border|ring|outline|fill|stroke|decoration|divide|shadow|from|via|to|accent|caret|placeholder)-(?:fg-tertiary|fg-muted|fg-faint|info|danger|success)(?![a-z-])/g
+    for (const f of ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue']) {
+      const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
+      for (const [cls] of src.matchAll(re)) expect(intended.has(cls), `${f}.tsx uses ${cls}`).toBe(true)
     }
   })
 })
