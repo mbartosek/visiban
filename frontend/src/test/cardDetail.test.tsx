@@ -3183,3 +3183,51 @@ describe('CardDetail — label saves follow the live card (#1840)', () => {
     expect(lastBody().label_ids.sort((a, b) => a - b)).toEqual([99, 101])
   })
 })
+
+describe('CardDetail — custom field and weight saves follow the live card (#1840)', () => {
+  const field = (id: number, name: string) => ({
+    id, uid: `cfduid0000${id}`, name, field_type: 'dropdown' as const,
+    choices: ['Red', 'Green', 'Blue'], position: id, show_on_card: false,
+    is_required: false, help_text: '', number_prefix: '', number_suffix: '', number_decimals: null, choice_colors: {}, created_at: '2026-01-01T00:00:00Z',
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUpdateCard.mockImplementation((_b: number, _c: number, patch: Record<string, unknown>) =>
+      Promise.resolve({ ...makeCard(), ...patch, version: 9 }))
+  })
+
+  it('a custom field edit after a remote edit of another field keeps the remote value', async () => {
+    const props = { ...defaultProps(), board: makeBoard({ custom_field_definitions: [field(500, 'Status'), field(501, 'Stage')] }) }
+    const user = userEvent.setup()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ custom_field_values: [{ field_definition: 501, value: 'Blue' }], version: 4 })} />)
+    await user.click(screen.getByRole('button', { name: /Custom fields/ }))
+    await user.click(screen.getAllByRole('button', { name: /— No value —/ })[0])
+    await user.click(screen.getByRole('menuitem', { name: 'Green' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    const sent = (mockUpdateCard.mock.calls.at(-1)![2] as { custom_field_values: { field_definition: number; value: string }[] }).custom_field_values
+    expect(sent).toEqual(expect.arrayContaining([
+      { field_definition: 501, value: 'Blue' },
+      { field_definition: 500, value: 'Green' },
+    ]))
+    expect(sent).toHaveLength(2)
+  })
+
+  it('the weight buttons step from a remotely changed weight', async () => {
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ weight: 5, version: 4 })} />)
+    expect(screen.getByText('5')).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: '+' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(1, 1, { weight: 6 }))
+  })
+
+  it('the weight minus button steps down from a remotely changed weight', async () => {
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={makeCard({ weight: 5, version: 4 })} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: '−' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(1, 1, { weight: 4 }))
+  })
+})
