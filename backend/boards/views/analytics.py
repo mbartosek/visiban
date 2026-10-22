@@ -132,10 +132,10 @@ _MOVEMENTS_400 = OpenApiResponse(
     response=_BAD_QUERY_PARAM_SERIALIZER,
 )
 
-# Signed 64-bit range. An id outside it would overflow the database driver
-# (a 500), so it is refused as a bad parameter. Ids inside it, including 0 and
-# negatives, were always accepted (matching nothing) and stay accepted: the
-# only behavior change is that what used to 500 now answers 400.
+# Signed 64-bit range. An id outside it can never match a row; before this it
+# matched nothing or errored, depending on the database, and it is now refused
+# as a bad parameter. Ids inside it, including 0 and negatives, were always
+# accepted (matching nothing) and stay accepted.
 _MIN_ID = -(2**63)
 _MAX_ID = 2**63 - 1
 
