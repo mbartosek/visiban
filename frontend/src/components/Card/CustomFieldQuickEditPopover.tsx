@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { POPOVER_VIEWPORT_MARGIN, useAnchoredPlacement } from "../../hooks/useAnchoredPlacement";
 import { useOverflowFade } from "../../hooks/useOverflowFade";
+import { useEscapeStack } from "../../hooks/useEscapeStack";
 
 interface Props {
   anchorRect: DOMRect;
@@ -50,17 +51,20 @@ export default function CustomFieldQuickEditPopover({ anchorRect, choices, selec
     if (list && list.scrollHeight > list.clientHeight) list.focus({ preventScroll: true });
   }, [placed]);
 
+  // Escape goes through the shared stack (#1856) so it is consumed here: a raw
+  // document listener left the keypress to reach BoardView's selection-clear
+  // (10), focus-exit (12) and view-toggle (15) handlers, so one Escape closed
+  // the popover and also cleared the card selection. 31 sits above all of
+  // them and above the card panel's close (30); the popover is mounted only
+  // while open, so a closed one never consumes Escape.
+  useEscapeStack(() => { onDismiss(); }, 31);
+
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onDismiss();
-    };
     const onMouseDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onDismiss();
     };
-    document.addEventListener("keydown", onKeyDown);
     document.addEventListener("mousedown", onMouseDown);
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("mousedown", onMouseDown);
     };
   }, [onDismiss]);
