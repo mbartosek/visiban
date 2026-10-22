@@ -1,15 +1,18 @@
+import logging
 import uuid
 
 from django.contrib.postgres.indexes import GinIndex
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator
-from django.db import models
-from django.db.models.signals import pre_delete
+from django.db import models, transaction
+from django.db.models.signals import post_delete, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from django.conf import settings
 
 from boards.uid import _generate_uid
+
+logger = logging.getLogger(__name__)
 
 
 class BoardTemplate(models.Model):
@@ -992,6 +995,45 @@ class CardAttachment(models.Model):
     class Meta:
         db_table = "card_attachments"
         ordering = ["-uploaded_at"]
+
+
+@receiver(post_delete, sender=CardAttachment, dispatch_uid="boards_remove_deleted_attachment_file")
+def remove_file_of_deleted_attachment(sender, instance, **kwargs):
+    """Remove an attachment's file from storage once its row is gone (#1817).
+
+    A post_delete receiver, not a call in one delete view, so every path that
+    cascades attachment rows is covered: card, column, swimlane and board
+    deletes, Django admin ``delete_selected``, ``QuerySet.delete()`` and the
+    single-attachment endpoint. Without it the rows vanish but the file names
+    and contents outlive the card in media storage.
+
+    Storage deletion is irreversible, so it is deferred to commit: if the
+    surrounding transaction rolls back (the row survives) the file must too
+    (#1584). The shared-name check runs at commit time, after the cascade, so a
+    row that still points at the same path (possible through Django admin)
+    keeps its file. Failure-isolated: a storage error is logged by class only
+    (never a path) and must not drop other on_commit callbacks, such as the
+    deferred board broadcast. The ``purge_orphaned_attachments`` command is the
+    repair path for a file this misses.
+    """
+    file_name = instance.file.name if instance.file else ""
+    if not file_name:
+        return
+    file_storage = instance.file.storage
+    pk = instance.pk
+
+    def _remove_file():
+        try:
+            if CardAttachment.objects.filter(file=file_name).exclude(pk=pk).exists():
+                return
+            file_storage.delete(file_name)
+        except Exception as exc:
+            logger.warning(
+                "attachment file removal failed after commit: %s",
+                type(exc).__name__,
+            )
+
+    transaction.on_commit(_remove_file, robust=True)
 
 
 class Notification(models.Model):

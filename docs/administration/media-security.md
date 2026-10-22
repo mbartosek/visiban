@@ -145,6 +145,36 @@ specific key type.
 
 ---
 
+## Removing orphaned attachment files
+
+> **Added in 1.2** (#1817)
+
+Deleting a card, column, swimlane or board, or deleting attachments in the Django admin, removes the attachment files from storage once the delete commits. If the delete rolls back, the files stay. A file is also kept while another attachment row still points at the same path.
+
+Some files can still be left with no attachment row pointing at them:
+
+- files from deletes made before upgrading to 1.2, which never removed them
+- files whose removal failed (for example, storage was unavailable at the time)
+- files from an upload whose request failed after the file was written
+
+`purge_orphaned_attachments` finds and removes them. It is a dry run unless you pass `--yes`:
+
+```bash
+# Report orphaned files without deleting anything
+docker compose exec backend python manage.py purge_orphaned_attachments
+
+# Delete them
+docker compose exec backend python manage.py purge_orphaned_attachments --yes
+```
+
+- It only looks under `attachments/` in the configured default storage.
+- It skips files modified within the last 24 hours, because an upload writes the file before its row. Change this with `--min-age-hours N` (at least 1).
+- It checks the database again immediately before each deletion.
+- It prints paths to the terminal only, not to the application log.
+- With the default `FileSystemStorage` on a volume that is not shared between replicas, it sees only the files on the node it runs on. Run it on each node.
+
+---
+
 ## Related settings
 
 | Setting | Description |
