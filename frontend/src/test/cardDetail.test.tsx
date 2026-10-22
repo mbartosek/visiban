@@ -3046,4 +3046,79 @@ describe('CardDetail — onUpdated payloads follow the live card (#1777)', () =>
     expectLive(last)
     expect(last.attachment_count).toBe(2)
   })
+
+  // The rename lands while the request is pending; the payload must be built
+  // from the card as it is AFTER the await, not as it was at click time.
+  describe('rename lands while the request is in flight', () => {
+    it('checklist add', async () => {
+      let resolve!: (v: unknown) => void
+      mockAddChecklistItem.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      const props = defaultProps()
+      const { rerender } = render(<CardDetail {...props} />)
+      const input = screen.getByPlaceholderText('Add item (Enter)…')
+      fireEvent.change(input, { target: { value: 'New task' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      rerender(<CardDetail {...props} card={renamed()} />)
+      resolve({ id: 5, text: 'New task', is_checked: false, position: 0 })
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expectLive(lastPayload(props))
+    })
+
+    it('bulk add', async () => {
+      let resolve!: (v: unknown) => void
+      mockAddChecklistItem.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      mockAddChecklistItem.mockResolvedValueOnce({ id: 6, text: 'B', is_checked: false, position: 1 })
+      const props = defaultProps()
+      const { rerender } = render(<CardDetail {...props} />)
+      fireEvent.click(screen.getByText('Bulk'))
+      fireEvent.change(screen.getByPlaceholderText(/Buy milk/), { target: { value: 'A\nB' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Add items' }))
+      rerender(<CardDetail {...props} card={renamed()} />)
+      resolve({ id: 5, text: 'A', is_checked: false, position: 0 })
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expectLive(lastPayload(props))
+    })
+
+    it('checklist delete', async () => {
+      ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue([item])
+      let resolve!: (v?: unknown) => void
+      mockDeleteChecklistItem.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      const props = defaultProps()
+      const { rerender } = render(<CardDetail {...props} />)
+      await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+      fireEvent.click(screen.getByTitle('Remove item'))
+      rerender(<CardDetail {...props} card={renamed()} />)
+      resolve()
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expectLive(lastPayload(props))
+    })
+
+    it('attachment upload', async () => {
+      const { uploadCardAttachment } = await import('../api/cards')
+      let resolve!: (v: unknown) => void
+      ;(uploadCardAttachment as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      const props = defaultProps()
+      const { container, rerender } = render(<CardDetail {...props} />)
+      const input = container.querySelector('input[type="file"]') as HTMLInputElement
+      fireEvent.change(input, { target: { files: [new File(['x'], 'a.txt')] } })
+      rerender(<CardDetail {...props} card={renamed()} />)
+      resolve(attachment)
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expectLive(lastPayload(props))
+    })
+
+    it('attachment delete', async () => {
+      const { deleteCardAttachment } = await import('../api/cards')
+      let resolve!: (v?: unknown) => void
+      ;(deleteCardAttachment as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+      ;(getCardAttachments as ReturnType<typeof vi.fn>).mockResolvedValue([attachment])
+      const props = defaultProps()
+      const { rerender } = render(<CardDetail {...props} currentUser={fakeUser} />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete attachment spec.pdf' }))
+      rerender(<CardDetail {...props} currentUser={fakeUser} card={renamed()} />)
+      resolve()
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expectLive(lastPayload(props))
+    })
+  })
 })
