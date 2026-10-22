@@ -88,6 +88,7 @@ Many errors carry a machine-readable `code` next to the human-readable `detail`:
 
 - `GET /boards/{id}/analytics/`: `days` and `stalled_days`
 - `GET /boards/{id}/cards/`: `limit`
+- `GET /boards/{id}/movements/`: `moved_after`, `moved_before`, `swimlane_id`, `to_column_id` and `moved_by_id`
 
 These parameters still answer `400` with a field-keyed body (`{"<param>": ...}`) and no `code`; moving them to the shape above is tracked in #1832:
 
