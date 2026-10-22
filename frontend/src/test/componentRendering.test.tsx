@@ -296,9 +296,51 @@ describe('CardItem', () => {
     expect(screen.getByText('Stale · 20d').className).toContain('text-warning-on-tint')
   })
 
-  it('stale badge reads plain "Stale" for a card the server marks stale with no movement', () => {
-    render(<CardItem density="comfortable" card={makeCard({ is_stale: true, last_moved_at: null })} />)
-    expect(screen.getByText('Stale')).toBeInTheDocument()
+  // A never-moved card (e.g. Trello/CSV import) ages from created_at, like the
+  // server's is_stale fallback — the imported-board case #1841 opens with.
+  it.each([
+    [21, 'bg-warning/15', 'Stale · 21d'],
+    [56, 'bg-stale-severe/20', 'Stale · 56d'],
+  ])('a never-moved card created %i days ago ages from created_at', (days, overlay, label) => {
+    const { container } = render(
+      <CardItem
+        density="comfortable"
+        card={makeCard({ is_stale: true, last_moved_at: null, created_at: new Date(Date.now() - days * 86_400_000 - 60_000).toISOString() })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+      />
+    )
+    expect(overlayOf(container)?.className).toContain(overlay)
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('a never-moved card created just now has no tint', () => {
+    const { container } = render(
+      <CardItem density="comfortable" card={makeCard({ last_moved_at: null, created_at: new Date().toISOString() })} staleness_threshold_days={14} stale_warning_pct={50} />
+    )
+    expect(container.querySelector('div.absolute.inset-0.rounded-md.pointer-events-none')).not.toBeInTheDocument()
+  })
+
+  it('a selected card drops the bg-info/20 fill under an aging tint but keeps the ring', () => {
+    const { container } = render(
+      <CardItem
+        density="comfortable"
+        card={makeCard({ is_stale: true, last_moved_at: new Date(Date.now() - 56 * 86_400_000).toISOString() })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+        selected
+      />
+    )
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    expect(cardEl.className).toContain('ring-primary-soft')
+    expect(cardEl.className).not.toContain('bg-info/20')
+  })
+
+  it('a selected untinted card keeps the bg-info/20 fill', () => {
+    const { container } = render(
+      <CardItem density="comfortable" card={makeCard({ last_moved_at: new Date().toISOString() })} selected />
+    )
+    expect((container.querySelector('[data-tour-step="card"]') as HTMLElement).className).toContain('bg-info/20')
   })
 
   it('a non-stale urgency badge on a tinted card uses its on-tint tone', () => {

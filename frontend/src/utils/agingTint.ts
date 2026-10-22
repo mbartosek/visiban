@@ -55,7 +55,7 @@ export function agingStage(ratio: number, warningPct: number): AgingStage {
   return "none";
 }
 
-const STAGE_CLASSES: Record<AgingStage, { overlayClass: string | null; bodyOpacityClass: string }> = {
+export const AGING_STAGE_CLASSES: Record<AgingStage, { overlayClass: string | null; bodyOpacityClass: string }> = {
   none: { overlayClass: null, bodyOpacityClass: "" },
   warning: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning-emphasis/10", bodyOpacityClass: "opacity-90" },
   stale: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning/15", bodyOpacityClass: "opacity-85" },
@@ -65,6 +65,17 @@ const STAGE_CLASSES: Record<AgingStage, { overlayClass: string | null; bodyOpaci
     bodyOpacityClass: "opacity-85",
   },
 };
+
+/**
+ * The timestamp a card ages from: its last movement, or — for a card with no
+ * movement at all (for example one imported from Trello or CSV) — its
+ * creation time. This mirrors the server's `is_stale` fallback
+ * (`_annotate_is_stale`), so an imported board's never-moved cards get the
+ * same ramp, tooltip and `Stale · Nd` badge as moved ones (#1841).
+ */
+export function agingReference(card: { last_moved_at: string | null; created_at: string }): string | null {
+  return card.last_moved_at ?? card.created_at ?? null;
+}
 
 export interface AgingTint {
   stage: AgingStage;
@@ -82,12 +93,12 @@ export function agingTint(
   warningPct: number,
   now: number = Date.now()
 ): AgingTint {
-  if (!lastMovedAt) return { stage: "none", ratio: 0, idleDays: 0, ...STAGE_CLASSES.none };
+  if (!lastMovedAt) return { stage: "none", ratio: 0, idleDays: 0, ...AGING_STAGE_CLASSES.none };
   const days = Math.max(1, thresholdDays); // prevent division by zero
   const idleMs = Math.max(0, now - new Date(lastMovedAt).getTime());
   const ratio = idleMs / (days * DAY_MS);
   const stage = agingStage(ratio, warningPct);
-  return { stage, ratio, idleDays: Math.floor(idleMs / DAY_MS), ...STAGE_CLASSES[stage] };
+  return { stage, ratio, idleDays: Math.floor(idleMs / DAY_MS), ...AGING_STAGE_CLASSES[stage] };
 }
 
 function isStaleStage(stage: AgingStage): boolean {

@@ -102,13 +102,13 @@ Dwell time is the gap between two consecutive `CardMovement` records. The Analyt
 
 ## Stale card detection
 
-A card is stale if its most recent `CardMovement` is older than the board's `staleness_threshold_days` (default: 7 days). See [Notifications](notifications.md) for the daily stale-card digest.
+A card is stale if its most recent `CardMovement` is older than the board's `staleness_threshold_days` (default: 7 days), or, for a card that has never moved, if it was created longer ago than that. See [Notifications](notifications.md) for the daily stale-card digest.
 
 ### Card aging tint
 
 > **Changed in 1.2** (#1841)
 
-On the board, a card's tint shows how long it has been idle, measured in multiples of the board's threshold. The tint deepens in fixed steps:
+On the board, a card's tint shows how long it has been idle, measured in multiples of the board's threshold. Idle time counts from the card's last move. A card that has never moved, such as one imported from Trello or CSV, counts from its creation date, the same rule the stale check uses. The tint deepens in fixed steps:
 
 | Idle time (multiples of the threshold) | Tint |
 |---|---|
@@ -118,7 +118,7 @@ On the board, a card's tint shows how long it has been idle, measured in multipl
 | 2× up to 3× | Red |
 | 3× and beyond | Deep red with a red inset outline |
 
-Each step starts exactly at its edge. With a 14-day threshold, a card idle exactly 28 days is red, not orange. The multiples (1×, 2×, 3×) are fixed and are not a board setting. There is no green step, because the tint marks cards that need a look, never cards that are "good". The tint reports age only. It does not mean a card is stuck: a card waiting on an outside party ages the same way. Cards in a done column never age: they get no tint and no "Stale" badge, however long ago they last moved.
+Each step starts exactly at its edge. With a 14-day threshold, a card idle exactly 28 days is red, not orange. The multiples (1×, 2×, 3×) are fixed and are not a board setting. There is no green step, because the tint marks cards that need a look, never cards that are "good". The tint reports age only. It does not mean a card is stuck: a card waiting on an outside party ages the same way. Cards in a done column never age: they get no tint and no "Stale" badge, however long ago they last moved. The daily stale-card digest currently still includes them; that mismatch is tracked in #1845.
 
 Color is never the only signal:
 

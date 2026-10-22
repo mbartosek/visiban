@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  AGING_STAGE_CLASSES,
+  agingReference,
   agingTint,
   agingStage,
   formatAgingTooltip,
@@ -76,6 +78,29 @@ describe("agingTint", () => {
     // card's priority-colored border is untouched.
     expect(at4.overlayClass).toContain("ring-2 ring-inset ring-stale-severe");
     expect(new Set([at15.overlayClass, at25.overlayClass, at4.overlayClass]).size).toBe(3);
+  });
+
+  // Pinned so a regression to the old opacity-60 stale stage (title 4.15:1,
+  // badge 1.9:1) fails here; onTintTokens.test.ts derives its contrast check
+  // from these same classes.
+  it("pins each stage's overlay and body opacity", () => {
+    expect(AGING_STAGE_CLASSES.none).toEqual({ overlayClass: null, bodyOpacityClass: "" });
+    expect(AGING_STAGE_CLASSES.warning.bodyOpacityClass).toBe("opacity-90");
+    expect(AGING_STAGE_CLASSES.stale.bodyOpacityClass).toBe("opacity-85");
+    expect(AGING_STAGE_CLASSES.stale2x.bodyOpacityClass).toBe("opacity-85");
+    expect(AGING_STAGE_CLASSES.stale3x.bodyOpacityClass).toBe("opacity-85");
+    expect(AGING_STAGE_CLASSES.warning.overlayClass).toContain("bg-warning-emphasis/10");
+    expect(AGING_STAGE_CLASSES.stale.overlayClass).toContain("bg-warning/15");
+    expect(AGING_STAGE_CLASSES.stale2x.overlayClass).toContain("bg-danger/15");
+    expect(AGING_STAGE_CLASSES.stale3x.overlayClass).toContain("bg-stale-severe/20");
+  });
+
+  it("agingReference falls back to created_at for a never-moved card, like the server", () => {
+    expect(agingReference({ last_moved_at: "2026-04-01T00:00:00Z", created_at: "2026-01-01T00:00:00Z" })).toBe("2026-04-01T00:00:00Z");
+    expect(agingReference({ last_moved_at: null, created_at: "2026-01-01T00:00:00Z" })).toBe("2026-01-01T00:00:00Z");
+    // 1.5x and 4x the threshold from created_at alone
+    expect(agingTint(agingReference({ last_moved_at: null, created_at: atRatio(1.5) }), THRESHOLD, 50, NOW).stage).toBe("stale");
+    expect(agingTint(agingReference({ last_moved_at: null, created_at: atRatio(4) }), THRESHOLD, 50, NOW).stage).toBe("stale3x");
   });
 
   it("does not cap the ratio: 15 days and 150 days idle look different", () => {

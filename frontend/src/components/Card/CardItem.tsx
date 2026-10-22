@@ -5,7 +5,7 @@ import type { Card, CardDensity, CustomFieldDefinition } from "../../types";
 import { PRIORITY_COLORS } from "../../constants/colors";
 import Avatar from "../Common/Avatar";
 import { formatDueDate, formatRelativeMovedAt } from "../../utils/date";
-import { agingTint, formatAgingTooltip, staleBadgeToneClass, urgencyBadgeToneClass } from "../../utils/agingTint";
+import { agingReference, agingTint, formatAgingTooltip, staleBadgeToneClass, urgencyBadgeToneClass } from "../../utils/agingTint";
 import { classifyCardUrgency } from "../../utils/cardUrgency";
 import CardPeekPopover from "./CardPeekPopover";
 import CustomFieldQuickEditPopover from "./CustomFieldQuickEditPopover";
@@ -256,7 +256,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // the idle days and the tint classes — never recompute the ratio here.
   // A card in a done column is finished, not idle: no tint, tooltip or Stale
   // badge, whatever the server's is_stale says (it does not look at columns).
-  const aging = agingTint(inDoneColumn ? null : card.last_moved_at, staleness_threshold_days, stale_warning_pct);
+  const aging = agingTint(inDoneColumn ? null : agingReference(card), staleness_threshold_days, stale_warning_pct);
   const { overlayClass, bodyOpacityClass } = aging;
   const agingTooltip = overlayClass !== null
     ? formatAgingTooltip(aging, staleness_threshold_days, stale_warning_pct, card.is_stale, card.blocker_count)
@@ -294,7 +294,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     : urgencyBadgeToneClass(urgency.tone, aging.stage);
   // "Stale · 41d" — the server decides whether the badge shows (is_stale); the
   // label adds the idle days so the stage is never conveyed by color alone.
-  const staleLabel = card.last_moved_at ? `Stale · ${aging.idleDays}d` : "Stale";
+  const staleLabel = aging.stage !== "none" ? `Stale · ${aging.idleDays}d` : "Stale";
 
   // Pinned custom fields (#371, Direction A). Quick-edit is only wired when
   // the caller opted in by passing both boardId and onCardUpdated — the
@@ -375,12 +375,15 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       onClick={readOnly ? undefined : onClick}
       data-no-pan
       data-tour-step="card"
+      // A selected card drops its bg-info/20 fill while an aging tint is shown:
+      // the fill under the tint pulled the badge to 3.7:1 (#1841). The
+      // selection ring alone still marks it.
       className={`group bg-surface rounded-md select-none transition-all border relative z-0
         ${readOnly ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5 hover:z-20"}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-emphasis focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
         ${isDragging && !overlay ? "opacity-25 !shadow-none !translate-y-0" : ""}
         ${overlay ? "rotate-1 opacity-95 !-translate-y-1" : ""}
-        ${highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? "ring-2 ring-primary-soft bg-info/20" : ""}
+        ${highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? `ring-2 ring-primary-soft${overlayClass ? "" : " bg-info/20"}` : ""}
       `}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

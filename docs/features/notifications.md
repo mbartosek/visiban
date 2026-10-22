@@ -147,7 +147,7 @@ Each board has a `staleness_threshold_days` setting (default: **7 days**). A car
 
 ### Stale card indicator
 
-Stale cards are tinted on the board, and the tint deepens from orange to red to deep red at 1×, 2× and 3× the threshold. At Comfortable and Standard density their badge shows the idle days (`Stale · 41d`). See [Card aging tint](card-history.md#card-aging-tint).
+Stale cards are tinted on the board, and the tint deepens from orange to red to deep red at 1×, 2× and 3× the threshold. At Comfortable and Standard density their badge shows the idle days (`Stale · 41d`). A never-moved card is measured from its creation date, as in the threshold rule above. Cards in a done column are never tinted or badged, but the `notify_stale_cards` digest currently still includes them (tracked in #1845). See [Card aging tint](card-history.md#card-aging-tint).
 
 ### Running the stale check
 

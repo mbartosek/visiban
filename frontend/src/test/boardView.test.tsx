@@ -123,7 +123,7 @@ vi.mock('../components/Board/SwimlaneRow', () => ({
   },
 }))
 vi.mock('../components/Card/CardItem', () => ({
-  default: ({ card, compact }: { card: { title: string }; compact?: boolean }) => <div data-compact={String(compact ?? false)}>{card.title}</div>,
+  default: ({ card, compact, overlay, inDoneColumn }: { card: { title: string }; compact?: boolean; overlay?: boolean; inDoneColumn?: boolean }) => <div data-compact={String(compact ?? false)} data-overlay={String(!!overlay)} data-in-done-column={String(inDoneColumn ?? false)}>{card.title}</div>,
 }))
 vi.mock('../components/Card/CardDetail', () => ({
   default: ({ card, onClose, onDeleted, onForceMoveCard }: { card: { id: number; title: string }; onClose: () => void; onDeleted?: (id: number) => void; onForceMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<unknown> }) => <div data-testid="card-detail">{card.title}<button onClick={onClose}>Close Detail</button><button onClick={() => onDeleted?.(card.id)}>Delete From Detail</button>{onForceMoveCard && <button onClick={() => { void onForceMoveCard(card.id, 11, 21, 9999) }}>Force From Detail</button>}</div>,
@@ -1728,6 +1728,38 @@ describe('BoardView', () => {
   // ---------------------------------------------------------------------------
   // #965 — drag-to-trash safety
   // ---------------------------------------------------------------------------
+
+  describe('drag overlay aging (#1841)', () => {
+    const cardIn = (column: number) => ({
+      id: 1, uid: 'carduid00001', column, swimlane: 20, title: 'Dragged Card',
+      description: '', priority: 'medium' as const, assignee: null, labels: [], due_date: null, weight: 1,
+      position: 0, created_by: { id: 1, username: 'user1', display_name: 'User 1', avatar_url: '' }, created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z', last_moved_at: '2026-01-01T00:00:00Z',
+      attachment_count: 0, checklist_total: 0, checklist_done: 0, is_stale: true, archived_at: null,
+      version: 1, custom_field_values: [], blocker_count: 0, external_ref: null,
+    })
+    const boardWithDone = (card: ReturnType<typeof cardIn>) => makeBoard({
+      cards: [card],
+      columns: [
+        { id: 10, uid: 'coluid000001', name: 'To Do', position: 0, color: '#3B82F6', wip_limit: null, weight_limit: null, allow_card_creation: true, is_done: false },
+        { id: 11, uid: 'coluid000002', name: 'Done', position: 1, color: '#10B981', wip_limit: null, weight_limit: null, allow_card_creation: true, is_done: true },
+      ],
+    })
+
+    it.each([
+      [11, 'true'],
+      [10, 'false'],
+    ])('a card dragged from column %i gets inDoneColumn=%s on the drag overlay', (columnId, expected) => {
+      mockBoardContextValue = defaultContext({ board: boardWithDone(cardIn(columnId)) })
+      const { container } = render(<BoardView {...defaultProps()} />)
+      act(() => {
+        capturedOnDragStart!({ active: { id: '1' } } as unknown as DragStartEvent)
+      })
+      const overlayCard = container.querySelector('[data-overlay="true"]')
+      expect(overlayCard).toHaveTextContent('Dragged Card')
+      expect(overlayCard).toHaveAttribute('data-in-done-column', expected)
+    })
+  })
 
   describe('drag-to-trash safety (#965)', () => {
     it('does not render the column trash zone before a column drag starts', () => {

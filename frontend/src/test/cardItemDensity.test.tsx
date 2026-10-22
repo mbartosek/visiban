@@ -30,7 +30,9 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     ],
     due_date: null, weight: 5, position: 0,
     created_by: { id: 1, username: 'alice', display_name: 'Alice', avatar_url: '' },
-    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    // Relative to now: a never-moved card ages from created_at (#1841), so an old
+    // hardcoded date would tint the card and change badge tones and tooltips.
+    created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(), updated_at: '2026-01-01T00:00:00Z',
     last_moved_at: null, attachment_count: 3, checklist_total: 5, checklist_done: 2,
     is_stale: false, archived_at: null, version: 1,
     custom_field_values: [],
