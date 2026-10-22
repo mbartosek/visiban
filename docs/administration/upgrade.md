@@ -1293,6 +1293,9 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     fails `manage.py check` with `accounts.E008` (`changepassword`) or `accounts.E009`
     (`createsuperuser`) (#1801, #1824). Fix the `INSTALLED_APPS` order rather than silencing
     the check; if you must, each ID can be listed in `SILENCED_SYSTEM_CHECKS` independently.
+    1.2.0-beta.3 used `accounts.E008` for both overrides, so if you listed `accounts.E008` in
+    `SILENCED_SYSTEM_CHECKS` to waive a replaced `createsuperuser` override, `accounts.E009` now
+    fires and blocks startup until you add it to `SILENCED_SYSTEM_CHECKS` as well.
 
 !!! warning "`POST /api/v1/auth/password/change/` now requires `old_password`"
     This dj-rest-auth endpoint previously changed the password for any authenticated caller
