@@ -29,10 +29,25 @@ MOVEMENT_EXPORT_BACKENDS: list = []
 # "description": str (optional), "data": {...}}. The payload shape per type is a public,
 # additive-only contract: see docs/api/boards.md "Extension panel payload". A panel with
 # no "type" (or an unknown one) is returned by the API but not rendered by the web UI.
-# The summary is readable by every board member, viewers included, so the callable MUST
-# gate on request.user's role itself before returning sensitive data.
+#
+# Minimum role (#1826, 1.2): declare who may see a panel with a ``min_role``
+# attribute on the callable, one of "viewer", "collaborator", "member", "admin" or
+# "site_admin" (the ladder in boards.invites.ROLE_RANK):
+#               my_panel.min_role = "viewer"
+# The summary is readable by every board member, viewers included. The view resolves
+# the caller's board role once, the same role it authorized the request with (owner =
+# admin, explicit membership, then group-inherited; can_access_all_content =
+# site_admin), and drops every panel whose min_role ranks above it BEFORE calling
+# any panel: a dropped callable is never invoked. FAIL CLOSED: no min_role (or None)
+# means "admin", so a panel registered before 1.2 is admin-only until its author
+# opts it in; an invalid value (unknown, miscased or not a string) is also treated
+# as "admin" and logged. A bound method reads the attribute from its function; set
+# it on the function or class, not on the bound method. A panel may still narrow
+# what it returns by inspecting request.user, but it no longer has to gate access.
 # Register via: from boards.hooks import ANALYTICS_EXTENSIONS
 #               ANALYTICS_EXTENSIONS.append(my_panel)
+# Every reader goes through boards.permissions.analytics_extensions_for_role(role);
+# never iterate this list directly (Security Invariants Rule 12).
 # The OSS summary endpoint returns an empty extension_panels list when this list is empty.
 # Called from a read-only (GET) context — no transaction.on_commit wrapping.
 ANALYTICS_EXTENSIONS: list = []

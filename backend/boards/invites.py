@@ -50,6 +50,9 @@ logger = logging.getLogger(__name__)
 
 # Higher grants more. SITE_ADMIN (all-content access) and ADMIN can never be
 # granted by an invite, so they only ever appear on the "already has" side.
+# Also the ladder ANALYTICS_EXTENSIONS ``min_role`` is compared on
+# (``boards.permissions.analytics_extensions_for_role``, #1826): its keys are
+# the accepted ``min_role`` values, so a change here changes that contract.
 ROLE_RANK = {
     BoardMembership.Role.VIEWER: 1,
     BoardMembership.Role.COLLABORATOR: 2,

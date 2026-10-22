@@ -479,6 +479,37 @@ every group's owner a direct `admin` membership, promoting a non-admin row or
 adding a missing one, so the owner half of the rule holds for every existing
 group (`groups/tests/test_group_owner_admin_repair_1786.py`).
 
+## Rule 12: Extension panels are filtered on the caller's role before they run
+
+**Rule.** Every surface that renders `ANALYTICS_EXTENSIONS` panels gets the
+callables to run from `boards/permissions.py` `analytics_extensions_for_role`,
+passing the board role it authorized the request with. A panel whose declared
+`min_role` ranks above that role (on the `boards/invites.py` `ROLE_RANK` ladder)
+is never called. A missing, `None` or invalid `min_role` means `admin`, and a
+`None` or unknown caller role gets no panels.
+
+**Why.** Panels are enterprise or third-party code that OSS cannot read, and the
+surface that renders them (the board summary) is readable by viewers. Leaving the
+role check to each panel meant one forgotten check exposed that panel's data to
+every viewer, with nothing to notice it. Filtering before the call also keeps a
+panel's queries and side effects from running for a caller who may not see it.
+Failing closed on an undeclared value means a new panel is admin-only until its
+author opts it in.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Board summary (REST) | `boards/views/analytics.py` `BoardAnalyticsMixin.summary` | `analytics_extensions_for_role(role)` with the role from `get_board_for_user`, before any panel is called |
+
+No other surface calls the panels: `BoardAnalyticsMixin.analytics`, MCP, the
+WebSocket consumers, the public share link and board export do not render them.
+A new surface that does is added to this table and calls the same function.
+
+Coverage: `boards/tests/test_analytics_panel_min_role_1826.py` (the role matrix
+with call counts, owner, all-content access, group-inherited and overridden
+roles, non-member `404`, unset and invalid `min_role`, and
+`AnalyticsExtensionsEntryPointTests`, which scans the backend for any reference
+to `ANALYTICS_EXTENSIONS` outside `boards/hooks.py` and `boards/permissions.py`).
+
 ## How to add a rule
 
 1. Write the rule as a statement of behavior, not an implementation: what must

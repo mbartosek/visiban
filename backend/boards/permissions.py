@@ -561,6 +561,82 @@ def can_modify_others_content(board, role, user):
         return False
 
 
+# Minimum board role for an ANALYTICS_EXTENSIONS panel that declares none
+# (#1826). Admin, not viewer: the summary is readable by every member, and a
+# panel written before min_role existed was trusted to gate on the caller's role
+# itself. A panel that forgot to is exactly the leak this closes, so an
+# undeclared panel is shown to the fewest roles until its author opts it in.
+ANALYTICS_PANEL_DEFAULT_MIN_ROLE = BoardMembership.Role.ADMIN
+
+
+def analytics_panel_min_role(panel_fn):
+    """Return the minimum board role an ANALYTICS_EXTENSIONS callable declared (#1826).
+
+    The declaration is a ``min_role`` attribute on the callable (see
+    ``boards/hooks.py``). An absent or ``None`` value means
+    ``ANALYTICS_PANEL_DEFAULT_MIN_ROLE``. A value outside the role ladder
+    (``boards.invites.ROLE_RANK``: the four board roles plus ``site_admin``),
+    including a non-string or a miscased role, is also treated as the default
+    and logged, rather than rejected: registration is a bare ``list.append``
+    that OSS cannot intercept, and a startup system check would not run under
+    the ASGI/WSGI server, so the request is the only place that always sees the
+    value. Treated as admin, the panel reaches board admins and site admins
+    only, the same as a panel that declares nothing, and the summary stays up.
+    """
+    from .invites import ROLE_RANK  # invites imports this module
+
+    declared = getattr(panel_fn, "min_role", None)
+    if declared is None:
+        return ANALYTICS_PANEL_DEFAULT_MIN_ROLE
+    if isinstance(declared, str) and declared in ROLE_RANK:
+        return declared
+    logger.warning(
+        "ANALYTICS_EXTENSIONS callable %s.%s has an invalid min_role (%s); treated as %s",
+        getattr(panel_fn, "__module__", "?"),
+        getattr(panel_fn, "__qualname__", type(panel_fn).__name__),
+        type(declared).__name__,
+        ANALYTICS_PANEL_DEFAULT_MIN_ROLE,
+    )
+    return ANALYTICS_PANEL_DEFAULT_MIN_ROLE
+
+
+def analytics_extensions_for_role(role):
+    """Return the ANALYTICS_EXTENSIONS callables a caller with board *role* may run (#1826).
+
+    *role* is the caller's resolved board role (``get_board_role``), the same
+    value the summary view authorized the request with. A callable whose
+    ``min_role`` ranks above it is left out, so the caller filters before any
+    panel code runs and a panel above the caller's role is never invoked, not
+    merely hidden. A ``None`` or unknown *role* ranks below every panel and
+    gets none. A callable whose ``min_role`` cannot even be read (a raising
+    property) is left out for everyone.
+
+    Every surface that renders analytics panels must call this rather than
+    iterate ``hooks.ANALYTICS_EXTENSIONS`` itself (Security Invariants Rule 12);
+    ``boards/tests/test_analytics_panel_min_role_1826.py`` fails on a second
+    reader of the list.
+    """
+    from . import hooks
+    from .invites import ROLE_RANK  # invites imports this module
+
+    caller_rank = ROLE_RANK.get(role, 0)
+    allowed = []
+    for panel_fn in list(hooks.ANALYTICS_EXTENSIONS):
+        try:
+            min_role = analytics_panel_min_role(panel_fn)
+        except Exception as exc:
+            logger.warning(
+                "ANALYTICS_EXTENSIONS callable %s.%s skipped: min_role unreadable (%s)",
+                getattr(panel_fn, "__module__", "?"),
+                getattr(panel_fn, "__qualname__", type(panel_fn).__name__),
+                type(exc).__name__,
+            )
+            continue
+        if caller_rank >= ROLE_RANK[min_role]:
+            allowed.append(panel_fn)
+    return allowed
+
+
 class IsBoardMember(BasePermission):
     """Allow any board member (including owner and site admins)."""
     def has_object_permission(self, request, view, obj):

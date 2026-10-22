@@ -389,6 +389,20 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     admin of them (now `403` for a visible group, `404` for one the caller cannot see) (#1678,
     #1703).
 
+!!! warning "Analytics extension panels without `min_role` are now admin-only"
+    Panels registered through `ANALYTICS_EXTENSIONS` (enterprise or third-party analytics
+    add-ons) now declare the lowest board role that may see them with a `min_role` attribute.
+    The board summary drops every panel above the caller's role before calling it. A panel
+    with no `min_role`, or an invalid one, is shown to board admins (and users with
+    all-content access) only. Before 1.2 every member, viewers included, received every panel
+    unless the panel checked the role itself.
+
+    **If you run an analytics extension**, upgrade it to a version that sets `min_role`, or
+    set it yourself (`my_panel.min_role = "viewer"` for a panel every member should see).
+    Until then, non-admin members stop seeing its panels. Installs with no extensions are
+    unaffected. See [panel visibility by role](../api/boards.md#panel-visibility-by-role)
+    (#1826).
+
 !!! note "Deleted cards keep their movement history; movements are read-only in the admin"
     Hard-deleting a card (or the column or swimlane it is in) no longer deletes its movement
     history. The records stay on the board's **History** view under the card's original UID

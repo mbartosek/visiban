@@ -29,6 +29,10 @@ The summary response includes an `extension_panels` field (always an empty list 
 
 The Summary tab renders `stats` and `table` panels below the swimlane table. See the [extension panel payload](../api/boards.md#extension-panel-payload) for the shape. With no extensions registered, the Summary tab looks the same as before.
 
+> **Changed in 1.2** (#1826)
+
+Each panel declares the lowest board role that may see it. A member below that role does not get the panel, and a panel that declares nothing is shown to board admins only. See [panel visibility by role](../api/boards.md#panel-visibility-by-role).
+
 **API:** `GET /api/v1/boards/{id}/summary/`
 
 ## Analytics view
