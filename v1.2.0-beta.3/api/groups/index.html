@@ -4902,12 +4902,30 @@
 <p><strong>Request</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Team link"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"member"</span><span class="p">,</span><span class="w"> </span><span class="nt">"expiry_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w"> </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
-<p>All fields are optional. <code>role</code> defaults to <code>member</code>; <code>expiry_days</code> accepts any positive integer (<code>≥ 1</code>) or <code>null</code> (never expires) — common values <code>7</code>, <code>30</code>, <code>90</code>. <code>single_use</code> (boolean, default <code>false</code>) creates a link that expires automatically after one person joins.</p>
+<p>All fields are optional. <code>single_use</code> (boolean, default <code>false</code>) creates a link that expires automatically after one person joins.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>role</code></td>
+<td><code>member</code> (default), <code>collaborator</code> or <code>viewer</code>. <em>(1.2+)</em> <code>admin</code> is refused with <code>400</code>: a shareable link is a bearer credential, so admin is granted only by an <a href="#post-apiv1groupsidinvite-linkssend">emailed invite</a>, which is bound to one address.</td>
+</tr>
+<tr>
+<td><code>expiry_days</code></td>
+<td><em>(1.2+)</em> An integer from <code>1</code> to <code>30</code>; defaults to <code>7</code> when omitted. <code>null</code> and values over <code>30</code> are refused with <code>400</code>: a shareable link always expires. Before 1.2 any positive integer or <code>null</code> (never expires) was accepted.</td>
+</tr>
+</tbody>
+</table>
+<p>Links created before 1.2 keep their stored role and expiry, so a list response can still show <code>role: "admin"</code> or <code>expires_at: null</code> for one of them until it is revoked (#1727).</p>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
 <p>A create that arrives while the group is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.</p>
-<p>Valid roles: <code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code></p>
 <p><strong>Response (create only)</strong> — the raw secret is returned once and never again, in a field named <code>token</code>:</p>
 <div class="admonition note">
 <p class="admonition-title">Field name differs from site invite links</p>
@@ -4979,7 +4997,7 @@
 <tr>
 <td><code>role</code></td>
 <td>string</td>
-<td>Role granted on redemption: <code>admin</code> / <code>member</code> / <code>collaborator</code> / <code>viewer</code>.</td>
+<td>Role granted on redemption: <code>admin</code> / <code>member</code> / <code>collaborator</code> / <code>viewer</code>. <code>admin</code> appears only on emailed links and on shareable links created before 1.2.</td>
 </tr>
 <tr>
 <td><code>is_active</code></td>
@@ -4994,7 +5012,7 @@
 <tr>
 <td><code>expires_at</code></td>
 <td>string / null</td>
-<td>ISO 8601 expiry; <code>null</code> means never expires.</td>
+<td>ISO 8601 expiry; <code>null</code> means never expires, which only a link created before 1.2 can have.</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>

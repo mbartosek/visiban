@@ -7293,7 +7293,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>expiry_days</code></td>
 <td>✓</td>
-<td><code>1</code>, <code>7</code> or <code>30</code>. <strong>Required</strong> — a shareable board link always expires, so there is no "never" option (unlike group links). Missing, <code>null</code> or any other value is refused with <code>400</code>.</td>
+<td><code>1</code>, <code>7</code> or <code>30</code>. <strong>Required</strong> — a shareable board link always expires, so there is no "never" option (<em>(1.2+)</em> group links always expire too, with <code>expiry_days</code> defaulting to <code>7</code>; see <a href="../groups/#post-apiv1groupsidinvite-links">Groups</a>). Missing, <code>null</code> or any other value is refused with <code>400</code>.</td>
 </tr>
 <tr>
 <td><code>role</code></td>

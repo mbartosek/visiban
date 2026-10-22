@@ -4223,11 +4223,11 @@
 </tr>
 <tr>
 <td><strong>Role</strong></td>
-<td><code>admin</code>, <code>member</code>, <code>collaborator</code>, or <code>viewer</code> (the role granted on join)</td>
+<td><code>member</code>, <code>collaborator</code>, or <code>viewer</code> (the role granted on join)</td>
 </tr>
 <tr>
 <td><strong>Expiry</strong></td>
-<td>1 day, 7 days, 30 days, or Never</td>
+<td>1 day, 7 days (the default), or 30 days</td>
 </tr>
 <tr>
 <td><strong>Single-use</strong></td>
@@ -4237,7 +4237,9 @@
 </table>
 <blockquote>
 <p><strong>Added in 1.1</strong> — single-use invite links (#689)</p>
+<p><strong>Changed in 1.2</strong> — a shareable link can no longer grant <code>admin</code> and always expires (#1727)</p>
 </blockquote>
+<p>A shareable link works for anyone who holds it, wherever it ends up being pasted, so it cannot make someone a group admin (which would make them an admin of every board in the group and its subgroups) and it cannot live forever. To make someone an admin, <a href="#emailing-an-invite-link">email them an invite</a>, which works only for their address, or change their role after they join. Links created before 1.2 with the <code>admin</code> role or no expiry keep working: they show <strong>Admin</strong> or <strong>Never</strong> in the panel, and you can revoke them there.</p>
 <p>Anyone with the link joins with the role assigned to that link. Expired links show a visual indicator and can't be used to join. Used single-use links display a status badge and consumed-at timestamp in the invite links list. Each link can be revoked independently — existing members are not affected.</p>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
