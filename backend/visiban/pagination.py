@@ -103,7 +103,8 @@ class CardQueryCursorPagination(CursorPagination):
 
         DRF answers an undecodable ``?cursor=`` with ``404 {"detail": "Invalid
         cursor"}``. A garbled query parameter is a client error, not a missing
-        resource, and every other refused query parameter answers ``400`` with
+        resource, and the refused query parameters listed in docs/api/index.md
+        ("Bad query parameters") answer ``400`` with
         ``code: "invalid_query_param"``. ``GET /cards/`` is new in 1.2, so the
         404 never shipped in a GA. ``decode_cursor`` raises ``NotFound`` only
         for an undecodable cursor, so catching it here changes nothing else.

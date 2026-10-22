@@ -84,7 +84,7 @@ Many errors carry a machine-readable `code` next to the human-readable `detail`:
 
 > **Added in 1.2**
 
-**Bad query parameters.** The query parameters listed below answer a refused value (not an integer, out of range, not one of the allowed values, an undecodable cursor) with `400 Bad Request`, `{detail, code}` and `code: "invalid_query_param"`:
+**Bad query parameters.** The query parameters listed below answer a refused value (not an integer, out of range, not one of the allowed values, a cursor the server cannot use) with `400 Bad Request`, `{detail, code}` and `code: "invalid_query_param"`:
 
 ```json
 { "detail": "offset must not exceed 4611686018427387904.", "code": "invalid_query_param" }
@@ -100,7 +100,7 @@ This covers:
 - `GET /boards/{id}/cards/{id}/timeline/`: an unknown group in `event_types`. Before 1.2 this body was `{detail}` only; `code` is added
 - `GET /admin/action-log/`: `action`
 - `GET /admin/board-invite-links/`: `status`
-- `GET /cards/`: a `cursor` that was not issued by the server (undecodable, or carrying a position that is not a timestamp)
+- `GET /cards/`: a `cursor` that cannot be decoded, or whose position is not a timestamp Postgres can store (not a valid date and time, or a UTC offset of 16 hours or more)
 - Card filter parameters whose value fails the filter's type check, on `GET /boards/{id}/cards/` and `GET /cards/`. These also keep the field-keyed entry the board card list has answered with since 1.1, so a 1.1 client that reads it is unaffected:
 
 ```json
@@ -108,8 +108,6 @@ This covers:
 ```
 
 Branch on `code`, not on which parameter key is present.
-
-Not yet covered: an invalid `moved_after` or `moved_before` on `GET /boards/{id}/movements/`, which moves onto this shape in #1833.
 
 Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
 
