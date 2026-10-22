@@ -116,7 +116,9 @@ export function formatAgingTooltip(
   const parts: string[] = [];
   if (aging.stage === "warning") {
     const warn = warningFraction(warningPct) ?? 0;
-    parts.push(`Idle ${aging.idleDays}d`, `warning at ${Math.round(thresh * warn)}d`, `stale at ${thresh}d`);
+    // Floor, like idleDays: whenever the tint shows, "warning at" can never
+    // exceed "Idle" (rounding put 10.5d at "11d" while a 10.6d card was tinted).
+    parts.push(`Idle ${aging.idleDays}d`, `warning at ${Math.floor(thresh * warn)}d`, `stale at ${thresh}d`);
   } else if (serverStale) {
     // Floor to one decimal so a card at 2.96x never reads "3.0×" while still in the 2x stage.
     const multiple = (Math.floor(aging.ratio * 10) / 10).toFixed(1);
@@ -137,6 +139,24 @@ export function formatAgingTooltip(
  */
 export function staleBadgeToneClass(stage: AgingStage): string {
   return stage === "stale2x" || stage === "stale3x" ? "text-danger-on-tint" : "text-warning-on-tint";
+}
+
+export type UrgencyTone = "danger" | "warning" | "info";
+
+/**
+ * Text tone for a non-stale urgency badge (overdue, due-soon, recent) given
+ * the card's aging stage. On an untinted card the plain text tokens apply. On
+ * a tint the on-tint token of the badge's hue applies (#1550), except that on
+ * the red 2x/3x stages amber `warning-on-tint` drops to 4.38:1 / 3.94:1 in
+ * light mode, so a warning-toned badge (due-soon) takes `danger-on-tint`
+ * there; its ⏱ glyph and date text still tell it apart from an overdue ⚑.
+ * Literal class names so Tailwind's JIT sees them.
+ */
+export function urgencyBadgeToneClass(tone: UrgencyTone, stage: AgingStage): string {
+  if (stage === "none") return tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-info";
+  if (tone === "info") return "text-info-on-tint";
+  if (tone === "danger" || stage === "stale2x" || stage === "stale3x") return "text-danger-on-tint";
+  return "text-warning-on-tint";
 }
 
 /** Returns the number of whole days since lastMovedAt. Returns 0 if null. */

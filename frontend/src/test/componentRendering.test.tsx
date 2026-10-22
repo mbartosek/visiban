@@ -253,13 +253,14 @@ describe('CardItem', () => {
 
   // ---- #1841: graduated staleness ramp ----
 
-  const renderAged = (days: number, overrides: Partial<Card> = {}, density: 'comfortable' | 'dense' = 'comfortable') =>
+  const renderAged = (days: number, overrides: Partial<Card> = {}, density: 'comfortable' | 'dense' = 'comfortable', inDoneColumn = false) =>
     render(
       <CardItem
         density={density}
         card={makeCard({ last_moved_at: new Date(Date.now() - days * 86_400_000 - 60_000).toISOString(), ...overrides })}
         staleness_threshold_days={14}
         stale_warning_pct={50}
+        inDoneColumn={inDoneColumn}
       />
     )
   const overlayOf = (container: HTMLElement) =>
@@ -341,6 +342,29 @@ describe('CardItem', () => {
     fireEvent.focus(cardEl)
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     spy.mockRestore()
+  })
+
+  it('a card in a done column at 4x gets no tint, no Stale badge and no aging tooltip', () => {
+    const { container } = renderAged(56, { is_stale: true, blocker_count: 1 }, 'comfortable', true)
+    expect(container.querySelector('div.absolute.inset-0.rounded-md.pointer-events-none')).not.toBeInTheDocument()
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    expect(cardEl.querySelector('.opacity-85, .opacity-90')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Stale/)).not.toBeInTheDocument()
+    fireEvent.mouseEnter(cardEl)
+    expect(screen.queryByText(/Stale ·|Idle \d+d/)).not.toBeInTheDocument()
+  })
+
+  it('the same 4x card outside a done column is tinted and badged', () => {
+    const { container } = renderAged(56, { is_stale: true }, 'comfortable', false)
+    expect(overlayOf(container)?.className).toContain('bg-stale-severe/20')
+    expect(screen.getByText('Stale · 56d')).toBeInTheDocument()
+  })
+
+  it('a due-soon badge on a red (2x) stage uses danger-on-tint, not sub-AA amber', () => {
+    const soon = new Date(Date.now() + 24 * 3600_000).toISOString()
+    renderAged(35, { due_date: soon })
+    const badge = document.querySelector('span[title^="Due "]') as HTMLElement
+    expect(badge.className).toContain('text-danger-on-tint')
   })
 
   it('hover tooltip in the warning stage states idle days and both edges', () => {

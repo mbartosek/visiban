@@ -5,7 +5,7 @@ import type { Card, CardDensity, CustomFieldDefinition } from "../../types";
 import { PRIORITY_COLORS } from "../../constants/colors";
 import Avatar from "../Common/Avatar";
 import { formatDueDate, formatRelativeMovedAt } from "../../utils/date";
-import { agingTint, formatAgingTooltip, staleBadgeToneClass } from "../../utils/agingTint";
+import { agingTint, formatAgingTooltip, staleBadgeToneClass, urgencyBadgeToneClass } from "../../utils/agingTint";
 import { classifyCardUrgency } from "../../utils/cardUrgency";
 import CardPeekPopover from "./CardPeekPopover";
 import CustomFieldQuickEditPopover from "./CustomFieldQuickEditPopover";
@@ -43,6 +43,9 @@ interface Props {
   compact?: boolean;
   staleness_threshold_days?: number;
   stale_warning_pct?: number;
+  /** The card sits in a done column (`column.is_done`): it is finished, so it
+   *  gets no aging tint, no aging tooltip and no "Stale" badge (#1841). */
+  inDoneColumn?: boolean;
   /** Every board custom field definition (#371) — not pre-filtered; this
    *  component filters to pinned (`show_on_card`) ones for the chip row and
    *  passes the full list through to `CardPeekPopover` for the non-pinned
@@ -60,9 +63,6 @@ interface Props {
   onCardUpdated?: (card: Card) => void;
 }
 
-// Custom comparator for React.memo — avoids re-renders when the card object
-// is referentially new but semantically identical.  We compare the scalar
-// fields that affect rendering plus label/assignee identity.
 /** True when focus arrived by keyboard. Falls back to true where `:focus-visible` is unsupported. */
 function isKeyboardFocus(el: HTMLElement): boolean {
   try {
@@ -72,6 +72,9 @@ function isKeyboardFocus(el: HTMLElement): boolean {
   }
 }
 
+// Custom comparator for React.memo — avoids re-renders when the card object
+// is referentially new but semantically identical.  We compare the scalar
+// fields that affect rendering plus label/assignee identity.
 function arePropsEqual(prev: Props, next: Props): boolean {
   if (
     prev.card.id !== next.card.id ||
@@ -131,13 +134,14 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.compact === next.compact &&
     prev.staleness_threshold_days === next.staleness_threshold_days &&
     prev.stale_warning_pct === next.stale_warning_pct &&
+    prev.inDoneColumn === next.inDoneColumn &&
     prev.customFieldDefinitions === next.customFieldDefinitions &&
     prev.boardId === next.boardId &&
     prev.onCardUpdated === next.onCardUpdated
   );
 }
 
-const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
+const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
   // Per-density visibility booleans (#961). The decision tree:
   //   comfortable → one urgency badge, one primary label, checklist, assignee
   //   standard    → adds due date (when not in urgency), weight (>1), attachments, second label
@@ -250,7 +254,9 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
 
   // Graduated aging ramp (#1841): agingTint is the single source for the stage,
   // the idle days and the tint classes — never recompute the ratio here.
-  const aging = agingTint(card.last_moved_at, staleness_threshold_days, stale_warning_pct);
+  // A card in a done column is finished, not idle: no tint, tooltip or Stale
+  // badge, whatever the server's is_stale says (it does not look at columns).
+  const aging = agingTint(inDoneColumn ? null : card.last_moved_at, staleness_threshold_days, stale_warning_pct);
   const { overlayClass, bodyOpacityClass } = aging;
   const agingTooltip = overlayClass !== null
     ? formatAgingTooltip(aging, staleness_threshold_days, stale_warning_pct, card.is_stale, card.blocker_count)
@@ -271,7 +277,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   const urgency = density === "dense"
     ? null
     : classifyCardUrgency(
-        { due_date: card.due_date, is_stale: card.is_stale, last_moved_at: card.last_moved_at, last_move_is_creation: card.last_move_is_creation },
+        { due_date: card.due_date, is_stale: card.is_stale && !inDoneColumn, last_moved_at: card.last_moved_at, last_move_is_creation: card.last_move_is_creation },
       );
   // Suppress the dedicated due-date pill at lower densities when the urgency
   // badge is already carrying that information (overdue / due-soon). At dense
@@ -280,18 +286,12 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // Suppress the recently-moved dot when urgency is already showing "Just moved".
   const recentAlreadyInUrgency = urgency?.kind === "recent";
   // The badge sits on the card's aging tint whenever one is shown, so its text
-  // uses the on-tint token of its hue (#1550); plain text-<hue> drops below
-  // 4.5:1 on a tint. "Stale" follows the tint's stage: orange below 2x, red
-  // from 2x (#1841). Literal class names so Tailwind's JIT sees them.
+  // uses an on-tint token that clears 4.5:1 on that stage (#1550, #1841).
   const urgencyToneClass = !urgency
     ? ""
     : urgency.kind === "stale"
     ? staleBadgeToneClass(aging.stage)
-    : urgency.tone === "danger"
-    ? (overlayClass ? "text-danger-on-tint" : "text-danger")
-    : urgency.tone === "warning"
-    ? (overlayClass ? "text-warning-on-tint" : "text-warning")
-    : (overlayClass ? "text-info-on-tint" : "text-info");
+    : urgencyBadgeToneClass(urgency.tone, aging.stage);
   // "Stale · 41d" — the server decides whether the badge shows (is_stale); the
   // label adds the idle days so the stage is never conveyed by color alone.
   const staleLabel = card.last_moved_at ? `Stale · ${aging.idleDays}d` : "Stale";

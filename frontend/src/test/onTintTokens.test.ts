@@ -70,3 +70,48 @@ describe('urgent-on-tint contrast (#1594)', () => {
     }
   })
 })
+
+// #1841: pin the card aging ramp contrast recorded in frontend/CLAUDE.md § Card aging ramp.
+// The overlay is `bg-<hue>/<alpha>` over the card's bg-surface; the card body (title and
+// urgency badge) renders at the stage's opacity, so its effective color is the text blended
+// toward that composite. Each stage lists the text tokens that may sit on it.
+describe('card aging ramp contrast (#1841)', () => {
+  type Stage = [name: string, hue: string, alpha: number, opacity: number, texts: string[]]
+  const stages: Stage[] = [
+    ['warning', 'warning-emphasis', 0.1, 0.9, ['fg', 'warning-on-tint', 'danger-on-tint', 'info-on-tint']],
+    ['stale', 'warning', 0.15, 0.85, ['fg', 'warning-on-tint', 'danger-on-tint', 'info-on-tint']],
+    ['stale2x', 'danger', 0.15, 0.85, ['fg', 'danger-on-tint', 'info-on-tint']],
+    ['stale3x', 'stale-severe', 0.2, 0.85, ['fg', 'danger-on-tint', 'info-on-tint']],
+  ]
+  const blend = (top: number[], bottom: number[], a: number) => top.map((v, i) => a * v + (1 - a) * bottom[i])
+
+  it.each(stages)('%s: card title and badge text hold >= 4.5:1 in both themes', (_n, hue, alpha, opacity, texts) => {
+    for (const block of [darkBlock, lightBlock]) {
+      const tint = blend(rgbOf(block, hue), rgbOf(block, 'surface'), alpha)
+      for (const t of texts) {
+        expect(ratio(blend(rgbOf(block, t), tint, opacity), tint)).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('amber warning-on-tint is sub-AA on the red stages, which is why due-soon moves to danger-on-tint there', () => {
+    const tint = blend(rgbOf(lightBlock, 'stale-severe'), rgbOf(lightBlock, 'surface'), 0.2)
+    expect(ratio(blend(rgbOf(lightBlock, 'warning-on-tint'), tint, 0.85), tint)).toBeLessThan(4.5)
+  })
+
+  it.each([
+    ['dark', darkBlock, 3.2],
+    ['light', lightBlock, 6.9],
+  ])('%s theme: the 3x inset ring holds >= 3:1 against its own fill', (_n, block, pinned) => {
+    const sev = rgbOf(block, 'stale-severe')
+    const r = ratio(sev, blend(sev, rgbOf(block, 'surface'), 0.2))
+    expect(r).toBeGreaterThanOrEqual(3)
+    expect(r).toBeGreaterThanOrEqual(pinned)
+  })
+
+  it('stale-severe is declared in both themes and exposed to tailwind', () => {
+    expect(darkBlock).toContain('--stale-severe:')
+    expect(lightBlock).toContain('--stale-severe:')
+    expect(tw).toContain('"stale-severe": "rgb(var(--stale-severe) / <alpha-value>)"')
+  })
+})

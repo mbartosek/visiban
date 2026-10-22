@@ -5,6 +5,7 @@ import {
   formatAgingTooltip,
   idleDays,
   staleBadgeToneClass,
+  urgencyBadgeToneClass,
   warningFraction,
 } from "../utils/agingTint";
 
@@ -177,7 +178,20 @@ describe("formatAgingTooltip", () => {
   });
 
   it("warning point in the tooltip follows the corrected percentage", () => {
-    expect(formatAgingTooltip(tint(11 * DAY, 75), THRESHOLD, 75, false, 0)).toBe("Idle 11d · warning at 11d · stale at 14d");
+    expect(formatAgingTooltip(tint(11 * DAY, 75), THRESHOLD, 75, false, 0)).toBe("Idle 11d · warning at 10d · stale at 14d");
+  });
+
+  // The warning point is floored like idleDays, so a tinted card never reads
+  // "warning at" a day later than its own idle days.
+  it.each([
+    // [threshold, pct, idle days, expected]
+    [14, 75, 10.6, "Idle 10d · warning at 10d · stale at 14d"],
+    [7, 50, 3.5, "Idle 3d · warning at 3d · stale at 7d"],
+    [7, 50, 3.9, "Idle 3d · warning at 3d · stale at 7d"],
+  ])("agrees with the tint inside the rounding window (%id at %i%%, %fd idle)", (thresh, pct, days, expected) => {
+    const aging = agingTint(idleFor(days * DAY), thresh, pct, NOW);
+    expect(aging.stage).toBe("warning");
+    expect(formatAgingTooltip(aging, thresh, pct, false, 0)).toBe(expected);
   });
 
   it("stale card the server agrees on: Stale · idle days · threshold multiple", () => {
@@ -215,6 +229,30 @@ describe("staleBadgeToneClass", () => {
     expect(staleBadgeToneClass("stale")).toBe("text-warning-on-tint");
     expect(staleBadgeToneClass("stale2x")).toBe("text-danger-on-tint");
     expect(staleBadgeToneClass("stale3x")).toBe("text-danger-on-tint");
+  });
+});
+
+describe("urgencyBadgeToneClass", () => {
+  it("uses plain tokens on an untinted card", () => {
+    expect(urgencyBadgeToneClass("danger", "none")).toBe("text-danger");
+    expect(urgencyBadgeToneClass("warning", "none")).toBe("text-warning");
+    expect(urgencyBadgeToneClass("info", "none")).toBe("text-info");
+  });
+
+  it("uses the badge hue's on-tint token on the yellow and orange stages", () => {
+    for (const stage of ["warning", "stale"] as const) {
+      expect(urgencyBadgeToneClass("danger", stage)).toBe("text-danger-on-tint");
+      expect(urgencyBadgeToneClass("warning", stage)).toBe("text-warning-on-tint");
+      expect(urgencyBadgeToneClass("info", stage)).toBe("text-info-on-tint");
+    }
+  });
+
+  it("moves a warning-toned badge to danger-on-tint on the red stages (amber is sub-AA there)", () => {
+    for (const stage of ["stale2x", "stale3x"] as const) {
+      expect(urgencyBadgeToneClass("warning", stage)).toBe("text-danger-on-tint");
+      expect(urgencyBadgeToneClass("danger", stage)).toBe("text-danger-on-tint");
+      expect(urgencyBadgeToneClass("info", stage)).toBe("text-info-on-tint");
+    }
   });
 });
 
