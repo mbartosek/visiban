@@ -337,23 +337,27 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // set. Height + right padding together reserve the avatar's box below the
   // title; without the min-height the 20px avatar (bottom-1.5) overlaps the
   // last title line by ~12px.
+  //
+  // Only what renders in the compact layout may count without `!compact`
+  // (#1843): counting an item the compact branch never renders gives a compact
+  // card an empty row and 6px of extra height.
   const hasMetadataRow =
-    (showDescriptionIndicator && !!card.description) ||
-    card.labels.length > 0 ||
-    card.checklist_total > 0 ||
-    (showAttachments && card.attachment_count > 0) ||
-    (showDueDatePill && dueInfo && !dueAlreadyInUrgency) ||
     !!card.assignee ||
-    (showWeight && card.weight > 1) ||
-    (showRecentlyMovedDot && isRecent && !recentAlreadyInUrgency) ||
-    !!movedLabel ||
-    // The urgency badge renders only in the non-compact branch; counting it
-    // for a compact card added an empty row and 6px of height (#1843).
-    (!compact && !!urgency) ||
-    (showPriorityBadge && card.priority !== "low") ||
-    hasVisibleCustomFieldChips ||
     card.blocker_count > 0 ||
-    (!compact && !!externalRef);
+    (showRecentlyMovedDot && isRecent && !recentAlreadyInUrgency) ||
+    (showPriorityBadge && card.priority !== "low") ||
+    (!compact && (
+      (showDescriptionIndicator && !!card.description) ||
+      card.labels.length > 0 ||
+      card.checklist_total > 0 ||
+      (showAttachments && card.attachment_count > 0) ||
+      (showDueDatePill && !!dueInfo && !dueAlreadyInUrgency) ||
+      (showWeight && card.weight > 1) ||
+      !!movedLabel ||
+      !!urgency ||
+      hasVisibleCustomFieldChips ||
+      !!externalRef
+    ));
 
   return (
     <>

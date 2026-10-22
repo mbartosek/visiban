@@ -130,6 +130,26 @@ describe('AgingCue on cards without a visible Stale badge (#1843)', () => {
     const { container } = renderAged(30.5, {}, { density: 'comfortable' })
     expect(container.querySelector('.mt-1\\.5')).toBeNull()
   })
+
+  // hasMetadataRow must not count anything the compact branch never renders
+  // (frontend/CLAUDE.md § Card aging ramp): each of these used to add an
+  // empty mt-1.5 row to a compact card.
+  it.each<[string, number, Partial<Card>, CardDensity]>([
+    ['moved-ago text on a dense stale card', 30.5, {}, 'dense'],
+    ['a label', 2, { labels: [{ id: 100, uid: 'lbluid001', name: 'backend', color: '#10B981' }] }, 'comfortable'],
+    ['checklist progress', 2, { checklist_total: 3, checklist_done: 1 }, 'comfortable'],
+    ['a description', 2, { description: 'Has one' }, 'dense'],
+    ['attachments and weight', 2, { attachment_count: 2, weight: 5 }, 'dense'],
+  ])('a compact card with %s renders no empty metadata row', (_name, idle, overrides, density) => {
+    const { container } = renderAged(idle, overrides, { density })
+    expect(container.querySelector('.mt-1\\.5')).toBeNull()
+  })
+
+  it('a compact card keeps its metadata row for what compact does render (blocked glyph)', () => {
+    const { container } = renderAged(2, { blocker_count: 1 })
+    expect(container.querySelector('.mt-1\\.5')).not.toBeNull()
+    expect(screen.getByRole('img', { name: 'Blocked by 1 card' })).toBeInTheDocument()
+  })
 })
 
 describe('AgingCue component', () => {
