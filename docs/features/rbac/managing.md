@@ -17,7 +17,9 @@ Valid board roles: `admin`, `member`, `collaborator`, `viewer`
 
 ### Inviting someone by email
 
-*(New in 1.2)* To add someone who isn't on Visiban yet — or whose account you can't find — open **Board Settings → Members**. Under **Invite by email**, enter their address, pick a **Role** (Member, Collaborator or Viewer — never Admin) and when the invite **Expires** (1, 7 or 30 days), and select **Send invite**. If a search in **Add member** finds no one for an email address, **Invite by email** next to "No results" fills the form for you.
+> **Added in 1.2**
+
+To add someone who isn't on Visiban yet — or whose account you can't find — open **Board Settings → Members**. Under **Invite by email**, enter their address, pick a **Role** (Member, Collaborator or Viewer — never Admin) and when the invite **Expires** (1, 7 or 30 days), and select **Send invite**. If a search in **Add member** finds no one for an email address, **Invite by email** next to "No results" fills the form for you.
 
 Visiban emails a single-use link. Following it shows what the invite grants; the recipient signs in (or creates an account, where the site allows it) and lands on the board with a "You've joined" notice. **Pending invites** lists what you have sent, newest first, with who sent each and when — Visiban doesn't store the address an invite went to, so tell them apart by date. The invite works only for an account with the address you sent it to: Visiban keeps a keyed fingerprint of the address and checks it when the invite is used. Someone signed in with a different account is refused, and the invite stays unused (see [Site admins](../../administration/site-admins.md)). Where the site requires email verification, a person who creates an account from the invite joins the board once they verify the invited address; until then the invite stays pending. Revoke an invite you no longer want; used, expired and revoked invites sit under **Show past invites**. An **Existing accounts only** tag means a new person couldn't create an account from that invite on this site right now (see [Site admins](../../administration/site-admins.md)).
 
@@ -26,7 +28,9 @@ Visiban emails a single-use link. Following it shows what the invite grants; the
 
 ### Sharing an invite link
 
-*(New in 1.2)* To invite several people at once — or anyone you can reach in a chat channel — select **New link** next to **Pending invites**. Pick a **Role** (Member, Collaborator or Viewer), when it **Expires** (1, 7 or 30 days; an invite link always expires), optionally a name and **Single use**, and select **Create link**. Copy the link straight away: it is shown **once**, and Visiban keeps only a fingerprint of it. Anyone holding it can join the board after signing in, until it expires or you revoke it (a shareable link is not tied to an address); **1-use** links stop after the first person joins. A board can have up to 5 active invite links (emailed invites don't count).
+> **Added in 1.2**
+
+To invite several people at once — or anyone you can reach in a chat channel — select **New link** next to **Pending invites**. Pick a **Role** (Member, Collaborator or Viewer), when it **Expires** (1, 7 or 30 days; an invite link always expires), optionally a name and **Single use**, and select **Create link**. Copy the link straight away: it is shown **once**, and Visiban keeps only a fingerprint of it. Anyone holding it can join the board after signing in, until it expires or you revoke it (a shareable link is not tied to an address); **1-use** links stop after the first person joins. A board can have up to 5 active invite links (emailed invites don't count).
 
 An invite link is not the board's **Share link** (Settings → Sharing), which lets anyone *view* the board without signing in. Whether a newcomer can create an account from an invite link depends on the site: on an open site they sign up and then join; on an invite-only or closed site only people who already have an account can use it, and the form tells you so.
 

@@ -141,6 +141,24 @@ The hosted demo behind a Cloudflare Tunnel uses `2` (Cloudflare appends the visi
 
 ---
 
+## Optional features (off by default)
+
+Two features are dormant until an operator opts in. Set these in your `.env` file (Docker Compose) or through `backend.extraEnv` (Helm), then restart the backend. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.
+
+| Variable | Default | Description |
+|---|---|---|
+| `GIT_LENS_ENABLED` | `false` | Turns on the [Issue Board Lens](../features/issue-board-lens.md), a read-only board built from a public GitHub or GitLab repository's issues. While off, there is no Lens tab, no Lens settings, and no related API surface. *(new in 1.2)* |
+| `GIT_LENS_OUTBOUND_LOG_LEVEL` | `INFO` | Log level of the one-line record written for each outbound GitHub/GitLab request the lens makes. Set `WARNING` to silence it without affecting the usage report. See [Issue Board Lens Usage](issue-board-lens-usage.md). |
+| `MCP_SERVER_ENABLED` | `false` | Mounts the [MCP server](../features/mcp-server.md) at `/mcp` so AI agents can reach boards with a personal access token. While off, `/mcp` returns `404 Not Found` and the MCP SDK is never imported. *(new in 1.2)* |
+| `MCP_ALLOWED_HOSTS` | empty (falls back to `ALLOWED_HOSTS`) | Comma-separated hostnames clients use to reach `/mcp`, checked against the `Host` header as DNS-rebinding protection. Set it explicitly when `ALLOWED_HOSTS` is `*`, because a wildcard cannot serve as the allowlist. When set, it takes precedence over `ALLOWED_HOSTS`. See [MCP Server API](../api/mcp.md). |
+| `MCP_THROTTLE_READ_RATE` | `300/min` | Baseline per-token limit applied to every MCP tool call and resource read. |
+| `MCP_THROTTLE_COMPUTE_RATE` | `30/min` | Additional, tighter per-token limit for expensive reads (`list_cards` and `board://{board_id}`), spent on top of the baseline. |
+| `MCP_THROTTLE_PREAUTH_RATE` | `30/min` | Per-client-IP limit on failed MCP authentication attempts. Once an IP is over budget, all of its requests (valid ones too) are refused until the window slides. See [Failed authentication limit](../api/mcp.md#failed-authentication-limit-per-ip). |
+
+Rates use the DRF form `<count>/<period>` with `sec`, `min`, `hour` or `day`. See [MCP Server API: Rate limiting](../api/mcp.md#rate-limiting) for how the buckets stack.
+
+---
+
 ## Import limits
 
 | Variable | Description | Default |

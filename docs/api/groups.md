@@ -43,7 +43,9 @@ List all groups accessible to the current user: groups they belong to, their sub
 ### `POST /api/v1/groups/`
 Create a group. Any authenticated user may create a top-level group. Creating a subgroup requires admin of the parent (directly or through an ancestor group). The endpoint returns the same `400 Bad Request` for an unknown `parent` id and for a parent the caller does not administer: `{"parent": ["Select a parent group you administer."]}`, the same body `PATCH` uses. *(1.2+)* A subgroup that would sit more than 6 levels deep is refused with `400 Bad Request`: `{"parent": ["Groups can be nested at most 6 levels deep."]}`, the same limit and message a `PATCH` parent change uses. A parent exactly 5 levels deep accepts a new subgroup (level 6); a parent 6 levels deep does not. Existing deeper trees are not changed.
 
-*(1.2+)* A subgroup create that arrives while its parent (or an ancestor of it) is being deleted waits for the delete to finish and then answers the same `400` as for an unknown `parent`, with nothing created; a delete that arrives while the create is in flight waits for it and then deletes the new subgroup with the rest of the tree (#1719).
+> **Added in 1.2**
+
+A subgroup create that arrives while its parent (or an ancestor of it) is being deleted waits for the delete to finish and then answers the same `400` as for an unknown `parent`, with nothing created; a delete that arrives while the create is in flight waits for it and then deletes the new subgroup with the rest of the tree (#1719).
 
 **Request**
 ```json
@@ -83,7 +85,9 @@ Get group details.
 
 #### Board placement (`can_place_boards`)
 
-*(1.2+)* Placing a board in a group requires the group admin role on that group or on one of its ancestors (within the 6-level walk), or access to all content. `can_place_boards` reports that rule for the requesting user, computed with the same check the server applies to those writes, so a client can disable groups it would refuse instead of waiting for a `403`. It is returned on every REST response that carries a group object (list, retrieve, `/subgroups/`, create, update, `board-defaults`, `transfer-ownership`, and the invite join response); the list computes it for every row with one query. A navigation-only group is always `false`. For example, a member of `Engineering` who administers only its subgroup `Platform` receives:
+> **Added in 1.2**
+
+Placing a board in a group requires the group admin role on that group or on one of its ancestors (within the 6-level walk), or access to all content. `can_place_boards` reports that rule for the requesting user, computed with the same check the server applies to those writes, so a client can disable groups it would refuse instead of waiting for a `403`. It is returned on every REST response that carries a group object (list, retrieve, `/subgroups/`, create, update, `board-defaults`, `transfer-ownership`, and the invite join response); the list computes it for every row with one query. A navigation-only group is always `false`. For example, a member of `Engineering` who administers only its subgroup `Platform` receives:
 
 ```json
 [
@@ -96,7 +100,9 @@ Get group details.
 
 #### Ancestor groups (navigation-only)
 
-*(1.2+)* Group access is inherited downward only: membership in a subgroup grants nothing on its parent. The list and retrieve endpoints still return the ancestors of a user's groups so clients can render the sidebar tree and breadcrumbs, but a group the user has no access to itself — not a member of it or of one of its ancestors within the 6-level walk, including a group they own without a membership row — is returned with `navigation_only: true` and these fields withheld (set to empty values):
+> **Added in 1.2**
+
+Group access is inherited downward only: membership in a subgroup grants nothing on its parent. The list and retrieve endpoints still return the ancestors of a user's groups so clients can render the sidebar tree and breadcrumbs, but a group the user has no access to itself — not a member of it or of one of its ancestors within the 6-level walk, including a group they own without a membership row — is returned with `navigation_only: true` and these fields withheld (set to empty values):
 
 | Field | Value for a navigation-only group |
 |---|---|
@@ -130,12 +136,16 @@ Changing `parent` revokes unused invite links in the moved subtree whose creator
 | `403 Forbidden` | The caller is not a group admin; or the request changes `parent` (to any value, including an ID that does not resolve) and the caller fails rule 1 |
 | `404 Not Found` | The caller cannot see the group being updated |
 
-*(1.2+)* An update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). A `parent` that is deleted meanwhile answers the unknown-parent `400`.
+> **Added in 1.2**
+
+An update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). A `parent` that is deleted meanwhile answers the unknown-parent `400`.
 
 ### `DELETE /api/v1/groups/{id}/`
 Delete a group. Requires group owner or site admin. A group member who is not the owner gets `403 Forbidden` with `{"detail": "Only the group owner can delete this group."}`; a caller who cannot see the group at all gets `404`.
 
-*(1.2+)* A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers `404`, and a delete that waited behind an ownership transfer away from the caller answers `403` (#1638). It also waits for an in-flight write to the group or its subgroups — a subgroup create, an update, a board-defaults or member role change, an invite link create, send or revoke, a label create or update, a star, an ownership transfer, or a board import into the group — and then proceeds against what that write left: it deletes the new or changed rows with the group, detaches an imported board from it (the board itself is kept), and answers `403` if the write was an ownership transfer away from the caller (#1719).
+> **Added in 1.2**
+
+A delete that arrives while the same group is being deleted, or while an invite to it (or to one of its subgroups) is being redeemed or a board is being placed in it or one of its subgroups, waits for that request to finish. A second delete of the same group then answers `404`, and a delete that waited behind an ownership transfer away from the caller answers `403` (#1638). It also waits for an in-flight write to the group or its subgroups — a subgroup create, an update, a board-defaults or member role change, an invite link create, send or revoke, a label create or update, a star, an ownership transfer, or a board import into the group — and then proceeds against what that write left: it deletes the new or changed rows with the group, detaches an imported board from it (the board itself is kept), and answers `403` if the write was an ownership transfer away from the caller (#1719).
 
 ---
 
@@ -166,9 +176,13 @@ Valid roles: `admin`, `member`, `collaborator`, `viewer`
 
 Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). A non-numeric `{user_id}` in the path is `404`, as before.
 
-*(1.2+)* Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
+> **Added in 1.2**
 
-*(1.2+)* A role change that would demote the group owner, or demote the group's last active admin, returns `400 Bad Request` with a `detail` message and a machine-readable `code`, and writes nothing:
+Changing a member's role away from `admin` revokes their unused [invite links](#invite-links) in this group and its subgroups that they can no longer administer (for example through another admin membership on an ancestor), and each revoked link emits `invite_link.revoked` on its group's channel. This frees their slots under the 5-active-link cap.
+
+> **Added in 1.2**
+
+A role change that would demote the group owner, or demote the group's last active admin, returns `400 Bad Request` with a `detail` message and a machine-readable `code`, and writes nothing:
 
 | `code` | `detail` | Condition |
 |---|---|---|
@@ -179,7 +193,9 @@ Branch on `code`, not on the `detail` text, which may be reworded. Other `400`s 
 
 Setting the owner's role to `admin` is accepted. Only active admins count toward the minimum; a deactivated admin does not. The check runs under row locks, so two requests that would each demote a different one of two admins cannot both succeed.
 
-*(1.2+)* A role change that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers a role change whose membership was removed while it waited.
+> **Added in 1.2**
+
+A role change that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers a role change whose membership was removed while it waited.
 
 ### `DELETE /api/v1/groups/{id}/members/{user_id}/`
 Remove a member. Requires group admin. Cannot remove a site admin who is a member of the group. *(1.2+)* A removal that arrives while the group is being deleted, or while another removal of the same member is in flight, waits for it to finish and then answers `404`, with nothing written. Returns `204` when the membership is removed; *(1.2+)* removing the group owner, or the group's last active admin, returns `400 Bad Request` with the same `{detail, code}` body as `PATCH` above, `code` being `group_owner_protected` or `group_last_admin` (the owner leaves through [Transfer ownership](#transfer-ownership) or by deleting the group); the `400` for the last admin also applies when the remaining admins are deactivated, because only active admins count; with no membership the response is the same `404 Not Found` as for `PATCH`, and an inactive member can be removed. *(1.2+)* The removed member's unused invite links in this group and its subgroups that they can no longer administer are revoked, with an `invite_link.revoked` event per link.
@@ -210,7 +226,9 @@ Pass `?expand=group` to populate `group_detail` on each board (see [Expanding fo
 
 Create a board in this group. Requires group admin. Boards created here inherit the group's `shared_labels` and `allowed_priorities` automatically. The seeded `allowed_priorities` value is not enforced on cards (see [Field Enforcement](../architecture/field-enforcement.md)).
 
-*(1.2+)* A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).
+> **Added in 1.2**
+
+A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).
 
 **Request**
 
@@ -236,7 +254,9 @@ This endpoint is never paginated: it returns the whole subtree in one array, and
 
 ### `GET /api/v1/groups/{id}/descendant-boards/paged/`
 
-*(1.2+)* The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.
+> **Added in 1.2**
+
+The same boards as `GET /api/v1/groups/{id}/descendant-boards/`, with the same access rules and the same per-board payload (including `group_detail.ancestors`), returned in pages (#1317). Requires group membership. A board is listed only when the caller's role on it resolves the same way as for board detail.
 
 **Query parameters**
 
@@ -296,7 +316,9 @@ Create a new invite link. Requires group admin.
 
 All fields are optional. `role` defaults to `member`; `expiry_days` accepts any positive integer (`≥ 1`) or `null` (never expires) — common values `7`, `30`, `90`. `single_use` (boolean, default `false`) creates a link that expires automatically after one person joins.
 
-*(1.2+)* A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.
+> **Added in 1.2**
+
+A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.
 
 Valid roles: `admin`, `member`, `collaborator`, `viewer`
 
@@ -399,7 +421,9 @@ The response is identical whether the address belongs to an existing member, an 
 
 A successful send emits `invite_link.created` (payload `{ "id" }` only) on the group's WebSocket channel; a failed send emits `invite_link.revoked` for the auto-revoked link. See [WebSockets](websockets.md).
 
-*(1.2+)* A send that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). No email is sent.
+> **Added in 1.2**
+
+A send that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). No email is sent.
 
 ### `DELETE /api/v1/groups/{id}/invite-links/{link_id}/`
 Revoke a single invite link. Requires group admin. Works the same for shareable and emailed links.
@@ -411,7 +435,9 @@ Revoke a single invite link. Requires group admin. Works the same for shareable 
 | `404 Not Found` | Link does not exist, or is already revoked |
 | `400 Bad Request` | The link is a single-use link that has already been consumed — `{"detail": "This link has already been consumed and cannot be revoked."}` |
 
-*(1.2+)* A revoke that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). A revoke waits for a join through the same link that is in flight, and then answers the consumed-link `400` if that join used it.
+> **Added in 1.2**
+
+A revoke that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). A revoke waits for a join through the same link that is in flight, and then answers the consumed-link `400` if that join used it.
 
 ---
 
@@ -422,7 +448,9 @@ Star (favorite) a group. Requires group membership (any role) — not just authe
 
 **Response** `201 Created` with `{ "starred": true }` when the group was not starred yet, `200 OK` with the same body when it already was.
 
-*(1.2+)* A star that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
+> **Added in 1.2**
+
+A star that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
 
 ### `DELETE /api/v1/groups/{id}/star/`
 Unstar a group. Requires group membership (any role) — not just authentication. Returns `204 No Content`.
@@ -474,12 +502,16 @@ Create a group shared label. Requires group admin.
 
 **Request** `{ "name": "Feature", "color": "#3B82F6" }`
 
-*(1.2+)* A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
+> **Added in 1.2**
+
+A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
 
 ### `PATCH /api/v1/groups/{id}/labels/{label_id}/`
 Update a group shared label name or color. Requires group admin.
 
-*(1.2+)* An update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers an update of a label deleted while it waited; before, the update re-created the deleted label.
+> **Added in 1.2**
+
+An update that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). The same `404` answers an update of a label deleted while it waited; before, the update re-created the deleted label.
 
 ### `DELETE /api/v1/groups/{id}/labels/{label_id}/`
 Delete a group shared label. Requires group admin. Does **not** remove the label from boards that already inherited it.
@@ -505,7 +537,9 @@ Update the board defaults for this group. `allowed_priorities` is copied onto bo
 
 Returns the updated group object.
 
-*(1.2+)* A `PATCH` that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
+> **Added in 1.2**
+
+A `PATCH` that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719).
 
 ---
 
@@ -529,12 +563,16 @@ Resolve an invite token to a group name. No authentication required. Rate-limite
 
 **Errors:** `404 Not Found` (invalid or revoked token, or, *(1.2+)* the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is `404` even if it is also expired or consumed. A link with a live creator still answers `410` for expired or consumed, so the two cases remain distinguishable to a token holder), `410 Gone` — `{"detail": "This invite link has expired."}` (past its expiry) or `{"detail": "This invite link has already been used."}` (single-use link already consumed)
 
-*(1.2+)* An authenticated caller who is already a member of the link's group gets `200` with the preview for a consumed single-use link instead of `410`. This is the path a newcomer takes after an emailed invite created their account (see [`POST /api/v1/auth/registration/`](authentication.md)); everyone else still gets `410`.
+> **Added in 1.2**
+
+An authenticated caller who is already a member of the link's group gets `200` with the preview for a consumed single-use link instead of `410`. This is the path a newcomer takes after an emailed invite created their account (see [`POST /api/v1/auth/registration/`](authentication.md)); everyone else still gets `410`.
 
 ### `POST /api/v1/groups/join/{token}/`
 Join the group with the role configured on the invite link. Requires authentication. Rate-limited to 10 requests/hour per IP, shared with the board join endpoints.
 
-*(1.2+, #1678)* An emailed link (`delivery: "email"`) works only for an account with the address it was sent to. Otherwise the response is `403 {"code": "invite_recipient_mismatch", "detail": "This invite was sent to a different email address. ..."}`, nothing is written, and the link is not consumed. The same address rules apply as for [board invites](boards.md#post-apiv1boardsjointoken): verified addresses, plus the account's `email` unless `EMAIL_VERIFICATION=mandatory`, ignoring case. Shareable links and emailed links sent before upgrading to this version are not checked. Only a keyed fingerprint of the address is stored, and it is never returned.
+> **Added in 1.2** (#1678)
+
+An emailed link (`delivery: "email"`) works only for an account with the address it was sent to. Otherwise the response is `403 {"code": "invite_recipient_mismatch", "detail": "This invite was sent to a different email address. ..."}`, nothing is written, and the link is not consumed. The same address rules apply as for [board invites](boards.md#post-apiv1boardsjointoken): verified addresses, plus the account's `email` unless `EMAIL_VERIFICATION=mandatory`, ignoring case. Shareable links and emailed links sent before upgrading to this version are not checked. Only a keyed fingerprint of the address is stored, and it is never returned.
 
 **Response body** — returns the full group object (same shape as `GET /api/v1/groups/{id}/` but using the list serializer, without `ancestors`):
 
@@ -563,6 +601,10 @@ Join the group with the role configured on the invite link. Requires authenticat
 
 **Errors:** `401 Unauthorized` (not authenticated), `404 Not Found` (invalid or revoked token, or, *(1.2+)* the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is `404` even if it is also expired or consumed. A link with a live creator still answers `410` for expired or consumed, so the two cases remain distinguishable to a token holder), `410 Gone` — `{"detail": "This invite link has expired."}` (past its expiry) or `{"detail": "This invite link has already been used."}` (single-use link already consumed by someone who is not a member)
 
-*(1.2+)* If the caller is already a member of the link's group, a consumed single-use link returns `200` with the group, the same as any repeat join; the link is not re-stamped and the caller's role is unchanged.
+> **Added in 1.2**
 
-*(1.2+)* A join that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).
+If the caller is already a member of the link's group, a consumed single-use link returns `200` with the group, the same as any repeat join; the link is not re-stamped and the caller's role is unchanged.
+
+> **Added in 1.2**
+
+A join that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1638).

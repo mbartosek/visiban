@@ -424,7 +424,9 @@ Create a new local account. Site admin only.
 
 Returns `201 Created` with the new user object. The response does **not** include the password — copy it before closing if needed.
 
-*(1.2+)* The account creation is recorded in the [admin action log](#action-log) as `user.password_set` with `source` `admin_api` and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (`target_id`, `target_username`); the password and its hash are never stored.
+> **Added in 1.2**
+
+The account creation is recorded in the [admin action log](#action-log) as `user.password_set` with `source` `admin_api` and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (`target_id`, `target_username`); the password and its hash are never stored.
 
 ### `PATCH /api/v1/admin/users/{id}/`
 Update a user's account flags. Site admin only.
@@ -439,9 +441,13 @@ Update a user's account flags. Site admin only.
 | `has_completed_tour` | boolean | Reset (`false`) to re-show the onboarding tour to this user on next login |
 | `must_change_password` | boolean | `true` forces a password reset on next login. Only a superuser can change this on a superuser account (`400` otherwise). |
 
-*(1.2+)* Setting `is_active: false` also deletes the user's personal access tokens and API auth token (so they do not come back on reactivation) and revokes the user's pending invite links exactly like [`POST /api/v1/admin/users/{id}/deactivate/`](#post-apiv1adminusersiddeactivate): unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. Clearing `can_access_all_content` (the only flag that confers group-admin rights; `is_site_admin` does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.
+> **Added in 1.2**
 
-*(1.2+)* Clearing `is_site_admin` revokes the user's unused site invite links. Site invite links create accounts only while their creator is an active site admin (see [`GET /api/v1/admin/invite-links/`](#get-apiv1admininvite-links)).
+Setting `is_active: false` also deletes the user's personal access tokens and API auth token (so they do not come back on reactivation) and revokes the user's pending invite links exactly like [`POST /api/v1/admin/users/{id}/deactivate/`](#post-apiv1adminusersiddeactivate): unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. Clearing `can_access_all_content` (the only flag that confers group-admin rights; `is_site_admin` does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.
+
+> **Added in 1.2**
+
+Clearing `is_site_admin` revokes the user's unused site invite links. Site invite links create accounts only while their creator is an active site admin (see [`GET /api/v1/admin/invite-links/`](#get-apiv1admininvite-links)).
 
 **Request**
 ```json
@@ -717,7 +723,9 @@ Revoke an invite link immediately. The link can no longer be used for registrati
 
 ## Board invites
 
-*(New in 1.2)* Every board's [invites](boards.md#board-invites) — emailed invites and shareable invite links — across the whole instance, so a site admin can audit them and revoke a leaked link without being a member of its board. Board admins manage their own board's invites through the board endpoints; these endpoints are site-admin only, and a board admin who is not a site admin gets `403`.
+> **Added in 1.2**
+
+Every board's [invites](boards.md#board-invites) — emailed invites and shareable invite links — across the whole instance, so a site admin can audit them and revoke a leaked link without being a member of its board. Board admins manage their own board's invites through the board endpoints; these endpoints are site-admin only, and a board admin who is not a site admin gets `403`.
 
 ### `GET /api/v1/admin/board-invite-links/`
 

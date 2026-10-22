@@ -135,7 +135,9 @@ Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (i
 
 **Minimum role:** Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as [`POST /api/v1/groups/{id}/boards/`](groups.md). Moving to personal (`null`) needs only the board role above.
 
-*(1.2+)* A move-group, board `PATCH`/`PUT` that sets `group`, board create with a `group`, or [`POST /api/v1/groups/{id}/boards/`](groups.md) that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer `404`, as for an unknown group; board create and `PATCH`/`PUT` answer `400` with `{"group": ["Unknown group, or you are not an admin of it."]}`, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).
+> **Added in 1.2**
+
+A move-group, board `PATCH`/`PUT` that sets `group`, board create with a `group`, or [`POST /api/v1/groups/{id}/boards/`](groups.md) that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer `404`, as for an unknown group; board create and `PATCH`/`PUT` answer `400` with `{"group": ["Unknown group, or you are not an admin of it."]}`, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).
 
 **Request** `{ "group_id": 5 }` or `{ "group_id": null }`. `group_id` is the only key read; omitting it is the same as `null` (move to personal).
 
@@ -366,7 +368,9 @@ Time-in-stage heatmap derived from `CardMovement` records.
 | `days` | integer | `30` | Must be a positive integer (`≥ 1`, `≤ 365`). Returns `400` if non-integer, `≤ 0`, or `> 365`. |
 | `stalled_days` | integer | board's `staleness_threshold_days` | When provided, overrides the board setting for stalled-card detection in this request only. Must be a positive integer (`≥ 1`, `≤ 90`). Returns `400` if non-integer, `≤ 0`, or `> 90`. Omit to use the board's configured threshold. |
 
-*(1.2+)* An invalid `days` or `stalled_days` returns `400 Bad Request` with `{"detail": "...", "code": "invalid_query_param"}` (before 1.2 the body had `detail` only), the API-wide shape for a bad query parameter — see [Error responses](index.md#error-responses).
+> **Added in 1.2**
+
+An invalid `days` or `stalled_days` returns `400 Bad Request` with `{"detail": "...", "code": "invalid_query_param"}` (before 1.2 the body had `detail` only), the API-wide shape for a bad query parameter — see [Error responses](index.md#error-responses).
 
 **Response shape:**
 
@@ -1231,7 +1235,9 @@ Remove a member. Requires board admin. Cannot remove a site admin who is a membe
 
 ## Board invites
 
-*(New in 1.2)* A board admin can email a **single-use invite** to someone who may not have an account yet, or create a **shareable invite link** to paste anywhere. The invite token (`vbnb_` prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (`prefix`) are shown. The address it was sent to is not stored. *(1.2+, #1678)* An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see `POST /api/v1/boards/join/{token}/` below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant `member`, `collaborator` or `viewer` — never `admin`, and never the moderator flag. A board invite never adds anyone to the board's group.
+> **Added in 1.2**
+
+A board admin can email a **single-use invite** to someone who may not have an account yet, or create a **shareable invite link** to paste anywhere. The invite token (`vbnb_` prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (`prefix`) are shown. The address it was sent to is not stored. *(1.2+, #1678)* An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see `POST /api/v1/boards/join/{token}/` below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant `member`, `collaborator` or `viewer` — never `admin`, and never the moderator flag. A board invite never adds anyone to the board's group.
 
 ### `GET /api/v1/boards/{id}/invite-links/`
 List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns **every pending invite plus at most the 50 most recent past ones** (used, expired or revoked); older history is not returned. A caller with no access to the board, or for a board that does not exist, gets `404`, an unauthenticated request `401` — the same as the members endpoints.
@@ -1417,7 +1423,9 @@ What redeeming does depends on the access you already have, because an explicit 
 
 A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns `200` with nothing changed (`created` reports whether this invite created your membership — `true` after signing up from it); anyone else gets `410 {"code": "used"}`. When a membership is created, the board's `member.added` event carries an extra `invite: { "id", "created_by_id" }` key for `admin` and `site_admin` recipients, on the WebSocket and in the [change feed](events.md); other recipients get the event without it.
 
-*(1.2+)* A join that arrives while the board is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1631).
+> **Added in 1.2**
+
+A join that arrives while the board is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1631).
 
 Both join endpoints share the per-IP `join_group` throttle (10/hour) with the [group join endpoints](groups.md) — board and group join attempts from one address draw from one budget.
 
@@ -1730,7 +1738,9 @@ columns or structure.
 
 #### Multi-select fields
 
-*Since 1.2.* A `"multi_select"` field holds any number of the definition's `choices`. It
+> **Added in 1.2**
+
+A `"multi_select"` field holds any number of the definition's `choices`. It
 applies to card and swimlane custom fields alike, and is text-backed like every other type:
 **the `value` on the wire is still a string** — a JSON array encoded as a string, never a
 JSON array.
@@ -1783,7 +1793,9 @@ JSON array.
 
 #### Number formatting
 
-*Since 1.2.* Three optional, **display-only** settings on a `"number"` definition, on card
+> **Added in 1.2**
+
+Three optional, **display-only** settings on a `"number"` definition, on card
 and swimlane custom fields alike. They change how a client renders a value, never the
 value: the `value` on the wire, in exports, and in filters stays the plain number string
 the user entered.
@@ -1830,7 +1842,9 @@ the user entered.
 
 #### Choice colors
 
-*Since 1.2.* An optional, **display-only** color per choice on a `"dropdown"` or
+> **Added in 1.2**
+
+An optional, **display-only** color per choice on a `"dropdown"` or
 `"multi_select"` definition, on card and swimlane custom fields alike. `choices` is
 unchanged — still a plain list of strings — and the colors live beside it in a separate
 map keyed by the choice text. Values are never touched.

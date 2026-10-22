@@ -82,7 +82,9 @@ Many errors carry a machine-readable `code` next to the human-readable `detail`:
 
 `code` is a stable string (for example `export_restricted`, `feature_disabled`, `invite_email_cap_reached`, `group_owner_protected`). When a response has a `code`, compare it rather than `detail`: the `detail` text is for people and may be reworded in any release. Not every error has a `code`; each endpoint's page documents its error bodies. Validation errors on a request body are usually field-keyed (`{"<field>": [...]}`), but some hand-validated bodies answer `{"detail": "..."}` with no `code` instead, for example an invalid `role` on `PATCH /groups/{id}/members/{user_id}/` (`{"detail": "Must be one of: admin, member, collaborator, viewer"}`).
 
-*(1.2+)* **Bad query parameters.** The target shape for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`. These parameters answer with it:
+> **Added in 1.2**
+
+**Bad query parameters.** The target shape for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`. These parameters answer with it:
 
 - `GET /boards/{id}/analytics/`: `days` and `stalled_days`
 - `GET /boards/{id}/cards/`: `limit`
