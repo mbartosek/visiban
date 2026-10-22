@@ -1175,9 +1175,9 @@ backend-schema-fuzz:
   #                      answer their declared role-rule 403 instead of 404)
   #   every DELETE on card/attachment/comment/checklist item/relation/saved
   #   filter reached 2xx on all ~240 calls each.
-  # The 6 that remain, and why:
-  #   * DELETE /auth/me/connected-accounts/{provider}/  needs a linked social
-  #     account the seed does not create
+  # The 6 that remain, and why (measured before #1794, when
+  # DELETE /auth/me/connected-accounts/{provider}/ was still the first of them;
+  # it has since left this list, so 5 are listed below):
   #   * DELETE /boards/{id}/invite-links/{link_id}/  link_id is not seeded and a
   #     plain member fails the board-admin check first (boards/views/invites.py)
   #   * POST /auth/me/pending-email/resend/  404s unless the user has a pending
@@ -1187,11 +1187,18 @@ backend-schema-fuzz:
   #     multipart body never parses
   #   * POST /boards/{board_pk}/cards/{id}/move/  the target column/swimlane ids
   #     are in the request BODY, which the path-parameter hook does not touch
+  # DELETE /auth/me/connected-accounts/{provider}/ was the first of the 6
+  # (it needed a linked social account the seed does not create). Since
+  # #1794 it is session only, so the token fuzz client gets a declared 403
+  # before any provider lookup: it moves from the "Missing valid test data"
+  # bucket to "Missing authentication". Expected effect is one fewer / one more,
+  # but the counts above were NOT re-measured; confirm in the CI job log.
   # (/boards/samples/{sample_id}/ is mapped to a real manifest slug.) The two
   # email-confirm routes are excluded above (#1321); /api/v1/admin/... is out of
   # reach for a non-admin token by design (#1080).
   # 403s that are role rules, not wrong ids, and stay: DELETE /auth/tokens/{id}/
-  # for a PAT caller (#1110), group-admin, group-owner and board-admin actions.
+  # for a PAT caller (#1110), DELETE /auth/me/connected-accounts/{provider}/ for
+  # any token caller (#1794), group-admin, group-owner and board-admin actions.
   # Locally, DELETE card/attachment/comment/relation went from 403/404 to 2xx
   # after the hook-id fixes; the checklist item and saved filter DELETEs were 404
   # before (unmapped child id) and are 2xx now.

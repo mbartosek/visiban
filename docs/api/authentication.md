@@ -375,6 +375,10 @@ A scoped token cannot call `POST /api/v1/auth/tokens/` or `DELETE /api/v1/auth/t
 
 Tokens created before 1.2 retain the old behavior here and can still mint and revoke.
 
+### Session-only account-security endpoints
+
+A few account-security operations ignore token scopes entirely: a request authenticated with a token credential (a personal access token of any scope, or the login API token) is refused with `403 Forbidden`, because a `write` scope is not meant to carry authority over how the account is signed in to. The rule applies per operation: `DELETE /api/v1/auth/me/connected-accounts/{provider}/` is always refused (1.2, #1794); setting a first password is refused only for an account with no usable password; and changing the account email is refused only when the request changes the address (sending the stored value back unchanged is accepted). See their endpoint sections. Use the browser session for these.
+
 ### Scopes never widen access
 
 A scope can only narrow what a token may do. Board membership, role, and site-administrator checks all still apply. An `admin`-scoped token on an account that is not a site administrator reaches no admin endpoint.
@@ -855,7 +859,7 @@ For an account with a usable password, the callback first requires a recent auth
 
 Disconnect a provider from the caller's account. Added in 1.2 (#1314).
 
-**Permission:** Requires authentication. Only the caller's own accounts can be named.
+**Permission:** Requires authentication. Only the caller's own accounts can be named. **Interactive session only** (1.2, #1794): a request authenticated with a token (a personal access token, whatever its scopes, or the login API token) is refused with `403 Forbidden`, so a leaked token cannot remove a way to sign in.
 
 **Request body:** none.
 
@@ -865,6 +869,7 @@ Disconnect a provider from the caller's account. Added in 1.2 (#1314).
 |---|---|
 | `400 Bad Request` | Disconnecting would leave no way to sign in (no password and no other provider, or — under `EMAIL_VERIFICATION=mandatory` — no verified email). `{"detail": "..."}` |
 | `401 Unauthorized` | Request is not authenticated |
+| `403 Forbidden` | Authenticated with a token rather than an interactive session — `{"detail": "Disconnecting a sign-in provider is available from an interactive session only."}`. Checked before the provider is looked up, so the answer is the same whether or not it is connected. |
 | `404 Not Found` | The caller has no account connected for that provider |
 
 ### `POST /api/v1/auth/me/pending-email/resend/`

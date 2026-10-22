@@ -107,8 +107,10 @@ def request_is_interactive_session(request) -> bool:
     """True when *request* was authenticated by an interactive session.
 
     The one definition of "interactive session" for the account-credential
-    rules that require one (``first_password_requires_session`` above and
-    ``email_change_requires_session`` below). DRF's ``SessionAuthentication``
+    rules that require one (``first_password_requires_session`` above,
+    ``email_change_requires_session`` below, and
+    ``accounts.views.ConnectedAccountDetailView.delete``, which calls this
+    directly). DRF's ``SessionAuthentication``
     leaves ``request.auth`` as ``None``; the token authenticators configured
     in ``DEFAULT_AUTHENTICATION_CLASSES`` (a Personal Access Token, the DRF
     auth ``Token``) set it to the credential object. A token authenticator
@@ -118,6 +120,11 @@ def request_is_interactive_session(request) -> bool:
     authenticator must not be added without revisiting this check.
     """
     return getattr(request, "auth", None) is None
+
+
+PROVIDER_DISCONNECT_SESSION_REQUIRED_MESSAGE = (
+    "Disconnecting a sign-in provider is available from an interactive session only."
+)
 
 
 EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE = (
