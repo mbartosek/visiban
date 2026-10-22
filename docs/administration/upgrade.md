@@ -357,6 +357,14 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "Attachment files are now removed when their card, column, swimlane or board is deleted"
+    Before 1.2, deleting a card (or its column, swimlane or board) left its attachment files in
+    media storage. From 1.2 they are removed once the delete commits. Files already left behind
+    by earlier deletes are not touched by the upgrade. To find and remove them, run
+    `purge_orphaned_attachments` (a dry run unless you pass `--yes`); see
+    [Removing orphaned attachment files](media-security.md#removing-orphaned-attachment-files)
+    (#1817).
+
 !!! note "OpenAPI component names changed for `/auth/user/` and the dj-rest-auth responses"
     The rename itself changes no field, but a client generated from the OpenAPI schema names these
     types differently, so regenerating one renames them. Other 1.2 changes to these shapes are in
