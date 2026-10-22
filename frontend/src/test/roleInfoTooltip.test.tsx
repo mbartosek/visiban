@@ -56,3 +56,12 @@ describe('RoleInfoTooltip', () => {
     expect(screen.getByText('Role explanation text')).toBeInTheDocument()
   })
 })
+
+describe('RoleInfoTooltip typography (#1857)', () => {
+  it('trigger glyph uses text-xs, not a sub-12px size', () => {
+    render(<RoleInfoTooltip>content</RoleInfoTooltip>)
+    const btn = screen.getByRole('button', { name: 'Role information' })
+    expect(btn.className).toContain('text-xs')
+    expect(btn.className).not.toContain('text-[10px]')
+  })
+})

@@ -94,8 +94,8 @@ export default {
         "palette-teal-pale": "rgb(204 251 241 / <alpha-value>)",     /* teal-100 — role badge text */
 
         // Activity timeline dots — event-type markers
-        "activity-date": "rgb(56 189 248 / <alpha-value>)",     /* sky-400 */
-        "activity-assign": "rgb(20 184 166 / <alpha-value>)",   /* teal-500 */
+        "activity-date": "rgb(var(--activity-date) / <alpha-value>)",     /* sky-400 */
+        "activity-assign": "rgb(var(--activity-assign) / <alpha-value>)",   /* teal-500 */
         "activity-reactivated": "rgb(139 92 246 / <alpha-value>)",  /* violet-500 */
 
         // Modal backdrop / scrim
