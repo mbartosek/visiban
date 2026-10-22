@@ -534,6 +534,8 @@ class ConnectedAccountDetailView(APIView):
 
     @extend_schema(
         request=None,
+        # Session only (#1794): advertise the cookie scheme, not tokenAuth.
+        auth=[{"cookieAuth": []}],
         responses={
             200: ConnectedAccountSerializer(many=True),
             400: OpenApiResponse(description="Disconnecting would leave no way to sign in."),
