@@ -281,7 +281,7 @@ Board health summary — per-swimlane card counts, stage distribution, and veloc
 | `stage_distribution` | object | Card count per column for this swimlane (all columns, including zero counts) |
 | `velocity_7d` | integer | Cards moved into any column with `is_done: true` in the last 7 days |
 | `velocity_30d` | integer | Cards moved into any column with `is_done: true` in the last 30 days |
-| `extension_panels` | array | `[]` in OSS. Panels registered through the `ANALYTICS_EXTENSIONS` hook; the web UI renders them in the Summary tab below the swimlane table. See [Extension panel payload](#extension-panel-payload) |
+| `extension_panels` | array | `[]` in OSS. Panels registered through the `ANALYTICS_EXTENSIONS` hook, limited to those whose `min_role` the caller meets (see [Panel visibility by role](#panel-visibility-by-role)); the web UI renders them in the Summary tab below the swimlane table. See [Extension panel payload](#extension-panel-payload) |
 
 #### Extension panel payload
 
@@ -326,8 +326,33 @@ Example:
 }
 ```
 
-!!! warning "Producers must gate on role"
-    The summary is returned to every member who can read the board, viewers included. An `ANALYTICS_EXTENSIONS` callable receives `request` and must check `request.user`'s role itself before returning data that not every member should see.
+#### Panel visibility by role
+
+> **Changed in 1.2** (#1826)
+
+The summary is returned to every member who can read the board, viewers included, so each `ANALYTICS_EXTENSIONS` callable declares the lowest board role that may see its panel, as a `min_role` attribute on the callable:
+
+```python
+def delivery_risk(board, request):
+    return {"id": "delivery-risk", "title": "Delivery risk", "type": "stats", "data": {...}}
+
+delivery_risk.min_role = "viewer"
+ANALYTICS_EXTENSIONS.append(delivery_risk)
+```
+
+| `min_role` | Panel is shown to |
+|---|---|
+| `"viewer"` | Every member who can read the board |
+| `"collaborator"` | Collaborators, members, admins |
+| `"member"` | Members and admins |
+| `"admin"` | Board admins, including the owner |
+| `"site_admin"` | Users with all-content access only |
+
+- The summary resolves the caller's board role the same way it authorizes the request (all-content access, then owner, then explicit membership, then the nearest group membership) and drops every panel above that role **before calling any panel**. A dropped panel's callable is never invoked.
+- **Fail closed:** a callable with no `min_role` (or `None`) is admin-only, and so is one with an invalid value (unknown, miscased or not a string), which also logs a server warning naming the callable. Panels registered before 1.2 are therefore admin-only until their author sets `min_role`.
+- A callable class can set `min_role` as a class attribute. For a bound method, set it on the function in the class body; a bound method object does not accept new attributes.
+- A panel can still narrow what it returns by checking `request.user`, but it no longer needs to gate access itself.
+- Nothing about a dropped panel appears in the response: it is absent from `extension_panels`, the same as when no panel is registered.
 
 ---
 

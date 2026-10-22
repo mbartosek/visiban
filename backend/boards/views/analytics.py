@@ -16,6 +16,7 @@ from rest_framework import serializers, status
 from ..models import BoardExportLog, CardMovement
 from ..serializers import CardMovementSerializer
 from .. import hooks
+from ..permissions import analytics_extensions_for_role
 from visiban.request_shape import parse_offset
 from ._helpers import get_board_for_user
 
@@ -127,7 +128,7 @@ class BoardAnalyticsMixin:
         """
         # ``slim=True`` skips favorites/labels/memberships prefetches that this
         # aggregate endpoint never reads (#928).
-        board, _ = get_board_for_user(pk, request.user, slim=True)
+        board, role = get_board_for_user(pk, request.user, slim=True)
         now = timezone.now()
         cutoff_7d = now - datetime.timedelta(days=7)
         cutoff_30d = now - datetime.timedelta(days=30)
@@ -217,7 +218,11 @@ class BoardAnalyticsMixin:
             })
 
         extension_panels = []
-        for _fn in hooks.ANALYTICS_EXTENSIONS:
+        # Filtered on the caller's role BEFORE any panel runs (#1826): a panel
+        # whose min_role is above it is never called, so it cannot leak data to
+        # a viewer by forgetting its own role check. The role is the one
+        # get_board_for_user authorized this request with.
+        for _fn in analytics_extensions_for_role(role):
             try:
                 _panel = _fn(board, request)
                 # Validate here, not in the renderer: a NaN/inf or non-serializable
