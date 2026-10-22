@@ -4859,7 +4859,7 @@ fields used to set an assignee or labels) are not present — this endpoint is r
 <td>boolean</td>
 <td>yes</td>
 <td>no</td>
-<td><code>true</code> when the card has not moved within the board's <code>staleness_threshold_days</code> window; <code>false</code> otherwise</td>
+<td><code>true</code> when the card has not moved within the board's <code>staleness_threshold_days</code> window; <code>false</code> otherwise. <code>is_stale</code> ignores the card's column, so a Done-column card can be <code>true</code>; clients decide display. The stale-card notification digest, by contrast, skips Done-column cards.</td>
 </tr>
 <tr>
 <td><code>archived_at</code></td>
