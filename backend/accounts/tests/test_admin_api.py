@@ -713,6 +713,31 @@ class AdminUserDeactivateViewTests(TestCase):
         r = self._deactivate(owner.pk, {"transfers": [{"board_id": board.pk, "transfer_to": member.pk}]})
         self.assertEqual(r.status_code, status.HTTP_200_OK)
 
+    def test_malformed_transfer_item_errors_keyed_by_index(self):
+        """DRF 3.18 reports many=True item errors as {index: errors}, not a list (#1846).
+
+        Pins the public 400 shape of the deactivate endpoint so a future DRF change
+        (or flipping LIST_SERIALIZER_ERRORS_AS_DICT) is caught here.
+        """
+        owner = self._make_user("xferowner_shape")
+        member = self._make_user("xfermember_shape")
+        board = self._make_board(owner)
+        self.BoardMembership.objects.create(board=board, user=member, role="member")
+
+        r = self._deactivate(
+            owner.pk,
+            {"transfers": [
+                {"board_id": board.pk, "transfer_to": member.pk},
+                {"board_id": "not-an-int"},
+            ]},
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        errors = r.data["transfers"]
+        self.assertIsInstance(errors, dict)
+        self.assertEqual(set(errors), {1})
+        self.assertIn("board_id", errors[1])
+        self.assertIn("transfer_to", errors[1])
+
     def test_board_ownership_transferred_after_deactivation(self):
         owner = self._make_user("xferowner2")
         member = self._make_user("xfermember2")

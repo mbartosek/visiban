@@ -12,7 +12,7 @@ channels-redis==4.3.0
 # block-forever BZPOPMIN, which channels-redis 4.3.0 relies on, killing idle
 # WebSocket connections after 5s. channels-redis only requires redis>=4.6.
 redis>=4.6,<6
-djangorestframework==3.17.2
+djangorestframework==3.18.3
 psycopg[binary]==3.3.6
 django-allauth==65.14.3
 dj-rest-auth==7.1.1
@@ -80,5 +80,11 @@ anyio>=4.14.2
 # emSign root CAs with compromised intermediate keys). Floor it at the fixed
 # release, mirroring the anyio pattern above.
 certifi>=2026.10.19
+# opentelemetry-api arrives transitively via mcp (mcp 2.3.0 declares
+# opentelemetry-api>=1.28.0, no upper bound). 1.45.0 and earlier are
+# vulnerable to GHSA-xcq7-p3pf-p88h (quadratic-time `tracestate` header
+# parsing), which pip-audit flags in the lock. Floor it at the fixed release,
+# mirroring the certifi pattern above.
+opentelemetry-api>=1.45.1
 whitenoise==6.12.0
 drf-spectacular==0.29.0

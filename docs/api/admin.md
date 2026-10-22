@@ -521,6 +521,8 @@ After a successful deactivation with transfers, `owned_boards` will be `[]` — 
 | `400 Bad Request` | A board in the `transfers` list does not belong to this user |
 | `409 Conflict` | User owns one or more boards and no `transfers` were provided |
 
+If a `transfers` item is malformed (missing or non-integer `board_id` or `transfer_to`), the `400` body keys the item errors by zero-based item index, for example `{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}`; valid items are omitted. Through 1.2.0-beta.1 (Django REST framework 3.17) this was an array with one entry per item.
+
 ### `POST /api/v1/admin/users/{id}/clear-lockout/`
 
 Clear the target user's per-account login lockout early (#1203). The per-account `login_failed` lockout (5 failed login or password-change attempts / 5 minutes — see [Rate limiting](../architecture/deployment.md#rate-limiting)) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.

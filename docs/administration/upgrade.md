@@ -357,6 +357,17 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "Deactivate-user `transfers` errors are now keyed by item index"
+    On `POST /api/v1/admin/users/{id}/deactivate/`, a `400` for a malformed `transfers` item now
+    returns `transfers` as an object keyed by zero-based item index, listing only the invalid
+    items, for example `{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}`.
+    Through 1.2.0-beta.1 it was an array with one entry per item, with `{}` for valid items. Valid
+    requests and every other endpoint are unchanged. This is a deliberate exception to the
+    1.x response-compatibility rule: Django REST framework 3.18 makes the object shape its
+    default and removes the array shape in 3.20, so it changes in a 1.2 pre-release rather than
+    in a later minor. Scripts that read these errors by array position must read them by
+    index key instead; see [Admin API](../api/admin.md#post-apiv1adminusersiddeactivate) (#1846).
+
 !!! note "Attachment files are now removed when their card, column, swimlane or board is deleted"
     Before 1.2, deleting a card (or its column, swimlane or board) left its attachment files in
     media storage. From 1.2 they are removed once the delete commits. Files already left behind

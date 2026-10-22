@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from allauth.account.forms import default_token_generator
 from allauth.account.utils import user_pk_to_url_str
 from django.core.cache import cache
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -880,9 +880,11 @@ class PasswordResetThrottleStructureTests(TestCase):
         from accounts.views import PasswordResetThrottle
         throttle = PasswordResetThrottle()
         throttle.scope = "password_reset"
-        request = MagicMock()
+        # A real request, not a MagicMock: DRF 3.18's get_ident reads
+        # request.headers as well as request.META, and a mock's auto-attribute
+        # headers.get() returns a truthy MagicMock that is taken as an XFF value.
+        request = RequestFactory().post("/", REMOTE_ADDR="192.0.2.1")
         request.user = self.user
-        request.META = {"REMOTE_ADDR": "192.0.2.1"}
         key = throttle.get_cache_key(request, MagicMock())
         self.assertIsNotNone(key)
         self.assertIn("192.0.2.1", key)
@@ -896,8 +898,7 @@ class PasswordResetThrottleStructureTests(TestCase):
         from accounts.views import PasswordResetConfirmThrottle
         throttle = PasswordResetConfirmThrottle()
         throttle.scope = "password_reset_confirm"
-        request = MagicMock()
-        request.META = {"REMOTE_ADDR": "203.0.113.5"}
+        request = RequestFactory().post("/", REMOTE_ADDR="203.0.113.5")
         key = throttle.get_cache_key(request, MagicMock())
         self.assertIsNotNone(key)
         self.assertIn("203.0.113.5", key)
@@ -919,8 +920,7 @@ class LoginThrottleStructureTests(TestCase):
     def test_login_throttle_key_is_ip_based(self):
         from accounts.views import LoginRateThrottle
         throttle = LoginRateThrottle()
-        request = MagicMock()
-        request.META = {"REMOTE_ADDR": "198.51.100.7"}
+        request = RequestFactory().post("/", REMOTE_ADDR="198.51.100.7")
         key = throttle.get_cache_key(request, MagicMock())
         self.assertIsNotNone(key)
         self.assertIn("198.51.100.7", key)
