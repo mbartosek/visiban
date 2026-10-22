@@ -40,7 +40,7 @@ from visiban.permissions import (
 )
 from visiban.request_shape import require_json_object
 from rest_framework import status
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, PermissionDenied
 from .permissions import TokenHasScope
 from .models import (
     PAT_DEFAULT_SCOPES,
@@ -891,6 +891,14 @@ class ChooseUsernameView(APIView):
         username = require_json_object(request).get("username") or ""
         # A non-string username is treated as missing (same 400), not a 500.
         username = username.strip() if isinstance(username, str) else ""
+
+        # A username is a login identifier: only an interactive session may
+        # change it. Checked before validation so a token caller gets the same
+        # 403 whatever the name. Resending the stored name is not a change.
+        if credentials.username_change_requires_session(
+            request, request.user.username, username
+        ):
+            raise PermissionDenied(credentials.USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE)
 
         if not username:
             return Response(
