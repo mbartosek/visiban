@@ -169,7 +169,7 @@ export default function CardMovementTimeline({ boardId, cardId, columnIds, userD
             type="checkbox"
             checked={showAll}
             onChange={(e) => setShowAll(e.target.checked)}
-            className="rounded border-line-strong focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+            className="rounded accent-primary border-line-strong focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
           />
           Show full history
         </label>
