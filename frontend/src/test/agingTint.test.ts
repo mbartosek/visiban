@@ -84,7 +84,7 @@ describe("agingTint", () => {
   // badge 1.9:1) fails here; onTintTokens.test.ts derives its contrast check
   // from these same classes.
   it("pins each stage's overlay and body opacity", () => {
-    expect(AGING_STAGE_CLASSES.none).toEqual({ overlayClass: null, bodyOpacityClass: "" });
+    expect(AGING_STAGE_CLASSES.none).toEqual({ overlayClass: null, bodyOpacityClass: "", metaClass: "" });
     expect(AGING_STAGE_CLASSES.warning.bodyOpacityClass).toBe("opacity-90");
     expect(AGING_STAGE_CLASSES.stale.bodyOpacityClass).toBe("opacity-85");
     expect(AGING_STAGE_CLASSES.stale2x.bodyOpacityClass).toBe("opacity-85");
@@ -93,6 +93,12 @@ describe("agingTint", () => {
     expect(AGING_STAGE_CLASSES.stale.overlayClass).toContain("bg-warning/15");
     expect(AGING_STAGE_CLASSES.stale2x.overlayClass).toContain("bg-danger/15");
     expect(AGING_STAGE_CLASSES.stale3x.overlayClass).toContain("bg-stale-severe/20");
+  });
+
+  // #1844: every tinted stage scopes the card's metadata text to on-tint tones.
+  it.each(["warning", "stale", "stale2x", "stale3x"] as const)("%s carries the on-tint metadata scope", (stage) => {
+    expect(AGING_STAGE_CLASSES[stage].metaClass).toBe("card-aging-meta");
+    expect(agingTint(new Date(Date.now() - { warning: 8, stale: 15, stale2x: 30, stale3x: 45 }[stage] * DAY).toISOString(), 14, 50).metaClass).toBe("card-aging-meta");
   });
 
   it("agingReference falls back to created_at for a never-moved card, like the server", () => {

@@ -53,6 +53,9 @@
   --success-on-tint: 134 239 172;  /* green-300 */
   --info-on-tint: 147 197 253;     /* blue-300 */
   --muted-on-tint: 203 213 225;    /* slate-300 — on `bg-fg-muted/20` */
+  /* Checklist-complete text on an aging-tinted card face (#1844, via .card-aging-meta below). Same as
+     --success-on-tint here; light needs a darker step because green-800 is 3.80:1 on the 3x stage. */
+  --success-on-aging-tint: 134 239 172; /* green-300 */
   /* Urgent (#1594): dark-red fill/border + text pair, matching the board's PRIORITY_COLORS urgent (#B91C1C).
      --urgent-on-tint is red-200 on `bg-urgent/20` over surface (slate-800): 9.5:1 (11.3:1 on sunken). */
   --urgent: 185 28 28;             /* red-700 */
@@ -139,6 +142,8 @@
   --success-on-tint: 21 101 52;    /* green-800 */
   --info-on-tint: 30 64 175;       /* blue-800 */
   --muted-on-tint: 51 65 85;       /* slate-700 — on `bg-fg-muted/20` */
+  /* Checklist-complete text on an aging-tinted card (#1844): green-800 is 3.80:1 on the 3x stage; green-900 is 4.62:1. */
+  --success-on-aging-tint: 20 83 45; /* green-900 */
   /* Urgent (#1594): red-700 fill/border; red-900 text on `bg-urgent/20` over white: 7.1:1 (6.8:1 on sunken). */
   --urgent: 185 28 28;             /* red-700 */
   --urgent-on-tint: 127 29 29;     /* red-900 */
@@ -201,6 +206,25 @@ body {
 [data-theme="light"] .cf-choice-badge {
   --cf-bg: var(--cf-bg-light);
   --cf-fg: var(--cf-fg-light);
+}
+
+/*
+  Card metadata on an aging tint (#1844). CardItem puts this class on the
+  metadata row whenever the card shows an aging overlay (AGING_STAGE_CLASSES
+  .metaClass in src/utils/agingTint.ts). It rescopes the text tokens the row
+  uses to their on-tint values for that subtree only, so every element in the
+  row, including child components such as CustomFieldLink and
+  MultiSelectChips, clears 4.5:1 on every stage in both themes without a
+  per-element class. Each referenced token flips with [data-theme], so no
+  light-mode copy is needed. Untinted cards never get the class.
+  onTintTokens.test.ts parses this block and pins the resulting ratios.
+*/
+.card-aging-meta {
+  --fg-tertiary: var(--muted-on-tint);
+  --fg-muted: var(--muted-on-tint);
+  --info: var(--info-on-tint);
+  --danger: var(--danger-on-tint);
+  --success: var(--success-on-aging-tint);
 }
 
 /*

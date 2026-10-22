@@ -257,7 +257,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // A card in a done column is finished, not idle: no tint, tooltip or Stale
   // badge, whatever the server's is_stale says (it does not look at columns).
   const aging = agingTint(inDoneColumn ? null : agingReference(card), staleness_threshold_days, stale_warning_pct);
-  const { overlayClass, bodyOpacityClass } = aging;
+  const { overlayClass, bodyOpacityClass, metaClass } = aging;
   const agingTooltip = overlayClass !== null
     ? formatAgingTooltip(aging, staleness_threshold_days, stale_warning_pct, card.is_stale, card.blocker_count)
     : null;
@@ -435,7 +435,10 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
         {/* Description exists — indicator only; full content shown in card detail */}
 
         {hasMetadataRow && (
-          <div className={`flex items-center gap-1 mt-1.5 overflow-hidden group-hover:overflow-visible group-hover:flex-wrap focus-within:overflow-visible focus-within:flex-wrap ${card.assignee ? "min-h-5 pr-7" : ""}`}>
+          // metaClass (#1844): on a tinted card, `card-aging-meta` rescopes every
+          // metadata text token in this row to its on-tint value, so the row
+          // clears 4.5:1 on every aging stage. Empty on an untinted card.
+          <div className={`flex items-center gap-1 mt-1.5 overflow-hidden group-hover:overflow-visible group-hover:flex-wrap focus-within:overflow-visible focus-within:flex-wrap ${card.assignee ? "min-h-5 pr-7" : ""}${metaClass ? ` ${metaClass}` : ""}`}>
             {/* Blocked indicator (#449) — FIRST in the row, and deliberately
                 outside the `!compact` branch and every density gate.
 
