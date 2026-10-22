@@ -663,7 +663,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                               checked
                               disabled
                               readOnly
-                              className="rounded border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5 opacity-60 cursor-not-allowed"
+                              className="rounded accent-primary border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5 opacity-60 cursor-not-allowed"
                             />
                             <span className="text-xs text-fg-muted">Moderator</span>
                           </label>
@@ -674,7 +674,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                               checked={m.is_moderator ?? false}
                               disabled={isDisabled}
                               onChange={() => handleModeratorToggle(m.user.id, m.role as BoardRole, m.is_moderator ?? false)}
-                              className="rounded border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5"
+                              className="rounded accent-primary border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5"
                             />
                             <span className="text-xs text-fg-tertiary">Moderator</span>
                           </label>
@@ -686,7 +686,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                               checked={false}
                               disabled
                               readOnly
-                              className="rounded border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5 opacity-40 cursor-not-allowed"
+                              className="rounded accent-primary border-line-strong bg-surface-hover text-info focus:ring-primary-emphasis focus:ring-offset-0 w-3.5 h-3.5 opacity-40 cursor-not-allowed"
                             />
                             <span className="text-xs text-fg-muted">Moderator</span>
                           </label>
