@@ -350,7 +350,7 @@ class BoardAnalyticsMixin:
         try:
             days = int(request.query_params.get("days", 30))
         except (ValueError, TypeError):
-            return _invalid_query_param("Query param 'days' must be an integer.")
+            return _invalid_query_param("Query param 'days' must be a positive integer.")
         if days <= 0:
             return _invalid_query_param("Query param 'days' must be a positive integer.")
         if days > 365:
