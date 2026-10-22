@@ -4013,6 +4013,7 @@
 <ul>
 <li><code>GET /boards/{id}/analytics/</code>: <code>days</code> and <code>stalled_days</code></li>
 <li><code>GET /boards/{id}/cards/</code>: <code>limit</code></li>
+<li><code>GET /boards/{id}/movements/</code>: <code>moved_after</code>, <code>moved_before</code>, <code>swimlane_id</code>, <code>to_column_id</code> and <code>moved_by_id</code></li>
 </ul>
 <p>These parameters still answer <code>400</code> with a field-keyed body (<code>{"&lt;param&gt;": ...}</code>) and no <code>code</code>; moving them to the shape above is tracked in #1832:</p>
 <ul>
