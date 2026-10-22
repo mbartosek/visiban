@@ -4542,6 +4542,7 @@
 <p>Basic per-swimlane analytics — cards in flight, average cycle time, cards moved to Done in the last 30 days — is OSS. Teams managing work per client/swimlane need row-level visibility.</p>
 <p>Advanced analytics (velocity trends over time, bottleneck detection, historical period comparisons, exportable reports) are enterprise.</p>
 <p>The OSS analytics summary exposes an <code>ANALYTICS_EXTENSIONS</code> registration point (<code>boards/hooks.py</code>) so enterprise can add panels without modifying OSS view files. The summary returns the panels in <code>extension_panels</code>, and the Summary tab renders <code>stats</code> and <code>table</code> panels below the swimlane table (see the <a href="../../api/boards/#extension-panel-payload">payload contract</a>).</p>
+<p>Authorization is OSS's job, not each panel's (#1826). A panel declares the lowest board role that may see it with a <code>min_role</code> attribute on the callable, and the summary drops every panel above the caller's role before calling any panel, so a panel that forgets a role check cannot leak to viewers. <strong>Behavior change for extension authors in 1.2:</strong> a panel with no <code>min_role</code>, or an invalid one, is admin-only (fail closed). Enterprise panels registered before 1.2 must set <code>min_role</code> to stay visible to non-admin members. See <a href="../../api/boards/#panel-visibility-by-role">panel visibility by role</a> and <a href="../../development/security-invariants/">Security Invariants</a> Rule 12.</p>
 <p><strong>Issue:</strong> #341</p>
 <hr />
 <h3 id="outgoing-webhooks-oss-vs-webhook-operations-enterprise">Outgoing webhooks (OSS) vs webhook operations (Enterprise)<a class="headerlink" href="#outgoing-webhooks-oss-vs-webhook-operations-enterprise" title="Permanent link">&para;</a></h3>
@@ -4681,7 +4682,7 @@
 <tr>
 <td><code>ANALYTICS_EXTENSIONS</code> list (<code>boards/hooks.py</code>)</td>
 <td>Enterprise advanced analytics (#341 enterprise)</td>
-<td>✅ Implemented — <code>boards/hooks.py</code>, consumed by <code>boards/views/analytics.py</code> into the summary's <code>extension_panels</code>, rendered by the Summary tab (<code>SummaryView</code> / <code>ExtensionPanels</code>, #1770). Payload contract (additive-only): <a href="../../api/boards/#extension-panel-payload"><code>docs/api/boards.md</code></a></td>
+<td>✅ Implemented — <code>boards/hooks.py</code>, consumed by <code>boards/views/analytics.py</code> into the summary's <code>extension_panels</code>, rendered by the Summary tab (<code>SummaryView</code> / <code>ExtensionPanels</code>, #1770). Payload contract (additive-only): <a href="../../api/boards/#extension-panel-payload"><code>docs/api/boards.md</code></a>. Each callable declares <code>min_role</code> (<code>viewer</code> / <code>collaborator</code> / <code>member</code> / <code>admin</code> / <code>site_admin</code>); OSS filters on the caller's board role through <code>boards.permissions.analytics_extensions_for_role</code> before calling any panel, and an unset or invalid <code>min_role</code> means <code>admin</code> (fail closed, changed in 1.2, #1826). The callable signature <code>(board, request) -&gt; dict</code> is unchanged</td>
 </tr>
 <tr>
 <td><code>TEMPLATE_PROVIDERS</code> list (<code>boards/hooks.py</code>)</td>

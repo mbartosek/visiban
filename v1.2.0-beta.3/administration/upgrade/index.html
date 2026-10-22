@@ -4568,6 +4568,20 @@ is not a member. See <a href="../../development/security-invariants/">Security I
 admin of them (now <code>403</code> for a visible group, <code>404</code> for one the caller cannot see) (#1678,</p>
 <h1 id="1703">1703).<a class="headerlink" href="#1703" title="Permanent link">&para;</a></h1>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Analytics extension panels without <code>min_role</code> are now admin-only</p>
+<p>Panels registered through <code>ANALYTICS_EXTENSIONS</code> (enterprise or third-party analytics
+add-ons) now declare the lowest board role that may see them with a <code>min_role</code> attribute.
+The board summary drops every panel above the caller's role before calling it. A panel
+with no <code>min_role</code>, or an invalid one, is shown to board admins (and users with
+all-content access) only. Before 1.2 every member, viewers included, received every panel
+unless the panel checked the role itself.</p>
+<p><strong>If you run an analytics extension</strong>, upgrade it to a version that sets <code>min_role</code>, or
+set it yourself (<code>my_panel.min_role = "viewer"</code> for a panel every member should see).
+Until then, non-admin members stop seeing its panels. Installs with no extensions are
+unaffected. See <a href="../../api/boards/#panel-visibility-by-role">panel visibility by role</a>
+(#1826).</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Deleted cards keep their movement history; movements are read-only in the admin</p>
 <p>Hard-deleting a card (or the column or swimlane it is in) no longer deletes its movement

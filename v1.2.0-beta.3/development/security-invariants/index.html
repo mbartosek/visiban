@@ -2973,6 +2973,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rule-12-extension-panels-are-filtered-on-the-callers-role-before-they-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rule 12: Extension panels are filtered on the caller's role before they run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-add-a-rule" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4140,6 +4151,14 @@ functions and to <code>registration_token_kind</code> (Rule 4 dispatch). It does
 enumerate Rule 3 (the revocation table is a review checklist), Rule 5, Rule 9
 or Rule 10 (review checklists, pinned by the tests named under each), and it
 does not test locking; the concurrent tests for each consume-once path do.
+Rules 11 and 12 are enumerated by their own tests instead:
+<code>groups/tests/test_group_member_guards.py</code> <code>GroupMembershipEntryPointTests</code>
+(Rule 11) and <code>boards/tests/test_analytics_panel_min_role_1826.py</code>
+<code>AnalyticsExtensionsEntryPointTests</code> (Rule 12). Both rules also keep their
+shared function outside <code>visiban/authorization.py</code> (<code>groups/services.py</code>
+<code>lock_membership_for_removal_or_demotion</code> and <code>boards/permissions.py</code>
+<code>analytics_extensions_for_role</code>), an accepted deviation from step 5 of
+<a href="#how-to-add-a-rule">How to add a rule</a>.
 <a href="../authorization-entry-points/">Authorization Entry Points</a> says what each
 entry point calls and how that test finds them.</p>
 <h2 id="rule-1-account-state-gates-apply-to-every-transport">Rule 1: Account-state gates apply to every transport<a class="headerlink" href="#rule-1-account-state-gates-apply-to-every-transport" title="Permanent link">&para;</a></h2>
@@ -5118,6 +5137,44 @@ queued on the group row in both orders).</p>
 every group's owner a direct <code>admin</code> membership, promoting a non-admin row or
 adding a missing one, so the owner half of the rule holds for every existing
 group (<code>groups/tests/test_group_owner_admin_repair_1786.py</code>).</p>
+<h2 id="rule-12-extension-panels-are-filtered-on-the-callers-role-before-they-run">Rule 12: Extension panels are filtered on the caller's role before they run<a class="headerlink" href="#rule-12-extension-panels-are-filtered-on-the-callers-role-before-they-run" title="Permanent link">&para;</a></h2>
+<p><strong>Rule.</strong> Every surface that renders <code>ANALYTICS_EXTENSIONS</code> panels gets the
+callables to run from <code>boards/permissions.py</code> <code>analytics_extensions_for_role</code>,
+passing the board role it authorized the request with. A panel whose declared
+<code>min_role</code> ranks above that role (on the <code>boards/invites.py</code> <code>ROLE_RANK</code> ladder)
+is never called. A missing, <code>None</code> or invalid <code>min_role</code> means <code>admin</code>, and a
+<code>None</code> or unknown caller role gets no panels.</p>
+<p><strong>Why.</strong> Panels are enterprise or third-party code that OSS cannot read, and the
+surface that renders them (the board summary) is readable by viewers. Leaving the
+role check to each panel meant one forgotten check exposed that panel's data to
+every viewer, with nothing to notice it. Filtering before the call also keeps a
+panel's queries and side effects from running for a caller who may not see it.
+Failing closed on an undeclared value means a new panel is admin-only until its
+author opts it in.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Entry point</th>
+<th>Enforced via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board summary (REST)</td>
+<td><code>boards/views/analytics.py</code> <code>BoardAnalyticsMixin.summary</code></td>
+<td><code>analytics_extensions_for_role(role)</code> with the role from <code>get_board_for_user</code>, before any panel is called</td>
+</tr>
+</tbody>
+</table>
+<p>No other surface calls the panels: <code>BoardAnalyticsMixin.analytics</code>, MCP, the
+WebSocket consumers, the public share link and board export do not render them.
+A new surface that does is added to this table and calls the same function.</p>
+<p>Coverage: <code>boards/tests/test_analytics_panel_min_role_1826.py</code> (the role matrix
+with call counts, owner, all-content access, group-inherited and overridden
+roles, non-member <code>404</code>, unset and invalid <code>min_role</code>, and
+<code>AnalyticsExtensionsEntryPointTests</code>, which scans the backend for any reference
+to <code>ANALYTICS_EXTENSIONS</code> outside <code>boards/hooks.py</code> and <code>boards/permissions.py</code>).</p>
 <h2 id="how-to-add-a-rule">How to add a rule<a class="headerlink" href="#how-to-add-a-rule" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Write the rule as a statement of behavior, not an implementation: what must

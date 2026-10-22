@@ -4120,6 +4120,10 @@
 <p><strong>Added in 1.2</strong> (#1770)</p>
 </blockquote>
 <p>The Summary tab renders <code>stats</code> and <code>table</code> panels below the swimlane table. See the <a href="../../api/boards/#extension-panel-payload">extension panel payload</a> for the shape. With no extensions registered, the Summary tab looks the same as before.</p>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1826)</p>
+</blockquote>
+<p>Each panel declares the lowest board role that may see it. A member below that role does not get the panel, and a panel that declares nothing is shown to board admins only. See <a href="../../api/boards/#panel-visibility-by-role">panel visibility by role</a>.</p>
 <p><strong>API:</strong> <code>GET /api/v1/boards/{id}/summary/</code></p>
 <h2 id="analytics-view">Analytics view<a class="headerlink" href="#analytics-view" title="Permanent link">&para;</a></h2>
 <p>Shows time-in-stage data derived from <code>CardMovement</code> records.</p>
