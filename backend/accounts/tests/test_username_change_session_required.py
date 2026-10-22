@@ -91,6 +91,26 @@ class UsernameChangeSessionRequirementTests(TestCase):
                 self.assertEqual(self.user.username, OLD)
                 self.assertTrue(self.user.must_change_username)
 
+    def test_token_numeric_username_is_refused(self):
+        # DRF's CharField coerces 1003 to "1003", so it is a rename like any other.
+        for url in PROFILE_ENDPOINTS:
+            for value in (1003, 1.5):
+                with self.subTest(url=url, value=value):
+                    r = _token_client(self.pat).patch(url, {"username": value}, format="json")
+                    self._assert_refused(r)
+
+    def test_token_cannot_clear_a_forced_rename_by_resending_the_name(self):
+        self.user.must_change_username = True
+        self.user.save(update_fields=["must_change_username"])
+        r = _token_client(self.pat).post(CHOOSE_URL, {"username": OLD}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.must_change_username)
+
+    def test_token_resending_the_name_without_a_forced_rename_is_allowed(self):
+        r = _token_client(self.pat).post(CHOOSE_URL, {"username": OLD}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+
     def test_legacy_unscoped_pat_is_refused(self):
         _, legacy = PersonalAccessToken.generate(self.user, "legacy")
         r = _token_client(legacy).patch("/api/v1/auth/me/", {"username": NEW}, format="json")

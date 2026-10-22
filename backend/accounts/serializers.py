@@ -582,12 +582,14 @@ class UserSerializer(serializers.ModelSerializer):
         if self.instance is None or not hasattr(data, "get"):
             return
         requested = data.get("username")
-        if not isinstance(requested, str):
-            # Absent, or a malformed value the username field rejects itself.
+        # DRF's CharField coerces an int or float to its string form, so such a
+        # value is a real rename and must be judged like the string it becomes.
+        # Absent, bool, or any other type is rejected by the field itself (400).
+        if isinstance(requested, bool) or not isinstance(requested, (str, int, float)):
             return
         # The field trims surrounding whitespace, so compare the trimmed value.
         if credentials_module.username_change_requires_session(
-            self.context.get("request"), self.instance.username, requested.strip()
+            self.context.get("request"), self.instance.username, str(requested).strip()
         ):
             raise PermissionDenied(credentials_module.USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE)
 

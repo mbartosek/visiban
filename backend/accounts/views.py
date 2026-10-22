@@ -895,8 +895,14 @@ class ChooseUsernameView(APIView):
         # A username is a login identifier: only an interactive session may
         # change it. Checked before validation so a token caller gets the same
         # 403 whatever the name. Resending the stored name is not a change.
+        # Also refused while a forced rename is pending, even for the stored
+        # name: this route clears ``must_change_username``, and a token must
+        # not be able to dismiss that requirement without a rename.
         if credentials.username_change_requires_session(
             request, request.user.username, username
+        ) or (
+            request.user.must_change_username
+            and not credentials.request_is_interactive_session(request)
         ):
             raise PermissionDenied(credentials.USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE)
 
