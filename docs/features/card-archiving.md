@@ -47,4 +47,6 @@ Deleting a board permanently deletes every card on it, including archived cards.
 
 Archived cards count toward the typed confirmation too: if a board holds any cards, active **or** archived, you must type the board's name before **Delete** is enabled. A board with no active cards but hundreds of archived ones can no longer be deleted with a single click. Only a board with no cards at all deletes without typing its name.
 
-The active card count shown elsewhere (for example on the dashboard) still excludes archived cards; the delete dialogs report the two numbers separately. *(Since 1.2, #1289.)*
+> **Added in 1.2** (#1289)
+
+The active card count shown elsewhere (for example on the dashboard) still excludes archived cards; the delete dialogs report the two numbers separately.

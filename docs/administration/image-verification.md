@@ -1,6 +1,8 @@
 # Verifying release images and the Helm chart
 
-*(New in 1.2)* Every Visiban release cut after image signing shipped (the first release after
+> **Added in 1.2**
+
+Every Visiban release cut after image signing shipped (the first release after
 `v1.2.0-alpha.4`) is signed keyless with [Sigstore cosign](https://docs.sigstore.dev/)
 by the GitLab CI job that published it, so you can check that what you pull was built and
 pushed by Visiban's release pipeline rather than trusting the registry:
