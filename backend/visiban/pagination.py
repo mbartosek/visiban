@@ -1,7 +1,21 @@
+from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
+from django.utils.dateparse import parse_datetime
+
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import CursorPagination, LimitOffsetPagination
 from rest_framework.response import Response
+
+from visiban.exceptions import INVALID_QUERY_PARAM, CodedValidationError
+
+# Postgres stores a UTC offset only below 16 hours (same bound as
+# boards.views._helpers.BoundedDateTimeFilter, #1120).
+_PG_MAX_UTC_OFFSET = timedelta(hours=16)
+
+
+def _invalid_cursor():
+    return CodedValidationError(INVALID_QUERY_PARAM, "cursor is not a valid page cursor.")
 
 
 class OffsetCountPagination(LimitOffsetPagination):
@@ -83,6 +97,38 @@ class CardQueryCursorPagination(CursorPagination):
         "created_at": ("created_at", "id"),
         "-created_at": ("-created_at", "-id"),
     }
+
+    def decode_cursor(self, request):
+        """DRF's decode, with a malformed cursor as the bad-query-param 400 (#1832).
+
+        DRF answers an undecodable ``?cursor=`` with ``404 {"detail": "Invalid
+        cursor"}``. A garbled query parameter is a client error, not a missing
+        resource, and the refused query parameters listed in docs/api/index.md
+        ("Bad query parameters") answer ``400`` with
+        ``code: "invalid_query_param"``. ``GET /cards/`` is new in 1.2, so the
+        404 never shipped in a GA. ``decode_cursor`` raises ``NotFound`` only
+        for an undecodable cursor, so catching it here changes nothing else.
+
+        A cursor that decodes but carries a position that is not a datetime
+        (hand-built, e.g. ``p=notadate``) used to reach the ORM filter and 500.
+        Every allowed ordering is a datetime column (``_ALLOWED_ORDERINGS``),
+        so the position is checked here: it must parse as a datetime, with a
+        UTC offset Postgres can store (the cursors this class issues are
+        always ``+00:00``; see ``BoundedDateTimeFilter`` for the 16-hour bound).
+        """
+        try:
+            cursor = super().decode_cursor(request)
+        except NotFound:
+            raise _invalid_cursor() from None
+        if cursor is not None and cursor.position is not None:
+            try:
+                position = parse_datetime(cursor.position)
+            except ValueError:
+                position = None
+            offset = position.utcoffset() if position is not None else None
+            if position is None or (offset is not None and abs(offset) >= _PG_MAX_UTC_OFFSET):
+                raise _invalid_cursor()
+        return cursor
 
     def get_ordering(self, request, queryset, view):
         requested = request.query_params.get("ordering")

@@ -473,6 +473,11 @@ class ActionLogEndpointTests(AuditBaseTest):
         self.client.force_authenticate(self.admin)
         r = self.client.get(ACTION_LOG_URL, {"action": "bogus.action"})
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        # The API's bad-query-param shape (#1832), not a field-keyed body.
+        self.assertEqual(
+            r.json(),
+            {"detail": "'bogus.action' is not a valid action.", "code": "invalid_query_param"},
+        )
 
     def test_write_methods_are_not_allowed(self):
         """Append-only: an audit log an admin can edit is not evidence."""

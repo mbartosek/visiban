@@ -84,21 +84,30 @@ Many errors carry a machine-readable `code` next to the human-readable `detail`:
 
 > **Added in 1.2**
 
-**Bad query parameters.** The target shape for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`. These parameters answer with it:
+**Bad query parameters.** The query parameters listed below answer a refused value (not an integer, out of range, not one of the allowed values, a cursor the server cannot use) with `400 Bad Request`, `{detail, code}` and `code: "invalid_query_param"`:
+
+```json
+{ "detail": "offset must not exceed 4611686018427387904.", "code": "invalid_query_param" }
+```
+
+This covers:
 
 - `GET /boards/{id}/analytics/`: `days` and `stalled_days`
 - `GET /boards/{id}/cards/`: `limit`
 - `GET /boards/{id}/movements/`: `moved_after`, `moved_before`, `swimlane_id`, `to_column_id` and `moved_by_id`
-
-These parameters still answer `400` with a field-keyed body (`{"<param>": ...}`) and no `code`; moving them to the shape above is tracked in #1832:
-
 - `GET /boards/{id}/events/`: `after` and `limit`
 - An `offset` above `2^62` on `GET /boards/{id}/movements/`, `GET /boards/{id}/cards/`, `GET /boards/{id}/cards/archived/` and `GET /boards/{id}/cards/{id}/timeline/`
+- `GET /boards/{id}/cards/{id}/timeline/`: an unknown group in `event_types`. Before 1.2 this body was `{detail}` only; `code` is added
 - `GET /admin/action-log/`: `action`
 - `GET /admin/board-invite-links/`: `status`
-- Card filter parameters whose value fails the filter's type check, on `GET /boards/{id}/cards/` (for example `assignee=x` answers `{"assignee": ["Enter a number."]}` and `due_before=x` answers `{"due_before": ["Enter a valid date."]}`) and on `GET /cards/` (`updated_since=x` answers `{"updated_since": ["Enter a valid date/time."]}`)
+- `GET /cards/`: a `cursor` that cannot be decoded, or whose position is not a timestamp Postgres can store (not a valid date and time, or a UTC offset of 16 hours or more)
+- Card filter parameters whose value fails the filter's type check, on `GET /boards/{id}/cards/` and `GET /cards/`. These also keep the field-keyed entry the board card list has answered with since 1.1, so a 1.1 client that reads it is unaffected:
 
-One parameter answers a third shape, `{detail}` with no `code`: an unknown group in `event_types` on `GET /boards/{id}/cards/{id}/timeline/` (`{"detail": "Invalid event_types: ..."}`).
+```json
+{ "assignee": ["Enter a number."], "detail": "assignee: Enter a number.", "code": "invalid_query_param" }
+```
+
+Branch on `code`, not on which parameter key is present.
 
 Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
 
@@ -134,7 +143,7 @@ Some list endpoints deliberately **do not** use it. Check the endpoint's own pag
 | Endpoint | Shape |
 |---|---|
 | `GET /cards/` | Cursor pagination: `{results, next_cursor}`. See [Cards API](cards.md) |
-| `GET /boards/{id}/cards/` | Bare array, capped at 200 rows, with `X-Total-Count` / `X-Truncated` headers and optional `limit` / `offset`. A deliberate second pagination style: it keeps `limit` (not `page_size`) because the response has no envelope to carry a `count`, and the same `limit` / `total` / `truncated` vocabulary is what MCP `list_cards` exposes, so the two stay in step. A negative or non-integer `offset` is `0`, like every other endpoint; a bad `limit` is a `400` with `{detail, code: "invalid_query_param"}`. An `offset` above 2^62 is rejected by the shared `parse_offset` with a field-keyed `400` (`{"offset": "..."}`), as on every endpoint that takes `offset`. See [Cards API](cards.md) |
+| `GET /boards/{id}/cards/` | Bare array, capped at 200 rows, with `X-Total-Count` / `X-Truncated` headers and optional `limit` / `offset`. A deliberate second pagination style: it keeps `limit` (not `page_size`) because the response has no envelope to carry a `count`, and the same `limit` / `total` / `truncated` vocabulary is what MCP `list_cards` exposes, so the two stay in step. A negative or non-integer `offset` is `0`, like every other endpoint; a bad `limit` is a `400` with `{detail, code: "invalid_query_param"}`. An `offset` above 2^62 is a `400` with `{detail, code: "invalid_query_param"}`, as on every endpoint that takes `offset`. See [Cards API](cards.md) |
 | `GET /boards/{id}/movements/` and `GET /boards/{id}/cards/archived/` | The standard envelope, but the page size is fixed at `50` and `page_size` is ignored; only `offset` pages |
 | `GET /boards/{id}/cards/{card_id}/timeline/` | `limit` (default 50, max 200) and `offset`, with `next` / `previous` links. See [Cards API](cards.md) |
 | `GET /boards/{id}/events/` | `{results, next}` cursor feed. See [Change Feed](events.md) |

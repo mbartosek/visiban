@@ -9,10 +9,11 @@ from django.core.mail import EmailMessage
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_field, inline_serializer
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_field, inline_serializer
 from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.throttling import UserRateThrottle
+from visiban.exceptions import INVALID_QUERY_PARAM, INVALID_QUERY_PARAM_SCHEMA, CodedValidationError
 from visiban.pagination import OffsetCountPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -863,19 +864,53 @@ class AdminActionLogView(APIView):
     permission_classes = _ADMIN_PERMISSIONS
     pagination_class = AdminActionLogPagination
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "action", str, enum=list(AdminActionLog.Action.values), required=False,
+                description="Only rows with this action.",
+            ),
+            OpenApiParameter(
+                "offset", int, required=False,
+                description="Zero-based row offset (default 0).",
+            ),
+            OpenApiParameter(
+                "page_size", int, required=False,
+                description=(
+                    f"Rows per page (default {AdminActionLogPagination.default_limit}, "
+                    f"max {AdminActionLogPagination.max_limit})."
+                ),
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="AdminActionLogList",
+                fields={
+                    "count": drf_serializers.IntegerField(),
+                    "offset": drf_serializers.IntegerField(),
+                    "page_size": drf_serializers.IntegerField(),
+                    "results": AdminActionLogSerializer(many=True),
+                },
+            ),
+            400: OpenApiResponse(
+                description='Unknown `action` (`{"detail": ..., "code": "invalid_query_param"}`).',
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
+        },
+    )
     def get(self, request):
         qs = AdminActionLog.objects.all()
 
         # Validated against the enum at the boundary rather than passed to the
         # ORM as-is: an unknown value is a caller error worth a 400, not a
-        # silently empty page that reads like "nothing ever happened".
+        # silently empty page that reads like "nothing ever happened". The
+        # body is the API's bad-query-param shape (#1832); this endpoint is
+        # new in 1.2, so its field-keyed body appeared only in 1.2
+        # pre-releases, never in a GA.
         action = request.query_params.get("action", "").strip()
         if action:
             if action not in AdminActionLog.Action.values:
-                return Response(
-                    {"action": [f"'{action}' is not a valid action."]},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                raise CodedValidationError(INVALID_QUERY_PARAM, f"'{action}' is not a valid action.")
             qs = qs.filter(action=action)
 
         paginator = self.pagination_class()
@@ -1501,9 +1536,9 @@ class AdminBoardInviteLinkListView(APIView):
                     "results": AdminBoardInviteLinkSerializer(many=True),
                 },
             ),
-            400: inline_serializer(
-                name="AdminBoardInviteLinkListBadStatus",
-                fields={"status": drf_serializers.ListField(child=drf_serializers.CharField())},
+            400: OpenApiResponse(
+                description='Unknown `status` (`{"detail": ..., "code": "invalid_query_param"}`).',
+                response=INVALID_QUERY_PARAM_SCHEMA,
             ),
         },
     )
@@ -1511,12 +1546,12 @@ class AdminBoardInviteLinkListView(APIView):
         from boards.models import BoardInviteLink
 
         value = request.query_params.get("status", "").strip() or "pending"
-        # An unknown value is a caller error, not a silently empty page.
+        # An unknown value is a caller error, not a silently empty page. The
+        # body is the API's bad-query-param shape (#1832); this endpoint is
+        # new in 1.2, so its field-keyed body appeared only in 1.2
+        # pre-releases, never in a GA.
         if value not in BOARD_INVITE_STATUS_FILTERS:
-            return Response(
-                {"status": [f"'{value}' is not a valid status."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise CodedValidationError(INVALID_QUERY_PARAM, f"'{value}' is not a valid status.")
         qs = (
             BoardInviteLink.objects.filter(_board_invite_status_q(value, timezone.now()))
             .select_related("board", "created_by")

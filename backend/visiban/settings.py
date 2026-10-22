@@ -512,7 +512,9 @@ REST_FRAMEWORK = {
         "accounts.permissions.TokenHasScope",
     ],
     "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
+        # DjangoFilterBackend plus the bad-query-param ``detail``/``code`` on
+        # its 400 (#1832); see visiban/filters.py.
+        "visiban.filters.CodedDjangoFilterBackend",
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

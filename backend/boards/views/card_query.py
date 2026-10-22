@@ -24,7 +24,8 @@ from django.utils import timezone
 from rest_framework import mixins, serializers, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import UserRateThrottle
-from django_filters.rest_framework import DjangoFilterBackend
+
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 
 from accounts.permissions import TokenHasScope
 from accounts.serializers import BoardUserSerializer
@@ -32,6 +33,8 @@ from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
 )
+from visiban.exceptions import INVALID_QUERY_PARAM_SCHEMA
+from visiban.filters import CodedDjangoFilterBackend
 from visiban.pagination import CardQueryCursorPagination
 
 from ..models import Card
@@ -240,6 +243,21 @@ class CardQueryFilter(django_filters.FilterSet):
 # ViewSet
 # ---------------------------------------------------------------------------
 
+@extend_schema_view(
+    list=extend_schema(
+        responses={
+            200: CardQuerySerializer(many=True),
+            400: OpenApiResponse(
+                description=(
+                    "A malformed `cursor`, or a filter value that fails its type check "
+                    '(`{"detail": ..., "code": "invalid_query_param"}`; a filter error also '
+                    "keeps its field-keyed entry, e.g. `updated_since`)."
+                ),
+                response=INVALID_QUERY_PARAM_SCHEMA,
+            ),
+        },
+    ),
+)
 class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """GET /api/v1/cards/ — paginated, filterable, cross-board card query.
 
@@ -276,12 +294,13 @@ class CardQueryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     throttle_classes = [CardQueryRateThrottle]
     serializer_class = CardQuerySerializer
     filterset_class = CardQueryFilter
-    # DjangoFilterBackend only — the global default also includes
+    # The filter backend only (CodedDjangoFilterBackend: DjangoFilterBackend
+    # plus the #1832 ``detail``/``code`` on its 400) — the global default also includes
     # rest_framework.filters.OrderingFilter, which CardQueryCursorPagination
     # deliberately does not rely on (see its docstring): letting OrderingFilter
     # supply cursor ordering would allow any single serializer field with no
     # forced tiebreaker, breaking cursor stability on ties.
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [CodedDjangoFilterBackend]
     pagination_class = CardQueryCursorPagination
 
     def get_queryset(self):

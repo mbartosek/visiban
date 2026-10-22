@@ -126,8 +126,8 @@ _ANALYTICS_400 = OpenApiResponse(
 
 _MOVEMENTS_400 = OpenApiResponse(
     description=(
-        "`moved_after` or `moved_before` is not an ISO date, or `swimlane_id`, `to_column_id` or "
-        "`moved_by_id` is not an integer (`code: invalid_query_param`)."
+        "`moved_after` or `moved_before` is not an ISO date, `swimlane_id`, `to_column_id` or "
+        "`moved_by_id` is not an integer, or `offset` is above 2^62 (`code: invalid_query_param`)."
     ),
     response=_BAD_QUERY_PARAM_SERIALIZER,
 )
