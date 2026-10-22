@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import MovementHistoryView from '../components/Board/MovementHistoryView'
+import { useEscapeStack } from '../hooks/useEscapeStack'
 import type { BoardFull, CardMovement } from '../types'
 
 vi.mock('../api/boards', () => ({
@@ -277,6 +278,71 @@ describe('MovementHistoryView — slide-in panel', () => {
     await waitFor(() =>
       expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
     )
+  })
+
+  it('does not swallow ArrowUp/ArrowDown typed inside a filter input (#1853)', async () => {
+    renderView()
+    await waitFor(() => screen.getByTestId('history-row'))
+    const input = document.querySelector('input') as HTMLInputElement
+    input.focus()
+    const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+    input.dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(false)
+    const up = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })
+    input.dispatchEvent(up)
+    expect(up.defaultPrevented).toBe(false)
+  })
+
+  it('still handles ArrowDown from the table (#1853)', async () => {
+    renderView()
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    row.focus()
+    const down = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+    row.dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(true)
+  })
+
+  it('Enter opens the slide-in only from a row, not from a filter input (#1853)', async () => {
+    renderView()
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    row.focus()
+    fireEvent.keyDown(row, { key: 'ArrowDown' })
+    const input = document.querySelector('input') as HTMLInputElement
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
+    row.focus()
+    fireEvent.keyDown(row, { key: 'Enter' })
+    await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
+  })
+
+  it('Escape closes only the slide-in and does not reach a lower-priority handler (#1853)', async () => {
+    const lower = vi.fn()
+    function Harness() {
+      useEscapeStack(() => { lower() }, 15)
+      return <MovementHistoryView board={fakeBoard} />
+    }
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    fireEvent.click(row)
+    await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
+    )
+    expect(lower).not.toHaveBeenCalled()
+
+    // With the slide-in closed, Escape falls through to the lower handler.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(lower).toHaveBeenCalledTimes(1)
+  })
+
+  it('table uses plain table semantics, not role=grid (#1853)', async () => {
+    renderView()
+    await waitFor(() => screen.getByTestId('history-row'))
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Movement history' })).toBeInTheDocument()
   })
 
   it('panel shows from/to column names', async () => {

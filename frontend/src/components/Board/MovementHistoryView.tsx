@@ -5,6 +5,8 @@ import type { BoardFull, CardMovement, User } from "../../types";
 import { userDisplayName } from "../../types";
 import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { formatDateTimeUser } from "../../utils/date";
+import { shouldIgnoreShortcut } from "../../utils/keyboard";
+import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { importedNote } from "../../utils/importedHistory";
 import type { UserDatePrefs } from "../../utils/date";
 
@@ -222,10 +224,24 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     setSelectedMovement(null);
   }, []);
 
-  // Keyboard navigation.
+  // Escape closes the slide-in through the shared stack at priority 30 (side
+  // panels), above BoardView's history-to-board handler at 15, so one keypress
+  // closes only the slide-in. Returning false when nothing is open lets Escape
+  // fall through to the board handler.
+  useEscapeStack(() => {
+    if (selectedMovement === null) return false;
+    setSelectedMovement(null);
+  }, 30);
+
+  // Keyboard navigation. Arrows must not be swallowed while a filter input or
+  // an open dropdown menu has focus, and Enter only opens the slide-in when a
+  // table row itself has focus (so it never hijacks a button or input).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!data?.results.length) return;
+      if (shouldIgnoreShortcut(e.target)) return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target?.closest('[role="menu"], [role="listbox"], [role="menuitem"]')) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setFocusedIndex((i) => Math.min((i ?? -1) + 1, data.results.length - 1));
@@ -233,14 +249,13 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
         e.preventDefault();
         setFocusedIndex((i) => Math.max((i ?? 1) - 1, 0));
       } else if (e.key === "Enter" && focusedIndex !== null) {
+        if (!target?.closest('[data-testid="history-row"]')) return;
         setSelectedMovement(data.results[focusedIndex]);
-      } else if (e.key === "Escape" && selectedMovement !== null) {
-        setSelectedMovement(null);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [data, focusedIndex, selectedMovement]);
+  }, [data, focusedIndex]);
 
   // Scroll the focused row into view when focus moves.
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
@@ -369,7 +384,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
           <>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto">
-              <table className="w-full text-sm border-collapse" role="grid" aria-label="Movement history">
+              <table className="w-full text-sm border-collapse" aria-label="Movement history">
                 <thead className="sticky top-0 bg-sunken z-10">
                   <tr>
                     <th className="text-left px-4 py-2 text-xs text-fg-muted font-medium uppercase tracking-wide w-36">Time</th>
@@ -391,8 +406,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
                         }}
                         onFocus={() => setFocusedIndex(idx)}
                         tabIndex={0}
-                        role="row"
-                        aria-selected={isSelected}
+                        aria-current={isSelected ? "true" : undefined}
                         data-testid="history-row"
                         className={`border-b border-line-subtle cursor-pointer transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-primary-emphasis ${
                           isSelected
