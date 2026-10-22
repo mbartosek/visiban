@@ -57,6 +57,11 @@
      --urgent-on-tint is red-200 on `bg-urgent/20` over surface (slate-800): 9.5:1 (11.3:1 on sunken). */
   --urgent: 185 28 28;             /* red-700 */
   --urgent-on-tint: 254 202 202;   /* red-200 */
+  /* Stale 3x aging stage (#1841): `bg-stale-severe/20` overlay + `ring-2 ring-inset ring-stale-severe`.
+     Reserved for cards idle >= 3x the board threshold; not the urgent priority, not generic danger.
+     Dark uses red-500, not a maroon: a true maroon /20 over slate-800 is ~1.03:1, invisible. The ring is the
+     3x discriminator here: 3.21:1 against its own fill composite, 5.36:1 against canvas. */
+  --stale-severe: 239 68 68;       /* red-500 */
 
   /* Interactive — primary action (Visiban brand blue).
      The `-bg` variants are the solid button fills; `-emphasis` and `-soft` are
@@ -137,6 +142,8 @@
   /* Urgent (#1594): red-700 fill/border; red-900 text on `bg-urgent/20` over white: 7.1:1 (6.8:1 on sunken). */
   --urgent: 185 28 28;             /* red-700 */
   --urgent-on-tint: 127 29 29;     /* red-900 */
+  /* Stale 3x aging stage (#1841): maroon fill + ring. Ring vs its fill composite 6.91:1, vs canvas 9.15:1. */
+  --stale-severe: 127 29 29;       /* red-900 */
 
   /* Brand-tint surfaces stay on Visiban blue-600 in light mode (avatars, active tabs, toggles). */
   --primary: 37 99 235;

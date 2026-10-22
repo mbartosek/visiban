@@ -233,7 +233,7 @@ describe('CardItem', () => {
     const root = container.firstChild as HTMLElement
     const overlay = root.querySelector('[aria-hidden="true"]')
     expect(overlay).toBeInTheDocument()
-    expect(overlay?.className).toContain('bg-warning/10')
+    expect(overlay?.className).toContain('bg-warning-emphasis/10')
   })
 
   it('shows stale overlay when card is past the threshold', () => {
@@ -248,7 +248,171 @@ describe('CardItem', () => {
     const root = container.firstChild as HTMLElement
     const overlay = root.querySelector('[aria-hidden="true"]')
     expect(overlay).toBeInTheDocument()
-    expect(overlay?.className).toContain('bg-warning/20')
+    expect(overlay?.className).toContain('bg-warning/15')
+  })
+
+  // ---- #1841: graduated staleness ramp ----
+
+  const renderAged = (days: number, overrides: Partial<Card> = {}, density: 'comfortable' | 'dense' = 'comfortable', inDoneColumn = false) =>
+    render(
+      <CardItem
+        density={density}
+        card={makeCard({ last_moved_at: new Date(Date.now() - days * 86_400_000 - 60_000).toISOString(), ...overrides })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+        inDoneColumn={inDoneColumn}
+      />
+    )
+  const overlayOf = (container: HTMLElement) =>
+    (container.firstChild as HTMLElement).querySelector('[aria-hidden="true"]') as HTMLElement | null
+
+  it('renders distinct overlays at 1.5x, 2.5x and 4x the threshold, with an inset ring only at 3x+', () => {
+    const a = overlayOf(renderAged(21).container)
+    const b = overlayOf(renderAged(35).container)
+    const c = overlayOf(renderAged(56).container)
+    expect(a?.className).toContain('bg-warning/15')
+    expect(b?.className).toContain('bg-danger/15')
+    expect(c?.className).toContain('bg-stale-severe/20')
+    expect(c?.className).toContain('ring-inset')
+    expect(b?.className).not.toContain('ring-')
+  })
+
+  it('keeps the priority-colored border on the darkest stage (ring sits on the overlay, not the card)', () => {
+    const { container } = renderAged(56, { priority: 'high' })
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    expect(cardEl.style.borderColor).not.toBe('')
+    expect(cardEl.className).not.toContain('ring-stale-severe')
+  })
+
+  it('stale badge states the idle days and uses the stage on-tint tone', () => {
+    renderAged(41, { is_stale: true })
+    const badge = screen.getByText('Stale · 41d')
+    expect(badge.className).toContain('text-danger-on-tint')
+    expect(badge).toHaveAttribute('title', 'Stale · 41d · 2.9× the 14d threshold')
+  })
+
+  it('stale badge below 2x uses the warning on-tint tone', () => {
+    renderAged(20, { is_stale: true })
+    expect(screen.getByText('Stale · 20d').className).toContain('text-warning-on-tint')
+  })
+
+  // A never-moved card (e.g. Trello/CSV import) ages from created_at, like the
+  // server's is_stale fallback — the imported-board case #1841 opens with.
+  it.each([
+    [21, 'bg-warning/15', 'Stale · 21d'],
+    [56, 'bg-stale-severe/20', 'Stale · 56d'],
+  ])('a never-moved card created %i days ago ages from created_at', (days, overlay, label) => {
+    const { container } = render(
+      <CardItem
+        density="comfortable"
+        card={makeCard({ is_stale: true, last_moved_at: null, created_at: new Date(Date.now() - days * 86_400_000 - 60_000).toISOString() })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+      />
+    )
+    expect(overlayOf(container)?.className).toContain(overlay)
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('a never-moved card created just now has no tint', () => {
+    const { container } = render(
+      <CardItem density="comfortable" card={makeCard({ last_moved_at: null, created_at: new Date().toISOString() })} staleness_threshold_days={14} stale_warning_pct={50} />
+    )
+    expect(container.querySelector('div.absolute.inset-0.rounded-md.pointer-events-none')).not.toBeInTheDocument()
+  })
+
+  it('a selected card drops the bg-info/20 fill under an aging tint but keeps the ring', () => {
+    const { container } = render(
+      <CardItem
+        density="comfortable"
+        card={makeCard({ is_stale: true, last_moved_at: new Date(Date.now() - 56 * 86_400_000).toISOString() })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+        selected
+      />
+    )
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    expect(cardEl.className).toContain('ring-primary-soft')
+    expect(cardEl.className).not.toContain('bg-info/20')
+  })
+
+  it('a selected untinted card keeps the bg-info/20 fill', () => {
+    const { container } = render(
+      <CardItem density="comfortable" card={makeCard({ last_moved_at: new Date().toISOString() })} selected />
+    )
+    expect((container.querySelector('[data-tour-step="card"]') as HTMLElement).className).toContain('bg-info/20')
+  })
+
+  it('a non-stale urgency badge on a tinted card uses its on-tint tone', () => {
+    const past = new Date(Date.now() - 2 * 86_400_000).toISOString()
+    renderAged(10, { due_date: past.slice(0, 10) })
+    const badge = document.querySelector('span[title^="Due "]') as HTMLElement
+    expect(badge.className).toContain('text-danger-on-tint')
+  })
+
+  it('hover tooltip on a stale, blocked card states idle days and blockers', () => {
+    const { container } = renderAged(41, { is_stale: true, blocker_count: 2 })
+    fireEvent.mouseEnter(container.querySelector('[data-tour-step="card"]') as HTMLElement)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Stale · 41d · 2.9× the 14d threshold · blocked by 2 cards')
+  })
+
+  it('aging tooltip opens on keyboard focus and closes on blur', () => {
+    const { container } = renderAged(41, { is_stale: true })
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    // jsdom has no input modality, so stand in for :focus-visible matching.
+    const spy = vi.spyOn(cardEl, 'matches').mockReturnValue(true)
+    fireEvent.focus(cardEl)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Stale · 41d')
+    fireEvent.blur(cardEl)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    spy.mockRestore()
+  })
+
+  it('aging tooltip opens on focus where :focus-visible is unsupported', () => {
+    const { container } = renderAged(41, { is_stale: true })
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    const spy = vi.spyOn(cardEl, 'matches').mockImplementation(() => { throw new SyntaxError('unsupported') })
+    fireEvent.focus(cardEl)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    spy.mockRestore()
+  })
+
+  it('aging tooltip does not open when focus is not keyboard-driven', () => {
+    const { container } = renderAged(41, { is_stale: true })
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    const spy = vi.spyOn(cardEl, 'matches').mockReturnValue(false)
+    fireEvent.focus(cardEl)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    spy.mockRestore()
+  })
+
+  it('a card in a done column at 4x gets no tint, no Stale badge and no aging tooltip', () => {
+    const { container } = renderAged(56, { is_stale: true, blocker_count: 1 }, 'comfortable', true)
+    expect(container.querySelector('div.absolute.inset-0.rounded-md.pointer-events-none')).not.toBeInTheDocument()
+    const cardEl = container.querySelector('[data-tour-step="card"]') as HTMLElement
+    expect(cardEl.querySelector('.opacity-85, .opacity-90')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Stale/)).not.toBeInTheDocument()
+    fireEvent.mouseEnter(cardEl)
+    expect(screen.queryByText(/Stale ·|Idle \d+d/)).not.toBeInTheDocument()
+  })
+
+  it('the same 4x card outside a done column is tinted and badged', () => {
+    const { container } = renderAged(56, { is_stale: true }, 'comfortable', false)
+    expect(overlayOf(container)?.className).toContain('bg-stale-severe/20')
+    expect(screen.getByText('Stale · 56d')).toBeInTheDocument()
+  })
+
+  it('a due-soon badge on a red (2x) stage uses danger-on-tint, not sub-AA amber', () => {
+    const soon = new Date(Date.now() + 24 * 3600_000).toISOString()
+    renderAged(35, { due_date: soon })
+    const badge = document.querySelector('span[title^="Due "]') as HTMLElement
+    expect(badge.className).toContain('text-danger-on-tint')
+  })
+
+  it('hover tooltip in the warning stage states idle days and both edges', () => {
+    const { container } = renderAged(9, {}, 'dense')
+    fireEvent.mouseEnter(container.querySelector('[data-tour-step="card"]') as HTMLElement)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Idle 9d · warning at 7d · stale at 14d')
   })
 
   it('shows no overlay when card is fresh (moved recently)', () => {

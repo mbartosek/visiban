@@ -102,7 +102,35 @@ Dwell time is the gap between two consecutive `CardMovement` records. The Analyt
 
 ## Stale card detection
 
-A card is stale if its most recent `CardMovement` is older than the board's `staleness_threshold_days` (default: 7 days) — it gets an amber tint overlay with reduced opacity in the board view. See [Notifications](notifications.md).
+A card is stale if its most recent `CardMovement` is older than the board's `staleness_threshold_days` (default: 7 days), or, for a card that has never moved, if it was created longer ago than that. See [Notifications](notifications.md) for the daily stale-card digest.
+
+### Card aging tint
+
+> **Changed in 1.2** (#1841)
+
+On the board, a card's tint shows how long it has been idle, measured in multiples of the board's threshold. Idle time counts from the card's last move. A card that has never moved, such as one imported from Trello or CSV, counts from its creation date, the same rule the stale check uses. The tint deepens in fixed steps:
+
+| Idle time (multiples of the threshold) | Tint |
+|---|---|
+| Below the warning point | None. A fresh card is never colored. |
+| Warning point up to 1× | Faint yellow |
+| 1× up to 2× | Orange |
+| 2× up to 3× | Red |
+| 3× and beyond | Deep red with a red inset outline |
+
+Each step starts exactly at its edge. With a 14-day threshold, a card idle exactly 28 days is red, not orange. The multiples (1×, 2×, 3×) are fixed and are not a board setting. There is no green step, because the tint marks cards that need a look, never cards that are "good". The tint reports age only. It does not mean a card is stuck: a card waiting on an outside party ages the same way. Cards in a done column never age: they get no tint and no "Stale" badge, however long ago they last moved. The daily stale-card digest currently still includes them; that mismatch is tracked in #1845.
+
+Color is never the only signal:
+
+- Card text fades slightly as the card ages.
+- The darkest step adds an outline inside the card's priority-colored border, so the priority color stays visible.
+- At Comfortable and Standard density, a stale card's badge states its idle days, for example `Stale · 41d`.
+- Hovering a tinted card shows the idle days and the threshold. A stale card also shows how many multiples of the threshold it has reached and any cards blocking it, for example `Stale · 41d · 2.9× the 14d threshold · blocked by 2 cards`.
+
+The **warning point** is the board's `stale_warning_pct`: the percentage of the threshold a card has used before the yellow tint appears. With a 14-day threshold and 75%, the yellow tint starts at 10.5 days. `0` turns the yellow step off, and `100` makes it coincide with the threshold. Both values are set in **Board Settings → Card aging settings**, and the [analytics heatmap](analytics.md#color-coding) uses the same warning point.
+
+!!! note "Before 1.2"
+    The tint had two steps, and every card past the threshold looked the same however long it had been idle. Before 1.2, `stale_warning_pct` was also applied inverted, so the warning point was `100 − stale_warning_pct` percent of the threshold. For example, a board set to 75% showed the warning after 25% of the threshold. Boards on the default 50% are unaffected. Boards with any other value see the warning point move to the percentage the setting states.
 
 ## API access
 

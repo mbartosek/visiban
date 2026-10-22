@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import tw from '../../tailwind.config.js?raw'
 import { describe, expect, it } from 'vitest'
 import { INVITE_STATUS_STYLES } from '../constants/invites'
+import { AGING_STAGE_CLASSES } from '../utils/agingTint'
 
 // #1550: every on-tint text token must be declared in both theme blocks of index.css and exposed
 // to Tailwind. Read from disk: Vitest stubs CSS imports (`?raw` on a .css file comes back empty).
@@ -68,5 +69,64 @@ describe('urgent-on-tint contrast (#1594)', () => {
       expect(r).toBeGreaterThanOrEqual(4.5)
       expect(r).toBeGreaterThanOrEqual(pinned)
     }
+  })
+})
+
+// #1841: pin the card aging ramp contrast recorded in frontend/CLAUDE.md § Card aging ramp.
+// The overlay is `bg-<hue>/<alpha>` over the card's bg-surface; the card body (title and
+// urgency badge) renders at the stage's opacity, so its effective color is the text blended
+// toward that composite. Each stage lists the text tokens that may sit on it.
+describe('card aging ramp contrast (#1841)', () => {
+  // Hue, alpha and opacity are parsed from the real stage classes, so changing a
+  // stage's fill or opacity re-runs this check against the new values.
+  const parse = (stage: keyof typeof AGING_STAGE_CLASSES) => {
+    const { overlayClass, bodyOpacityClass } = AGING_STAGE_CLASSES[stage]
+    const fill = /\bbg-([a-z-]+)\/(\d+)\b/.exec(overlayClass ?? '')
+    const op = /^opacity-(\d+)$/.exec(bodyOpacityClass)
+    if (!fill || !op) throw new Error(`unparseable classes for ${stage}`)
+    return { hue: fill[1], alpha: Number(fill[2]) / 100, opacity: Number(op[1]) / 100 }
+  }
+  type Stage = [name: string, hue: string, alpha: number, opacity: number, texts: string[]]
+  const withTexts = (stage: 'warning' | 'stale' | 'stale2x' | 'stale3x', texts: string[]): Stage => {
+    const { hue, alpha, opacity } = parse(stage)
+    return [stage, hue, alpha, opacity, texts]
+  }
+  const stages: Stage[] = [
+    withTexts('warning', ['fg', 'warning-on-tint', 'danger-on-tint', 'info-on-tint']),
+    withTexts('stale', ['fg', 'warning-on-tint', 'danger-on-tint', 'info-on-tint']),
+    withTexts('stale2x', ['fg', 'danger-on-tint', 'info-on-tint']),
+    withTexts('stale3x', ['fg', 'danger-on-tint', 'info-on-tint']),
+  ]
+  const blend = (top: number[], bottom: number[], a: number) => top.map((v, i) => a * v + (1 - a) * bottom[i])
+
+  it.each(stages)('%s: card title and badge text hold >= 4.5:1 in both themes', (_n, hue, alpha, opacity, texts) => {
+    for (const block of [darkBlock, lightBlock]) {
+      const tint = blend(rgbOf(block, hue), rgbOf(block, 'surface'), alpha)
+      for (const t of texts) {
+        expect(ratio(blend(rgbOf(block, t), tint, opacity), tint)).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('amber warning-on-tint is sub-AA on the red stages, which is why due-soon moves to danger-on-tint there', () => {
+    const { hue, alpha, opacity } = parse('stale3x')
+    const tint = blend(rgbOf(lightBlock, hue), rgbOf(lightBlock, 'surface'), alpha)
+    expect(ratio(blend(rgbOf(lightBlock, 'warning-on-tint'), tint, opacity), tint)).toBeLessThan(4.5)
+  })
+
+  it.each([
+    ['dark', darkBlock, 3.2],
+    ['light', lightBlock, 6.9],
+  ])('%s theme: the 3x inset ring holds >= 3:1 against its own fill', (_n, block, pinned) => {
+    const sev = rgbOf(block, 'stale-severe')
+    const r = ratio(sev, blend(sev, rgbOf(block, 'surface'), parse('stale3x').alpha))
+    expect(r).toBeGreaterThanOrEqual(3)
+    expect(r).toBeGreaterThanOrEqual(pinned)
+  })
+
+  it('stale-severe is declared in both themes and exposed to tailwind', () => {
+    expect(darkBlock).toContain('--stale-severe:')
+    expect(lightBlock).toContain('--stale-severe:')
+    expect(tw).toContain('"stale-severe": "rgb(var(--stale-severe) / <alpha-value>)"')
   })
 })

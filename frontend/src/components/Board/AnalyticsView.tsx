@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getBoardAnalytics } from "../../api/boards";
+import { agingStage } from "../../utils/agingTint";
 
 interface StalledCard {
   id: number;
@@ -58,10 +59,15 @@ const HEAT_LEVELS: Record<HeatLevel, { glyph: string; label: string; legend: str
   ok: { glyph: "●\uFE0E", label: "OK", legend: "Within threshold", cls: "bg-success/20 text-success-on-tint" },
 };
 
+// Shares the card tint's threshold math (agingStage) so the two can never
+// disagree about where "warning" starts again — they did, inverted, for any
+// stale_warning_pct other than 50 (#1841). The heatmap keeps three levels:
+// every stale multiple collapses to "high".
 function heatLevel(avg: number, threshold: number, warningPct: number): HeatLevel {
-  if (avg >= threshold) return "high";
-  if (avg >= threshold * (1 - warningPct / 100)) return "warning";
-  return "ok";
+  const stage = agingStage(avg / Math.max(1, threshold), warningPct);
+  if (stage === "none") return "ok";
+  if (stage === "warning") return "warning";
+  return "high";
 }
 
 function HeatmapLegend() {

@@ -1115,13 +1115,14 @@ class SeedDemoSiteShowcaseTests(TestCase):
         """Fresh, aging and stale all present; stale is the minority (#1363).
 
         Mirrors the card tint: stale at >= staleness_threshold_days since the
-        last move, aging from stale_warning_pct of the threshold.
+        last move, aging once stale_warning_pct percent of the threshold is
+        used (threshold * pct / 100, #1841).
         """
         now = timezone.now()
         for name in self.BOARD_NAMES:
             board = Board.objects.get(name=name)
             threshold = board.staleness_threshold_days
-            warn = threshold * (1 - board.stale_warning_pct / 100)
+            warn = threshold * board.stale_warning_pct / 100
             buckets = {"fresh": 0, "aging": 0, "stale": 0}
             for card in self._cards(name).select_related("column"):
                 last = card.movements.order_by("-moved_at").first().moved_at

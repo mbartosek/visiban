@@ -106,7 +106,9 @@ export const CARD = {
   weight: 1,
   position: 0,
   created_by: BOARD_USER,
-  created_at: '2026-01-01T00:00:00Z',
+  // Relative to now: a never-moved card ages from created_at (#1841), so a
+  // hardcoded old date would tint this "fresh" card in every spec.
+  created_at: new Date().toISOString(),
   updated_at: '2026-01-01T00:00:00Z',
   last_moved_at: null as string | null,
   attachment_count: 0,

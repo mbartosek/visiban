@@ -150,6 +150,7 @@ const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, ca
               compact={compact}
               staleness_threshold_days={staleness_threshold_days}
               stale_warning_pct={stale_warning_pct}
+              inDoneColumn={column.is_done}
               customFieldDefinitions={customFieldDefinitions}
               boardId={boardId}
               onCardUpdated={canEdit ? onCardUpdated : undefined}

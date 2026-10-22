@@ -5,7 +5,7 @@ import type { Card, CardDensity, CustomFieldDefinition } from "../../types";
 import { PRIORITY_COLORS } from "../../constants/colors";
 import Avatar from "../Common/Avatar";
 import { formatDueDate, formatRelativeMovedAt } from "../../utils/date";
-import { agingTint, idleDays } from "../../utils/agingTint";
+import { agingReference, agingTint, formatAgingTooltip, staleBadgeToneClass, urgencyBadgeToneClass } from "../../utils/agingTint";
 import { classifyCardUrgency } from "../../utils/cardUrgency";
 import CardPeekPopover from "./CardPeekPopover";
 import CustomFieldQuickEditPopover from "./CustomFieldQuickEditPopover";
@@ -43,6 +43,9 @@ interface Props {
   compact?: boolean;
   staleness_threshold_days?: number;
   stale_warning_pct?: number;
+  /** The card sits in a done column (`column.is_done`): it is finished, so it
+   *  gets no aging tint, no aging tooltip and no "Stale" badge (#1841). */
+  inDoneColumn?: boolean;
   /** Every board custom field definition (#371) — not pre-filtered; this
    *  component filters to pinned (`show_on_card`) ones for the chip row and
    *  passes the full list through to `CardPeekPopover` for the non-pinned
@@ -58,6 +61,15 @@ interface Props {
    * plain, non-interactive chips.
    */
   onCardUpdated?: (card: Card) => void;
+}
+
+/** True when focus arrived by keyboard. Falls back to true where `:focus-visible` is unsupported. */
+function isKeyboardFocus(el: HTMLElement): boolean {
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
 }
 
 // Custom comparator for React.memo — avoids re-renders when the card object
@@ -122,13 +134,14 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.compact === next.compact &&
     prev.staleness_threshold_days === next.staleness_threshold_days &&
     prev.stale_warning_pct === next.stale_warning_pct &&
+    prev.inDoneColumn === next.inDoneColumn &&
     prev.customFieldDefinitions === next.customFieldDefinitions &&
     prev.boardId === next.boardId &&
     prev.onCardUpdated === next.onCardUpdated
   );
 }
 
-const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
+const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
   // Per-density visibility booleans (#961). The decision tree:
   //   comfortable → one urgency badge, one primary label, checklist, assignee
   //   standard    → adds due date (when not in urgency), weight (>1), attachments, second label
@@ -239,20 +252,14 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     ? Date.now() - new Date(card.last_moved_at).getTime() < 86_400_000
     : false;
 
-  const { overlayClass, bodyOpacityClass } = agingTint(card.last_moved_at, staleness_threshold_days, stale_warning_pct);
-
-  // Compute tooltip content for aging indicator
-  const days = idleDays(card.last_moved_at);
-  const threshDays = Math.max(1, staleness_threshold_days);
-  const warnDays = Math.round(threshDays * (1 - stale_warning_pct / 100));
-  const agingRatio = card.last_moved_at
-    ? Math.min(1, (Date.now() - new Date(card.last_moved_at).getTime()) / (threshDays * 86_400_000))
-    : 0;
-  const isAgingStale = agingRatio >= 1.0;
+  // Graduated aging ramp (#1841): agingTint is the single source for the stage,
+  // the idle days and the tint classes — never recompute the ratio here.
+  // A card in a done column is finished, not idle: no tint, tooltip or Stale
+  // badge, whatever the server's is_stale says (it does not look at columns).
+  const aging = agingTint(inDoneColumn ? null : agingReference(card), staleness_threshold_days, stale_warning_pct);
+  const { overlayClass, bodyOpacityClass } = aging;
   const agingTooltip = overlayClass !== null
-    ? isAgingStale
-      ? `Stale — idle for ${days} day${days === 1 ? "" : "s"} (threshold: ${threshDays} day${threshDays === 1 ? "" : "s"})`
-      : `Idle for ${days} day${days === 1 ? "" : "s"} — warning at ${warnDays} day${warnDays === 1 ? "" : "s"}, threshold is ${threshDays} day${threshDays === 1 ? "" : "s"}`
+    ? formatAgingTooltip(aging, staleness_threshold_days, stale_warning_pct, card.is_stale, card.blocker_count)
     : null;
 
   const dueInfo = card.due_date ? formatDueDate(card.due_date, userTimezone, userDateFormat) : null;
@@ -270,7 +277,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   const urgency = density === "dense"
     ? null
     : classifyCardUrgency(
-        { due_date: card.due_date, is_stale: card.is_stale, last_moved_at: card.last_moved_at, last_move_is_creation: card.last_move_is_creation },
+        { due_date: card.due_date, is_stale: card.is_stale && !inDoneColumn, last_moved_at: card.last_moved_at, last_move_is_creation: card.last_move_is_creation },
       );
   // Suppress the dedicated due-date pill at lower densities when the urgency
   // badge is already carrying that information (overdue / due-soon). At dense
@@ -278,6 +285,16 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   const dueAlreadyInUrgency = urgency?.kind === "overdue" || urgency?.kind === "due-soon";
   // Suppress the recently-moved dot when urgency is already showing "Just moved".
   const recentAlreadyInUrgency = urgency?.kind === "recent";
+  // The badge sits on the card's aging tint whenever one is shown, so its text
+  // uses an on-tint token that clears 4.5:1 on that stage (#1550, #1841).
+  const urgencyToneClass = !urgency
+    ? ""
+    : urgency.kind === "stale"
+    ? staleBadgeToneClass(aging.stage)
+    : urgencyBadgeToneClass(urgency.tone, aging.stage);
+  // "Stale · 41d" — the server decides whether the badge shows (is_stale); the
+  // label adds the idle days so the stage is never conveyed by color alone.
+  const staleLabel = aging.stage !== "none" ? `Stale · ${aging.idleDays}d` : "Stale";
 
   // Pinned custom fields (#371, Direction A). Quick-edit is only wired when
   // the caller opted in by passing both boardId and onCardUpdated — the
@@ -341,7 +358,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       {overlayClass && showTooltip && agingTooltip && (
         <div
           role="tooltip"
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-sunken text-fg text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-sunken text-fg text-xs rounded px-2 py-1 shadow-lg w-max max-w-[16rem] text-center pointer-events-none"
         >
           {agingTooltip}
         </div>
@@ -358,15 +375,22 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       onClick={readOnly ? undefined : onClick}
       data-no-pan
       data-tour-step="card"
+      // A selected card drops its bg-info/20 fill while an aging tint is shown:
+      // the fill under the tint pulled the badge to 3.7:1 (#1841). The
+      // selection ring alone still marks it.
       className={`group bg-surface rounded-md select-none transition-all border relative z-0
         ${readOnly ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5 hover:z-20"}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-emphasis focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
         ${isDragging && !overlay ? "opacity-25 !shadow-none !translate-y-0" : ""}
         ${overlay ? "rotate-1 opacity-95 !-translate-y-1" : ""}
-        ${highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? "ring-2 ring-primary-soft bg-info/20" : ""}
+        ${highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? `ring-2 ring-primary-soft${overlayClass ? "" : " bg-info/20"}` : ""}
       `}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      // The aging tooltip states the idle days (#1841), so keyboard users get it
+      // too: shown on keyboard focus, never on a pointer click's focus.
+      onFocus={(e) => { if (e.target === e.currentTarget && isKeyboardFocus(e.currentTarget)) setShowTooltip(true); }}
+      onBlur={() => setShowTooltip(false)}
       style={{
         borderColor: priorityColor,
         boxShadow: isDragging && !overlay
@@ -533,16 +557,12 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
                     suppressed. */}
                 {urgency && (
                   <span
-                    className={`text-xs font-semibold shrink-0 ${
-                      urgency.tone === "danger"
-                        ? "text-danger"
-                        : urgency.tone === "warning"
-                        ? "text-warning"
-                        : "text-info"
-                    }`}
+                    className={`text-xs font-semibold shrink-0 ${urgencyToneClass}`}
                     title={
                       urgency.kind === "overdue" || urgency.kind === "due-soon"
                         ? `Due ${card.due_date}`
+                        : urgency.kind === "stale"
+                        ? agingTooltip ?? staleLabel
                         : urgency.label
                     }
                   >
@@ -550,6 +570,8 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
                       ? `⚑ ${dueInfo.label}`
                       : urgency.kind === "due-soon" && dueInfo
                       ? `⏱ ${dueInfo.label}`
+                      : urgency.kind === "stale"
+                      ? staleLabel
                       : urgency.label}
                   </span>
                 )}

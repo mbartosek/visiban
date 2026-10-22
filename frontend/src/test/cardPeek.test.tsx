@@ -45,7 +45,8 @@ function makeCard(overrides: Partial<Card> = {}): Card {
     weight: 1,
     position: 0,
     created_by: { id: 1, username: 'user1', display_name: 'User One', avatar_url: '' },
-    created_at: '2026-01-01T00:00:00Z',
+    // Relative to now: a never-moved card ages from created_at (#1841).
+    created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
     updated_at: '2026-01-01T00:00:00Z',
     last_moved_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
     attachment_count: 0,

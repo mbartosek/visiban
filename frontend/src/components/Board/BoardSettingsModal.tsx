@@ -1008,7 +1008,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                         />
                         <span className="text-sm text-fg-tertiary">days threshold</span>
                       </div>
-                      <p className="text-xs text-fg-muted">Cards idle beyond this threshold are shown with a stale tint on the board. Warning tint appears earlier (controlled by the % setting below).</p>
+                      <p className="text-xs text-fg-muted">Cards idle beyond this threshold are shown with a stale tint on the board, which deepens at 2× and 3× the threshold. Warning tint appears earlier (controlled by the % setting below).</p>
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-2">
@@ -1026,7 +1026,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                         <span className="text-sm text-fg-tertiary">% warning</span>
                       </div>
                       <p className="text-xs text-fg-muted">
-                        Warning tint appears when a card has used this percentage of the threshold. Example: 14 days threshold, 50% warning → warning tint after 7 days, stale tint at 14 days.
+                        Warning tint appears when a card has used this percentage of the threshold. Example: 14 days threshold, 50% warning → warning tint after 7 days, stale tint at 14 days. Set 0 to turn the warning tint off.
                       </p>
                     </div>
                     <p className="text-xs h-4">

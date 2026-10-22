@@ -20,8 +20,8 @@ vi.mock('@dnd-kit/sortable', () => ({
 vi.mock('../api/cards', () => ({ createCard: vi.fn() }))
 
 vi.mock('../components/Card/CardItem', () => ({
-  default: ({ card, onClick, compact }: { card: Card; onClick?: () => void; compact?: boolean }) => (
-    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} onClick={onClick}>{card.title}</div>
+  default: ({ card, onClick, compact, inDoneColumn }: { card: Card; onClick?: () => void; compact?: boolean; inDoneColumn?: boolean }) => (
+    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} data-in-done-column={String(inDoneColumn ?? false)} onClick={onClick}>{card.title}</div>
   ),
 }))
 
@@ -58,6 +58,20 @@ const defaultProps = () => ({
 })
 
 describe('BoardCell', () => {
+  // #1841: a done column's cards never age; BoardCell forwards column.is_done
+  // to CardItem, which then skips the tint, aging tooltip and Stale badge
+  // (CardItem's own behavior is covered in componentRendering.test.tsx).
+  it.each([
+    [true, 'true'],
+    [false, 'false'],
+  ])('passes column.is_done=%s to CardItem as inDoneColumn', (isDone, expected) => {
+    const props = defaultProps()
+    props.column = { ...column, is_done: isDone }
+    props.cards = [makeCard({ last_moved_at: '2026-01-01T00:00:00Z', is_stale: true })]
+    render(<BoardCell {...props} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-in-done-column', expected)
+  })
+
   it('renders + Add card button when canEdit and allow_card_creation', () => {
     render(<BoardCell {...defaultProps()} />)
     expect(screen.getByText('+ Add card')).toBeInTheDocument()

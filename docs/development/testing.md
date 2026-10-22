@@ -72,7 +72,7 @@ frontend/e2e/
 ├── filter-bar.spec.ts    # Label filters, chips, saved-filter tabs
 ├── swimlane.spec.ts      # Swimlane collapse/expand + persistence
 ├── card-peek.spec.ts     # 600ms hover popover
-├── card-aging.spec.ts    # Stale-card amber overlay
+├── card-aging.spec.ts    # Card aging ramp overlay + idle-days badge
 ├── activity-drawer.spec.ts  # Cmd+\ drawer + WS events
 ├── card-detail.spec.ts   # Card dialog + unified activity timeline
 ├── command-palette.spec.ts  # Cmd+K search
