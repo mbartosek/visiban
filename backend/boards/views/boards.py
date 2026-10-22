@@ -96,8 +96,8 @@ def _parse_events_cursor(raw):
     cursor has lost its place, and quietly restarting it from the beginning of
     the feed would replay history it already processed without telling it.
     The 400 is ``{detail, code: "invalid_query_param"}``, the API's shape for a
-    bad query parameter (#1832); the feed is new in 1.2, so no field-keyed
-    body for it ever shipped.
+    bad query parameter (#1832); the feed is new in 1.2, so its field-keyed
+    body appeared only in 1.2 pre-releases, never in a GA.
     """
     if raw in (None, ""):
         return 0

@@ -85,8 +85,9 @@ def parse_offset(request, param="offset"):
 
     That 400 is ``{detail, code: "invalid_query_param"}``, the API's shape for a
     bad query parameter (#1832). It is not field-keyed even on endpoints that
-    shipped in 1.1: there, a value this large was a 500, so no 400 body for it
-    ever shipped and this one is new everywhere.
+    shipped in 1.1: there, a value this large was a 500. The field-keyed body
+    (#1696) appeared only in 1.2 pre-releases, never in a GA, so changing it
+    before 1.2 GA breaks no released contract.
     """
     raw = request.query_params.get(param, 0)
     try:

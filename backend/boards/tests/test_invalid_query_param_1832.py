@@ -4,8 +4,8 @@
 #1832 moved onto it, with exact bodies:
 
 - 1.2-new 400s, converted outright: board events ``after``/``limit``,
-  ``offset`` above 2^62 (``parse_offset``; a 500 in 1.1, so no 400 body for it
-  ever shipped), admin action-log ``action``, admin board-invite ``status``.
+  ``offset`` above 2^62 (``parse_offset``; a 500 in 1.1, field-keyed only in
+  1.2 pre-releases), admin action-log ``action``, admin board-invite ``status``.
 - card timeline ``event_types``: ``{detail}`` since 1.1, ``code`` added.
 - django-filter type errors: field-keyed since 1.1 on the board card list, so
   the field entry stays and ``detail``/``code`` are added beside it.

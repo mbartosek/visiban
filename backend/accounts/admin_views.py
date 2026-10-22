@@ -905,7 +905,8 @@ class AdminActionLogView(APIView):
         # ORM as-is: an unknown value is a caller error worth a 400, not a
         # silently empty page that reads like "nothing ever happened". The
         # body is the API's bad-query-param shape (#1832); this endpoint is
-        # new in 1.2, so no field-keyed body for it ever shipped.
+        # new in 1.2, so its field-keyed body appeared only in 1.2
+        # pre-releases, never in a GA.
         action = request.query_params.get("action", "").strip()
         if action:
             if action not in AdminActionLog.Action.values:
@@ -1547,7 +1548,8 @@ class AdminBoardInviteLinkListView(APIView):
         value = request.query_params.get("status", "").strip() or "pending"
         # An unknown value is a caller error, not a silently empty page. The
         # body is the API's bad-query-param shape (#1832); this endpoint is
-        # new in 1.2, so no field-keyed body for it ever shipped.
+        # new in 1.2, so its field-keyed body appeared only in 1.2
+        # pre-releases, never in a GA.
         if value not in BOARD_INVITE_STATUS_FILTERS:
             raise CodedValidationError(INVALID_QUERY_PARAM, f"'{value}' is not a valid status.")
         qs = (
