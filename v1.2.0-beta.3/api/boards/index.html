@@ -5318,7 +5318,10 @@
 <p>Move board to a different group (or <code>null</code> for personal).</p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). A <code>group_id</code> that is not an integer or is out of range is <code>404</code>, as before.</p>
 <p><strong>Minimum role:</strong> Board owner, board admin, or site admin. Since 1.2, to move into a group the caller must also be an admin of the target group or of one of its ancestor groups (or a site admin with all-content access), the same rule as <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a>. Moving to personal (<code>null</code>) needs only the board role above.</p>
-<p><em>(1.2+)</em> A move-group, board <code>PATCH</code>/<code>PUT</code> that sets <code>group</code>, board create with a <code>group</code>, or <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a> that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer <code>404</code>, as for an unknown group; board create and <code>PATCH</code>/<code>PUT</code> answer <code>400</code> with <code>{"group": ["Unknown group, or you are not an admin of it."]}</code>, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>A move-group, board <code>PATCH</code>/<code>PUT</code> that sets <code>group</code>, board create with a <code>group</code>, or <a href="../groups/"><code>POST /api/v1/groups/{id}/boards/</code></a> that arrives while the target group is being deleted waits for the delete to finish. Move-group and the group board create then answer <code>404</code>, as for an unknown group; board create and <code>PATCH</code>/<code>PUT</code> answer <code>400</code> with <code>{"group": ["Unknown group, or you are not an admin of it."]}</code>, as for an unknown group. Nothing is written. A group delete that arrives while such a request is in flight waits for it, then detaches the board from the group (#1638).</p>
 <p><strong>Request</strong> <code>{ "group_id": 5 }</code> or <code>{ "group_id": null }</code>. <code>group_id</code> is the only key read; omitting it is the same as <code>null</code> (move to personal).</p>
 <p><strong>Response</strong> <code>200 OK</code> with the updated board object.</p>
 <p><strong>Errors</strong></p>
@@ -5718,7 +5721,10 @@
 </tr>
 </tbody>
 </table>
-<p><em>(1.2+)</em> An invalid <code>days</code> or <code>stalled_days</code> returns <code>400 Bad Request</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code> (before 1.2 the body had <code>detail</code> only), the API-wide shape for a bad query parameter — see <a href="../#error-responses">Error responses</a>.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>An invalid <code>days</code> or <code>stalled_days</code> returns <code>400 Bad Request</code> with <code>{"detail": "...", "code": "invalid_query_param"}</code> (before 1.2 the body had <code>detail</code> only), the API-wide shape for a bad query parameter — see <a href="../#error-responses">Error responses</a>.</p>
 <p><strong>Response shape:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"days"</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
@@ -7183,7 +7189,10 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <p>Remove a member. Requires board admin. Cannot remove a site admin who is a member of the board. Returns <code>204</code> when the membership is removed. If the user has no membership on the board, the response is the same <code>404 Not Found</code> (status and body) whether the id is unknown, belongs to an inactive user, or belongs to an active user who is not a member; an inactive user who has a membership can be removed.</p>
 <hr />
 <h2 id="board-invites">Board invites<a class="headerlink" href="#board-invites" title="Permanent link">&para;</a></h2>
-<p><em>(New in 1.2)</em> A board admin can email a <strong>single-use invite</strong> to someone who may not have an account yet, or create a <strong>shareable invite link</strong> to paste anywhere. The invite token (<code>vbnb_</code> prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (<code>prefix</code>) are shown. The address it was sent to is not stored. <em>(1.2+, #1678)</em> An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see <code>POST /api/v1/boards/join/{token}/</code> below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant <code>member</code>, <code>collaborator</code> or <code>viewer</code> — never <code>admin</code>, and never the moderator flag. A board invite never adds anyone to the board's group.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>A board admin can email a <strong>single-use invite</strong> to someone who may not have an account yet, or create a <strong>shareable invite link</strong> to paste anywhere. The invite token (<code>vbnb_</code> prefix) travels only in the email, or — for a shareable link — in the create response, once; it is never returned again. Only its first 8 characters (<code>prefix</code>) are shown. The address it was sent to is not stored. <em>(1.2+, #1678)</em> An emailed invite stores a keyed fingerprint of that address instead, and redeeming it requires an account with that address (see <code>POST /api/v1/boards/join/{token}/</code> below). The fingerprint is never returned by any endpoint or event. Shareable links have no fingerprint. Invites grant <code>member</code>, <code>collaborator</code> or <code>viewer</code> — never <code>admin</code>, and never the moderator flag. A board invite never adds anyone to the board's group.</p>
 <h3 id="get-apiv1boardsidinvite-links"><code>GET /api/v1/boards/{id}/invite-links/</code><a class="headerlink" href="#get-apiv1boardsidinvite-links" title="Permanent link">&para;</a></h3>
 <p>List the board's invites, newest first, as a bare array (not paginated). Requires board admin (an admin of the board, the owner, an admin of the board's group, or a site admin with all-content access). Returns <strong>every pending invite plus at most the 50 most recent past ones</strong> (used, expired or revoked); older history is not returned. A caller with no access to the board, or for a board that does not exist, gets <code>404</code>, an unauthenticated request <code>401</code> — the same as the members endpoints.</p>
 <table>
@@ -7266,7 +7275,10 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 </code></pre></div>
 <p>The second invite was sent by an account that has since been deleted, so it lists as <code>revoked</code> even though <code>DELETE</code> was never called.</p>
 <h3 id="post-apiv1boardsidinvite-links"><code>POST /api/v1/boards/{id}/invite-links/</code><a class="headerlink" href="#post-apiv1boardsidinvite-links" title="Permanent link">&para;</a></h3>
-<p><em>(New in 1.2)</em> Create a <strong>shareable invite link</strong> (<code>delivery: "link"</code>). Requires board admin — the same permission matrix as the list (<code>403</code> for a caller who can see the board but is not a board admin, <code>404</code> for a missing board or a caller with no access to it, <code>401</code> unauthenticated).</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Create a <strong>shareable invite link</strong> (<code>delivery: "link"</code>). Requires board admin — the same permission matrix as the list (<code>403</code> for a caller who can see the board but is not a board admin, <code>404</code> for a missing board or a caller with no access to it, <code>401</code> unauthenticated).</p>
 <p><strong>Request</strong> <code>{ "role": "viewer", "expiry_days": 7, "single_use": false, "name": "Contractors" }</code></p>
 <table>
 <thead>
@@ -7561,7 +7573,10 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <li><strong>An equal or higher inherited role, an explicit board membership of any role, board ownership or all-content access</strong> → nothing changes (<code>created: false</code>). A group admin who redeems a viewer invite is <strong>not</strong> downgraded to viewer.</li>
 </ul>
 <p>A redeemed single-use invite is consumed either way. Redeeming it again as the person who already has access returns <code>200</code> with nothing changed (<code>created</code> reports whether this invite created your membership — <code>true</code> after signing up from it); anyone else gets <code>410 {"code": "used"}</code>. When a membership is created, the board's <code>member.added</code> event carries an extra <code>invite: { "id", "created_by_id" }</code> key for <code>admin</code> and <code>site_admin</code> recipients, on the WebSocket and in the <a href="../events/">change feed</a>; other recipients get the event without it.</p>
-<p><em>(1.2+)</em> A join that arrives while the board is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1631).</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>A join that arrives while the board is being deleted waits for the delete to finish and then answers <code>404</code>, with nothing written (#1631).</p>
 <p>Both join endpoints share the per-IP <code>join_group</code> throttle (10/hour) with the <a href="../groups/">group join endpoints</a> — board and group join attempts from one address draw from one budget.</p>
 <p>Signing up with a board invite on an invite-only site is covered in <a href="../authentication/#invite-only-mode">Authentication</a>.</p>
 <p>Site admins can list and revoke every board's invites with the <a href="../admin/#board-invites">admin board invite endpoints</a>.</p>
@@ -7972,7 +7987,10 @@ columns or structure.</p>
   after this validation.</li>
 </ul>
 <h4 id="multi-select-fields">Multi-select fields<a class="headerlink" href="#multi-select-fields" title="Permanent link">&para;</a></h4>
-<p><em>Since 1.2.</em> A <code>"multi_select"</code> field holds any number of the definition's <code>choices</code>. It
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>A <code>"multi_select"</code> field holds any number of the definition's <code>choices</code>. It
 applies to card and swimlane custom fields alike, and is text-backed like every other type:
 <strong>the <code>value</code> on the wire is still a string</strong> — a JSON array encoded as a string, never a
 JSON array.</p>
@@ -8022,7 +8040,10 @@ JSON array.</p>
   canonical strings — the whole set, not a per-entry diff.</li>
 </ul>
 <h4 id="number-formatting">Number formatting<a class="headerlink" href="#number-formatting" title="Permanent link">&para;</a></h4>
-<p><em>Since 1.2.</em> Three optional, <strong>display-only</strong> settings on a <code>"number"</code> definition, on card
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Three optional, <strong>display-only</strong> settings on a <code>"number"</code> definition, on card
 and swimlane custom fields alike. They change how a client renders a value, never the
 value: the <code>value</code> on the wire, in exports, and in filters stays the plain number string
 the user entered.</p>
@@ -8090,7 +8111,10 @@ the user entered.</p>
   definition, so the three fields arrive with them.</li>
 </ul>
 <h4 id="choice-colors">Choice colors<a class="headerlink" href="#choice-colors" title="Permanent link">&para;</a></h4>
-<p><em>Since 1.2.</em> An optional, <strong>display-only</strong> color per choice on a <code>"dropdown"</code> or
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>An optional, <strong>display-only</strong> color per choice on a <code>"dropdown"</code> or
 <code>"multi_select"</code> definition, on card and swimlane custom fields alike. <code>choices</code> is
 unchanged — still a plain list of strings — and the colors live beside it in a separate
 map keyed by the choice text. Values are never touched.</p>

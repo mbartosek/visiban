@@ -4931,7 +4931,10 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </tbody>
 </table>
 <p>Returns <code>201 Created</code> with the new user object. The response does <strong>not</strong> include the password — copy it before closing if needed.</p>
-<p><em>(1.2+)</em> The account creation is recorded in the <a href="#action-log">admin action log</a> as <code>user.password_set</code> with <code>source</code> <code>admin_api</code> and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (<code>target_id</code>, <code>target_username</code>); the password and its hash are never stored.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>The account creation is recorded in the <a href="#action-log">admin action log</a> as <code>user.password_set</code> with <code>source</code> <code>admin_api</code> and the acting admin. The entry is saved in the same transaction as the account, so the account exists only if the entry is saved. It names the new account (<code>target_id</code>, <code>target_username</code>); the password and its hash are never stored.</p>
 <h3 id="patch-apiv1adminusersid"><code>PATCH /api/v1/admin/users/{id}/</code><a class="headerlink" href="#patch-apiv1adminusersid" title="Permanent link">&para;</a></h3>
 <p>Update a user's account flags. Site admin only.</p>
 <p><strong>Patchable fields</strong></p>
@@ -4971,8 +4974,14 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </tr>
 </tbody>
 </table>
-<p><em>(1.2+)</em> Setting <code>is_active: false</code> also deletes the user's personal access tokens and API auth token (so they do not come back on reactivation) and revokes the user's pending invite links exactly like <a href="#post-apiv1adminusersiddeactivate"><code>POST /api/v1/admin/users/{id}/deactivate/</code></a>: unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an <code>invite_link.revoked</code> event). Consumed single-use links are left as they are. Clearing <code>can_access_all_content</code> (the only flag that confers group-admin rights; <code>is_site_admin</code> does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.</p>
-<p><em>(1.2+)</em> Clearing <code>is_site_admin</code> revokes the user's unused site invite links. Site invite links create accounts only while their creator is an active site admin (see <a href="#get-apiv1admininvite-links"><code>GET /api/v1/admin/invite-links/</code></a>).</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Setting <code>is_active: false</code> also deletes the user's personal access tokens and API auth token (so they do not come back on reactivation) and revokes the user's pending invite links exactly like <a href="#post-apiv1adminusersiddeactivate"><code>POST /api/v1/admin/users/{id}/deactivate/</code></a>: unused site invite links, pending board invites and active, unused group invite links (each affected board and group receives an <code>invite_link.revoked</code> event). Consumed single-use links are left as they are. Clearing <code>can_access_all_content</code> (the only flag that confers group-admin rights; <code>is_site_admin</code> does not) revokes the user's unused group invite links that they can no longer administer (links where they are still a group admin by membership are kept). Previously those board and group links stayed active in the database and in the admin link lists, though they were already refused at preview and join.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Clearing <code>is_site_admin</code> revokes the user's unused site invite links. Site invite links create accounts only while their creator is an active site admin (see <a href="#get-apiv1admininvite-links"><code>GET /api/v1/admin/invite-links/</code></a>).</p>
 <p><strong>Request</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"is_active"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div></p>
@@ -5288,7 +5297,10 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </table>
 <hr />
 <h3 id="post-apiv1admininvite-linkssend"><code>POST /api/v1/admin/invite-links/send/</code><a class="headerlink" href="#post-apiv1admininvite-linkssend" title="Permanent link">&para;</a></h3>
-<p>Email a single-use registration invite to one address. <em>(Added in 1.2.)</em></p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Email a single-use registration invite to one address.</p>
 <p><strong>Permission:</strong> <code>IsSiteAdmin</code>.</p>
 <p><strong>Request body</strong></p>
 <table>
@@ -5396,7 +5408,10 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </table>
 <hr />
 <h2 id="board-invites">Board invites<a class="headerlink" href="#board-invites" title="Permanent link">&para;</a></h2>
-<p><em>(New in 1.2)</em> Every board's <a href="../boards/#board-invites">invites</a> — emailed invites and shareable invite links — across the whole instance, so a site admin can audit them and revoke a leaked link without being a member of its board. Board admins manage their own board's invites through the board endpoints; these endpoints are site-admin only, and a board admin who is not a site admin gets <code>403</code>.</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Every board's <a href="../boards/#board-invites">invites</a> — emailed invites and shareable invite links — across the whole instance, so a site admin can audit them and revoke a leaked link without being a member of its board. Board admins manage their own board's invites through the board endpoints; these endpoints are site-admin only, and a board admin who is not a site admin gets <code>403</code>.</p>
 <h3 id="get-apiv1adminboard-invite-links"><code>GET /api/v1/admin/board-invite-links/</code><a class="headerlink" href="#get-apiv1adminboard-invite-links" title="Permanent link">&para;</a></h3>
 <p><strong>Permission:</strong> <code>IsSiteAdmin</code>.</p>
 <p><strong>Query parameters</strong></p>

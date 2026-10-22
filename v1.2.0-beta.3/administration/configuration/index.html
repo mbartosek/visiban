@@ -3277,6 +3277,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#optional-features-off-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional features (off by default)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#import-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4485,6 +4496,56 @@
 <p><strong>Behind an ingress controller, <code>1</code> is too low.</strong> This chart's frontend nginx always appends one hop (<code>proxy_add_x_forwarded_for</code>); an ingress controller in front of it appends its own, so the real chain is two hops deep, not one. Count every proxy between the internet and the frontend Service, including the frontend nginx itself.</p>
 <p>The hosted demo behind a Cloudflare Tunnel uses <code>2</code> (Cloudflare appends the visitor, then the frontend nginx appends the tunnel pod). See <a href="../demo-data/#public-demo-mode-helm">Public demo mode</a>.</p>
 <hr />
+<h2 id="optional-features-off-by-default">Optional features (off by default)<a class="headerlink" href="#optional-features-off-by-default" title="Permanent link">&para;</a></h2>
+<p>Two features are dormant until an operator opts in. Set these in your <code>.env</code> file, then run <code>docker compose up -d</code> to recreate the backend with them (<code>docker compose restart</code> does not re-read <code>.env</code>). Turning <code>GIT_LENS_ENABLED</code> on adds the <code>git_lens</code> app and its tables, so a migration must run; in the production stack the <code>backend-init</code> service does that on <code>up -d</code>. Helm support for these flags is tracked in #1835. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GIT_LENS_ENABLED</code></td>
+<td><code>false</code></td>
+<td>Turns on the <a href="../../features/issue-board-lens/">Issue Board Lens</a>, a read-only board built from a public GitHub or GitLab repository's issues. While off, there is no Lens tab, no Lens settings, and no related API surface. <em>(new in 1.2)</em></td>
+</tr>
+<tr>
+<td><code>GIT_LENS_OUTBOUND_LOG_LEVEL</code></td>
+<td><code>INFO</code></td>
+<td>Log level of the one-line record written for each outbound GitHub/GitLab request the lens makes. Set <code>WARNING</code> to silence it without affecting the usage report. See <a href="../issue-board-lens-usage/">Issue Board Lens Usage</a>.</td>
+</tr>
+<tr>
+<td><code>MCP_SERVER_ENABLED</code></td>
+<td><code>false</code></td>
+<td>Mounts the <a href="../../features/mcp-server/">MCP server</a> at <code>/mcp</code> so AI agents can reach boards with a personal access token. While off, <code>/mcp</code> returns <code>404 Not Found</code> and the MCP SDK is never imported. <em>(new in 1.2)</em></td>
+</tr>
+<tr>
+<td><code>MCP_ALLOWED_HOSTS</code></td>
+<td>empty (falls back to <code>ALLOWED_HOSTS</code>)</td>
+<td>Comma-separated hostnames clients use to reach <code>/mcp</code>, checked against the <code>Host</code> header as DNS-rebinding protection. Set it explicitly when <code>ALLOWED_HOSTS</code> is <code>*</code>, because a wildcard cannot serve as the allowlist. When set, it takes precedence over <code>ALLOWED_HOSTS</code>. See <a href="../../api/mcp/">MCP Server API</a>.</td>
+</tr>
+<tr>
+<td><code>MCP_THROTTLE_READ_RATE</code></td>
+<td><code>300/min</code></td>
+<td>Baseline per-token limit applied to every MCP tool call and resource read.</td>
+</tr>
+<tr>
+<td><code>MCP_THROTTLE_COMPUTE_RATE</code></td>
+<td><code>30/min</code></td>
+<td>Additional, tighter per-token limit for expensive reads (<code>list_cards</code> and <code>board://{board_id}</code>), spent on top of the baseline.</td>
+</tr>
+<tr>
+<td><code>MCP_THROTTLE_PREAUTH_RATE</code></td>
+<td><code>30/min</code></td>
+<td>Per-client-IP limit on failed MCP authentication attempts. Once an IP is over budget, all of its requests (valid ones too) are refused until the window slides. See <a href="../../api/mcp/#failed-authentication-limit-per-ip">Failed authentication limit</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>Rates use the DRF form <code>&lt;count&gt;/&lt;period&gt;</code> with <code>sec</code>, <code>min</code>, <code>hour</code> or <code>day</code>. See <a href="../../api/mcp/#rate-limiting">MCP Server API: Rate limiting</a> for how the buckets stack.</p>
+<hr />
 <h2 id="import-limits">Import limits<a class="headerlink" href="#import-limits" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -4641,7 +4702,9 @@ mail.</p>
 <p>The default value of <code>EMAIL_VERIFICATION</code> is <code>optional</code>, which sends a verification email on signup but allows login without verifying. SMTP should be configured so that verification emails are delivered. Set <code>EMAIL_VERIFICATION=none</code> to disable verification emails entirely (no SMTP needed). The old alias <code>ACCOUNT_EMAIL_VERIFICATION</code> was removed in 1.1 — only <code>EMAIL_VERIFICATION</code> is read.</p>
 </div>
 <h3 id="configuring-smtp-from-the-admin-ui">Configuring SMTP from the admin UI<a class="headerlink" href="#configuring-smtp-from-the-admin-ui" title="Permanent link">&para;</a></h3>
-<p><em>New in 1.2.</em></p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
 <p>Site admins can configure outbound email from <strong>Admin → Settings → Email</strong> without shell
 access or a container restart — useful on managed and cloud deployments.</p>
 <ol>

@@ -4592,6 +4592,16 @@ root-owned <code>node_modules</code> volume; see <a href="../../administration/u
 <td>Daily run time (<code>HH:MM</code>, UTC, or <code>off</code>) for each job of the opt-in Compose <code>scheduler</code> service. Defaults: <code>07:00</code>, <code>08:00</code>, <code>off</code>, <code>off</code>. Read only by <code>manage.py run_scheduler</code>. See <a href="../../administration/scheduled-jobs/">Scheduled Jobs</a>.</td>
 </tr>
 <tr>
+<td><code>GIT_LENS_ENABLED</code></td>
+<td style="text-align: center;">No</td>
+<td>Set <code>true</code> to enable the <a href="../../features/issue-board-lens/">Issue Board Lens</a> (default: <code>false</code>). See <a href="../../administration/configuration/#optional-features-off-by-default">Optional features</a>.</td>
+</tr>
+<tr>
+<td><code>MCP_SERVER_ENABLED</code></td>
+<td style="text-align: center;">No</td>
+<td>Set <code>true</code> to serve the <a href="../../features/mcp-server/">MCP server</a> at <code>/mcp</code> (default: <code>false</code>). Also configurable: <code>MCP_ALLOWED_HOSTS</code> and the <code>MCP_THROTTLE_READ_RATE</code>, <code>MCP_THROTTLE_COMPUTE_RATE</code> and <code>MCP_THROTTLE_PREAUTH_RATE</code> limits. See <a href="../../administration/configuration/#optional-features-off-by-default">Optional features</a>.</td>
+</tr>
+<tr>
 <td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
 <td style="text-align: center;">No</td>
 <td>Maximum Trello JSON export size for the <a href="../../features/trello-import/">Trello import wizard</a>, in bytes (default: <code>26214400</code> — 25 MB). Your reverse proxy must accept bodies at least this large; see <a href="../../administration/configuration/#import-limits">Import limits</a>.</td>
@@ -4607,8 +4617,9 @@ root-owned <code>node_modules</code> volume; see <a href="../../administration/u
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>Tested:</strong> The production Docker Compose stack has been verified end-to-end. If you encounter issues, open an issue.</p>
+<p><strong>Added in 1.2</strong></p>
 </blockquote>
-<p><em>(Since 1.2)</em> The <code>backend</code> and <code>frontend</code> images this stack pulls are cosign-signed and carry
+<p>The <code>backend</code> and <code>frontend</code> images this stack pulls are cosign-signed and carry
 a per-architecture CycloneDX SBOM. Verify them before deploying: see
 <a href="../../administration/image-verification/">Verifying release images</a>. The stack's other images
 (<code>postgres</code>, <code>valkey</code>, <code>nginx</code>, <code>certbot</code>) are upstream images that Visiban does not sign.</p>

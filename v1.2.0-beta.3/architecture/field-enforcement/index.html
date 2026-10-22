@@ -3994,7 +3994,10 @@
 
 <h1 id="field-enforcement">Field Enforcement<a class="headerlink" href="#field-enforcement" title="Permanent link">&para;</a></h1>
 <p>Some API fields read as rules rather than values: <code>wip_limit</code>, <code>allowed_priorities</code>, <code>default_board_member_role</code>, <code>is_required</code>. A client that reads one of them will assume the server enforces it. Since 1.2 some of those clients are AI agents talking to the <a href="../../features/mcp-server/">MCP server</a>, and an agent cannot notice that a rule is only advisory. It reads the schema and acts on it.</p>
-<p>This page classifies every constraint-shaped field in the OSS models and serializers, and records what each one actually binds. <em>Added in 1.2 (#1077).</em></p>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1077)</p>
+</blockquote>
+<p>This page classifies every constraint-shaped field in the OSS models and serializers, and records what each one actually binds.</p>
 <h2 id="the-three-classes">The three classes<a class="headerlink" href="#the-three-classes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

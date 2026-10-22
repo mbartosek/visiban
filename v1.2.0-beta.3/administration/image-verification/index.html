@@ -3993,7 +3993,10 @@
 
 
 <h1 id="verifying-release-images-and-the-helm-chart">Verifying release images and the Helm chart<a class="headerlink" href="#verifying-release-images-and-the-helm-chart" title="Permanent link">&para;</a></h1>
-<p><em>(New in 1.2)</em> Every Visiban release cut after image signing shipped (the first release after
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p>Every Visiban release cut after image signing shipped (the first release after
 <code>v1.2.0-alpha.4</code>) is signed keyless with <a href="https://docs.sigstore.dev/">Sigstore cosign</a>
 by the GitLab CI job that published it, so you can check that what you pull was built and
 pushed by Visiban's release pipeline rather than trusting the registry:</p>

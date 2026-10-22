@@ -4006,7 +4006,10 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Query param 'days' must not exceed 365."</span><span class="p">,</span><span class="w"> </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"invalid_query_param"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p><code>code</code> is a stable string (for example <code>export_restricted</code>, <code>feature_disabled</code>, <code>invite_email_cap_reached</code>, <code>group_owner_protected</code>). When a response has a <code>code</code>, compare it rather than <code>detail</code>: the <code>detail</code> text is for people and may be reworded in any release. Not every error has a <code>code</code>; each endpoint's page documents its error bodies. Validation errors on a request body are usually field-keyed (<code>{"&lt;field&gt;": [...]}</code>), but some hand-validated bodies answer <code>{"detail": "..."}</code> with no <code>code</code> instead, for example an invalid <code>role</code> on <code>PATCH /groups/{id}/members/{user_id}/</code> (<code>{"detail": "Must be one of: admin, member, collaborator, viewer"}</code>).</p>
-<p><em>(1.2+)</em> <strong>Bad query parameters.</strong> The target shape for a query parameter whose value is refused (not an integer, out of range) is <code>400 Bad Request</code> with <code>{detail, code}</code> and <code>code: "invalid_query_param"</code>. These parameters answer with it:</p>
+<blockquote>
+<p><strong>Added in 1.2</strong></p>
+</blockquote>
+<p><strong>Bad query parameters.</strong> The target shape for a query parameter whose value is refused (not an integer, out of range) is <code>400 Bad Request</code> with <code>{detail, code}</code> and <code>code: "invalid_query_param"</code>. These parameters answer with it:</p>
 <ul>
 <li><code>GET /boards/{id}/analytics/</code>: <code>days</code> and <code>stalled_days</code></li>
 <li><code>GET /boards/{id}/cards/</code>: <code>limit</code></li>
