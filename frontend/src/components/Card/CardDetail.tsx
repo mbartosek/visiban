@@ -1299,7 +1299,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setLocalCard((c) => ({ ...c, weight: w }));
                       setWeightLimitReason(null);
                       if (weightSaveTimer.current) clearTimeout(weightSaveTimer.current);
-                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; weightRunSave(saveWeight(w)) }, 600);
+                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; void weightRunSave(saveWeight(w)); }, 600);
                     }}
                     className="w-7 h-7 rounded-full border border-line-strong text-fg-tertiary hover:bg-surface-hover transition text-sm font-medium"
                   >−</button>
@@ -1310,7 +1310,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setLocalCard((c) => ({ ...c, weight: w }));
                       setWeightLimitReason(null);
                       if (weightSaveTimer.current) clearTimeout(weightSaveTimer.current);
-                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; weightRunSave(saveWeight(w)) }, 600);
+                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; void weightRunSave(saveWeight(w)); }, 600);
                     }}
                     className="w-7 h-7 rounded-full border border-line-strong text-fg-tertiary hover:bg-surface-hover transition text-sm font-medium"
                   >+</button>
