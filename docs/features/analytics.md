@@ -55,7 +55,10 @@ The rightmost column of the heatmap shows **Velocity** per swimlane. This is the
 
 #### Color-coding
 
-Cells are color-coded based on the board's `staleness_threshold_days` setting and its `stale_warning_pct` percentage. The warning boundary is calculated as `threshold * (1 - stale_warning_pct / 100)`. With the defaults of 7 days and 50%, the warning boundary is 3.5 days.
+Cells are color-coded based on the board's `staleness_threshold_days` setting and its `stale_warning_pct` percentage. The warning boundary is `threshold * stale_warning_pct / 100`, the share of the threshold a card has used. With the defaults of 7 days and 50%, the warning boundary is 3.5 days. With 75%, it is 5.25 days. A value of `0` turns the yellow band off, so cells are green until the threshold. The card [aging tint](card-history.md#card-aging-tint) uses the same boundary.
+
+!!! note "Changed in 1.2 (#1841)"
+    Before 1.2 the boundary was computed as `threshold * (1 - stale_warning_pct / 100)`, the inverse of what the setting says. Boards on the default 50% are unaffected. Boards with any other value see the yellow band move.
 
 | Color | Marker | Condition |
 |---|---|---|

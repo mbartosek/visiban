@@ -46,6 +46,8 @@ export default {
         // Urgent priority (#1594) — dark-red fill/border and its on-tint text, distinct from danger
         urgent: "rgb(var(--urgent) / <alpha-value>)",
         "urgent-on-tint": "rgb(var(--urgent-on-tint) / <alpha-value>)",
+        // Stale 3x aging stage (#1841) — card overlay fill + inset ring only
+        "stale-severe": "rgb(var(--stale-severe) / <alpha-value>)",
 
         // Interactive — primary (Visiban brand blue)
         primary: "rgb(var(--primary) / <alpha-value>)",

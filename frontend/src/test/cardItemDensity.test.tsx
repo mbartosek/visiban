@@ -98,14 +98,15 @@ describe('CardItem — card_density (#961)', () => {
       expect(badge?.textContent).not.toBe('⏱ Due soon')
     })
 
-    it('renders the urgency badge "Stale" with full warning tone (text-warning, not text-fg-secondary)', () => {
-      const { container } = render(<CardItem card={makeCard({ is_stale: true })} density="comfortable" />)
-      const badge = screen.getByText('Stale')
+    it('renders the urgency badge "Stale" with the full warning on-tint tone (not text-fg-secondary)', () => {
+      render(<CardItem card={makeCard({ is_stale: true })} density="comfortable" />)
+      const badge = screen.getByText(/^Stale/)
       expect(badge).toBeInTheDocument()
       // Stale tone bumped from warning-soft → warning per VoC panel feedback —
-      // text-fg-secondary read as too quiet next to a calm card.
-      expect(container.querySelector('.text-warning')).toBeInTheDocument()
-      expect(container.querySelector('.text-fg-secondary')).not.toBe(badge)
+      // text-fg-secondary read as too quiet next to a calm card. Since #1841 the
+      // badge sits on the aging tint, so it uses the on-tint token (#1550).
+      expect(badge.className).toContain('text-warning-on-tint')
+      expect(badge.className).not.toContain('text-fg-secondary')
     })
 
     it('does not render the standalone due-date pill at comfortable when urgency is null', () => {

@@ -147,7 +147,7 @@ Each board has a `staleness_threshold_days` setting (default: **7 days**). A car
 
 ### Stale card indicator
 
-Cards that are stale show an amber tint overlay with reduced opacity in the board view.
+Stale cards are tinted on the board, and the tint deepens from orange to red to deep red at 1×, 2× and 3× the threshold. At Comfortable and Standard density their badge shows the idle days (`Stale · 41d`). See [Card aging tint](card-history.md#card-aging-tint).
 
 ### Running the stale check
 

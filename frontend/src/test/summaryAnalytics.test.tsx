@@ -474,6 +474,39 @@ describe('AnalyticsView', () => {
     expect(screen.getByText('10d')).toBeInTheDocument()
   })
 
+  it.each([
+    // stale_warning_pct is the percent of the threshold used before "Warning" (#1841).
+    // threshold 14 at 75% → warning from 10.5d: 10d is OK, 11d is Warning. The old
+    // inverted math (1 - pct/100) put the edge at 3.5d and showed 10d as Warning.
+    [75, { 'Backlog': 10, 'In Progress': 11, 'Review': 14 }, ['OK', 'Warning', 'High']],
+    // 0 turns the warning band off: below the threshold is OK, at it is High.
+    [0, { 'Backlog': 1, 'In Progress': 13, 'Review': 14 }, ['OK', 'OK', 'High']],
+  ])('heatmap warning band follows stale_warning_pct=%i as percent of the threshold used (#1841)', async (pct, avgs, levels) => {
+    mockGetBoardAnalytics.mockResolvedValue({
+      days: 30,
+      columns: ['Backlog', 'In Progress', 'Review'],
+      swimlanes: [
+        {
+          id: 1, name: 'Acme Corp',
+          avg_days_per_column: avgs, is_outlier: {},
+          age_avg_days_per_column: avgs, age_is_outlier: {},
+          deal_velocity_days: null, stalled_cards: [],
+        },
+      ],
+      stalled_threshold_days: 14,
+      staleness_threshold_days: 14,
+      stale_warning_pct: pct,
+    })
+    render(<AnalyticsView boardId={1} currentUserRole="member" />)
+    await screen.findByText('Acme Corp')
+    const cells = within(screen.getByRole('table', { name: 'Dwell time heatmap' })).getAllByRole('cell')
+    const values = Object.values(avgs)
+    values.forEach((v, i) => {
+      const cell = cells.find(c => (c.textContent ?? '').match(/\d+d/)?.[0] === `${v}d`)!
+      expect(cell).toHaveTextContent(levels[i])
+    })
+  })
+
   it('carries threshold level by icon and text, not color alone (#1591)', async () => {
     mockGetBoardAnalytics.mockResolvedValue({
       days: 30,

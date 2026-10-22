@@ -5,7 +5,7 @@ import type { Card, CardDensity, CustomFieldDefinition } from "../../types";
 import { PRIORITY_COLORS } from "../../constants/colors";
 import Avatar from "../Common/Avatar";
 import { formatDueDate, formatRelativeMovedAt } from "../../utils/date";
-import { agingTint, idleDays } from "../../utils/agingTint";
+import { agingTint, formatAgingTooltip, staleBadgeToneClass } from "../../utils/agingTint";
 import { classifyCardUrgency } from "../../utils/cardUrgency";
 import CardPeekPopover from "./CardPeekPopover";
 import CustomFieldQuickEditPopover from "./CustomFieldQuickEditPopover";
@@ -63,6 +63,15 @@ interface Props {
 // Custom comparator for React.memo — avoids re-renders when the card object
 // is referentially new but semantically identical.  We compare the scalar
 // fields that affect rendering plus label/assignee identity.
+/** True when focus arrived by keyboard. Falls back to true where `:focus-visible` is unsupported. */
+function isKeyboardFocus(el: HTMLElement): boolean {
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
 function arePropsEqual(prev: Props, next: Props): boolean {
   if (
     prev.card.id !== next.card.id ||
@@ -239,20 +248,12 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     ? Date.now() - new Date(card.last_moved_at).getTime() < 86_400_000
     : false;
 
-  const { overlayClass, bodyOpacityClass } = agingTint(card.last_moved_at, staleness_threshold_days, stale_warning_pct);
-
-  // Compute tooltip content for aging indicator
-  const days = idleDays(card.last_moved_at);
-  const threshDays = Math.max(1, staleness_threshold_days);
-  const warnDays = Math.round(threshDays * (1 - stale_warning_pct / 100));
-  const agingRatio = card.last_moved_at
-    ? Math.min(1, (Date.now() - new Date(card.last_moved_at).getTime()) / (threshDays * 86_400_000))
-    : 0;
-  const isAgingStale = agingRatio >= 1.0;
+  // Graduated aging ramp (#1841): agingTint is the single source for the stage,
+  // the idle days and the tint classes — never recompute the ratio here.
+  const aging = agingTint(card.last_moved_at, staleness_threshold_days, stale_warning_pct);
+  const { overlayClass, bodyOpacityClass } = aging;
   const agingTooltip = overlayClass !== null
-    ? isAgingStale
-      ? `Stale — idle for ${days} day${days === 1 ? "" : "s"} (threshold: ${threshDays} day${threshDays === 1 ? "" : "s"})`
-      : `Idle for ${days} day${days === 1 ? "" : "s"} — warning at ${warnDays} day${warnDays === 1 ? "" : "s"}, threshold is ${threshDays} day${threshDays === 1 ? "" : "s"}`
+    ? formatAgingTooltip(aging, staleness_threshold_days, stale_warning_pct, card.is_stale, card.blocker_count)
     : null;
 
   const dueInfo = card.due_date ? formatDueDate(card.due_date, userTimezone, userDateFormat) : null;
@@ -278,6 +279,22 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   const dueAlreadyInUrgency = urgency?.kind === "overdue" || urgency?.kind === "due-soon";
   // Suppress the recently-moved dot when urgency is already showing "Just moved".
   const recentAlreadyInUrgency = urgency?.kind === "recent";
+  // The badge sits on the card's aging tint whenever one is shown, so its text
+  // uses the on-tint token of its hue (#1550); plain text-<hue> drops below
+  // 4.5:1 on a tint. "Stale" follows the tint's stage: orange below 2x, red
+  // from 2x (#1841). Literal class names so Tailwind's JIT sees them.
+  const urgencyToneClass = !urgency
+    ? ""
+    : urgency.kind === "stale"
+    ? staleBadgeToneClass(aging.stage)
+    : urgency.tone === "danger"
+    ? (overlayClass ? "text-danger-on-tint" : "text-danger")
+    : urgency.tone === "warning"
+    ? (overlayClass ? "text-warning-on-tint" : "text-warning")
+    : (overlayClass ? "text-info-on-tint" : "text-info");
+  // "Stale · 41d" — the server decides whether the badge shows (is_stale); the
+  // label adds the idle days so the stage is never conveyed by color alone.
+  const staleLabel = card.last_moved_at ? `Stale · ${aging.idleDays}d` : "Stale";
 
   // Pinned custom fields (#371, Direction A). Quick-edit is only wired when
   // the caller opted in by passing both boardId and onCardUpdated — the
@@ -341,7 +358,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       {overlayClass && showTooltip && agingTooltip && (
         <div
           role="tooltip"
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-sunken text-fg text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap pointer-events-none"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-sunken text-fg text-xs rounded px-2 py-1 shadow-lg w-max max-w-[16rem] text-center pointer-events-none"
         >
           {agingTooltip}
         </div>
@@ -367,6 +384,10 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       `}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      // The aging tooltip states the idle days (#1841), so keyboard users get it
+      // too: shown on keyboard focus, never on a pointer click's focus.
+      onFocus={(e) => { if (e.target === e.currentTarget && isKeyboardFocus(e.currentTarget)) setShowTooltip(true); }}
+      onBlur={() => setShowTooltip(false)}
       style={{
         borderColor: priorityColor,
         boxShadow: isDragging && !overlay
@@ -533,16 +554,12 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
                     suppressed. */}
                 {urgency && (
                   <span
-                    className={`text-xs font-semibold shrink-0 ${
-                      urgency.tone === "danger"
-                        ? "text-danger"
-                        : urgency.tone === "warning"
-                        ? "text-warning"
-                        : "text-info"
-                    }`}
+                    className={`text-xs font-semibold shrink-0 ${urgencyToneClass}`}
                     title={
                       urgency.kind === "overdue" || urgency.kind === "due-soon"
                         ? `Due ${card.due_date}`
+                        : urgency.kind === "stale"
+                        ? agingTooltip ?? staleLabel
                         : urgency.label
                     }
                   >
@@ -550,6 +567,8 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
                       ? `⚑ ${dueInfo.label}`
                       : urgency.kind === "due-soon" && dueInfo
                       ? `⏱ ${dueInfo.label}`
+                      : urgency.kind === "stale"
+                      ? staleLabel
                       : urgency.label}
                   </span>
                 )}

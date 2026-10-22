@@ -88,7 +88,7 @@ Board
  ├── enforce_weight_limits (bool — block placement or weight increases that exceed column weight budget; default true)
  ├── description (text, optional — board description; blank = no description)
  ├── staleness_threshold_days (int, default 7 — number of days without card movement before a card is considered stale)
- ├── stale_warning_pct (int 0–100 — yellow threshold for analytics heatmap; default 50)
+ ├── stale_warning_pct (int 0–100 — % of the threshold used before the warning step, for the heatmap and card tint; default 50)
  ├── allowed_priorities (JSON — intended card priorities; not enforced, see field-enforcement.md)
  ├── share_token (UUID, nullable — public read-only share link; null = sharing disabled)
  ├── share_token_expires_at (datetime, nullable — null = never expires; past this the share endpoint returns 410)
@@ -203,7 +203,7 @@ Append-only record of a fixed, enumerable set of instance-wide admin actions (#1
 
 `enforce_weight_limits` (default true) blocks moving, creating, or restoring a card into a column that would exceed its weight budget, and raising a card's weight past it. Like WIP limits, board admins can override unless hard mode is active.
 
-`stale_warning_pct` (default 50, range 0--100) controls the yellow warning band in the analytics heatmap. At this percentage of `staleness_threshold_days` the heatmap cell turns yellow; at 100% it turns red.
+`stale_warning_pct` (default 50, range 0--100) is the percentage of `staleness_threshold_days` a card has used before it is flagged as approaching stale. It drives both the yellow warning band in the analytics heatmap (a cell turns yellow at this percentage and red at 100%) and the yellow step of the card [aging tint](../features/card-history.md#card-aging-tint). `0` turns the warning step off. The card tint's further steps at 2× and 3× the threshold are fixed in the frontend and are not stored.
 
 `allowed_priorities` is a JSON list of the priority values intended for cards on this board; an empty list means all priorities (`low`, `medium`, `high`, `urgent`). It is a **scaffold**: stored and returned, but card create and update accept any priority regardless of it — see [Field Enforcement](field-enforcement.md) (#1429).
 

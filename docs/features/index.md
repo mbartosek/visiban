@@ -104,7 +104,7 @@ Visiban surfaces two types of alerts in the notification bell:
 - **Comments** — opt in to be notified when someone comments on a card you created or are assigned to
 - **Staleness** — cards that haven't moved in N days (configurable per board) appear with an amber indicator and trigger a daily digest
 
-Stale cards show an amber tint overlay with reduced opacity on the board so they're impossible to miss at a glance.
+Aging cards are tinted on the board on a graduated scale: yellow as they approach the threshold, then orange, red and deep red at 1×, 2× and 3× the threshold. A card idle 150 days no longer looks the same as one idle 15 days. See [Card aging tint](card-history.md#card-aging-tint).
 
 Five of these events — assigned to me, @mentioned, due date approaching, a watched card moved, and a comment on a watched card — can also be **delivered by email**, off by default, once an administrator configures outgoing SMTP and you turn the per-event toggle on in Settings → Notifications.
 

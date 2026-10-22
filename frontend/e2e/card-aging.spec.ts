@@ -3,7 +3,7 @@ import { routeAuth } from './helpers'
 import { BOARD_FULL, CARD, CARD_STALE } from './fixtures/board'
 
 test.describe('card aging indicator', () => {
-  test('aged card renders an amber overlay', async ({ page }) => {
+  test('long-idle card renders the darkest aging stage with idle days', async ({ page }) => {
     await routeAuth(page)
 
     // Custom board fixture: include both a fresh card and a stale one so we can
@@ -26,13 +26,19 @@ test.describe('card aging indicator', () => {
     await expect(page.getByText(CARD_STALE.title).first()).toBeVisible({ timeout: 10_000 })
 
     // Locate the stale card's container and assert the overlay element exists.
-    // The overlay is a `div[aria-hidden="true"]` carrying `bg-warning/20` inside
-    // the card root (the card's outer wrapper uses `rounded-md`).
+    // CARD_STALE last moved 2026-04-01 against a 7-day threshold, so it is far
+    // past 3x and sits in the darkest stage of the ramp (#1841): a
+    // `div[aria-hidden="true"]` carrying `bg-stale-severe/20` plus an inset
+    // ring, inside the card root (the card's outer wrapper uses `rounded-md`).
+    // The ratio only grows with the wall clock, so the stage cannot drift down.
     const staleCard = page.getByText(CARD_STALE.title).first().locator('xpath=ancestor::div[contains(@class, "rounded-md")][1]')
-    await expect(staleCard.locator('div.bg-warning\\/20').first()).toBeVisible()
+    await expect(staleCard.locator('div.bg-stale-severe\\/20.ring-inset').first()).toBeVisible()
 
-    // Regression guard: the fresh card should NOT have an amber overlay.
+    // The badge states the idle days, not just "Stale".
+    await expect(staleCard.getByText(/^Stale · \d+d$/)).toBeVisible()
+
+    // Regression guard: the fresh card has no aging overlay at all.
     const freshCard = page.getByText(CARD.title).first().locator('xpath=ancestor::div[contains(@class, "rounded-md")][1]')
-    await expect(freshCard.locator('div.bg-warning\\/20')).toHaveCount(0)
+    await expect(freshCard.locator('div.pointer-events-none.inset-0')).toHaveCount(0)
   })
 })
