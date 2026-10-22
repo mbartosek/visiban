@@ -263,6 +263,13 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     if (focusedIndex === null || !tbodyRef.current) return;
     const row = tbodyRef.current.children[focusedIndex] as HTMLElement | undefined;
     row?.scrollIntoView?.({ block: "nearest" });
+    // Roving focus: move real DOM focus to the row so Enter (which only acts
+    // on a focused row) works after arrow navigation. Skip while a filter
+    // control owns focus so a pointer-selected index never steals it.
+    const active = document.activeElement;
+    if (row && active !== row && (active === document.body || tbodyRef.current.contains(active))) {
+      row.focus?.();
+    }
   }, [focusedIndex]);
 
   // Dropdown options derived from board metadata.
@@ -315,18 +322,21 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
             options={swimlaneOptions}
             selected={filters.swimlaneId}
             onChange={(v) => applyFilters({ ...filters, swimlaneId: v })}
+            escapePriority={34}
           />
           <SingleSelectDropdown
             label="Column"
             options={columnOptions}
             selected={filters.columnId}
             onChange={(v) => applyFilters({ ...filters, columnId: v })}
+            escapePriority={34}
           />
           <SingleSelectDropdown
             label="User"
             options={userOptions}
             selected={filters.userId}
             onChange={(v) => applyFilters({ ...filters, userId: v })}
+            escapePriority={34}
           />
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-xs text-fg-muted">From</span>
@@ -405,7 +415,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
                           setFocusedIndex(idx);
                         }}
                         onFocus={() => setFocusedIndex(idx)}
-                        tabIndex={0}
+                        tabIndex={isFocused || (focusedIndex === null && idx === 0) ? 0 : -1}
                         aria-current={isSelected ? "true" : undefined}
                         data-testid="history-row"
                         className={`border-b border-line-subtle cursor-pointer transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-primary-emphasis ${

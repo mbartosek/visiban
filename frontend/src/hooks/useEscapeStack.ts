@@ -33,7 +33,7 @@ function dispatch(e: KeyboardEvent): void {
  * Priority conventions:
  *   48 — canceling an in-flight load inside a modal (Import Board sample load)
  *   40 — modals and overlays
- *   30 — side panels (card detail, archived cards)
+ *   30 — side panels (card detail, archived cards, movement-history slide-in)
  *   25 — dropdowns (SelectDropdown, FilterBar, BulkActionToolbar) — via useDropdownEscape
  *   20 — inline confirmation dialogs (bulk delete confirm)
  *   15 — view-toggle navigation (analytics → summary → board)

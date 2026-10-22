@@ -302,18 +302,60 @@ describe('MovementHistoryView — slide-in panel', () => {
     expect(down.defaultPrevented).toBe(true)
   })
 
-  it('Enter opens the slide-in only from a row, not from a filter input (#1853)', async () => {
+  it('ArrowDown from body moves real focus to the row, then Enter opens the slide-in (#1853)', async () => {
     renderView()
     const row = await waitFor(() => screen.getByTestId('history-row'))
-    row.focus()
-    fireEvent.keyDown(row, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(document.body)
+    fireEvent.keyDown(document.body, { key: 'ArrowDown' })
+    await waitFor(() => expect(document.activeElement).toBe(row))
+    fireEvent.keyDown(row, { key: 'Enter' })
+    await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
+    expect(row).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('Enter on a non-row control or a filter input does not open the slide-in (#1853)', async () => {
+    renderView()
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    fireEvent.keyDown(document.body, { key: 'ArrowDown' })
+    await waitFor(() => expect(document.activeElement).toBe(row))
+    const button = screen.getByRole('button', { name: /^Column/ })
+    button.focus()
+    fireEvent.keyDown(button, { key: 'Enter' })
+    expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
     const input = document.querySelector('input') as HTMLInputElement
     input.focus()
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
-    row.focus()
-    fireEvent.keyDown(row, { key: 'Enter' })
+  })
+
+  it('arrows inside an open dropdown menu are not swallowed by the table handler (#1853)', async () => {
+    renderView()
+    await waitFor(() => screen.getByTestId('history-row'))
+    fireEvent.click(screen.getByRole('button', { name: /^Column/ }))
+    const item = screen.getByRole('menuitem', { name: 'Done' })
+    item.focus()
+    fireEvent.keyDown(item, { key: 'ArrowDown' })
+    // The table handler must not steal focus into the history rows.
+    expect(screen.getByTestId('history-row').contains(document.activeElement)).toBe(false)
+    expect(screen.getByTestId('history-row')).toHaveAttribute('tabindex', '0')
+  })
+
+  it('Escape with a filter dropdown open closes only the dropdown, then the slide-in (#1853)', async () => {
+    renderView()
+    const row = await waitFor(() => screen.getByTestId('history-row'))
+    fireEvent.click(row)
     await waitFor(() => screen.getByRole('complementary', { name: 'Movement detail' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Column/ }))
+    expect(screen.getByRole('menuitem', { name: 'Done' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Done' })).not.toBeInTheDocument())
+    expect(screen.getByRole('complementary', { name: 'Movement detail' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Movement detail' })).not.toBeInTheDocument()
+    )
   })
 
   it('Escape closes only the slide-in and does not reach a lower-priority handler (#1853)', async () => {
