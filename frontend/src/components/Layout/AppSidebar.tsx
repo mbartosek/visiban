@@ -10,6 +10,7 @@ import { buildSidebarTree } from "../../utils/groupTree";
 import type { SidebarTreeNode } from "../../utils/groupTree";
 import { useRecentBoardsPref } from "../../hooks/useRecentBoardsPref";
 import Spinner from "../Common/Spinner";
+import { migrateLegacyKey } from "../../utils/migrateLegacyKey";
 import { DEMO_NEW_BOARD_REASON, DEMO_NEW_GROUP_REASON } from "../../constants/demoCopy";
 
 interface Props {
@@ -19,18 +20,38 @@ interface Props {
   onMobileClose?: () => void;
 }
 
+const COLLAPSED_KEY = "user:prefs:sidebar-collapsed";
+const GROUPS_EXPANDED_KEY = "user:prefs:sidebar-groups-expanded";
+// Pre-#1855 names; migrated on first read.
+const LEGACY_COLLAPSED_KEY = "sidebar-collapsed";
+const LEGACY_GROUPS_EXPANDED_KEY = "sidebar-groups-expanded";
+
+function saveGroupsExpanded(ids: Set<number>): void {
+  try {
+    localStorage.setItem(GROUPS_EXPANDED_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Storage unavailable — the preference just won't persist.
+  }
+}
+
 export default function AppSidebar({ user, starVersion = 0, mobileOpen = false, onMobileClose }: Props) {
   const demoMode = user.demo_mode === true;
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [collapsed, setCollapsed] = useState(() =>
-    localStorage.getItem("sidebar-collapsed") === "true"
-  );
+  const [collapsed, setCollapsed] = useState(() => {
+    migrateLegacyKey(LEGACY_COLLAPSED_KEY, COLLAPSED_KEY);
+    try {
+      return localStorage.getItem(COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => {
+    migrateLegacyKey(LEGACY_GROUPS_EXPANDED_KEY, GROUPS_EXPANDED_KEY);
     try {
       const saved = JSON.parse(
-        localStorage.getItem("sidebar-groups-expanded") || "[]"
+        localStorage.getItem(GROUPS_EXPANDED_KEY) || "[]"
       );
       return new Set<number>(saved);
     } catch {
@@ -112,7 +133,7 @@ export default function AppSidebar({ user, starVersion = 0, mobileOpen = false, 
     if (ancestorIds.length > 0) {
       setExpandedGroups((prev) => {
         const next = new Set([...prev, ...ancestorIds]);
-        localStorage.setItem("sidebar-groups-expanded", JSON.stringify([...next]));
+        saveGroupsExpanded(next);
         return next;
       });
     }
@@ -148,7 +169,11 @@ export default function AppSidebar({ user, starVersion = 0, mobileOpen = false, 
   }, [starVersion]);
 
   useEffect(() => {
-    localStorage.setItem("sidebar-collapsed", String(collapsed));
+    try {
+      localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+    } catch {
+      // Storage unavailable — the preference just won't persist.
+    }
   }, [collapsed]);
 
   // Close flyouts when the sidebar expands
@@ -178,10 +203,7 @@ export default function AppSidebar({ user, starVersion = 0, mobileOpen = false, 
       } else {
         next.add(id);
       }
-      localStorage.setItem(
-        "sidebar-groups-expanded",
-        JSON.stringify([...next])
-      );
+      saveGroupsExpanded(next);
       return next;
     });
   };

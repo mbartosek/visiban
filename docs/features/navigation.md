@@ -91,12 +91,14 @@ Two keys are written to `localStorage` to survive page reloads and navigation:
 
 | Key | Type | Description |
 |---|---|---|
-| `sidebar-collapsed` | `"true"` \| `"false"` | Whether the sidebar is in icon-rail mode |
-| `sidebar-groups-expanded` | JSON array of group IDs (numbers) | Which groups have their board list open |
+| `user:prefs:sidebar-collapsed` | `"true"` \| `"false"` | Whether the sidebar is in icon-rail mode |
+| `user:prefs:sidebar-groups-expanded` | JSON array of group IDs (numbers) | Which groups have their board list open |
 
-`sidebar-collapsed` is written on every toggle; `sidebar-groups-expanded` on every group expand or collapse. Both are read synchronously during component initialization, so there's no flash of the default state on load.
+`user:prefs:sidebar-collapsed` is written on every toggle; `user:prefs:sidebar-groups-expanded` on every group expand or collapse. Both are read synchronously during component initialization, so there's no flash of the default state on load.
 
-If `sidebar-groups-expanded` can't be parsed as valid JSON, the error is silently caught and the set of expanded groups starts empty.
+Before 1.2 these keys were named `sidebar-collapsed` and `sidebar-groups-expanded`. On first load the old value is copied to the new key and the old key is removed; if the new key already exists it wins. The theme preference moved the same way (`visiban-theme` to `user:prefs:theme`, and its `visiban-theme-synced` sentinel to `user:prefs:theme-synced`).
+
+If `user:prefs:sidebar-groups-expanded` can't be parsed as valid JSON, the error is silently caught and the set of expanded groups starts empty.
 
 ## Active board highlight
 

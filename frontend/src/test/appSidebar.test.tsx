@@ -122,6 +122,24 @@ describe('AppSidebar', () => {
     expect(screen.getByText('My Board')).toBeInTheDocument()
   })
 
+  it('migrates legacy sidebar keys to user:prefs:* (#1855)', async () => {
+    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('sidebar-groups-expanded', JSON.stringify([10]))
+    render(<AppSidebar user={fakeUser} />)
+    await waitFor(() => expect(localStorage.getItem('sidebar-collapsed')).toBeNull())
+    expect(localStorage.getItem('sidebar-groups-expanded')).toBeNull()
+    expect(localStorage.getItem('user:prefs:sidebar-collapsed')).toBe('true')
+    expect(JSON.parse(localStorage.getItem('user:prefs:sidebar-groups-expanded') || '[]')).toContain(10)
+  })
+
+  it('new sidebar key wins over a stale legacy key (#1855)', async () => {
+    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'false')
+    render(<AppSidebar user={fakeUser} />)
+    await waitFor(() => expect(localStorage.getItem('sidebar-collapsed')).toBeNull())
+    expect(localStorage.getItem('user:prefs:sidebar-collapsed')).toBe('false')
+  })
+
   it('expanding a group reveals its boards', async () => {
     render(<AppSidebar user={fakeUser} />)
     await waitFor(() => screen.getByText('Alpha'))
@@ -134,29 +152,29 @@ describe('AppSidebar', () => {
     await waitFor(() => screen.getByText('Alpha'))
     await userEvent.setup().click(screen.getByText('Alpha'))
     expect(mockNavigate).toHaveBeenCalledWith('/groups/10')
-    expect(localStorage.getItem('sidebar-collapsed')).toBe('true')
+    expect(localStorage.getItem('user:prefs:sidebar-collapsed')).toBe('true')
   })
 
   it('clicking a board link collapses the sidebar', async () => {
-    localStorage.setItem('sidebar-groups-expanded', JSON.stringify([10]))
+    localStorage.setItem('user:prefs:sidebar-groups-expanded', JSON.stringify([10]))
     render(<AppSidebar user={fakeUser} />)
     await waitFor(() => screen.getByText('Sprint Board'))
     await userEvent.setup().click(screen.getByText('Sprint Board'))
-    expect(localStorage.getItem('sidebar-collapsed')).toBe('true')
+    expect(localStorage.getItem('user:prefs:sidebar-collapsed')).toBe('true')
   })
 
   it('collapses sidebar when toggle is clicked', async () => {
     render(<AppSidebar user={fakeUser} />)
     const toggle = screen.getByTitle('Collapse sidebar')
     await userEvent.setup().click(toggle)
-    expect(localStorage.getItem('sidebar-collapsed')).toBe('true')
+    expect(localStorage.getItem('user:prefs:sidebar-collapsed')).toBe('true')
     const expanded = screen.getByTitle('Expand sidebar')
     expect(expanded).toBeInTheDocument()
     expect(expanded).toHaveAttribute('aria-label', 'Expand sidebar')
   })
 
   it('restores collapsed state from localStorage', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
     render(<AppSidebar user={fakeUser} />)
@@ -168,7 +186,7 @@ describe('AppSidebar', () => {
 
   it('highlights active board by route', async () => {
     mockUseLocation.mockReturnValue({ pathname: '/boards/42' })
-    localStorage.setItem('sidebar-groups-expanded', JSON.stringify([10]))
+    localStorage.setItem('user:prefs:sidebar-groups-expanded', JSON.stringify([10]))
     render(<AppSidebar user={fakeUser} />)
     // Sprint Board appears in both the Recent section and the expanded group tree;
     // use getAllByText to avoid throwing on multiple matches.
@@ -207,7 +225,7 @@ describe('AppSidebar', () => {
   })
 
   it('shows Dashboard icon in collapsed mode', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
     render(<AppSidebar user={fakeUser} />)
@@ -215,7 +233,7 @@ describe('AppSidebar', () => {
   })
 
   it('highlights Dashboard icon in collapsed mode when at root path', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/' })
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -247,7 +265,7 @@ describe('AppSidebar', () => {
   })
 
   it('shows Site Admin icon in collapsed mode for site admins', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const adminUser: typeof fakeUser = { ...fakeUser, is_site_admin: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -259,7 +277,7 @@ describe('AppSidebar', () => {
   // ── Collapsed flyout tests ─────────────────────────────────────────────────
 
   it('shows Favorites trigger button in collapsed mode when starred boards exist', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -274,7 +292,7 @@ describe('AppSidebar', () => {
   })
 
   it('clicking Favorites trigger opens flyout listing starred boards', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -290,7 +308,7 @@ describe('AppSidebar', () => {
   })
 
   it('clicking Favorites trigger again closes the flyout', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -305,7 +323,7 @@ describe('AppSidebar', () => {
   })
 
   it('Favorites flyout closes on Escape key', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -320,7 +338,7 @@ describe('AppSidebar', () => {
   })
 
   it('Favorites flyout includes starred groups in a separate section', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Star Board', is_starred: true }
     const starredGroup: Group = { ...fakeGroup, id: 55, name: 'Star Group', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
@@ -335,7 +353,7 @@ describe('AppSidebar', () => {
   })
 
   it('highlights the Favorites trigger in collapsed mode for an active starred board', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/boards/77' })
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
@@ -351,7 +369,7 @@ describe('AppSidebar', () => {
   })
 
   it('shows Personal boards trigger in collapsed mode', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([personalBoard])
     render(<AppSidebar user={fakeUser} />)
@@ -362,7 +380,7 @@ describe('AppSidebar', () => {
   })
 
   it('clicking Personal boards trigger opens flyout listing personal boards', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([personalBoard])
     render(<AppSidebar user={fakeUser} />)
@@ -374,7 +392,7 @@ describe('AppSidebar', () => {
   })
 
   it('opening Favorites flyout closes Personal flyout', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const starredBoard: Board = { ...fakeBoard, id: 77, name: 'Starred One', is_starred: true }
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([personalBoard])
@@ -390,7 +408,7 @@ describe('AppSidebar', () => {
   })
 
   it('active personal board highlights the Personal trigger in collapsed mode', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/boards/99' })
     vi.mocked(listGroups).mockResolvedValue([])
     vi.mocked(listBoards).mockResolvedValue([personalBoard])
@@ -408,7 +426,7 @@ describe('AppSidebar', () => {
     render(<AppSidebar user={fakeUser} />)
     await waitFor(() => screen.getByText('Alpha'))
     await userEvent.setup().click(screen.getByLabelText('Expand group'))
-    const stored = JSON.parse(localStorage.getItem('sidebar-groups-expanded') || '[]')
+    const stored = JSON.parse(localStorage.getItem('user:prefs:sidebar-groups-expanded') || '[]')
     expect(stored).toContain(10)
   })
 
@@ -444,7 +462,7 @@ describe('AppSidebar', () => {
   })
 
   it('shows a single Groups trigger in the collapsed rail when groups exist', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     render(<AppSidebar user={fakeUser} />)
     await waitFor(() => expect(screen.getByTitle('Groups')).toBeInTheDocument())
     // assert the attribute directly — aria-label and title share the same text here, so
@@ -455,7 +473,7 @@ describe('AppSidebar', () => {
   })
 
   it('highlights the Groups trigger in collapsed mode for an active group board', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/boards/42' })
     render(<AppSidebar user={fakeUser} />)
     await waitFor(() => screen.getByTitle('Groups'))
@@ -467,7 +485,7 @@ describe('AppSidebar', () => {
   })
 
   it('Groups flyout lists all groups including subgroups', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     const subgroup: Group = { ...fakeGroup, id: 20, name: 'Frontend', parent: 10, parent_name: 'Alpha' }
     vi.mocked(listGroups).mockResolvedValue([fakeGroup, subgroup])
     vi.mocked(listBoards).mockResolvedValue([])
@@ -621,7 +639,7 @@ describe('AppSidebar', () => {
   })
 
   it('shows Recent trigger in collapsed rail when recent boards exist', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     localStorage.setItem('user:prefs:recent-boards', JSON.stringify([
       { id: 42, name: 'Sprint Board' },
     ]))
@@ -635,7 +653,7 @@ describe('AppSidebar', () => {
   })
 
   it('highlights the Recent trigger in collapsed mode for an active recent board', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/boards/42' })
     localStorage.setItem('user:prefs:recent-boards', JSON.stringify([
       { id: 42, name: 'Sprint Board' },
@@ -652,7 +670,7 @@ describe('AppSidebar', () => {
   })
 
   it('clicking Recent trigger opens flyout listing recent boards', async () => {
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     localStorage.setItem('user:prefs:recent-boards', JSON.stringify([
       { id: 42, name: 'Sprint Board' },
     ]))
@@ -684,7 +702,7 @@ describe('AppSidebar', () => {
   it('does not highlight the Groups trigger for an orphaned board in collapsed mode', async () => {
     // An orphaned board (group ≠ null, but group not in listGroups) must NOT light up the
     // Groups collapsed-rail trigger — it lives in Personal, so only Personal should be active.
-    localStorage.setItem('sidebar-collapsed', 'true')
+    localStorage.setItem('user:prefs:sidebar-collapsed', 'true')
     mockUseLocation.mockReturnValue({ pathname: '/boards/88' })
     const orphanedBoard: Board = {
       ...fakeBoard, id: 88, name: 'Shared With Me', group: 77, group_name: 'Engineering',

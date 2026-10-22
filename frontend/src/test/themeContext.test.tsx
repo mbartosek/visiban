@@ -38,7 +38,7 @@ function setupMatchMedia(prefersDark = false) {
 // localStorage helpers
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'visiban-theme'
+const STORAGE_KEY = 'user:prefs:theme'
 
 function setStoredPreference(pref: ThemePreference) {
   localStorage.setItem(STORAGE_KEY, pref)

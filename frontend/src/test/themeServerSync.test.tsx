@@ -13,8 +13,8 @@ import { updateCurrentUser } from '../api/auth'
 
 const mockUpdateCurrentUser = updateCurrentUser as ReturnType<typeof vi.fn>
 
-const STORAGE_KEY = 'visiban-theme'
-const SYNC_SENTINEL_KEY = 'visiban-theme-synced'
+const STORAGE_KEY = 'user:prefs:theme'
+const SYNC_SENTINEL_KEY = 'user:prefs:theme-synced'
 
 function makeMatchMedia(prefersDark = true) {
   return {
@@ -129,6 +129,51 @@ describe('ThemeServerSync', () => {
   // --------------------------------------------------------------------------
   // Subsequent-load server-wins behaviour
   // --------------------------------------------------------------------------
+
+  describe('legacy key migration (#1855)', () => {
+    it('treats a migrated legacy sentinel as already synced: no PATCH, server wins', async () => {
+      localStorage.setItem('visiban-theme', 'dark')
+      localStorage.setItem('visiban-theme-synced', '1')
+      const user = makeUser('light')
+
+      render(
+        <ThemeProvider>
+          <ThemeServerSync user={user} onUserUpdated={vi.fn()} />
+        </ThemeProvider>
+      )
+
+      await waitFor(() => {
+        expect(localStorage.getItem(STORAGE_KEY)).toBe('light')
+      })
+      expect(mockUpdateCurrentUser).not.toHaveBeenCalled()
+      expect(localStorage.getItem(SYNC_SENTINEL_KEY)).toBe('1')
+      expect(localStorage.getItem('visiban-theme-synced')).toBeNull()
+      expect(localStorage.getItem('visiban-theme')).toBeNull()
+    })
+
+    it('does not crash or PATCH when storage throws', async () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      const user = makeUser('light')
+
+      expect(() =>
+        render(
+          <ThemeProvider>
+            <ThemeServerSync user={user} onUserUpdated={vi.fn()} />
+          </ThemeProvider>
+        )
+      ).not.toThrow()
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(mockUpdateCurrentUser).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
+    })
+  })
 
   describe('subsequent-load server-wins', () => {
     it('overwrites local preference when sentinel is present and values differ', async () => {
