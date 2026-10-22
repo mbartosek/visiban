@@ -30,7 +30,7 @@ const SYNC_SENTINEL_KEY = "user:prefs:theme-synced";
 // Pre-#1855 name. The sentinel is renamed (not left behind) so every browser
 // storage key follows the user:prefs:* rule; migrating it also preserves
 // "already synced" for existing users, so the one-time local-to-server push
-// does not re-fire and clobber a newer server value. Remove after 1.2 GA.
+// does not re-fire and clobber a newer server value. Remove under #1859.
 const LEGACY_SYNC_SENTINEL_KEY = "visiban-theme-synced";
 
 export function ThemeServerSync({
@@ -59,13 +59,25 @@ export function ThemeServerSync({
       migrateLegacyKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
       migrateLegacyKey(LEGACY_SYNC_SENTINEL_KEY, SYNC_SENTINEL_KEY);
       const serverTheme = user.theme ?? "system";
-      const localTheme =
-        (localStorage.getItem(STORAGE_KEY) as typeof preference | null) ?? "system";
-      const sentinel = localStorage.getItem(SYNC_SENTINEL_KEY);
+      let localTheme: typeof preference;
+      let sentinel: string | null;
+      try {
+        localTheme =
+          (localStorage.getItem(STORAGE_KEY) as typeof preference | null) ?? "system";
+        sentinel = localStorage.getItem(SYNC_SENTINEL_KEY);
+      } catch {
+        // Storage unavailable: with no reliable local state or sentinel, skip
+        // the initial sync rather than guess (the server value is untouched).
+        return;
+      }
 
       if (!sentinel) {
         // First load after upgrade. Local choice wins — push it to the server.
-        localStorage.setItem(SYNC_SENTINEL_KEY, "1");
+        try {
+          localStorage.setItem(SYNC_SENTINEL_KEY, "1");
+        } catch {
+          // Non-fatal: the sync simply repeats on the next load.
+        }
         // Hosted demo (#1193): PATCH /auth/user/ is not on DEMO_ALLOWED_WRITES,
         // so this would always 403 into DemoWriteBlockedToast for a save the
         // visitor never asked for — nothing here is a control they clicked.

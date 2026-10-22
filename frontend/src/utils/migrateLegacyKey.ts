@@ -8,7 +8,7 @@
  *
  * Storage can throw (private mode, blocked site data, quota); a failed
  * migration must never crash the app, so every access is swallowed. The shim
- * is idempotent and can be removed after 1.2 GA once the legacy keys have aged
+ * is idempotent and can be removed under #1859 once the legacy keys have aged
  * out (also drop the legacy read in public/theme-init.js).
  */
 export function migrateLegacyKey(oldKey: string, newKey: string): void {

@@ -12,7 +12,7 @@ interface ThemeContextValue {
 }
 
 export const STORAGE_KEY = "user:prefs:theme";
-// Pre-#1855 name; migrated on first read. Remove the shim after 1.2 GA.
+// Pre-#1855 name; migrated on first read. Remove the shim under #1859.
 export const LEGACY_STORAGE_KEY = "visiban-theme";
 
 const ThemeContext = createContext<ThemeContextValue>({
