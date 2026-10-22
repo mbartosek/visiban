@@ -689,7 +689,7 @@ def list_cards(*, board_id, column_id=None, swimlane_id=None, assignee=None,
     existing callers, so the signal is opt-in: ``include_meta=True`` returns
     ``{cards, total, truncated, limit, offset}`` instead (#1762), mirroring
     REST's ``X-Total-Count``/``X-Truncated``. ``limit``/``offset`` page past
-    the cap with REST's semantics (limit clamped to 200, both non-negative).
+    the cap with REST's semantics (limit clamped to 200 and non-negative; a negative offset is 0, #1823).
     """
     user = get_current_user()
     try:

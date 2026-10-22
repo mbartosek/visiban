@@ -954,6 +954,18 @@ class CardListTruncationSignalTests(TestCase):
         headers = op["responses"]["200"]["headers"]
         self.assertIn("X-Total-Count", headers)
         self.assertIn("X-Truncated", headers)
+        # #1823: the 400 covers both the coded limit error and the field-keyed
+        # offset-too-large error parse_offset still raises.
+        ref = op["responses"]["400"]["content"]["application/json"]["schema"]
+        name = ref["$ref"].rsplit("/", 1)[1]
+        one_of = schema["components"]["schemas"][name]["oneOf"]
+        refs = {o["$ref"].rsplit("/", 1)[1] for o in one_of}
+        self.assertEqual(refs, {"CardListInvalidQueryParam", "CardListOffsetTooLarge"})
+        self.assertEqual(
+            set(schema["components"]["schemas"]["CardListInvalidQueryParam"]["properties"]),
+            {"detail", "code"},
+        )
+        self.assertIn("offset", schema["components"]["schemas"]["CardListOffsetTooLarge"]["properties"])
 
 
 class CardListQueryCountTests(TestCase):

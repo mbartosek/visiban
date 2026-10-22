@@ -15,7 +15,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from drf_spectacular.utils import (
-    extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiResponse, OpenApiTypes,
+    extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiResponse, PolymorphicProxySerializer, OpenApiTypes,
 )
 
 from django.conf import settings as django_settings
@@ -321,13 +321,24 @@ _CARD_LIST_SCHEMA = extend_schema(
         200: CardSerializer(many=True),
         400: OpenApiResponse(
             description=(
-                "`limit` is negative or not an integer (`code: invalid_query_param`). "
-                "(An `offset` above 2^62 also returns 400, in the field-keyed form "
-                '`{"offset": ["..."]}` shared with the other endpoints.)'
+                "Either `limit` is negative or not an integer "
+                '(`{"detail": ..., "code": "invalid_query_param"}`), or `offset` is '
+                'above 2^62 (the field-keyed form `{"offset": ["..."]}` shared with '
+                "the other endpoints)."
             ),
-            response=inline_serializer(
-                name="CardListInvalidQueryParam",
-                fields={"detail": serializers.CharField(), "code": serializers.CharField()},
+            response=PolymorphicProxySerializer(
+                component_name="CardListBadQueryParam",
+                serializers=[
+                    inline_serializer(
+                        name="CardListInvalidQueryParam",
+                        fields={"detail": serializers.CharField(), "code": serializers.CharField()},
+                    ),
+                    inline_serializer(
+                        name="CardListOffsetTooLarge",
+                        fields={"offset": serializers.ListField(child=serializers.CharField())},
+                    ),
+                ],
+                resource_type_field_name=None,
             ),
         ),
     },
