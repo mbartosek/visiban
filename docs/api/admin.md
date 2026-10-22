@@ -651,7 +651,9 @@ The response includes a one-time `raw_token` field. Note that the [group](groups
 
 ### `POST /api/v1/admin/invite-links/send/`
 
-Email a single-use registration invite to one address. *(Added in 1.2.)*
+> **Added in 1.2**
+
+Email a single-use registration invite to one address.
 
 **Permission:** `IsSiteAdmin`.
 

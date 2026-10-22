@@ -386,7 +386,9 @@ Valid roles: `admin`, `member`, `collaborator`, `viewer`
     `revoked` is a real status value, but `GET /invite-links/` cannot return a link in that state — a revoked link's `is_active` is cleared and it is filtered out of the list. Once a link is revoked, it is gone from this endpoint entirely rather than kept around showing `status: "revoked"`.
 
 ### `POST /api/v1/groups/{id}/invite-links/send/`
-Email a single-use invite link to one address. Requires group admin. *(Added in 1.2.)*
+> **Added in 1.2**
+
+Email a single-use invite link to one address. Requires group admin.
 
 **Request**
 ```json

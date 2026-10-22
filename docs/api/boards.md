@@ -1295,7 +1295,9 @@ List the board's invites, newest first, as a bare array (not paginated). Require
 The second invite was sent by an account that has since been deleted, so it lists as `revoked` even though `DELETE` was never called.
 
 ### `POST /api/v1/boards/{id}/invite-links/`
-*(New in 1.2)* Create a **shareable invite link** (`delivery: "link"`). Requires board admin — the same permission matrix as the list (`403` for a caller who can see the board but is not a board admin, `404` for a missing board or a caller with no access to it, `401` unauthenticated).
+> **Added in 1.2**
+
+Create a **shareable invite link** (`delivery: "link"`). Requires board admin — the same permission matrix as the list (`403` for a caller who can see the board but is not a board admin, `404` for a missing board or a caller with no access to it, `401` unauthenticated).
 
 **Request** `{ "role": "viewer", "expiry_days": 7, "single_use": false, "name": "Contractors" }`
 

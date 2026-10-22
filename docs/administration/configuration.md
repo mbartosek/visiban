@@ -143,7 +143,7 @@ The hosted demo behind a Cloudflare Tunnel uses `2` (Cloudflare appends the visi
 
 ## Optional features (off by default)
 
-Two features are dormant until an operator opts in. Set these in your `.env` file (Docker Compose) or through `backend.extraEnv` (Helm), then restart the backend. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.
+Two features are dormant until an operator opts in. Set these in your `.env` file (Docker Compose). Helm support for these flags is tracked in #1835, then restart the backend. All names are stable: a rename keeps the old name as a deprecated alias for at least one minor release.
 
 | Variable | Default | Description |
 |---|---|---|

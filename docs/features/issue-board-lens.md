@@ -35,14 +35,7 @@ In Docker Compose add it to your `.env` file:
 GIT_LENS_ENABLED=true
 ```
 
-In a Helm deployment, pass it via your values file:
-
-```yaml
-backend:
-  extraEnv:
-    - name: GIT_LENS_ENABLED
-      value: "true"
-```
+The Helm chart does not yet expose this flag. Support is tracked in #1835.
 
 When the variable isn't set, or is set to `false`, the feature is completely absent from the UI and API. No frontend restart needed — the UI reads a capability flag from the backend on load.
 

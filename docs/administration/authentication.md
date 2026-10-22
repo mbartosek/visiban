@@ -67,7 +67,7 @@ See the [OAuth Setup](../getting-started/oauth.md) guide for step-by-step config
 
 ### Connected accounts and email collisions
 
-*Added in 1.2 (#1314).*
+> **Added in 1.2** (#1314)
 
 Visiban never attaches a provider to an existing account automatically just because the emails match — a provider can report an address it never verified. Instead:
 
