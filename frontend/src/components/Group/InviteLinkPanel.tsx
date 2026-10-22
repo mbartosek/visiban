@@ -57,11 +57,13 @@ type PanelLink = (GroupInviteLink | (BoardInviteLink & { is_active?: boolean; to
   can_register?: boolean;
 };
 
-/** What the create form submits; each kind maps it onto its own endpoint. */
+/** What the create form submits; each kind maps it onto its own endpoint.
+ *  A shareable link, group or board, never grants admin and always expires
+ *  (#439, #1727): it is a bearer credential that may be pasted anywhere. */
 interface CreatePayload {
   name?: string;
-  role: "admin" | "member" | "collaborator" | "viewer";
-  expiry_days: number | null;
+  role: LinkRole;
+  expiry_days: LinkExpiryDays;
   single_use: boolean;
 }
 
@@ -83,14 +85,7 @@ const INVITE_API: Record<InviteScope["kind"], InviteApi> = {
   },
   board: {
     list: (id) => listBoardInviteLinks(id),
-    // The board form offers only grantable roles and 1/7/30 days (#439); the
-    // server refuses anything else, so the narrowing here is a formality.
-    create: (id, payload) => createBoardInviteLink(id, {
-      name: payload.name,
-      role: payload.role === "admin" ? undefined : payload.role,
-      expiry_days: (payload.expiry_days ?? 7) as 1 | 7 | 30,
-      single_use: payload.single_use,
-    }),
+    create: (id, payload) => createBoardInviteLink(id, payload),
     revoke: (id, linkId) => revokeBoardInviteLink(id, linkId),
     send: (id, payload) => sendBoardInviteEmail(id, {
       email: payload.email,
@@ -100,7 +95,12 @@ const INVITE_API: Record<InviteScope["kind"], InviteApi> = {
   },
 };
 
-const BOARD_ROLE_OPTIONS: { value: "member" | "collaborator" | "viewer"; label: string }[] = [
+type LinkRole = "member" | "collaborator" | "viewer";
+type LinkExpiryDays = 1 | 7 | 30;
+
+// Roles a shareable link may grant (#439 board, #1727 group): never admin.
+// The group email form keeps its own role list, which still offers admin.
+const LINK_ROLE_OPTIONS: { value: LinkRole; label: string }[] = [
   { value: "member", label: "Member" },
   { value: "collaborator", label: "Collaborator" },
   { value: "viewer", label: "Viewer" },
@@ -109,6 +109,12 @@ const BOARD_ROLE_OPTIONS: { value: "member" | "collaborator" | "viewer"; label: 
 const ALREADY_USED_REVOKE_ERROR = "This invite was already used, so it can't be revoked.";
 const GENERIC_REVOKE_ERROR = "Could not revoke invite.";
 
+// The group email form above still offers Admin; say why the link form doesn't (#1727).
+// The email route is named only while that form is shown (emailAvailable !== false).
+const GROUP_LINK_ADMIN_HINT =
+  "Invite links can't grant Admin. To make someone an admin, email them an invite or change their role after they join.";
+const GROUP_LINK_ADMIN_HINT_NO_EMAIL =
+  "Invite links can't grant Admin. To make someone an admin, change their role after they join.";
 
 const ROLE_COLORS: Record<string, string> = {
   admin: "bg-palette-purple text-palette-purple-pale",
@@ -126,15 +132,13 @@ const STATUS_LABELS: Record<string, string> = {
 // Shared with the admin invite tables so the expired badge keeps the /20 tint (#1501).
 const STATUS_COLORS = INVITE_STATUS_STYLES;
 
-const EXPIRY_OPTIONS = [
+// A shareable link always expires (#439 board, #1727 group): no "Never".
+// Rows minted before #1727 can still have no expiry and render "Never" below.
+const EXPIRY_OPTIONS: { label: string; value: LinkExpiryDays }[] = [
   { label: "1 day", value: 1 },
   { label: "7 days", value: 7 },
   { label: "30 days", value: 30 },
-  { label: "Never", value: null },
 ];
-
-// A shareable board link always expires (#439): no "Never".
-const BOARD_EXPIRY_OPTIONS = EXPIRY_OPTIONS.filter((opt) => opt.value !== null);
 
 const MAX_LINKS = 5;
 
@@ -215,8 +219,8 @@ export default function InviteLinkPanel({
   // New link form state
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState("");
-  const [formRole, setFormRole] = useState<"admin" | "member" | "collaborator" | "viewer">("member");
-  const [formExpiry, setFormExpiry] = useState<number | null>(7);
+  const [formRole, setFormRole] = useState<LinkRole>("member");
+  const [formExpiry, setFormExpiry] = useState<LinkExpiryDays>(7);
   const [formSingleUse, setFormSingleUse] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -546,7 +550,7 @@ export default function InviteLinkPanel({
       send={(payload) => api.send(scopeId, payload)}
       onSent={() => void fetchLinks()}
       senderIsSiteAdmin={isSiteAdmin}
-      roleOptions={isBoard ? BOARD_ROLE_OPTIONS : undefined}
+      roleOptions={isBoard ? LINK_ROLE_OPTIONS : undefined}
       showLinkDivider={allowShareableLinks}
       onAvailabilityChange={(available) => {
         setEmailAvailable(available);
@@ -578,14 +582,9 @@ export default function InviteLinkPanel({
           <label className="text-xs text-fg-tertiary">Role</label>
           <SelectDropdown
             value={formRole}
-            onChange={(v) => setFormRole(v as "admin" | "member" | "collaborator" | "viewer")}
+            onChange={(v) => setFormRole(v as LinkRole)}
             ariaLabel="Role"
-            options={isBoard ? BOARD_ROLE_OPTIONS : [
-              { value: "admin", label: "Admin" },
-              { value: "member", label: "Member" },
-              { value: "collaborator", label: "Collaborator" },
-              { value: "viewer", label: "Viewer" },
-            ]}
+            options={LINK_ROLE_OPTIONS}
             size="xs"
           />
         </div>
@@ -593,10 +592,10 @@ export default function InviteLinkPanel({
         <div className="flex flex-col gap-1 flex-1">
           <label className="text-xs text-fg-tertiary">Expires</label>
           <SelectDropdown
-            value={formExpiry === null ? "null" : String(formExpiry)}
-            onChange={(v) => setFormExpiry(v === "null" ? null : Number(v))}
+            value={String(formExpiry)}
+            onChange={(v) => setFormExpiry(Number(v) as LinkExpiryDays)}
             ariaLabel="Expires"
-            options={(isBoard ? BOARD_EXPIRY_OPTIONS : EXPIRY_OPTIONS).map((opt) => ({
+            options={EXPIRY_OPTIONS.map((opt) => ({
               value: String(opt.value),
               label: opt.label,
             }))}
@@ -613,6 +612,12 @@ export default function InviteLinkPanel({
         checked={formSingleUse}
         onChange={setFormSingleUse}
       />
+
+      {!isBoard && (
+        <p className="text-xs text-fg-muted">
+          {emailAvailable === false ? GROUP_LINK_ADMIN_HINT_NO_EMAIL : GROUP_LINK_ADMIN_HINT}
+        </p>
+      )}
 
       {/* Board (#439): whether a new person can sign up from a link depends on
           the site's registration mode — shareable links never admit a new

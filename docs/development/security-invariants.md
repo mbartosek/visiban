@@ -45,8 +45,8 @@ function that writes `Board.group` must call the shared group-admin check or be
 allowlisted.
 It also pins the registration and OAuth adapter call sites to the shared
 functions and to `registration_token_kind` (Rule 4 dispatch). It does not
-enumerate Rule 3 (the revocation table is a review checklist), Rule 5, Rule 9
-or Rule 10 (review checklists, pinned by the tests named under each), and it
+enumerate Rule 3 (the revocation table is a review checklist), Rule 5, Rule 9,
+Rule 10 or Rule 13 (review checklists, pinned by the tests named under each), and it
 does not test locking; the concurrent tests for each consume-once path do.
 Rules 11 and 12 are enumerated by their own tests instead:
 `groups/tests/test_group_member_guards.py` `GroupMembershipEntryPointTests`
@@ -402,7 +402,7 @@ arrives by any other route, any non-API write.
 | Board member add or role change (REST) | `boards/views/boards.py` `BoardViewSet.members` | The submitted `role` must be a string within `BoardMembership.Role.values`, else `400`, before any row is written |
 | Group member role change (REST) | `groups/views.py` `GroupViewSet.update_member` (PATCH) | The submitted `role` must be within `GroupMembership.Role.values`, else `400` |
 | Board invite links, link and email (REST) | `boards/serializers.py` `BoardInviteLinkCreateSerializer`, `BoardInviteLinkEmailSerializer`; `boards/models.py` `BoardInviteLink.generate` | A `ChoiceField` limited to the roles an invite may grant; `generate` repeats the check against `GRANTABLE_ROLES` (a subset of `Role.values`) |
-| Group invite links, link and email (REST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`, `GroupInviteLinkEmailSerializer` | A `ChoiceField` over `GroupInviteLink.Role.choices` |
+| Group invite links, link and email (REST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`, `GroupInviteLinkEmailSerializer` | A `ChoiceField`: over `GroupInviteLink.Role.choices` for an emailed invite, and over `GROUP_INVITE_LINK_ROLE_CHOICES` (every role but `admin`, Rule 13) for a shareable link |
 | Invite redemption at registration | `boards/invites.py` `role_is_grantable`, `_would_create_membership`; `groups/invite_registration.py` `group_link_registration_refusal` | The stored link role must be in the grantable set (`GRANTABLE_ROLES`) or `GroupMembership.Role.values`, else the invite is refused as invalid |
 | Board role resolution (all transports) | `boards/permissions.py` `get_board_role`, `get_board_roles` | A stored board membership role outside `BoardMembership.Role.values` resolves to no access; a stored group role outside `GroupMembership.Role.values` is skipped in the ancestor walk (`_nearest_ancestor_role`); the moderator flag is honored only for an in-enum role |
 | Board list and card query scoping | `boards/views/_helpers.py` `get_accessible_boards_queryset`, `board_access_q`; `groups/views.py` `GroupViewSet.boards` GET, `_descendant_boards_queryset` (serves `descendant_boards` and `descendant_boards_paged`) | A stored board membership role outside `BoardMembership.Role.values` admits no board through that membership and, as in `get_board_role`, is not overridden by group membership; the board owner is admitted regardless |
@@ -517,6 +517,48 @@ with call counts, owner, all-content access, group-inherited and overridden
 roles, non-member `404`, unset and invalid `min_role`, and
 `AnalyticsExtensionsEntryPointTests`, which scans the backend for any reference
 to `ANALYTICS_EXTENSIONS` outside `boards/hooks.py` and `boards/permissions.py`).
+
+## Rule 13: A shareable invite link never grants admin and always expires
+
+**Rule.** An invite link that is shared rather than sent to one address, on a
+board or a group, cannot grant the `admin` role and has an expiry of at most 30
+days. A request for `admin` or for no expiry is refused with `400`, not
+narrowed. An emailed invite also always expires (at most 30 days); on a group
+it may grant `admin`, because it is bound to one recipient address (#1678). The
+limits are checked when a link is created. Links created before a limit applied
+keep their stored role and expiry until they are revoked or expire (#1727: no
+data migration; the upgrade guide tells admins to review them).
+
+**Why.** A shareable link is a bearer credential: it can be forwarded or pasted
+anywhere, and whoever holds it gets its grant. A group admin is board admin on
+every board in the group's subtree, so an admin link that never expires is a
+standing, transferable grant of that whole subtree. Binding to an address
+(emailed invites) is what makes an admin grant by invite acceptable; expiry
+bounds how long a leaked link is useful.
+
+| Surface | Entry point | Enforced via |
+|---|---|---|
+| Board invite link create (REST) | `boards/views/invites.py` `BoardInviteLinksMixin.invite_links` (POST) | `boards/serializers.py` `BoardInviteLinkCreateSerializer`: `role` is a `ChoiceField` without `admin`, `expiry_days` is a required `ChoiceField` over `BOARD_INVITE_EXPIRY_DAYS` (1, 7, 30); `boards/models.py` `BoardInviteLink.generate` repeats the role check against `GRANTABLE_ROLES` |
+| Board emailed invite (REST) | `boards/views/invites.py` `BoardInviteLinksMixin.invite_link_send` | `boards/serializers.py` `BoardInviteLinkEmailSerializer`: no `admin`; `expiry_days` over `BOARD_INVITE_EXPIRY_DAYS`, default 7 |
+| Group invite link create (REST) | `groups/views.py` `GroupViewSet.invite_links` (POST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`: `role` over `GROUP_INVITE_LINK_ROLE_CHOICES` (no `admin`); `expiry_days` an integer from 1 to `GROUP_INVITE_LINK_MAX_EXPIRY_DAYS` (30), default `GROUP_INVITE_LINK_DEFAULT_EXPIRY_DAYS` (7), `null` refused; the view always sets `expires_at`; `groups/models.py` `GroupInviteLink.generate` refuses `admin` on a shareable link (`delivery` `link`) for any other caller |
+| Group emailed invite (REST) | `groups/views.py` `GroupViewSet.invite_link_send` | `groups/serializers.py` `GroupInviteLinkEmailSerializer`: `expiry_days` from 1 to `GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS` (30), default 7; `admin` allowed, the invite being bound to its recipient (`GroupInviteLink.generate` refuses an emailed invite without an address) |
+| Changing an existing link | none | No route updates a board or group invite link: the group routes are `GET`/`POST` `invite-links/` and `DELETE` `invite-links/{link_id}/`, and the board routes are the same; `PATCH` and `PUT` answer `405`. Neither model is registered in the Django admin |
+| Seeded data | `boards/management/commands/seed_demo_data.py` (the demo group's link) | Created with the `member` role and a 30-day expiry |
+| MCP, WebSocket, import | none | No tool, consumer or import format creates an invite link |
+
+Site invite links (`accounts/admin_views.py` `InviteLinkCreateSerializer`) are
+not covered: they grant no board or group role, only registration, and only a
+site admin creates them.
+
+Coverage: `groups/tests/test_group_invite_link_limits_1727.py` (admin refused on
+a shareable group link and in `generate`, emailed invite still grants admin, explicit `null`,
+over-30, zero and negative expiry refused, omitted expiry defaults to 7 days,
+`PATCH`/`PUT` answer `405`, and a pre-existing admin link with no expiry still
+redeems), `groups/tests/test_groups.py`
+(`test_all_invite_link_roles_can_be_created`),
+`boards/tests/test_board_invites.py` (the board create serializer),
+`boards/tests/test_seed_demo_data.py`
+(`test_demo_group_has_label_and_invite_link`).
 
 ## How to add a rule
 

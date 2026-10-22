@@ -129,6 +129,7 @@ from boards.models import (
     SwimlaneCustomFieldValue,
 )
 from groups.models import Group, GroupInviteLink, GroupLabel, GroupMembership
+from groups.serializers import GROUP_INVITE_LINK_MAX_EXPIRY_DAYS
 
 from ._demo_site_data import (
     BOARDS as DEMO_SITE_BOARDS,
@@ -1803,11 +1804,14 @@ class Command(BaseCommand):
                 group=group, user=member, defaults={"role": GroupMembership.Role.MEMBER},
             )
         GroupLabel.objects.create(group=group, name="Demo", color="#6366F1")
+        # Expires like any shareable link created through the API (#1727),
+        # so the demo never shows a "Never" row the UI can no longer create.
         GroupInviteLink.generate(
             group=group,
             created_by=owner,
             name="Demo invite link",
             role=GroupInviteLink.Role.MEMBER,
+            expires_at=timezone.now() + datetime.timedelta(days=GROUP_INVITE_LINK_MAX_EXPIRY_DAYS),
         )
         return group
 

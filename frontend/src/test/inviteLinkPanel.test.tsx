@@ -473,6 +473,77 @@ describe('InviteLinkPanel', () => {
     expect(combos.some((c) => c.textContent?.includes('Member'))).toBe(true)
   })
 
+  it('group link form offers no Admin role and no Never expiry, defaulting to Member and 7 days (#1727)', async () => {
+    mockCreateInviteLink.mockResolvedValue(fakeCreatedLink)
+    const user = userEvent.setup()
+    render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
+    await user.click(await screen.findByRole('button', { name: 'New link' }))
+    const roleCombo = screen.getByRole('combobox', { name: 'Role: Member' })
+    const expiryCombo = screen.getByRole('combobox', { name: 'Expires: 7 days' })
+
+    expect(screen.getByText(
+      "Invite links can't grant Admin. To make someone an admin, email them an invite or change their role after they join."
+    )).toBeInTheDocument()
+
+    await user.click(roleCombo)
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Member', 'Collaborator', 'Viewer'])
+    await user.click(screen.getByRole('option', { name: 'Collaborator' }))
+
+    await user.click(expiryCombo)
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['1 day', '7 days', '30 days'])
+    await user.click(screen.getByRole('option', { name: '30 days' }))
+
+    await user.click(screen.getByRole('button', { name: 'Create link' }))
+    await waitFor(() =>
+      expect(mockCreateInviteLink).toHaveBeenCalledWith(1, {
+        name: undefined,
+        role: 'collaborator',
+        expiry_days: 30,
+        single_use: false,
+      })
+    )
+  })
+
+  it('the Admin hint does not point at the email form when email is unavailable (#1727)', async () => {
+    mockGetSiteConfig.mockResolvedValue({ ...siteConfig, invite_email_available: false })
+    const user = userEvent.setup()
+    render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
+    await screen.findByText('No invite links.')
+    await user.click(await screen.findByRole('button', { name: 'New link' }))
+    expect(await screen.findByText(
+      "Invite links can't grant Admin. To make someone an admin, change their role after they join."
+    )).toBeInTheDocument()
+    expect(screen.queryByText(/email them an invite/)).not.toBeInTheDocument()
+  })
+
+  it('a default group link create sends 7 days, never null (#1727)', async () => {
+    mockCreateInviteLink.mockResolvedValue(fakeCreatedLink)
+    const user = userEvent.setup()
+    render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
+    await user.click(await screen.findByRole('button', { name: 'New link' }))
+    await user.click(screen.getByRole('button', { name: 'Create link' }))
+    await waitFor(() =>
+      expect(mockCreateInviteLink).toHaveBeenCalledWith(1, expect.objectContaining({ role: 'member', expiry_days: 7 }))
+    )
+  })
+
+  it('still lists a pre-#1727 admin link with no expiry as Admin and Never', async () => {
+    mockListInviteLinks.mockResolvedValue([{ ...fakeExistingLink, role: 'admin', expires_at: null }])
+    render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
+    expect(await screen.findByText('Existing link')).toBeInTheDocument()
+    expect(screen.getByText('Admin')).toBeInTheDocument()
+    expect(screen.getByText(/Never/)).toBeInTheDocument()
+  })
+
+  it('the group email invite still offers Admin (#1727 narrows links only)', async () => {
+    const user = userEvent.setup()
+    render(<InviteLinkPanel scope={{ kind: "group", id: 7 }} />)
+    await screen.findByRole('textbox', { name: 'Email address' })
+    // The email form's picker is a SingleSelectDropdown button, not a combobox.
+    await user.click(screen.getByRole('button', { name: 'Role: Member' }))
+    expect(await screen.findByText('Admin')).toBeInTheDocument()
+  })
+
   it('expiry dropdown in creation form renders correctly', async () => {
     render(<InviteLinkPanel scope={{ kind: "group", id: 1 }} />)
     await userEvent.setup().click(await screen.findByRole('button', { name: 'New link' }))

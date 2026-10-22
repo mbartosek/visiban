@@ -314,13 +314,18 @@ Create a new invite link. Requires group admin.
 { "name": "Team link", "role": "member", "expiry_days": 7, "single_use": false }
 ```
 
-All fields are optional. `role` defaults to `member`; `expiry_days` accepts any positive integer (`≥ 1`) or `null` (never expires) — common values `7`, `30`, `90`. `single_use` (boolean, default `false`) creates a link that expires automatically after one person joins.
+All fields are optional. `single_use` (boolean, default `false`) creates a link that expires automatically after one person joins.
+
+| Field | Values |
+|---|---|
+| `role` | `member` (default), `collaborator` or `viewer`. *(1.2+)* `admin` is refused with `400`: a shareable link is a bearer credential, so admin is granted only by an [emailed invite](#post-apiv1groupsidinvite-linkssend), which is bound to one address. |
+| `expiry_days` | *(1.2+)* An integer from `1` to `30`; defaults to `7` when omitted. `null` and values over `30` are refused with `400`: a shareable link always expires. Before 1.2 any positive integer or `null` (never expires) was accepted. |
+
+Links created before 1.2 keep their stored role and expiry, so a list response can still show `role: "admin"` or `expires_at: null` for one of them until it is revoked (#1727).
 
 > **Added in 1.2**
 
 A create that arrives while the group is being deleted waits for the delete to finish and then answers `404`, with nothing written (#1719). Two creates on the same group run one after the other, so they cannot together exceed the 5-active-link cap.
-
-Valid roles: `admin`, `member`, `collaborator`, `viewer`
 
 **Response (create only)** — the raw secret is returned once and never again, in a field named `token`:
 
@@ -371,10 +376,10 @@ Valid roles: `admin`, `member`, `collaborator`, `viewer`
 | `token` | string | Raw token — present **only** in the create response. The full token can never be retrieved later; admins identify links by `prefix`. |
 | `prefix` | string | First 8 characters of the token, shown in the admin UI for audit. |
 | `name` | string | Admin-assigned label for the link (e.g. "Engineering Slack"). |
-| `role` | string | Role granted on redemption: `admin` / `member` / `collaborator` / `viewer`. |
+| `role` | string | Role granted on redemption: `admin` / `member` / `collaborator` / `viewer`. `admin` appears only on emailed links and on shareable links created before 1.2. |
 | `is_active` | boolean | `true` until revoked. A consumed single-use link still shows `is_active: true` but cannot be redeemed again — see `status`. |
 | `is_expired` | boolean | `true` once `expires_at` has passed. |
-| `expires_at` | string / null | ISO 8601 expiry; `null` means never expires. |
+| `expires_at` | string / null | ISO 8601 expiry; `null` means never expires, which only a link created before 1.2 can have. |
 | `created_at` | string | ISO 8601 timestamp. |
 | `created_by_username` | string / null | Username of the admin who created the link (#1008). `null` if the creator's account has since been anonymized. |
 | `single_use` | boolean | `true` if the link is consumed by the first redemption (cannot be reused). |

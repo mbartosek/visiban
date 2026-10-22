@@ -1305,7 +1305,7 @@ Create a **shareable invite link** (`delivery: "link"`). Requires board admin �
 
 | Field | Required | Description |
 |---|---|---|
-| `expiry_days` | ✓ | `1`, `7` or `30`. **Required** — a shareable board link always expires, so there is no "never" option (unlike group links). Missing, `null` or any other value is refused with `400`. |
+| `expiry_days` | ✓ | `1`, `7` or `30`. **Required** — a shareable board link always expires, so there is no "never" option (*(1.2+)* group links always expire too, with `expiry_days` defaulting to `7`; see [Groups](groups.md#post-apiv1groupsidinvite-links)). Missing, `null` or any other value is refused with `400`. |
 | `role` | | `member` (default), `collaborator` or `viewer`. `admin` is refused with `400`. |
 | `single_use` | | `false` (default): anyone holding the link can join until it expires or is revoked. `true`: the first redemption consumes it. |
 | `name` | | Up to 100 characters, to tell links apart. Leading and trailing whitespace is trimmed. Default empty. |

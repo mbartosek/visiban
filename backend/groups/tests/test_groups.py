@@ -291,12 +291,19 @@ class GroupRoleCoverageTests(TestCase):
         self.assertEqual(actual, expected, "GroupInviteLink.Role set changed — update tests and UI dropdowns")
 
     def test_all_invite_link_roles_can_be_created(self):
-        """Every valid GroupInviteLink role can be used when creating an invite link."""
+        """Every GroupInviteLink role except admin can be used on a shareable link.
+
+        Admin is refused on a shareable link (#1727) and granted only by an
+        emailed invite; see test_group_invite_link_limits_1727.py.
+        """
         for role in GroupInviteLink.Role.values:
             r = self.client.post(
                 f"/api/v1/groups/{self.group.id}/invite-links/",
                 {"name": f"test-{role}", "role": role},
             )
+            if role == GroupInviteLink.Role.ADMIN:
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, f"role={role!r} was accepted")
+                continue
             self.assertEqual(r.status_code, status.HTTP_201_CREATED, f"role={role!r} was rejected")
             self.assertEqual(r.json()["role"], role)
 
