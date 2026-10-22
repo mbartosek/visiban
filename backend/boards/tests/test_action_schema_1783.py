@@ -314,6 +314,24 @@ class ActionSchemaDeclarationTests(TestCase):
         other = self._request_schema("post", "/api/v1/auth/password/change/")["$ref"]
         self.assertIn("old_password", self._component(other)["properties"])
 
+    def test_dj_rest_auth_password_bodies_keep_their_1_1_component_names(self):
+        # #1825: the Visiban* serializer subclasses are pinned to the names 1.1
+        # published, so generated clients see no type rename.
+        schemas = self.schema["components"]["schemas"]
+        for path, name in (
+            ("/api/v1/auth/password/change/", "PasswordChangeRequest"),
+            ("/api/v1/auth/password/reset/confirm/", "PasswordResetConfirmRequest"),
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(self._request_schema("post", path)["$ref"].endswith(f"/{name}"))
+        self.assertNotIn("VisibanPasswordChangeRequest", schemas)
+        self.assertNotIn("VisibanPasswordResetConfirmRequest", schemas)
+        # The Visiban-owned /auth/change-password/ body stays a separate component.
+        self.assertNotEqual(
+            self._request_schema("post", "/api/v1/auth/change-password/")["$ref"],
+            self._request_schema("post", "/api/v1/auth/password/change/")["$ref"],
+        )
+
     def test_choose_username_documents_its_body_and_user_response(self):
         path = "/api/v1/auth/choose-username/"
         self.assertTrue(self._op("post", path)["requestBody"]["required"])

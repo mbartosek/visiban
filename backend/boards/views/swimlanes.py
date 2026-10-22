@@ -116,7 +116,8 @@ _SET_COLLAPSED_DEPRECATED_SCHEMA = _set_collapsed_schema(
     deprecated=True,
     description=(
         "Deprecated alias of `PATCH .../set-collapsed/`, removed in 2.0. Same body and "
-        "response; also sends `Deprecation: true` and a `Link` header naming the canonical route."
+        "responses. A successful (2xx) response also carries `Deprecation: true` and a "
+        "`Link` header naming the canonical route; error responses do not."
     ),
 )
 

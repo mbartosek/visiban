@@ -1597,7 +1597,7 @@ This sets the board-wide default for all users — it is a board structure prefe
 A `swimlane.updated` WebSocket event is broadcast to all connected board clients on success.
 
 !!! note
-    The deprecated snake_case alias `set_collapsed` (with underscore) is retained for 1.x backward compatibility and emits the same response but additionally includes the following response headers:
+    The deprecated snake_case alias `set_collapsed` (with underscore) is retained for 1.x backward compatibility and emits the same response. A successful (`2xx`) response from it additionally includes the following headers; an error response (`400`, `403`, `404`) does not:
 
     - `Deprecation: true` — signals that this URL path is deprecated (RFC 8594).
     - `Link: <canonical-url>; rel="successor-version"` — points to the canonical kebab-case path (RFC 8288).

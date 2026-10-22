@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import EmailValidator
 from django.db import transaction
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from .adapter import clear_login_lockout
@@ -274,6 +274,12 @@ class VisibanPasswordResetSerializer(PasswordResetSerializer):
         return VisibanPasswordResetForm
 
 
+# Pinned to the 1.1 OpenAPI component name (#1825). Without it the component
+# is named after this subclass ("Visiban..."), so every generated client saw
+# the request type renamed in 1.2 although the endpoint and wire shape are
+# dj-rest-auth's, as in 1.1. Schema only; with COMPONENT_SPLIT_REQUEST the
+# request component is this name plus "Request".
+@extend_schema_serializer(component_name="PasswordResetConfirm")
 class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerializer):
     """Clears the per-account login lockout on a successful password reset (#1203).
 
@@ -352,6 +358,12 @@ class VisibanPasswordResetConfirmSerializer(DjRestAuthPasswordResetConfirmSerial
         return result
 
 
+# Pinned to the 1.1 OpenAPI component name (#1825). Without it the component
+# is named after this subclass ("Visiban..."), so every generated client saw
+# the request type renamed in 1.2 although the endpoint and wire shape are
+# dj-rest-auth's, as in 1.1. Schema only; with COMPONENT_SPLIT_REQUEST the
+# request component is this name plus "Request".
+@extend_schema_serializer(component_name="PasswordChange")
 class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
     """dj-rest-auth's password change, with the current password always verified (#1257).
 

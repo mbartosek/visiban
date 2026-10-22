@@ -74,15 +74,27 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 
 ### Error responses
 
-An error that a client is expected to act on carries a machine-readable `code` next to the human-readable `detail`:
+Many errors carry a machine-readable `code` next to the human-readable `detail`:
 
 ```json
 { "detail": "Query param 'days' must not exceed 365.", "code": "invalid_query_param" }
 ```
 
-`code` is a stable string (for example `export_restricted`, `feature_disabled`, `invite_email_cap_reached`, `group_owner_protected`). Compare `code`, not `detail`: the `detail` text is for people and may be reworded in any release. Validation errors on a request body keep DRF's field-keyed shape (`{"<field>": ["..."]}`).
+`code` is a stable string (for example `export_restricted`, `feature_disabled`, `invite_email_cap_reached`, `group_owner_protected`). When a response has a `code`, compare it rather than `detail`: the `detail` text is for people and may be reworded in any release. Not every error has a `code`; each endpoint's page documents its error bodies. Validation errors on a request body keep DRF's field-keyed shape (`{"<field>": [...]}`).
 
-*(1.2+)* **Bad query parameters.** The rule for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`, never a field-keyed body. `GET /boards/{id}/analytics/` (`days`, `stalled_days`) is one case. Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
+*(1.2+)* **Bad query parameters.** The target shape for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`. These parameters answer with it:
+
+- `GET /boards/{id}/analytics/`: `days` and `stalled_days`
+- `GET /boards/{id}/cards/`: `limit`
+
+These parameters still answer `400` with a field-keyed body (`{"<param>": ...}`) and no `code`; moving them to the shape above is tracked in #1832:
+
+- `GET /boards/{id}/events/`: `after` and `limit`
+- An `offset` above `2^62` on `GET /boards/{id}/movements/`, `GET /boards/{id}/cards/`, `GET /boards/{id}/cards/archived/` and `GET /boards/{id}/cards/{id}/timeline/`
+- `GET /admin/action-log/`: `action`
+- `GET /admin/board-invite-links/`: `status`
+
+Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
 
 ### Pagination
 
