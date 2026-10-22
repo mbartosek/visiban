@@ -292,4 +292,4 @@ Fill this in on every (re)deploy. An empty cell is an unverified claim.
 | Date | Chart / image | Not a CI-runner host | NetworkPolicy enforced (both checks) | Tunnel hostname | `helm test` | By |
 |---|---|---|---|---|---|---|
 | — | not yet deployed | | | | | |
-| 2026-10-21 | | Yes — `gitlab-runner` unit disabled and inactive, runners deregistered, no `runner-*` containers on the node | | | | Kelly Hair |
+| 2026-10-21 | n/a (precondition re-check, no deploy) | Yes — `gitlab-runner` unit disabled and inactive, runners deregistered, no `runner-*` containers on the node | not checked | not checked | not checked | Kelly Hair |
