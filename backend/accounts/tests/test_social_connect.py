@@ -24,7 +24,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.adapter import PENDING_INVITE_SESSION_KEY
-from accounts.models import InviteLink, SiteSetting, User
+from accounts.authentication import SCOPE_READ, SCOPE_WRITE
+from accounts.models import InviteLink, PersonalAccessToken, SiteSetting, User
 from accounts.social_connect import (
     PENDING_CONNECT_SESSION_KEY,
     find_accounts_for_email,
@@ -637,3 +638,51 @@ class ConnectedAccountsEndpointTests(TestCase):
 
     def test_disconnect_requires_authentication(self):
         self.assertEqual(APIClient().delete(f"{LIST_URL}github/").status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def _token_client(self, raw):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+        return client
+
+    def test_pat_cannot_disconnect(self):
+        """#1794: a write-scoped PAT is refused; the link and the session path are untouched."""
+        SocialAccount.objects.create(user=self.user, provider="github", uid="gh-1", extra_data={})
+        _, raw = PersonalAccessToken.generate(self.user, "agent", scopes=[SCOPE_READ, SCOPE_WRITE])
+
+        response = self._token_client(raw).delete(f"{LIST_URL}github/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("interactive session only", response.json()["detail"])
+        self.assertTrue(SocialAccount.objects.filter(user=self.user, provider="github").exists())
+
+    def test_pat_with_no_recorded_scopes_cannot_disconnect(self):
+        """A pre-1.2 token (scopes=None, allowed anywhere else) is refused too."""
+        SocialAccount.objects.create(user=self.user, provider="github", uid="gh-1", extra_data={})
+        _, raw = PersonalAccessToken.generate(self.user, "legacy", scopes=None)
+
+        response = self._token_client(raw).delete(f"{LIST_URL}github/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(SocialAccount.objects.filter(user=self.user).exists())
+
+    def test_pat_gets_403_even_when_provider_not_connected(self):
+        """No 403-vs-404 probe of which providers an account has connected."""
+        _, raw = PersonalAccessToken.generate(self.user, "agent", scopes=[SCOPE_READ, SCOPE_WRITE])
+        response = self._token_client(raw).delete(f"{LIST_URL}github/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_pat_can_still_list(self):
+        """Only the removal is session-only; the read-scoped list stays available to tokens."""
+        _, raw = PersonalAccessToken.generate(self.user, "agent", scopes=[SCOPE_READ])
+        self.assertEqual(self._token_client(raw).get(LIST_URL).status_code, status.HTTP_200_OK)
+
+    def test_login_api_token_cannot_disconnect(self):
+        from rest_framework.authtoken.models import Token
+
+        SocialAccount.objects.create(user=self.user, provider="github", uid="gh-1", extra_data={})
+        key = Token.objects.create(user=self.user).key
+
+        response = self._token_client(key).delete(f"{LIST_URL}github/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(SocialAccount.objects.filter(user=self.user).exists())

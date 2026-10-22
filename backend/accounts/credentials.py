@@ -120,6 +120,11 @@ def request_is_interactive_session(request) -> bool:
     return getattr(request, "auth", None) is None
 
 
+PROVIDER_DISCONNECT_SESSION_REQUIRED_MESSAGE = (
+    "Disconnecting a sign-in provider is available from an interactive session only."
+)
+
+
 EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE = (
     "Changing the email address is available from an interactive session only."
 )

@@ -524,6 +524,12 @@ class ConnectedAccountDetailView(APIView):
     The queryset is ``DisconnectForm``'s own (``SocialAccount`` rows of
     ``request.user`` only), so another user's account can never be named.
     Answers the refreshed list, so the client needs no second round trip.
+
+    Interactive session only (#1794): removing a sign-in method is an
+    account-security mutation, so a request authenticated with any token
+    credential (a Personal Access Token, even a ``write``-scoped one, or the
+    login API token) is refused with 403 before anything is read or written.
+    A leaked token must not be able to strip the owner's ways back in.
     """
 
     @extend_schema(
@@ -531,6 +537,9 @@ class ConnectedAccountDetailView(APIView):
         responses={
             200: ConnectedAccountSerializer(many=True),
             400: OpenApiResponse(description="Disconnecting would leave no way to sign in."),
+            403: OpenApiResponse(
+                description="Authenticated with a token rather than an interactive session."
+            ),
             404: OpenApiResponse(description="No such provider is connected."),
         },
     )
@@ -538,6 +547,14 @@ class ConnectedAccountDetailView(APIView):
         from allauth.socialaccount.forms import DisconnectForm
 
         from .social_connect import connected_accounts_status
+
+        # Checked first so a token caller gets the same 403 whether or not the
+        # provider is connected (no 404-vs-403 probe of the account's providers).
+        if not credentials.request_is_interactive_session(request):
+            return Response(
+                {"detail": credentials.PROVIDER_DISCONNECT_SESSION_REQUIRED_MESSAGE},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # DisconnectForm reads request.user and allauth adds a Django message;
         # both want the underlying HttpRequest. DRF's authentication has
