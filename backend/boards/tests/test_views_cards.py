@@ -823,16 +823,32 @@ class CardListTruncationSignalTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()), 3)
 
-    def test_invalid_params_are_400(self):
-        for params in (
-            {"limit": "-1"}, {"limit": "abc"}, {"limit": "1.5"},
-            {"offset": "-1"}, {"offset": "x"}, {"offset": str(2**62 + 1)},
-            {"offset": "9" * 5000},
-        ):
+    def test_bad_limit_is_coded_400(self):
+        # #1823: the project's {detail, code} shape, not DRF's field-keyed one.
+        for params in ({"limit": "-1"}, {"limit": "abc"}, {"limit": "1.5"}):
             with self.subTest(params=params):
                 r = self.client.get(self.url, params)
                 self.assertEqual(r.status_code, 400)
-                self.assertIn(next(iter(params)), r.json())
+                body = r.json()
+                self.assertEqual(body["code"], "invalid_query_param")
+                self.assertIsInstance(body["detail"], str)
+                self.assertNotIn("limit", body)
+
+    def test_bad_offset_clamps_to_zero(self):
+        # #1823: same leniency as parse_offset everywhere else.
+        self._seed(3)
+        for offset in ("-1", "abc", "1.5", "9" * 5000):
+            with self.subTest(offset=offset):
+                r = self.client.get(self.url, {"offset": offset})
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(len(r.json()), 3)
+                self.assertEqual(r["X-Total-Count"], "3")
+                self.assertEqual(r["X-Truncated"], "false")
+
+    def test_offset_above_max_is_still_400(self):
+        r = self.client.get(self.url, {"offset": str(2**62 + 1)})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("offset", r.json())
 
     def test_huge_limit_is_clamped_not_rejected(self):
         self._seed(3)
@@ -938,6 +954,34 @@ class CardListTruncationSignalTests(TestCase):
         headers = op["responses"]["200"]["headers"]
         self.assertIn("X-Total-Count", headers)
         self.assertIn("X-Truncated", headers)
+
+    def test_400_schema_validates_every_real_card_list_400(self):
+        # #1823: validate REAL 400 bodies against the generated schema, so the
+        # declared shape cannot drift from what the endpoint returns (the coded
+        # limit error, parse_offset's field-keyed string, django-filter errors).
+        import jsonschema
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        op = schema["paths"]["/api/v1/boards/{board_pk}/cards/"]["get"]
+        body_schema = op["responses"]["400"]["content"]["application/json"]["schema"]
+        cases = (
+            {"limit": "abc"}, {"limit": "-1"}, {"offset": str(2**62 + 1)},
+            {"assignee": "x"}, {"due_before": "x"},
+        )
+        for params in cases:
+            with self.subTest(params=params):
+                r = self.client.get(self.url, params)
+                self.assertEqual(r.status_code, 400, r.content)
+                jsonschema.validate(r.json(), body_schema)
+        # The coded branch is genuinely constrained, not just "any object".
+        coded = body_schema["anyOf"][0]
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({"detail": "x", "code": "other"}, coded)
+        self.assertEqual(
+            self.client.get(self.url, {"offset": str(2**62 + 1)}).json(),
+            {"offset": "Must be a valid integer offset."},
+        )
 
 
 class CardListQueryCountTests(TestCase):
