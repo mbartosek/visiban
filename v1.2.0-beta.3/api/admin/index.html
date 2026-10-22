@@ -5098,6 +5098,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </tr>
 </tbody>
 </table>
+<p>If a <code>transfers</code> item is malformed (missing or non-integer <code>board_id</code> or <code>transfer_to</code>), the <code>400</code> body keys the item errors by zero-based item index, for example <code>{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}</code>; valid items are omitted. Through 1.2.0-beta.1 (Django REST framework 3.17) this was an array with one entry per item.</p>
 <h3 id="post-apiv1adminusersidclear-lockout"><code>POST /api/v1/admin/users/{id}/clear-lockout/</code><a class="headerlink" href="#post-apiv1adminusersidclear-lockout" title="Permanent link">&para;</a></h3>
 <p>Clear the target user's per-account login lockout early (#1203). The per-account <code>login_failed</code> lockout (5 failed login or password-change attempts / 5 minutes — see <a href="../../architecture/deployment/#rate-limiting">Rate limiting</a>) normally expires on its own; this endpoint gives a site admin a way to lift it immediately, for the case where a user can't wait it out and either can't complete a password reset (the other early-recovery path, which clears the lockout automatically) or hasn't needed to change their password at all.</p>
 <p><strong>Permission:</strong> <code>IsSiteAdmin</code>. Only a superuser can clear the lockout of a superuser account (<code>400</code> otherwise).</p>

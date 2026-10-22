@@ -4535,6 +4535,18 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
+<p class="admonition-title">Deactivate-user <code>transfers</code> errors are now keyed by item index</p>
+<p>On <code>POST /api/v1/admin/users/{id}/deactivate/</code>, a <code>400</code> for a malformed <code>transfers</code> item now
+returns <code>transfers</code> as an object keyed by zero-based item index, listing only the invalid
+items, for example <code>{"transfers": {"1": {"board_id": ["A valid integer is required."]}}}</code>.
+Through 1.2.0-beta.1 it was an array with one entry per item, with <code>{}</code> for valid items. Valid
+requests and every other endpoint are unchanged. This is a deliberate exception to the
+1.x response-compatibility rule: Django REST framework 3.18 makes the object shape its
+default and removes the array shape in 3.20, so it changes in a 1.2 pre-release rather than
+in a later minor. Scripts that read these errors by array position must read them by
+index key instead; see <a href="../../api/admin/#post-apiv1adminusersiddeactivate">Admin API</a> (#1846).</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Attachment files are now removed when their card, column, swimlane or board is deleted</p>
 <p>Before 1.2, deleting a card (or its column, swimlane or board) left its attachment files in
 media storage. From 1.2 they are removed once the delete commits. Files already left behind
