@@ -58,7 +58,7 @@ export function agingStage(ratio: number, warningPct: number): AgingStage {
 /**
  * Classes per stage. `metaClass` goes on the card's metadata row whenever a tint
  * is shown (#1844): `card-aging-meta` (index.css) rescopes the metadata text
- * tokens (`fg-tertiary`, `fg-muted`, `info`, `danger`, `success`) to on-tint
+ * tokens (`fg-tertiary`, `fg-muted`, `fg-faint`, `info`, `danger`, `success`) to on-tint
  * values for that subtree, because each of them falls below 4.5:1 on at least
  * one tinted stage. `fg-muted` is already 3.07:1 on an untinted dark card, so
  * no overlay alpha or body opacity could fix it; only the text tone can.

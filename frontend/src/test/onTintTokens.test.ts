@@ -230,19 +230,31 @@ describe('card metadata on an aging tint (#1844)', () => {
     }
   })
 
-  // A new metadata element in a token outside META (for example plain `text-warning`) would not be
-  // rescoped, so it fails here until it is either rescoped or listed with a reason.
-  it('every text token on the card face is covered by the rescope or listed with a reason', () => {
+  // A new metadata element in a color outside META (for example plain `text-warning` or
+  // `text-primary-soft`) would not be rescoped, so it fails here until it is either rescoped or listed
+  // with a reason. Every `text-<x>` utility is checked except size, alignment, wrap and overflow ones,
+  // and an opacity modifier (`text-fg-muted/60`) on any text color is rejected: the pinned ratios
+  // assume full-opacity text.
+  it('every text color on the card face is covered by the rescope or listed with a reason', () => {
+    const notColor = new Set([
+      'xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl',
+      'left', 'center', 'right', 'justify', 'start', 'end',
+      'ellipsis', 'clip', 'wrap', 'nowrap', 'balance', 'pretty',
+    ])
     const allowed = new Set([
       ...META,
       'fg', // card title and the aging tooltip (bg-sunken); pinned in the #1841 ramp test above
+      'on-primary', // selection checkbox tick on its solid bg-primary-emphasis fill, outside the metadata row
     ])
     const files = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue']
     for (const f of files) {
       const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
-      for (const m of src.matchAll(/\btext-(fg(?:-[a-z]+)?|info|danger|success|warning|muted|urgent)(-on-tint)?\b/g)) {
-        if (m[2]) continue // explicit on-tint tokens (urgency badge), pinned in the #1841 test above
-        expect(allowed.has(m[1]), `${f}.tsx uses text-${m[1]}`).toBe(true)
+      for (const m of src.matchAll(/\btext-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(\/\d+)?/g)) {
+        const [whole, name, alpha] = m
+        if (notColor.has(name)) continue
+        expect(alpha, `${f}.tsx uses ${whole}: no opacity modifier on card-face text`).toBeUndefined()
+        if (name.endsWith('-on-tint')) continue // explicit on-tint token, as the urgency badge uses
+        expect(allowed.has(name), `${f}.tsx uses ${whole}`).toBe(true)
       }
     }
   })
