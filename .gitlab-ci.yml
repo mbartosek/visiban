@@ -1176,8 +1176,8 @@ backend-schema-fuzz:
   #   every DELETE on card/attachment/comment/checklist item/relation/saved
   #   filter reached 2xx on all ~240 calls each.
   # The 6 that remain, and why:
-  #   * DELETE /auth/me/connected-accounts/{provider}/  needs a linked social
-  #     account the seed does not create
+  #   * DELETE /auth/me/connected-accounts/{provider}/  session only (#1794): the
+  #     token fuzz client gets a declared 403 before any provider lookup
   #   * DELETE /boards/{id}/invite-links/{link_id}/  link_id is not seeded and a
   #     plain member fails the board-admin check first (boards/views/invites.py)
   #   * POST /auth/me/pending-email/resend/  404s unless the user has a pending

@@ -43,7 +43,8 @@ operations get a disposable row minted per call (`_mint_disposable`) so they can
 destroy the shared fixture other operations rely on.
 
 Still 404 on purpose (no seedable id, or the id is in the request body):
-`/auth/me/connected-accounts/{provider}/` (needs a linked social account),
+`/auth/me/connected-accounts/{provider}/` (session only since #1794: the token fuzz client
+gets a declared 403 before the provider lookup),
 `/boards/{id}/invite-links/{link_id}/` (unseeded id, and a member fails the admin check
 first), `/auth/me/pending-email/resend/` (needs a pending email change),
 `/auth/registration/verify-email/` (needs a signup key), `/boards/import/trello/` (no
