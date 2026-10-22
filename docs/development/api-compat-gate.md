@@ -39,6 +39,21 @@ name passed to `_warn_deprecated_env_alias`) must still be read at HEAD. A depre
 that is kept counts as present, which is exactly the rename policy in `CLAUDE.md`. The
 baseline is `scripts/compat-baseline/v1.1.0/settings-env.txt`.
 
+## Component names are not part of the contract
+
+The gate resolves `$ref` and `allOf`, so a renamed component is never a finding. A generated
+client does turn a component name into a type name, so a rename is still worth a decision, made
+once and recorded:
+
+- **Pin the old name** (`@extend_schema_serializer(component_name=...)`) only when a plain
+  rename is the whole change, as #1825 did for dj-rest-auth's password request bodies.
+- **Otherwise keep the new name** and list the old-to-new mapping in the upgrade guide. #1834
+  did this for `/auth/user/` (`User` to `CurrentUser`) and for the dj-rest-auth response
+  components: pinning `User` back would have collided with `UserSerializer`'s component, which
+  `POST /auth/choose-username/` returns, so one of the two would have needed a rename anyway.
+
+Decide before the baseline roll: the roll freezes whatever names the schema has that day.
+
 ## Allow-listing a deliberate break
 
 A break that is intentional (a planned major bump, or a removal of an item already deprecated
