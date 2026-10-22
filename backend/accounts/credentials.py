@@ -188,6 +188,30 @@ def email_change_requires_session(request, current_email, requested_email) -> bo
     return not request_is_interactive_session(request)
 
 
+USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE = (
+    "Changing the username is available from an interactive session only."
+)
+
+
+def username_change_requires_session(request, current_username, requested_username) -> bool:
+    """True when *request* may not change the username to *requested_username*.
+
+    A username is a login identifier, so changing it is limited to an
+    interactive session, like the account email
+    (``email_change_requires_session``). A request that omits the username, or
+    sends back the stored value unchanged, is not a change: a token client that
+    round-trips the whole profile keeps working. Any other value, including a
+    case-only difference or a blank, counts as a change. *request* may be
+    ``None`` (a serializer used outside a request), which is not refused here
+    because no remote credential is involved.
+    """
+    if request is None:
+        return False
+    if (requested_username or "") == (current_username or ""):
+        return False
+    return not request_is_interactive_session(request)
+
+
 def revoke_auth_token(user):
     """Delete *user*'s DRF auth ``Token`` (the key minted at REST login).
 

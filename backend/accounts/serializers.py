@@ -563,8 +563,35 @@ class UserSerializer(serializers.ModelSerializer):
         ``accounts.credentials.email_change_requires_current_password`` for the
         rule and why accounts without a password are exempt.
         """
+        self._check_username_change_needs_session(data)
         self._check_current_password_for_email_change(data)
         return super().to_internal_value(data)
+
+    def _check_username_change_needs_session(self, data):
+        """Refuse a token credential that changes the username, before any field validation.
+
+        Run ahead of field validation so a token caller gets the same 403
+        whatever the name (``validate_username`` and the uniqueness validator
+        would otherwise answer "taken" first). Covers ``PATCH``/``PUT
+        /auth/user/`` and ``PATCH /auth/me/``, which share this serializer.
+        """
+        from rest_framework.exceptions import PermissionDenied
+
+        from . import credentials as credentials_module
+
+        if self.instance is None or not hasattr(data, "get"):
+            return
+        requested = data.get("username")
+        # DRF's CharField coerces an int or float to its string form, so such a
+        # value is a real rename and must be judged like the string it becomes.
+        # Absent, bool, or any other type is rejected by the field itself (400).
+        if isinstance(requested, bool) or not isinstance(requested, (str, int, float)):
+            return
+        # The field trims surrounding whitespace, so compare the trimmed value.
+        if credentials_module.username_change_requires_session(
+            self.context.get("request"), self.instance.username, str(requested).strip()
+        ):
+            raise PermissionDenied(credentials_module.USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE)
 
     def _check_current_password_for_email_change(self, data):
         from . import credentials as credentials_module
