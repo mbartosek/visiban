@@ -43,15 +43,15 @@ class TestMovementsBadQueryParams(AnalyticsHistorySetup):
             self._assert_coded_400("moved_before", value)
 
     def test_garbage_swimlane_id(self):
-        for value in ("abc", "1.5", "-1", "0", str(2**64)):
+        for value in ("abc", "1.5", str(2**63), str(-(2**63) - 1)):
             self._assert_coded_400("swimlane_id", value)
 
     def test_garbage_to_column_id(self):
-        for value in ("abc", "1.5", "-1", "0", str(2**64)):
+        for value in ("abc", "1.5", str(2**63), str(-(2**63) - 1)):
             self._assert_coded_400("to_column_id", value)
 
     def test_garbage_moved_by_id(self):
-        for value in ("abc", "1.5", "-1", "0", str(2**64)):
+        for value in ("abc", "1.5", str(2**63), str(-(2**63) - 1)):
             self._assert_coded_400("moved_by_id", value)
 
     def test_valid_moved_after_still_filters(self):
@@ -80,3 +80,22 @@ class TestMovementsBadQueryParams(AnalyticsHistorySetup):
         ):
             self.assertEqual(c.get(self._url(), {param: good}).data["count"], 1, param)
             self.assertEqual(c.get(self._url(), {param: other}).data["count"], 0, param)
+
+    def test_previously_accepted_ids_still_return_empty_200(self):
+        self._make_movement()
+        c = self._client_for(self.admin)
+        for param in ("swimlane_id", "to_column_id", "moved_by_id"):
+            for value in ("0", "-1", " 5", str(2**63 - 1), str(-(2**63))):
+                resp = c.get(self._url(), {param: value})
+                self.assertEqual(resp.status_code, 200, f"{param}={value!r}")
+                self.assertEqual(resp.data["count"], 0, f"{param}={value!r}")
+
+    def test_non_padded_date_still_accepted(self):
+        self._make_movement()
+        c = self._client_for(self.admin)
+        # parse_date (what DateField used before) also takes basic-format and
+        # ISO week dates on Python 3.11+; they were accepted, so they stay so.
+        for param in ("moved_after", "moved_before"):
+            for value in ("2026-1-1", "20260101", "2026-W01-1"):
+                resp = c.get(self._url(), {param: value})
+                self.assertEqual(resp.status_code, 200, f"{param}={value!r}")

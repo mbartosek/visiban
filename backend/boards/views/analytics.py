@@ -7,6 +7,7 @@ import statistics
 
 from django.db.models import Count, Min, OuterRef, Prefetch, Q, Subquery, Window
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -126,13 +127,16 @@ _ANALYTICS_400 = OpenApiResponse(
 _MOVEMENTS_400 = OpenApiResponse(
     description=(
         "`moved_after` or `moved_before` is not an ISO date, or `swimlane_id`, `to_column_id` or "
-        "`moved_by_id` is not a positive integer (`code: invalid_query_param`)."
+        "`moved_by_id` is not an integer (`code: invalid_query_param`)."
     ),
     response=_BAD_QUERY_PARAM_SERIALIZER,
 )
 
-# Largest value a bigint column can hold; a larger id cannot match a row and
-# would overflow the database driver, so it is refused as a bad parameter.
+# Signed 64-bit range. An id outside it would overflow the database driver
+# (a 500), so it is refused as a bad parameter. Ids inside it, including 0 and
+# negatives, were always accepted (matching nothing) and stay accepted: the
+# only behavior change is that what used to 500 now answers 400.
+_MIN_ID = -(2**63)
 _MAX_ID = 2**63 - 1
 
 
@@ -141,20 +145,26 @@ def _invalid_query_param(detail):
 
 
 def _parse_iso_date(value):
-    """Return a ``date`` for an ISO ``YYYY-MM-DD`` string, or None if it is not one."""
+    """Return a ``date`` for a ``YYYY-MM-DD`` string, or None if it is not one.
+
+    Uses ``parse_date`` because it is what ``DateField.to_python`` used when the
+    raw string went straight to the ORM, so the accepted set (for example
+    non-padded ``2026-1-1``) is unchanged. It returns None on a format mismatch
+    and raises ValueError for an impossible date such as 2026-02-30.
+    """
     try:
-        return datetime.date.fromisoformat(value)
+        return parse_date(value)
     except ValueError:
         return None
 
 
 def _parse_id(value):
-    """Return a positive in-range int for an id query param, or None if it is not one."""
+    """Return an int in the signed 64-bit range for an id query param, or None if it is not one."""
     try:
         parsed = int(value)
     except ValueError:
         return None
-    return parsed if 0 < parsed <= _MAX_ID else None
+    return parsed if _MIN_ID <= parsed <= _MAX_ID else None
 
 
 class BoardAnalyticsMixin:
@@ -340,7 +350,7 @@ class BoardAnalyticsMixin:
         try:
             days = int(request.query_params.get("days", 30))
         except (ValueError, TypeError):
-            return _invalid_query_param("Query param 'days' must be a positive integer.")
+            return _invalid_query_param("Query param 'days' must be an integer.")
         if days <= 0:
             return _invalid_query_param("Query param 'days' must be a positive integer.")
         if days > 365:
