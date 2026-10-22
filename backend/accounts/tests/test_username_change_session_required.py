@@ -87,6 +87,9 @@ class UsernameChangeSessionRequirementTests(TestCase):
                 self.user.save(update_fields=["must_change_username"])
                 r = _token_client(raw).post(CHOOSE_URL, {"username": NEW}, format="json")
                 self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(
+                    r.json()["detail"], credentials.USERNAME_CHANGE_SESSION_REQUIRED_MESSAGE
+                )
                 self.user.refresh_from_db()
                 self.assertEqual(self.user.username, OLD)
                 self.assertTrue(self.user.must_change_username)
@@ -98,6 +101,15 @@ class UsernameChangeSessionRequirementTests(TestCase):
                 with self.subTest(url=url, value=value):
                     r = _token_client(self.pat).patch(url, {"username": value}, format="json")
                     self._assert_refused(r)
+
+    def test_token_choose_username_rename_is_refused_without_a_forced_rename(self):
+        # The refusal must come from the changed-username rule itself, not only
+        # from the forced-rename clause.
+        self.assertFalse(self.user.must_change_username)
+        for label, raw in self._credentials().items():
+            with self.subTest(credential=label):
+                r = _token_client(raw).post(CHOOSE_URL, {"username": NEW}, format="json")
+                self._assert_refused(r)
 
     def test_token_cannot_clear_a_forced_rename_by_resending_the_name(self):
         self.user.must_change_username = True

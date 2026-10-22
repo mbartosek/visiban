@@ -797,7 +797,7 @@ PATCH /api/v1/auth/me/
 | `400 Bad Request` | The request changes `email` and `current_password` is wrong, or the account's password changed while the request was in flight (including a hash re-encode at login with the same password; retry) — `{"current_password": ["Your current password was entered incorrectly. Please enter it again."]}` |
 | `429 Too Many Requests` | The account's failed-attempt lockout is active (too many wrong passwords here, at login, or at a password-change endpoint) — `{"detail": "Too many failed attempts. Try again later."}` |
 | `403 Forbidden` | The request changes `email` and was authenticated with a token (a personal access token or the login API token) rather than an interactive session — `{"detail": "Changing the email address is available from an interactive session only."}`. Also applies to `PATCH` and `PUT /api/v1/auth/user/`. |
-| `403 Forbidden` | The request changes `username` and was authenticated with a token (a personal access token or the login API token) rather than an interactive session — `{"detail": "Changing the username is available from an interactive session only."}`. Nothing in the request is applied. |
+| `403 Forbidden` | The request changes `username` and was authenticated with a token (a personal access token or the login API token) rather than an interactive session — `{"detail": "Changing the username is available from an interactive session only."}`. Nothing in the request is applied. Also applies to `PATCH` and `PUT /api/v1/auth/user/`. |
 | `429 Too Many Requests` | Too many username or email changes — the request changed `username` or `email` and exhausted the per-user budget it shares with `POST /api/v1/auth/choose-username/` |
 | `401 Unauthorized` | Request is not authenticated |
 
