@@ -4135,7 +4135,11 @@
 <h4 id="velocity-column">Velocity column<a class="headerlink" href="#velocity-column" title="Permanent link">&para;</a></h4>
 <p>The rightmost column of the heatmap shows <strong>Velocity</strong> per swimlane. This is the average <code>deal_velocity_days</code> value — the number of days between a card's first and last movement within the selected period. A dash (<code>—</code>) appears when there is no velocity data for a swimlane.</p>
 <h4 id="color-coding">Color-coding<a class="headerlink" href="#color-coding" title="Permanent link">&para;</a></h4>
-<p>Cells are color-coded based on the board's <code>staleness_threshold_days</code> setting and its <code>stale_warning_pct</code> percentage. The warning boundary is calculated as <code>threshold * (1 - stale_warning_pct / 100)</code>. With the defaults of 7 days and 50%, the warning boundary is 3.5 days.</p>
+<p>Cells are color-coded based on the board's <code>staleness_threshold_days</code> setting and its <code>stale_warning_pct</code> percentage. The warning boundary is <code>threshold * stale_warning_pct / 100</code>, the share of the threshold a card has used. With the defaults of 7 days and 50%, the warning boundary is 3.5 days. With 75%, it is 5.25 days. A value of <code>0</code> turns the yellow band off, so cells are green until the threshold. The card <a href="../card-history/#card-aging-tint">aging tint</a> uses the same boundary.</p>
+<div class="admonition note">
+<p class="admonition-title">Changed in 1.2 (#1841)</p>
+<p>Before 1.2 the boundary was computed as <code>threshold * (1 - stale_warning_pct / 100)</code>, the inverse of what the setting says. Boards on the default 50% are unaffected. Boards with any other value see the yellow band move.</p>
+</div>
 <table>
 <thead>
 <tr>
