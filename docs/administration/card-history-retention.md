@@ -1,6 +1,6 @@
 # Card History Retention
 
-> **Added in 1.3** (#1797)
+> **Added in 1.2** (#1797)
 
 Since 1.2, deleting a card keeps its movement history (#1469). This page covers what that history keeps, who can see it, how long it lasts, and how a superuser erases it on request with the `purge_card_history` management command.
 
@@ -33,7 +33,7 @@ See [Card History](../features/card-history.md#deleted-cards-keep-their-history)
 
 ## Purging retained history
 
-> **Added in 1.3** (#1797)
+> **Added in 1.2** (#1797)
 
 ```bash
 # Dry run (the default): report how many records would be deleted

@@ -48,7 +48,7 @@ Clearing **Active** on a user deletes their Personal Access Tokens and API token
 - **Groups** (workspace groups, under the **Groups** app) — visible to superusers only and read-only: fields cannot be edited and groups cannot be deleted here. The one write is the **Transfer ownership of the selected group** action, intended for a group whose owner is deactivated or gone; it works on any group (see [Transferring a group's ownership](#transferring-a-groups-ownership)).
 - **Authentication and Authorization → Groups** (Django auth permission groups) — visible and editable by superusers only; staff accounts do not see this entry even when granted the group permissions
 - **Site settings** — instance-wide configuration (registration mode, file uploads, [maintenance mode](maintenance-mode.md)); clicking the entry goes directly to the settings form — there is always exactly one row
-- **Card movements** — view and search only (#1469): movement records can't be added, edited or deleted here. They are removed only by deleting their board, or by a superuser running the `purge_card_history` command (since 1.3; see [Card History Retention](card-history-retention.md)).
+- **Card movements** — view and search only (#1469): movement records can't be added, edited or deleted here. They are removed only by deleting their board, or by a superuser running the `purge_card_history` command (since 1.2; see [Card History Retention](card-history-retention.md)).
 - **Boards, columns, swimlanes** — direct database access for debugging
 - **Board memberships** — view and correct membership records
 - **Email addresses, social accounts, social tokens, social apps, API tokens and Sites** — available to superusers only. Staff accounts do not see these entries.
