@@ -72,6 +72,18 @@ Operators and integrators may treat the `/api/v1/` surface as stable for the lif
 - Permission errors return `403 Forbidden`; missing resources return `404 Not Found`
 - *(1.2+)* Board-scoped routes answer `404 Not Found` to a caller with no access to the board, the same as for a board that does not exist. `403 Forbidden` means the caller can see the board but their role is too low for the action
 
+### Error responses
+
+An error that a client is expected to act on carries a machine-readable `code` next to the human-readable `detail`:
+
+```json
+{ "detail": "Query param 'days' must not exceed 365.", "code": "invalid_query_param" }
+```
+
+`code` is a stable string (for example `export_restricted`, `feature_disabled`, `invite_email_cap_reached`, `group_owner_protected`). Compare `code`, not `detail`: the `detail` text is for people and may be reworded in any release. Validation errors on a request body keep DRF's field-keyed shape (`{"<field>": ["..."]}`).
+
+*(1.2+)* **Bad query parameters.** The rule for a query parameter whose value is refused (not an integer, out of range) is `400 Bad Request` with `{detail, code}` and `code: "invalid_query_param"`, never a field-keyed body. `GET /boards/{id}/analytics/` (`days`, `stalled_days`) is one case. Some parameters are clamped or ignored rather than refused; each endpoint's page says which.
+
 ### Pagination
 
 Most list endpoints return the **standard paginated envelope**. A client must read the list from `results`, not from the top level of the response:
@@ -162,7 +174,7 @@ One legacy endpoint still accepts a `snake_case` alias for backward compatibilit
 |---|---|
 | `PATCH /boards/<id>/swimlanes/<id>/set-collapsed/` | `PATCH /boards/<id>/swimlanes/<id>/set_collapsed/` |
 
-The snake_case path remains routable through every 1.x release. It will be removed in 2.0 after a full minor-release deprecation window.
+The snake_case path remains routable through every 1.x release. It will be removed in 2.0 after a full minor-release deprecation window. *(1.2+)* The OpenAPI schema marks the alias operation `deprecated: true`.
 
 ### Expanding foreign-key fields
 

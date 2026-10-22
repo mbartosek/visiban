@@ -103,10 +103,26 @@ _BOARD_ANALYTICS_RESPONSE = inline_serializer(
     },
 )
 
+# A bad query parameter answers ``{detail, code}`` with this code (#1825): the
+# one 400 shape for bad query parameters across the API (docs/api/index.md,
+# "Error responses"), so a client tells "fix your parameter" apart from other
+# 400s without parsing the prose in ``detail``.
+_INVALID_QUERY_PARAM = "invalid_query_param"
+
 _ANALYTICS_400 = OpenApiResponse(
-    description="`days` or `stalled_days` is not an integer or is out of range.",
-    response=inline_serializer(name="BoardAnalyticsBadRequest", fields={"detail": serializers.CharField()}),
+    description="`days` or `stalled_days` is not an integer or is out of range (`code: invalid_query_param`).",
+    response=inline_serializer(
+        name="BoardAnalyticsBadRequest",
+        fields={
+            "detail": serializers.CharField(),
+            "code": serializers.CharField(help_text="Always `invalid_query_param`."),
+        },
+    ),
 )
+
+
+def _invalid_query_param(detail):
+    return Response({"detail": detail, "code": _INVALID_QUERY_PARAM}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class BoardAnalyticsMixin:
@@ -288,20 +304,11 @@ class BoardAnalyticsMixin:
         try:
             days = int(request.query_params.get("days", 30))
         except (ValueError, TypeError):
-            return Response(
-                {"detail": "Query param 'days' must be a positive integer."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _invalid_query_param("Query param 'days' must be a positive integer.")
         if days <= 0:
-            return Response(
-                {"detail": "Query param 'days' must be a positive integer."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _invalid_query_param("Query param 'days' must be a positive integer.")
         if days > 365:
-            return Response(
-                {"detail": "Query param 'days' must not exceed 365."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return _invalid_query_param("Query param 'days' must not exceed 365.")
         now = timezone.now()
         # Stall threshold is a board-level setting, independent of the period selector.
         # The period controls the dwell-time analysis window; staleness is how long a
@@ -312,20 +319,11 @@ class BoardAnalyticsMixin:
             try:
                 stalled_days_param = int(request.query_params["stalled_days"])
             except (ValueError, TypeError):
-                return Response(
-                    {"detail": "Query param 'stalled_days' must be a positive integer."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return _invalid_query_param("Query param 'stalled_days' must be a positive integer.")
             if stalled_days_param <= 0:
-                return Response(
-                    {"detail": "Query param 'stalled_days' must be a positive integer."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return _invalid_query_param("Query param 'stalled_days' must be a positive integer.")
             if stalled_days_param > 90:
-                return Response(
-                    {"detail": "Query param 'stalled_days' must not exceed 90."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return _invalid_query_param("Query param 'stalled_days' must not exceed 90.")
             effective_stalled_days = stalled_days_param
         else:
             effective_stalled_days = board.staleness_threshold_days
