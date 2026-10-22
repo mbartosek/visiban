@@ -5472,6 +5472,18 @@ interactive <code>createsuperuser</code> / <code>changepassword</code> managemen
 accounts with a shorter password keep logging in and are asked for 12+ characters only the
 next time they change it. No migration is involved.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Startup checks guard the <code>changepassword</code> and <code>createsuperuser</code> overrides</p>
+<p>Visiban replaces Django's <code>changepassword</code> and <code>createsuperuser</code> commands with its own
+(<code>operator_commands</code>) so operator password changes revoke credentials and are written to the
+admin action log. A settings include that replaces <code>INSTALLED_APPS</code> and drops the app now
+fails <code>manage.py check</code> with <code>accounts.E008</code> (<code>changepassword</code>) or <code>accounts.E009</code>
+(<code>createsuperuser</code>) (#1801, #1824). Fix the <code>INSTALLED_APPS</code> order rather than silencing
+the check; if you must, each ID can be listed in <code>SILENCED_SYSTEM_CHECKS</code> independently.
+1.2.0-beta.3 used <code>accounts.E008</code> for both overrides, so if you listed <code>accounts.E008</code> in
+<code>SILENCED_SYSTEM_CHECKS</code> to waive a replaced <code>createsuperuser</code> override, <code>accounts.E009</code> now
+fires and blocks startup until you add it to <code>SILENCED_SYSTEM_CHECKS</code> as well.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title"><code>POST /api/v1/auth/password/change/</code> now requires <code>old_password</code></p>
 <p>This dj-rest-auth endpoint previously changed the password for any authenticated caller
