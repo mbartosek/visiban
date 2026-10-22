@@ -357,6 +357,25 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "OpenAPI component names changed for `/auth/user/` and the dj-rest-auth responses"
+    The rename itself changes no field, but a client generated from the OpenAPI schema names these
+    types differently, so regenerating one renames them. Other 1.2 changes to these shapes are in
+    the changelog and the API docs. The 1.2 names are the contract from
+    1.2.0 on; the 1.1 names are not pinned back (#1834).
+
+    | 1.1 component | 1.2 component | Used by |
+    |---|---|---|
+    | `User` | `CurrentUser` | `GET`/`PUT`/`PATCH /api/v1/auth/user/` response |
+    | `UserRequest` | `CurrentUserRequest` | `PUT /api/v1/auth/user/` body |
+    | `PatchedUserRequest` | `PatchedCurrentUserRequest` | `PATCH /api/v1/auth/user/` body |
+    | `Login`, `Registration` | `Token` | `POST /api/v1/auth/login/` and `registration/` response |
+    | `VisibanPasswordReset` | `PasswordResetResponse` | `POST /api/v1/auth/password/reset/` response |
+    | `PasswordResetConfirm` | `PasswordResetConfirmResponse` | `POST /api/v1/auth/password/reset/confirm/` response |
+
+    `User` still exists in 1.2 as the `POST /api/v1/auth/choose-username/` response; it is just
+    no longer what `/auth/user/` returns. Request component names for login, registration, and
+    password reset are unchanged.
+
 !!! warning "Status codes changed on board-scoped and member routes"
     Requests from a caller with no access to a board now return `404 Not Found` on every
     board-scoped route, the same answer as for a board that does not exist; `403 Forbidden`
