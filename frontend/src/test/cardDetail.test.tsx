@@ -3223,6 +3223,18 @@ describe('CardDetail — custom field and weight saves follow the live card (#18
     await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(1, 1, { weight: 6 }))
   })
 
+  it('a pending weight edit is not reset by an unrelated remote bump', async () => {
+    const props = defaultProps()
+    const user = userEvent.setup()
+    const { rerender } = render(<CardDetail {...props} />)
+    await user.click(screen.getByRole('button', { name: '+' }))
+    rerender(<CardDetail {...props} card={makeCard({ weight: 7, version: 4 })} />)
+    expect(screen.getByText('2')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '+' }))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalledWith(1, 1, { weight: 3 }))
+    expect(mockUpdateCard).toHaveBeenCalledTimes(1)
+  })
+
   it('the weight minus button steps down from a remotely changed weight', async () => {
     const props = defaultProps()
     const { rerender } = render(<CardDetail {...props} />)

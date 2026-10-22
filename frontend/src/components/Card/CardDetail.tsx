@@ -333,7 +333,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       setLocalCard((c) => (
         c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
           ? c
-          : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels, custom_field_values: card.custom_field_values, weight: card.weight }
+          : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels, custom_field_values: card.custom_field_values, weight: weightSaveTimer.current ? c.weight : card.weight }
       ));
       return;
     }
@@ -351,7 +351,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setLocalCard((c) => (
       c.version === card.version && c.column === card.column && c.swimlane === card.swimlane
         ? c
-        : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels, custom_field_values: card.custom_field_values, weight: card.weight }
+        : { ...c, version: card.version, column: card.column, swimlane: card.swimlane, labels: card.labels, custom_field_values: card.custom_field_values, weight: weightSaveTimer.current ? c.weight : card.weight }
     ));
     // An open popover closes with the user's selection or error in it. Say so
     // in the panel, unless the card landed exactly where the popover was
@@ -1299,7 +1299,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setLocalCard((c) => ({ ...c, weight: w }));
                       setWeightLimitReason(null);
                       if (weightSaveTimer.current) clearTimeout(weightSaveTimer.current);
-                      weightSaveTimer.current = setTimeout(() => weightRunSave(saveWeight(w)), 600);
+                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; weightRunSave(saveWeight(w)) }, 600);
                     }}
                     className="w-7 h-7 rounded-full border border-line-strong text-fg-tertiary hover:bg-surface-hover transition text-sm font-medium"
                   >−</button>
@@ -1310,7 +1310,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                       setLocalCard((c) => ({ ...c, weight: w }));
                       setWeightLimitReason(null);
                       if (weightSaveTimer.current) clearTimeout(weightSaveTimer.current);
-                      weightSaveTimer.current = setTimeout(() => weightRunSave(saveWeight(w)), 600);
+                      weightSaveTimer.current = setTimeout(() => { weightSaveTimer.current = null; weightRunSave(saveWeight(w)) }, 600);
                     }}
                     className="w-7 h-7 rounded-full border border-line-strong text-fg-tertiary hover:bg-surface-hover transition text-sm font-medium"
                   >+</button>
