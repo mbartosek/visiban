@@ -2914,3 +2914,136 @@ describe('CardDetail focus trap (#1732)', () => {
     expect(Array.from(seen).some((el) => popover.contains(el))).toBe(true)
   })
 })
+
+describe('CardDetail — onUpdated payloads follow the live card (#1777)', () => {
+  const item = { id: 1, text: 'Item 1', is_checked: false, position: 0 }
+  const attachment = { id: 7, filename: 'spec.pdf', size: 10, url: '/f/7', uploaded_by: fakeUser, uploaded_at: '2026-01-01' }
+  const renamed = () => makeCard({
+    title: 'Renamed remotely',
+    weight: 5,
+    assignee: { id: 9, username: 'other', display_name: 'Other', avatar_url: '' },
+    labels: [{ id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }],
+    version: 4,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(getCardComments as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    ;(getCardAttachments as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue([])
+    mockGetCardRelations.mockResolvedValue([])
+  })
+
+  const lastPayload = (props: ReturnType<typeof defaultProps>) =>
+    (props.onUpdated as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as Card
+
+  const expectLive = (c: Card) => {
+    expect(c.title).toBe('Renamed remotely')
+    expect(c.weight).toBe(5)
+    expect(c.assignee?.id).toBe(9)
+    expect(c.labels.map((l) => l.id)).toEqual([100])
+    expect(c.version).toBe(4)
+  }
+
+  it('checklist toggle after a remote rename keeps the new title and fields', async () => {
+    ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue([item])
+    mockUpdateChecklistItem.mockResolvedValue({ ...item, is_checked: true })
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+    rerender(<CardDetail {...props} card={renamed()} />)
+    await userEvent.setup().click(screen.getAllByRole('checkbox')[0])
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.checklist_done).toBe(1)
+    expect(last.checklist_total).toBe(1)
+  })
+
+  it('a rename that lands while the toggle request is in flight is not reverted', async () => {
+    ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue([item])
+    let resolve!: (v: unknown) => void
+    mockUpdateChecklistItem.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    rerender(<CardDetail {...props} card={renamed()} />)
+    resolve({ ...item, is_checked: true })
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    expectLive(lastPayload(props))
+  })
+
+  it('checklist delete after a remote rename keeps the new title and fields', async () => {
+    ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue([item])
+    mockDeleteChecklistItem.mockResolvedValue(undefined)
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    await waitFor(() => expect(screen.getByText('Item 1')).toBeInTheDocument())
+    rerender(<CardDetail {...props} card={renamed()} />)
+    fireEvent.click(screen.getByTitle('Remove item'))
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.checklist_total).toBe(0)
+  })
+
+  it('checklist add after a remote rename keeps the new title and fields', async () => {
+    mockAddChecklistItem.mockResolvedValue({ id: 5, text: 'New task', is_checked: false, position: 0 })
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={{ ...renamed(), checklist_total: 2 }} />)
+    const input = screen.getByPlaceholderText('Add item (Enter)…')
+    fireEvent.change(input, { target: { value: 'New task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.checklist_total).toBe(3)
+  })
+
+  it('bulk add after a remote rename keeps the new title and fields', async () => {
+    mockAddChecklistItem
+      .mockResolvedValueOnce({ id: 5, text: 'A', is_checked: false, position: 0 })
+      .mockResolvedValueOnce({ id: 6, text: 'B', is_checked: false, position: 1 })
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={renamed()} />)
+    fireEvent.click(screen.getByText('Bulk'))
+    fireEvent.change(screen.getByPlaceholderText(/Buy milk/), { target: { value: 'A\nB' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add items' }))
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.checklist_total).toBe(2)
+  })
+
+  it('attachment upload after a remote rename keeps the new title and fields', async () => {
+    const { uploadCardAttachment } = await import('../api/cards')
+    ;(uploadCardAttachment as ReturnType<typeof vi.fn>).mockResolvedValue(attachment)
+    const props = defaultProps()
+    const { container, rerender } = render(<CardDetail {...props} />)
+    rerender(<CardDetail {...props} card={renamed()} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.txt')] } })
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.attachment_count).toBe(1)
+  })
+
+  it('attachment delete after a remote rename keeps the new title and fields', async () => {
+    const { deleteCardAttachment } = await import('../api/cards')
+    ;(deleteCardAttachment as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+    ;(getCardAttachments as ReturnType<typeof vi.fn>).mockResolvedValue([attachment])
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} currentUser={fakeUser} />)
+    const btn = await screen.findByRole('button', { name: 'Delete attachment spec.pdf' })
+    rerender(<CardDetail {...props} currentUser={fakeUser} card={{ ...renamed(), attachment_count: 3 }} />)
+    fireEvent.click(btn)
+    await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+    const last = lastPayload(props)
+    expectLive(last)
+    expect(last.attachment_count).toBe(2)
+  })
+})
