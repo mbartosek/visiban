@@ -110,20 +110,51 @@ _BOARD_ANALYTICS_RESPONSE = inline_serializer(
 # 400s without parsing the prose in ``detail``.
 _INVALID_QUERY_PARAM = "invalid_query_param"
 
+_BAD_QUERY_PARAM_SERIALIZER = inline_serializer(
+    name="BoardAnalyticsBadRequest",
+    fields={
+        "detail": serializers.CharField(),
+        "code": serializers.CharField(help_text="Always `invalid_query_param`."),
+    },
+)
+
 _ANALYTICS_400 = OpenApiResponse(
     description="`days` or `stalled_days` is not an integer or is out of range (`code: invalid_query_param`).",
-    response=inline_serializer(
-        name="BoardAnalyticsBadRequest",
-        fields={
-            "detail": serializers.CharField(),
-            "code": serializers.CharField(help_text="Always `invalid_query_param`."),
-        },
-    ),
+    response=_BAD_QUERY_PARAM_SERIALIZER,
 )
+
+_MOVEMENTS_400 = OpenApiResponse(
+    description=(
+        "`moved_after` or `moved_before` is not an ISO date, or `swimlane_id`, `to_column_id` or "
+        "`moved_by_id` is not a positive integer (`code: invalid_query_param`)."
+    ),
+    response=_BAD_QUERY_PARAM_SERIALIZER,
+)
+
+# Largest value a bigint column can hold; a larger id cannot match a row and
+# would overflow the database driver, so it is refused as a bad parameter.
+_MAX_ID = 2**63 - 1
 
 
 def _invalid_query_param(detail):
     return Response({"detail": detail, "code": _INVALID_QUERY_PARAM}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _parse_iso_date(value):
+    """Return a ``date`` for an ISO ``YYYY-MM-DD`` string, or None if it is not one."""
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _parse_id(value):
+    """Return a positive in-range int for an id query param, or None if it is not one."""
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    return parsed if 0 < parsed <= _MAX_ID else None
 
 
 class BoardAnalyticsMixin:
@@ -624,15 +655,18 @@ class BoardAnalyticsMixin:
 
     @extend_schema(
         summary="List board-level movement history with filtering and offset pagination",
-        responses=inline_serializer(
-            name="BoardMovementsPage",
-            fields={
-                "count": serializers.IntegerField(),
-                "offset": serializers.IntegerField(),
-                "page_size": serializers.IntegerField(),
-                "results": CardMovementSerializer(many=True),
-            },
-        ),
+        responses={
+            200: inline_serializer(
+                name="BoardMovementsPage",
+                fields={
+                    "count": serializers.IntegerField(),
+                    "offset": serializers.IntegerField(),
+                    "page_size": serializers.IntegerField(),
+                    "results": CardMovementSerializer(many=True),
+                },
+            ),
+            400: _MOVEMENTS_400,
+        },
     )
     @action(detail=True, methods=["get"], url_path="movements")
     def movements(self, request, pk=None):
@@ -690,27 +724,29 @@ class BoardAnalyticsMixin:
         moved_after = request.query_params.get("moved_after")
         moved_before = request.query_params.get("moved_before")
         if moved_after:
-            try:
-                qs = qs.filter(moved_at__date__gte=moved_after)
-            except (ValueError, TypeError):
-                return Response({"detail": "moved_after must be a valid ISO date."}, status=status.HTTP_400_BAD_REQUEST)
+            after_date = _parse_iso_date(moved_after)
+            if after_date is None:
+                return _invalid_query_param("moved_after must be a valid ISO date.")
+            qs = qs.filter(moved_at__date__gte=after_date)
         if moved_before:
-            try:
-                qs = qs.filter(moved_at__date__lte=moved_before)
-            except (ValueError, TypeError):
-                return Response({"detail": "moved_before must be a valid ISO date."}, status=status.HTTP_400_BAD_REQUEST)
+            before_date = _parse_iso_date(moved_before)
+            if before_date is None:
+                return _invalid_query_param("moved_before must be a valid ISO date.")
+            qs = qs.filter(moved_at__date__lte=before_date)
 
-        swimlane_id = request.query_params.get("swimlane_id")
-        if swimlane_id:
-            qs = qs.filter(card__swimlane_id=swimlane_id)
-
-        to_column_id = request.query_params.get("to_column_id")
-        if to_column_id:
-            qs = qs.filter(to_column_id=to_column_id)
-
-        moved_by_id = request.query_params.get("moved_by_id")
-        if moved_by_id:
-            qs = qs.filter(moved_by_id=moved_by_id)
+        # Validated before filtering: a non-integer would raise ValueError
+        # inside the ORM and surface as a 500.
+        for param, lookup in (
+            ("swimlane_id", "card__swimlane_id"),
+            ("to_column_id", "to_column_id"),
+            ("moved_by_id", "moved_by_id"),
+        ):
+            raw = request.query_params.get(param)
+            if raw:
+                parsed = _parse_id(raw)
+                if parsed is None:
+                    return _invalid_query_param(f"{param} must be a positive integer.")
+                qs = qs.filter(**{lookup: parsed})
 
         exclude_type = request.query_params.get("exclude_type")
         if exclude_type:

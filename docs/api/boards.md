@@ -449,6 +449,8 @@ Board-level movement history for all cards on the board, sorted newest first. Re
 
 When neither `moved_after` nor `moved_before` is specified, the full movement history is returned (no default date cutoff). Results are always paginated to `page_size: 50` so the absence of a date window does not cause runaway queries.
 
+*(1.2+)* A `moved_after` or `moved_before` that is not an ISO date, or a `swimlane_id`, `to_column_id` or `moved_by_id` that is not a positive integer, returns `400 Bad Request` with `{"detail": "...", "code": "invalid_query_param"}`. Earlier releases answered `500` for most of these.
+
 **Response**
 ```json
 {
