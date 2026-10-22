@@ -23,14 +23,14 @@ test.describe('theme toggle', () => {
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
-    const stored = await page.evaluate(() => window.localStorage.getItem('visiban-theme'))
+    const stored = await page.evaluate(() => window.localStorage.getItem('user:prefs:theme'))
     expect(stored).toBe('dark')
   })
 
   test('dark theme persists across reload', async ({ page }) => {
     // Pre-seed the localStorage key so the ThemeProvider reads it on init.
     await page.addInitScript(() => {
-      window.localStorage.setItem('visiban-theme', 'dark')
+      window.localStorage.setItem('user:prefs:theme', 'dark')
     })
 
     await page.goto('/settings')

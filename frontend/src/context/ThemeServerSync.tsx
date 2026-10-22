@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 
 import { updateCurrentUser } from "../api/auth";
 import type { User } from "../types";
-import { STORAGE_KEY, useTheme } from "./ThemeContext";
+import { migrateLegacyKey } from "../utils/migrateLegacyKey";
+import { LEGACY_STORAGE_KEY, STORAGE_KEY, useTheme } from "./ThemeContext";
 
 /**
  * Bridges the per-browser ThemeContext (localStorage-backed) with the
@@ -11,7 +12,7 @@ import { STORAGE_KEY, useTheme } from "./ThemeContext";
  * Precedence rules — deliberately designed to avoid clobbering an existing
  * user's locally chosen preference on first load after the #183 upgrade:
  *
- *  1. First authenticated load after upgrade: a sentinel ("visiban-theme-synced")
+ *  1. First authenticated load after upgrade: a sentinel ("user:prefs:theme-synced")
  *     is absent. If the local preference differs from the server value we PATCH
  *     the server with the local value, then set the sentinel. Rationale: users
  *     already have a deliberate localStorage choice that predates the server
@@ -25,7 +26,12 @@ import { STORAGE_KEY, useTheme } from "./ThemeContext";
  *     choice propagates to other devices. Write-on-change is acceptable — theme
  *     changes are extremely infrequent and the request is a single-field PATCH.
  */
-const SYNC_SENTINEL_KEY = "visiban-theme-synced";
+const SYNC_SENTINEL_KEY = "user:prefs:theme-synced";
+// Pre-#1855 name. The sentinel is renamed (not left behind) so every browser
+// storage key follows the user:prefs:* rule; migrating it also preserves
+// "already synced" for existing users, so the one-time local-to-server push
+// does not re-fire and clobber a newer server value. Remove after 1.2 GA.
+const LEGACY_SYNC_SENTINEL_KEY = "visiban-theme-synced";
 
 export function ThemeServerSync({
   user,
@@ -50,6 +56,8 @@ export function ThemeServerSync({
     if (!didInitialSyncRef.current) {
       didInitialSyncRef.current = true;
 
+      migrateLegacyKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
+      migrateLegacyKey(LEGACY_SYNC_SENTINEL_KEY, SYNC_SENTINEL_KEY);
       const serverTheme = user.theme ?? "system";
       const localTheme =
         (localStorage.getItem(STORAGE_KEY) as typeof preference | null) ?? "system";

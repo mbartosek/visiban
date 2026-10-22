@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
+import { migrateLegacyKey } from "../utils/migrateLegacyKey";
+
 export type ThemePreference = "system" | "dark" | "light";
 
 interface ThemeContextValue {
@@ -9,7 +11,9 @@ interface ThemeContextValue {
   setPreference: (p: ThemePreference) => void;
 }
 
-export const STORAGE_KEY = "visiban-theme";
+export const STORAGE_KEY = "user:prefs:theme";
+// Pre-#1855 name; migrated on first read. Remove the shim after 1.2 GA.
+export const LEGACY_STORAGE_KEY = "visiban-theme";
 
 const ThemeContext = createContext<ThemeContextValue>({
   preference: "system",
@@ -36,12 +40,17 @@ function applyTheme(preference: ThemePreference): "dark" | "light" {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
-    if (!stored) {
-      localStorage.setItem(STORAGE_KEY, "system");
+    migrateLegacyKey(LEGACY_STORAGE_KEY, STORAGE_KEY);
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY) as ThemePreference | null;
+      if (!stored) {
+        localStorage.setItem(STORAGE_KEY, "system");
+        return "system";
+      }
+      return stored;
+    } catch {
       return "system";
     }
-    return stored;
   });
   const [resolved, setResolved] = useState<"dark" | "light">(() => resolve(preference));
 
@@ -75,7 +84,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setPreference = (p: ThemePreference) => {
-    localStorage.setItem(STORAGE_KEY, p);
+    try {
+      localStorage.setItem(STORAGE_KEY, p);
+    } catch {
+      // Storage unavailable — theme still applies for this session.
+    }
     setPreferenceState(p);
   };
 

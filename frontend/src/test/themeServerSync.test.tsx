@@ -13,8 +13,8 @@ import { updateCurrentUser } from '../api/auth'
 
 const mockUpdateCurrentUser = updateCurrentUser as ReturnType<typeof vi.fn>
 
-const STORAGE_KEY = 'visiban-theme'
-const SYNC_SENTINEL_KEY = 'visiban-theme-synced'
+const STORAGE_KEY = 'user:prefs:theme'
+const SYNC_SENTINEL_KEY = 'user:prefs:theme-synced'
 
 function makeMatchMedia(prefersDark = true) {
   return {
