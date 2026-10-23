@@ -2144,6 +2144,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pagination-shapes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pagination shapes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#errors" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4067,10 +4078,11 @@ handler serves both.</p>
 </blockquote>
 <p>The change feed is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is <strong>not</strong> experimental.</p>
 <ul>
-<li><strong>The endpoint, its <code>after</code> and <code>limit</code> parameters, and the response envelope</strong> (<code>results</code> and <code>next</code>) are never removed or renamed in a minor or patch release. The cursor semantics (<code>after</code> is exclusive, ordering is by <code>id</code>, <code>next</code> is <code>null</code> once a page comes back short) and the <code>400</code>, <code>404</code>, and <code>410</code> error behavior described below do not change.</li>
+<li><strong>The endpoint, its <code>after</code> and <code>limit</code> parameters, and the response envelope</strong> (<code>results</code>, <code>next_cursor</code>, and the deprecated <code>next</code>) are never removed or renamed in a minor or patch release. The cursor semantics (<code>after</code> is exclusive, ordering is by <code>id</code>, <code>next_cursor</code> is <code>null</code> once a page comes back short) and the <code>400</code>, <code>404</code>, and <code>410</code> error behavior described below do not change.</li>
 <li><strong>Row fields</strong> (<code>id</code>, <code>event</code>, <code>data</code>, <code>actor_id</code>, <code>actor</code>, <code>created_at</code>) only gain fields; an existing field keeps its name and type and is never removed.</li>
 <li><strong>Event types and payloads</strong> carry the same <code>{event, data}</code> payloads as the WebSocket, so the same rules apply: an event type is never removed, a payload field is never removed, and new event types and payload fields can appear in any minor release. Clients should ignore event types and fields they do not recognize. Retiring an event follows the process in <a href="../../development/websocket-event-contract/#retiring-an-event">Retiring an event</a>.</li>
 <li><strong>Per-reader fields are the exception.</strong> The fields documented under <a href="#fields-that-depend-on-who-is-reading">Fields that depend on who is reading</a> are per-reader and may be withheld from recipients who lack access, including when the rule is tightened for security reasons (as in 1.2). Clients must treat them as optional.</li>
+<li><strong><code>next_cursor</code> is the cursor; <code>next</code> is deprecated.</strong> <code>next_cursor</code> is the documented cursor field. <code>next</code> was the name in 1.2.0-beta.1 and is still emitted with an identical value in every response, so clients written against the beta keep working. New clients should read <code>next_cursor</code>. <code>next</code> is removed only at a major version bump. See <a href="#pagination-shapes">Pagination shapes</a>.</li>
 <li>A part of the feed that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.</li>
 <li><strong>Not covered:</strong> how long history is kept. The retention window is an operator setting (<code>BOARD_EVENT_RETENTION_DAYS</code>), so a consumer must handle <code>410 Gone</code> rather than assume any particular depth of history. See <a href="#retention">Retention</a>.</li>
 </ul>
@@ -4138,8 +4150,9 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-15T10:22:41.881Z"</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">"next"</span><span class="p">:</span><span class="w"> </span><span class="mi">84213</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">}</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">"next_cursor"</span><span class="p">:</span><span class="w"> </span><span class="mi">84213</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">"next"</span><span class="p">:</span><span class="w"> </span><span class="mi">84213</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -4181,9 +4194,14 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <td>ISO 8601 timestamp of the write.</td>
 </tr>
 <tr>
+<td><code>next_cursor</code></td>
+<td>integer / null</td>
+<td>Cursor for the following page, or <code>null</code> when the caller is caught up. <code>null</code> means "this page was short, so it was the last one"; a non-null value means "ask again with <code>after=&lt;next_cursor&gt;</code>". It is an integer, not an opaque string: it is the exclusive <code>id</code> cursor that <code>after</code> takes.</td>
+</tr>
+<tr>
 <td><code>next</code></td>
 <td>integer / null</td>
-<td>Cursor for the following page, or <code>null</code> when the caller is caught up. <code>null</code> means "this page was short, so it was the last one"; a non-null value means "ask again with <code>after=&lt;next&gt;</code>".</td>
+<td><strong>Deprecated; use <code>next_cursor</code>.</strong> Always identical to <code>next_cursor</code>. Kept through 1.x for clients written against 1.2.0-beta.1.</td>
 </tr>
 </tbody>
 </table>
@@ -4191,9 +4209,42 @@ that asked for <code>10000</code> and silently received <code>500</code> would r
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-H<span class="w"> </span><span class="s2">"Authorization: Token vbn_..."</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="s2">"http://localhost:8000/api/v1/boards/42/events/?after=0&amp;limit=200"</span>
 </code></pre></div>
-<p>Keep calling with <code>after</code> set to the previous response's <code>next</code> until <code>next</code> is
-<code>null</code>. Order is by <code>id</code>, which is the commit order — never re-sort by
+<p>Keep calling with <code>after</code> set to the previous response's <code>next_cursor</code> until
+<code>next_cursor</code> is <code>null</code>. Order is by <code>id</code>, which is the commit order — never re-sort by
 <code>created_at</code>, since two events can share a timestamp.</p>
+<h3 id="pagination-shapes">Pagination shapes<a class="headerlink" href="#pagination-shapes" title="Permanent link">&para;</a></h3>
+<p>Besides the standard offset envelope (<code>{count, offset, page_size, results}</code>) and bare
+arrays for small bounded lists, the API has three cursor/link shapes. See
+<a href="../#pagination">Pagination</a> for the full list. The three differ on purpose, and
+each is frozen by the release that introduced it (decision recorded for #1869):</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Shape</th>
+<th>Why it stays</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Change feed, <code>GET /boards/{id}/events/</code></td>
+<td><code>{results, next_cursor: int \| null}</code> (plus deprecated <code>next</code>)</td>
+<td>The cursor is the exclusive event <code>id</code>, a monotonic integer a consumer also gets as <code>event_id</code> on WebSocket frames, so it is an integer rather than an opaque string. The key name matches <code>/cards/</code>, but the request parameter and type differ: the feed takes an integer via <code>after</code>, while <code>/cards/</code> takes an opaque string via <code>cursor</code>. The two do not share a request contract.</td>
+</tr>
+<tr>
+<td>Cross-board <code>GET /cards/</code></td>
+<td><code>{results, next_cursor: string \| null}</code></td>
+<td>The cursor is an opaque string the server may re-encode, so clients must not parse it.</td>
+</tr>
+<tr>
+<td>Card timeline (1.1)</td>
+<td><code>limit</code>/<code>offset</code> with <code>next</code> / <code>previous</code> as URL strings</td>
+<td>A limit/offset shape, not a cursor. Frozen in 1.1; a field cannot be renamed or retyped without a major bump.</td>
+</tr>
+</tbody>
+</table>
+<p>New cursor-paginated endpoints should name the response key <code>next_cursor</code>, but must document their own request parameter and cursor type; a client cannot reuse the feed's <code>after</code> for <code>/cards/</code>, nor <code>cursor</code> for the feed (the feed ignores an unknown <code>cursor</code> and would return page 1 again). The feed's earlier <code>next</code> key
+(1.2.0-beta.1) is kept as a deprecated duplicate so the rename is not a breaking change.</p>
 <h3 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

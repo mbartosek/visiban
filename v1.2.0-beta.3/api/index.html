@@ -4094,7 +4094,7 @@
 </tr>
 <tr>
 <td><code>GET /boards/{id}/events/</code></td>
-<td><code>{results, next}</code> cursor feed. See <a href="events/">Change Feed</a></td>
+<td><code>{results, next_cursor}</code> cursor feed; <code>next_cursor</code> is an integer event id (pass it as <code>after</code>), and the deprecated <code>next</code> is also returned with the same value. See <a href="events/">Change Feed</a></td>
 </tr>
 <tr>
 <td><code>GET /groups/{id}/descendant-boards/</code></td>

@@ -2692,6 +2692,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#api-pagination-shapes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API pagination shapes
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4173,6 +4184,11 @@
 <p><strong>SAST (Semgrep, Bandit, SonarQube).</strong> Static analysis runs on every MR. Bandit covers Python-specific security patterns (hardcoded secrets, <code>shell=True</code>, unsafe deserialization). Semgrep adds cross-language rules including custom rules for Visiban-specific patterns. SonarQube provides the persistent quality history.</p>
 <p><strong>Migration safety job.</strong> This job catches three dangerous patterns before they reach production: missing migrations (a model change with no corresponding migration file), destructive column operations (DROP COLUMN in a migration), and NOT NULL columns added without a default (which blocks zero-downtime deploys). These are the three most common sources of production migration incidents.</p>
 <p><strong>Claude Code reviewer stage.</strong> A dedicated CI stage runs the Claude Code reviewer on every MR. This catches patterns that static analysis misses — incorrect permission checks, missing <code>transaction.on_commit()</code> wrappers on broadcast calls, serializer fields that expose data beyond what the endpoint should return.</p>
+<hr />
+<h2 id="api-pagination-shapes">API pagination shapes<a class="headerlink" href="#api-pagination-shapes" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Note (2026-10-23, #1869):</strong> The change feed (<code>GET /boards/{id}/events/</code>) returns <code>next_cursor</code> (an integer event id, passed back as <code>after</code>) and keeps <code>next</code> as a deprecated duplicate with the same value through 1.x, because 1.2.0-beta.1 shipped <code>next</code> as a documented public key. The other non-standard list shapes stay as they are: <code>GET /cards/</code> uses an opaque string <code>next_cursor</code>, and the card timeline (1.1) uses <code>limit</code>/<code>offset</code> with <code>next</code>/<code>previous</code> URLs and is frozen. Renaming the feed cursor before GA is additive; after GA it would be a breaking change. Details and rationale: <a href="../../api/events/#pagination-shapes">Pagination shapes</a>.</p>
+</blockquote>
 
 
 

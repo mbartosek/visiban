@@ -4077,7 +4077,7 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">"results"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
 </code></pre></div>
-<p>Query parameters: <code>?offset=0&amp;page_size=50</code> (max <code>200</code>). This shape is stable for the lifetime of <code>v1</code>. A few endpoints deliberately use another shape (cursor <code>{results, next_cursor}</code> on <code>/cards/</code>, <code>next</code>/<code>previous</code> links on a card timeline, <code>{results, next}</code> on the board events feed, and bare arrays for small bounded lists); see <a href="../../api/#pagination">Pagination</a> for the full list.</p>
+<p>Query parameters: <code>?offset=0&amp;page_size=50</code> (max <code>200</code>). This shape is stable for the lifetime of <code>v1</code>. A few endpoints deliberately use another shape (cursor <code>{results, next_cursor}</code> on <code>/cards/</code>, <code>next</code>/<code>previous</code> links on a card timeline, <code>{results, next_cursor}</code> on the board events feed, where <code>next_cursor</code> is an integer and the deprecated <code>next</code> is also returned, and bare arrays for small bounded lists); see <a href="../../api/#pagination">Pagination</a> for the full list.</p>
 <h2 id="how-deprecation-works">How deprecation works<a class="headerlink" href="#how-deprecation-works" title="Permanent link">&para;</a></h2>
 <p>When a field or endpoint needs to be removed in a future release:</p>
 <ol>
@@ -4114,6 +4114,11 @@
 <td><code>Group.default_board_member_role</code> (also writable via <code>PATCH /groups/{id}/board-defaults/</code>)</td>
 <td>1.2</td>
 <td>No effect: it was never read, and group members get their group role on every group board. Still accepted and returned unchanged, and marked <code>deprecated: true</code> in the OpenAPI schema. Tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1430">#1430</a>.</td>
+</tr>
+<tr>
+<td><code>next</code> on the change feed response (<code>GET /boards/{id}/events/</code>)</td>
+<td>1.2</td>
+<td>Deprecated in favor of <code>next_cursor</code>. Still returned in every response with a value identical to <code>next_cursor</code>, and marked <code>deprecated: true</code> in the OpenAPI schema. Removed only at a major version bump. Tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1869">#1869</a>.</td>
 </tr>
 </tbody>
 </table>
