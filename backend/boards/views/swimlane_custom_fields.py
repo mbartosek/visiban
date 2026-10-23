@@ -202,8 +202,7 @@ class SwimlaneCustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         description=(
             "Admin only. Accepts the full set of swimlane custom field IDs for "
             "this board in the desired order and returns the reordered list. "
-            "Accepts PUT or POST, matching the card-level custom field reorder "
-            "action."
+            "POST only, matching the card-level custom field reorder action."
         ),
         request=inline_serializer(
             name="SwimlaneCustomFieldReorder",

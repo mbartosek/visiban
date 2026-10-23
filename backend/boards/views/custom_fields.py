@@ -181,9 +181,8 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         summary="Reorder custom field definitions",
         description=(
             "Admin only. Accepts the full set of custom field IDs for this board "
-            "in the desired order and returns the reordered list. Accepts PUT "
-            "(as specified for this endpoint) or POST (matching the column and "
-            "swimlane reorder actions)."
+            "in the desired order and returns the reordered list. POST only, "
+            "matching the column and swimlane reorder actions."
         ),
         request=inline_serializer(
             name="CustomFieldReorder",
