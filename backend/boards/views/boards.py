@@ -695,8 +695,9 @@ class BoardViewSet(
             "verbatim.\n\n"
             "Pass the last `id` you processed as `after`; WebSocket frames carry the "
             "same value as `event_id`, so a client can hand the socket's last "
-            "`event_id` straight to this endpoint. `next` is the cursor for the "
-            "following page, or `null` when the caller is caught up.\n\n"
+            "`event_id` straight to this endpoint. `next_cursor` is the cursor for the "
+            "following page, or `null` when the caller is caught up. `next` carries "
+            "the identical value and is deprecated; use `next_cursor`.\n\n"
             "Events outside the retention window are pruned. A cursor that no longer "
             "exists while newer events do returns `410 Gone` — re-sync via `/full/` "
             "and resume from the newest `event_id` seen after that."
@@ -716,9 +717,18 @@ class BoardViewSet(
                 name="BoardEventFeedPage",
                 fields={
                     "results": BoardEventSerializer(many=True),
+                    "next_cursor": serializers.IntegerField(
+                        allow_null=True,
+                        help_text=(
+                            "Cursor for the next page (pass it as `after`), or null "
+                            "when caught up."
+                        ),
+                    ),
+                    # Deprecated duplicate of next_cursor, kept through 1.x (#1869).
+                    # The `deprecated` flag is set by schema_hooks.mark_deprecated_fields.
                     "next": serializers.IntegerField(
                         allow_null=True,
-                        help_text="Cursor for the next page, or null when caught up.",
+                        help_text="Deprecated: use `next_cursor`. Identical value.",
                     ),
                 },
             ),
@@ -820,6 +830,9 @@ class BoardViewSet(
                     ),
                 },
             ).data,
+            "next_cursor": next_cursor,
+            # Deprecated alias: 1.2.0-beta.1 shipped `next` as a documented public
+            # key, so it stays, with an identical value, until a major bump (#1869).
             "next": next_cursor,
         })
 

@@ -20,10 +20,11 @@ handler serves both.
 
 The change feed is a public contract from 1.2 and follows the same compatibility rules as the REST API from 1.0 onward. It is **not** experimental.
 
-- **The endpoint, its `after` and `limit` parameters, and the response envelope** (`results` and `next`) are never removed or renamed in a minor or patch release. The cursor semantics (`after` is exclusive, ordering is by `id`, `next` is `null` once a page comes back short) and the `400`, `404`, and `410` error behavior described below do not change.
+- **The endpoint, its `after` and `limit` parameters, and the response envelope** (`results`, `next_cursor`, and the deprecated `next`) are never removed or renamed in a minor or patch release. The cursor semantics (`after` is exclusive, ordering is by `id`, `next_cursor` is `null` once a page comes back short) and the `400`, `404`, and `410` error behavior described below do not change.
 - **Row fields** (`id`, `event`, `data`, `actor_id`, `actor`, `created_at`) only gain fields; an existing field keeps its name and type and is never removed.
 - **Event types and payloads** carry the same `{event, data}` payloads as the WebSocket, so the same rules apply: an event type is never removed, a payload field is never removed, and new event types and payload fields can appear in any minor release. Clients should ignore event types and fields they do not recognize. Retiring an event follows the process in [Retiring an event](../development/websocket-event-contract.md#retiring-an-event).
 - **Per-reader fields are the exception.** The fields documented under [Fields that depend on who is reading](#fields-that-depend-on-who-is-reading) are per-reader and may be withheld from recipients who lack access, including when the rule is tightened for security reasons (as in 1.2). Clients must treat them as optional.
+- **`next_cursor` is the cursor; `next` is deprecated.** `next_cursor` is the documented cursor field. `next` was the name in 1.2.0-beta.1 and is still emitted with an identical value in every response, so clients written against the beta keep working. New clients should read `next_cursor`. `next` is removed only at a major version bump. See [Pagination shapes](#pagination-shapes).
 - A part of the feed that must go away is marked deprecated here for at least one minor release, and removal needs a major version bump.
 - **Not covered:** how long history is kept. The retention window is an operator setting (`BOARD_EVENT_RETENTION_DAYS`), so a consumer must handle `410 Gone` rather than assume any particular depth of history. See [Retention](#retention).
 
@@ -85,6 +86,7 @@ that asked for `10000` and silently received `500` would read
       "created_at": "2026-09-15T10:22:41.881Z"
     }
   ],
+  "next_cursor": 84213,
   "next": 84213
 }
 ```
@@ -97,7 +99,8 @@ that asked for `10000` and silently received `500` would read
 | `actor_id` | integer / null | The user who caused the event, or `null` when there was no authenticated actor. A plain column, not a foreign key: it keeps its value even after the account is deleted. |
 | `actor` | object / null | *Added in 1.2 (#1663).* The same user as `actor_id`, in the nested `BoardUser` shape (`id`, `username`, `display_name`, `avatar_url`) used by every board-scoped actor field except invite links — see [Actor fields](index.md#actor-fields-who-did-it). It resolves even when the actor has since left the board, so you do not need the member list to label a row. `null` when `actor_id` is `null` or the account no longer exists. Every actor on a page is fetched in one query, so page cost does not grow with the number of distinct actors. |
 | `created_at` | string | ISO 8601 timestamp of the write. |
-| `next` | integer / null | Cursor for the following page, or `null` when the caller is caught up. `null` means "this page was short, so it was the last one"; a non-null value means "ask again with `after=<next>`". |
+| `next_cursor` | integer / null | Cursor for the following page, or `null` when the caller is caught up. `null` means "this page was short, so it was the last one"; a non-null value means "ask again with `after=<next_cursor>`". It is an integer, not an opaque string: it is the exclusive `id` cursor that `after` takes. |
+| `next` | integer / null | **Deprecated; use `next_cursor`.** Always identical to `next_cursor`. Kept through 1.x for clients written against 1.2.0-beta.1. |
 
 ### Paging
 
@@ -106,9 +109,23 @@ curl -s -H "Authorization: Token vbn_..." \
   "http://localhost:8000/api/v1/boards/42/events/?after=0&limit=200"
 ```
 
-Keep calling with `after` set to the previous response's `next` until `next` is
-`null`. Order is by `id`, which is the commit order — never re-sort by
+Keep calling with `after` set to the previous response's `next_cursor` until
+`next_cursor` is `null`. Order is by `id`, which is the commit order — never re-sort by
 `created_at`, since two events can share a timestamp.
+
+### Pagination shapes
+
+The API has three cursor shapes. They differ on purpose, and each is frozen by the
+release that introduced it (decision recorded for #1869):
+
+| Endpoint | Shape | Why it stays |
+|---|---|---|
+| Change feed, `GET /boards/{id}/events/` | `{results, next_cursor: int \| null}` (plus deprecated `next`) | The cursor is the exclusive event `id`, a monotonic integer a consumer also gets as `event_id` on WebSocket frames, so it is an integer rather than an opaque string. Named `next_cursor` to match `/cards/`. |
+| Cross-board `GET /cards/` | `{results, next_cursor: string \| null}` | The cursor is an opaque string the server may re-encode, so clients must not parse it. |
+| Card timeline (1.1) | `next` as a URL string | Frozen in 1.1; a field cannot be renamed or retyped without a major bump. |
+
+New paginated endpoints should use `next_cursor`. The feed's earlier `next` key
+(1.2.0-beta.1) is kept as a deprecated duplicate so the rename is not a breaking change.
 
 ### Errors
 

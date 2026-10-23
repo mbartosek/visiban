@@ -688,6 +688,7 @@ SPECTACULAR_SETTINGS = {
         "drf_spectacular.hooks.postprocess_schema_enums",
         "visiban.schema_hooks.add_standard_error_responses",
         "visiban.schema_hooks.require_declared_request_bodies",
+        "visiban.schema_hooks.mark_deprecated_fields",
     ],
 }
 
