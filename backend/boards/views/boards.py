@@ -474,7 +474,7 @@ class BoardViewSet(
         description="Generates a fresh token, replacing any existing one. Admin only.",
         methods=["POST"],
         request=inline_serializer(
-            name="ShareBoardRequest",
+            name="ShareBoard",
             fields={
                 "expires_in_days": serializers.ChoiceField(
                     choices=[7, 30, 90], required=False, allow_null=True,
@@ -686,6 +686,7 @@ class BoardViewSet(
         return Response(BoardFullSerializer(board, context={"request": request, "role": role}).data)
 
     @extend_schema(
+        operation_id="api_v1_boards_events_list",
         summary="Read the board's change feed",
         description=(
             "Returns committed board mutation events in ascending `id` order, so an "
@@ -985,7 +986,7 @@ class BoardViewSet(
             "or updates their role/moderator flag on an existing membership (200). Admin only."
         ),
         request=inline_serializer(
-            name="AddOrUpdateMemberRequest",
+            name="AddOrUpdateMember",
             fields={
                 "user_id": serializers.IntegerField(),
                 "role": serializers.ChoiceField(choices=BoardMembership.Role.choices, required=False),

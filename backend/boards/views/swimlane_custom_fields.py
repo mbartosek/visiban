@@ -206,7 +206,7 @@ class SwimlaneCustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             "action."
         ),
         request=inline_serializer(
-            name="SwimlaneCustomFieldReorderRequest",
+            name="SwimlaneCustomFieldReorder",
             fields={
                 "order": drf_serializers.ListField(
                     child=drf_serializers.IntegerField(),

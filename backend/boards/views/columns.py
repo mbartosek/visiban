@@ -161,7 +161,7 @@ class ColumnViewSet(viewsets.ModelViewSet):
             "checklist-item reorder, #1292)."
         ),
         request=inline_serializer(
-            name="ColumnReorderRequest",
+            name="ColumnReorder",
             fields={
                 "order": serializers.ListField(
                     child=serializers.IntegerField(),

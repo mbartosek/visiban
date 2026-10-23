@@ -872,7 +872,7 @@ class CardViewSet(viewsets.ModelViewSet):
             ),
         ],
         request=inline_serializer(
-            name="CardMoveRequest",
+            name="CardMove",
             fields={
                 "column_id": serializers.IntegerField(),
                 "swimlane_id": serializers.IntegerField(),
@@ -1683,7 +1683,7 @@ class CardViewSet(viewsets.ModelViewSet):
             "(#1292, same rule as `move`/`reorder` for cards, columns, and swimlanes)."
         ),
         request=inline_serializer(
-            name="ChecklistReorderRequest",
+            name="ChecklistReorder",
             fields={
                 "order": serializers.ListField(
                     child=serializers.IntegerField(),

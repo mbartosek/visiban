@@ -865,6 +865,7 @@ class AdminActionLogView(APIView):
     pagination_class = AdminActionLogPagination
 
     @extend_schema(
+        operation_id="api_v1_admin_action_log_list",
         parameters=[
             OpenApiParameter(
                 "action", str, enum=list(AdminActionLog.Action.values), required=False,
@@ -1509,6 +1510,7 @@ class AdminBoardInviteLinkListView(APIView):
     pagination_class = AdminBoardInvitePagination
 
     @extend_schema(
+        operation_id="api_v1_admin_board_invite_links_list",
         parameters=[
             OpenApiParameter(
                 "status", str, enum=list(BOARD_INVITE_STATUS_FILTERS), required=False,
