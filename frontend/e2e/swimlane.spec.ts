@@ -9,6 +9,9 @@ import { BOARD_FULL, CARD, SWIMLANE } from './fixtures/board'
 // button + persistence path, which is the supported interaction.
 
 test.describe('swimlane collapse', () => {
+  // Desktop Chrome is exactly 1280px, the card detail sheet's anchored/docked
+  // boundary (#1914): pin a viewport that is unambiguously anchored.
+  test.use({ viewport: { width: 1600, height: 900 } })
   test.beforeEach(async ({ page }) => {
     await routeAuth(page)
     await routeBoard(page)
@@ -65,6 +68,7 @@ test.describe('swimlane collapse', () => {
 
 // #1458 — admin shortcut from the row's +N popover to Board settings → Swimlane fields.
 test.describe('swimlane field order shortcut', () => {
+  test.use({ viewport: { width: 1600, height: 900 } })
   const defBase = {
     field_type: 'text', choices: [], show_on_row: false, is_admin_only: false, is_required: false,
     help_text: '', number_prefix: '', number_suffix: '', number_decimals: null, choice_colors: {},

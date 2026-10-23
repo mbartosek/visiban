@@ -11,6 +11,7 @@ import MovementHistoryView from "./MovementHistoryView";
 import { useBoardSocket } from "../../hooks/useBoardSocket";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useDragSensors } from "../../hooks/useDragSensors";
+import { markBoardTreePointerEvent } from "../../hooks/useCardSheetPlacement";
 import type { BoardEvent } from "../../hooks/useBoardSocket";
 import ConnectionStatus from "../Common/ConnectionStatus";
 import {
@@ -18,6 +19,7 @@ import {
   DragOverlay,
   closestCenter,
   useDroppable,
+  useSensors,
 } from "@dnd-kit/core";
 import type { DragEndEvent, DragStartEvent, DragOverEvent, CollisionDetection } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -1474,6 +1476,10 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
   // Mouse drags start after 5px; touch drags on press-and-hold (#1287).
   const sensors = useDragSensors();
+  // Drag-and-drop is suspended while the card detail sheet is open (#1914):
+  // the board behind it stays clickable so a click swaps the open card, but
+  // nothing starts a drag. (The old full-screen backdrop blocked drags too.)
+  const noSensors = useSensors();
 
   // Unique 3-char abbreviations for collapsed column headers.
   // Algorithm: strip spaces, take first 3 chars uppercased; if two columns share
@@ -2354,7 +2360,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{overlayAnnouncement}</div>
 
       <SectionErrorBoundary section="Board grid">
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} collisionDetection={collisionDetection}>
+      <DndContext sensors={selectedCard ? noSensors : sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd} collisionDetection={collisionDetection}>
         {/* flex-row wrapper lets the activity drawer sit alongside the scroll container */}
         <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
         {/*
@@ -2368,7 +2374,10 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
             geometry is unchanged: `flex-1` moves out here, the scroller keeps its own
             inside the new column. */}
         <div className="relative flex-1 min-w-0 flex flex-col min-h-0">
-        <div ref={setScrollEl} className="board-scroll flex-1 overflow-auto bg-sunken">
+        {/* data-board-scroll: the card detail sheet measures cards inside it (#1914).
+            Focusable from script only (tabIndex -1): focus returns here when the
+            sheet closes and its card is no longer on the board. */}
+        <div ref={setScrollEl} data-board-scroll role="region" aria-label="Board" tabIndex={-1} onPointerDownCapture={markBoardTreePointerEvent} className="board-scroll flex-1 overflow-auto bg-sunken focus:outline-none">
           {/*
             min-w-max wrapper — gives the sticky header row and all swimlane
             rows the same containing-block width (max-content).  Without this,
@@ -2495,6 +2504,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
                       filteredCardIds={filteredCardIds}
                       selectedCardIds={selectedCardIds}
                       highlightedCardId={highlightedCardId}
+                      currentCardId={selectedCard?.id ?? null}
                       onToggleCardSelection={toggleCardSelection}
                       onCardClick={(card) => { clearSelection(); setSelectedCard(card); }}
                       onCardAdded={onCardAdded}

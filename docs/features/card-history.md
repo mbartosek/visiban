@@ -78,7 +78,7 @@ The activity log also tracks field changes:
 
 ## Viewing history
 
-Open a card and click **Activity** in the side panel. The timeline shows movements and field changes in reverse chronological order. Each entry shows:
+Open a card and click **Activity** in its detail panel. The timeline shows movements and field changes in reverse chronological order. Each entry shows:
 
 - What changed (from → to)
 - Who made the change

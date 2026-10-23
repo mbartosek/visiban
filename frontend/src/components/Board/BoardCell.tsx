@@ -18,6 +18,8 @@ interface Props {
   filteredCardIds: Set<number> | null;
   selectedCardIds: Set<number>;
   highlightedCardId?: number | null;
+  /** The card open in the card detail sheet, if any (#1914). */
+  currentCardId?: number | null;
   onToggleCardSelection: (cardId: number) => void;
   onCardClick: (card: Card) => void;
   onCardAdded: (card: Card) => void;
@@ -41,7 +43,7 @@ interface Props {
   overlayLabel?: string;
 }
 
-const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, canEdit, closeEditorOnEnter, filteredCardIds, selectedCardIds, highlightedCardId, onToggleCardSelection, onCardClick, onCardAdded, density, userTimezone, userDateFormat, width, compact, staleness_threshold_days, stale_warning_pct, customFieldDefinitions, onCardUpdated, overlayCell, overlayLabel }: Props) {
+const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, canEdit, closeEditorOnEnter, filteredCardIds, selectedCardIds, highlightedCardId, currentCardId, onToggleCardSelection, onCardClick, onCardAdded, density, userTimezone, userDateFormat, width, compact, staleness_threshold_days, stale_warning_pct, customFieldDefinitions, onCardUpdated, overlayCell, overlayLabel }: Props) {
   const id = `cell:${column.id}:${swimlane.id}`;
   const { setNodeRef, isOver } = useDroppable({ id });
   const { active } = useDndContext();
@@ -87,6 +89,8 @@ const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, ca
   return (
     <div
       ref={setNodeRef}
+      // The card detail sheet anchors to this cell's column edges (#1914).
+      data-board-cell
       role={isEmptyAddable ? "button" : undefined}
       tabIndex={isEmptyAddable ? 0 : undefined}
       aria-label={isEmptyAddable ? cellAriaLabel : undefined}
@@ -143,7 +147,11 @@ const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, ca
               onClick={() => onCardClick(card)}
               selected={selectedCardIds.has(card.id)}
               highlighted={highlightedCardId === card.id}
-              onSelect={canEdit ? () => onToggleCardSelection(card.id) : undefined}
+              current={currentCardId === card.id}
+              // No selection checkbox while the card detail sheet is open
+              // (#1914): it would take focus out of the aria-modal sheet and
+              // raise the bulk toolbar behind it. A click there swaps cards.
+              onSelect={canEdit && currentCardId == null ? () => onToggleCardSelection(card.id) : undefined}
               density={density}
               userTimezone={userTimezone}
               userDateFormat={userDateFormat}

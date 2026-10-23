@@ -335,3 +335,30 @@ describe('CardItem — keyboard (#1376)', () => {
     expect(onClick).not.toHaveBeenCalled()
   })
 })
+
+// #1914 — the card open in the card detail sheet is marked on the board.
+describe('CardItem — open in the card detail sheet (#1914)', () => {
+  it('carries data-card-id so the sheet can anchor to it, but the drag overlay copy does not', () => {
+    const { container, rerender } = render(<CardItem card={makeCard({ id: 42 })} />)
+    expect(container.querySelector('[data-card-id="42"]')).not.toBeNull()
+    rerender(<CardItem card={makeCard({ id: 42 })} overlay />)
+    expect(container.querySelector('[data-card-id]')).toBeNull()
+  })
+
+  it('shows a 2px primary border, a ring and aria-current while current, never color alone', () => {
+    const { rerender } = render(<CardItem card={makeCard({ priority: 'urgent' })} current />)
+    const face = screen.getByRole('button', { name: /Test Card Title/ })
+    expect(face).toHaveAttribute('aria-current', 'true')
+    expect(face.className).toContain('border-2')
+    expect(face.className).toContain('border-primary-emphasis')
+    expect(face.className).toContain('ring-primary-emphasis')
+    expect(face.className).toContain('ring-offset-2')
+    // The priority color would override the class; it steps aside while current.
+    expect(face.style.borderColor).toBe('')
+
+    rerender(<CardItem card={makeCard({ priority: 'urgent' })} />)
+    expect(face).not.toHaveAttribute('aria-current')
+    expect(face.className).not.toContain('border-2')
+    expect(face.style.borderColor).not.toBe('')
+  })
+})

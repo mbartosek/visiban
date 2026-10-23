@@ -1,6 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { BOARD_SCROLL_SELECTOR, classifyTransition, findBoardCardElement, isBoardTreePointerEvent, useCardSheetPlacement } from "../../hooks/useCardSheetPlacement";
+import type { SheetPlacement } from "../../hooks/useCardSheetPlacement";
+import { claimDeparture, departSheet, dropOwnDeparture, playTransition } from "./cardSheetMotion";
 import { useConfirmFocusReturn } from "../../hooks/useConfirmFocusReturn";
 import { useMoveToSeenPref } from "../../hooks/useMoveToSeenPref";
 import { useAutosaveStatus } from "../../hooks/useAutosaveStatus";
@@ -28,7 +31,7 @@ import { failureReason, isLimitFailure } from "../../utils/moveFailure";
 import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { importedNote } from "../../utils/importedHistory";
-import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON } from "../../constants/demoCopy";
+import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON, DEMO_CARD_DETAIL_NOTE, DEMO_EXTERNAL_REF_REASON, DEMO_CARD_FOOTER_NOTE } from "../../constants/demoCopy";
 
 interface Props {
   card: Card;
@@ -39,9 +42,10 @@ interface Props {
   onArchived: (cardId: number) => void;
   onMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome | void>;
   // Admin override for a limit-refused move, with the popover's own target
-  // (useBoard.forceMoveCardTo). The Move-blocked toast's override is
-  // unreachable behind this panel's backdrop and focus trap (#1732), so the
-  // popover offers it itself (#1772). Omitted: no override is shown.
+  // (useBoard.forceMoveCardTo). The Move-blocked toast's override is outside
+  // this panel's focus trap (#1732), so keyboard users cannot reach it while
+  // the panel is open; the popover offers it itself (#1772). Omitted: no
+  // override is shown.
   onForceMoveCard?: (cardId: number, columnId: number, swimlaneId: number, position: number) => Promise<MoveOutcome>;
   userDateFormat?: string;
   userTimeFormat?: string;
@@ -93,6 +97,25 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: "high",   label: "High",   color: PRIORITY_COLORS.high },
   { value: "urgent", label: "Urgent", color: PRIORITY_COLORS.urgent },
 ];
+
+/** Controls whose click still works when it also dismisses the card detail sheet (#1914). */
+const OUTSIDE_CONTROL_SELECTOR = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="tab"], [role="link"], [role="menuitem"]';
+
+/**
+ * Loading placeholder rows for one of the fetched card-detail sections
+ * (#1914, frame 6), sized like that section's rows. Decorative: the body's
+ * aria-busy and the one-time status line announce the load. The pulse stops
+ * under reduced motion.
+ */
+function SectionSkeleton({ rows, testId }: { rows: number; testId: string }) {
+  return (
+    <div aria-hidden="true" data-testid={testId} className="flex flex-col gap-1.5 mb-3">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="h-7 rounded bg-surface-hover animate-pulse motion-reduce:animate-none" style={{ width: `${90 - i * 20}%` }} />
+      ))}
+    </div>
+  );
+}
 
 export default function CardDetail({ card, board, onClose, onDeleted, onUpdated, onArchived, onMoveCard, onForceMoveCard, userDateFormat = "MM/DD/YYYY", userTimeFormat: _userTimeFormat = "12h", userTimezone = "", currentUser = null, closeEditorOnEnter = false, refreshSignal = 0 }: Props) {
   const [localCard, setLocalCard] = useState<Card>(card);
@@ -158,13 +181,145 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     () => card.custom_field_values.some((v) => v.value !== "")
   );
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the panel on open so screen readers announce it as a dialog.
+  // Placement (#1914): anchored beside the card's column at >= 1280px, docked
+  // to the right edge below that (or when there is no room or no card element
+  // to anchor to), full-screen at <= 640px. Re-placed when the card moves.
+  const sheet = useCardSheetPlacement(card.id, `${card.column}:${card.swimlane}`);
+  const { placement } = sheet;
+
+  // Focus moves to the close button on open (#1914); the dialog is announced
+  // through it. Passive effect: placement has already run, before paint.
   useEffect(() => {
-    panelRef.current?.focus();
+    (closeButtonRef.current ?? panelRef.current)?.focus();
   }, []);
   // #1732 — aria-modal panel must keep Tab inside and restore focus on close.
-  useFocusTrap(panelRef, true);
+  // Focus returns to the opener (the card that was clicked), else to the
+  // card's board element (opened from the command palette or a relation
+  // link, whose opener is gone), else to the board region: never to the top
+  // of the page (#1914).
+  // Resolved when the sheet closes, not at render: archiving or deleting the
+  // card removes its face in the same commit that closes the sheet.
+  useFocusTrap(panelRef, true, () =>
+    findBoardCardElement(card.id) ?? document.querySelector<HTMLElement>(BOARD_SCROLL_SELECTOR));
+
+  // Click-catcher (#1914): no overlay. A primary click outside the sheet
+  // closes it; a click on a board card is left to the card's own onClick,
+  // which swaps the open card (panels replace, never stack). "Inside" is the
+  // React tree, not the DOM, so a portaled dropdown or tooltip rendered from
+  // this component counts as inside: the sheet's onPointerDownCapture marks
+  // the native event, and React dispatches at its root before this
+  // document-level bubble listener runs. Classified at pointerdown, acted on
+  // at the following click, so a touch swipe, a scrollbar drag or a text
+  // selection that started in the sheet never closes it, and the dismissing
+  // click is consumed instead of also activating what was under it. Keyboard
+  // and screen-reader users close with Escape, then pick a card.
+  const insidePointerEvents = useRef(new WeakSet<Event>());
+  const markPointerInside = (e: React.PointerEvent) => { insidePointerEvents.current.add(e.nativeEvent); };
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    // `consume`: the dismissing click is swallowed and the press keeps focus
+    // where it is. True for board space (an empty cell's "+ Add card" must not
+    // also fire) and for anything that is not a control. A control elsewhere
+    // in the app (toolbar, sidebar, navbar) closes the sheet AND works, in one
+    // click, and takes focus as it normally would.
+    let pending: { x: number; y: number; consume: boolean } | null = null;
+    // A press on the open card's own face: its click re-selects the same card,
+    // so keep focus in the sheet instead of letting the press move it there.
+    let keepFocus = false;
+    const onPointerDown = (e: PointerEvent) => {
+      pending = null;
+      keepFocus = false;
+      if (insidePointerEvents.current.has(e)) return;
+      if (e.button !== 0) return;
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      if (t.closest(`[data-card-id="${card.id}"]`)) { keepFocus = true; return; }
+      // A popover a card face portaled to document.body (custom-field quick
+      // edit, its dropdowns, the hover peek): part of the board, not outside.
+      if (isBoardTreePointerEvent(e) && !t.closest(BOARD_SCROLL_SELECTOR)) return;
+      // A card swaps through its own onClick; a toast stays usable; another
+      // dialog opened over the sheet (the command palette, the shortcuts
+      // overlay) handles its own clicks.
+      if (t.closest('[data-card-id], [data-keeps-card-sheet-open], [data-card-sheet-ghost], [aria-modal="true"], [role="dialog"]')) return;
+      // A press on a scrollbar targets the scroll container itself.
+      if (t instanceof HTMLElement && t.clientWidth > 0 && (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight)) return;
+      const control = t.closest(OUTSIDE_CONTROL_SELECTOR);
+      pending = { x: e.clientX, y: e.clientY, consume: !control || !!t.closest(BOARD_SCROLL_SELECTOR) };
+    };
+    const onClick = (e: MouseEvent) => {
+      const p = pending;
+      pending = null;
+      if (!p || Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) return;
+      if (p.consume) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      // The press kept focus in the sheet, so a save-on-blur field (the title)
+      // has not blurred, and React runs no onBlur on a node it unmounts: blur
+      // it now so its edit is saved before the sheet closes.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && panelRef.current?.contains(active)) active.blur();
+      onCloseRef.current();
+    };
+    const onCancel = () => { pending = null; };
+    // A press that may dismiss must not move focus first (mousedown's default
+    // action), or focus would not return to the card on close.
+    const onMouseDown = (e: MouseEvent) => { if (pending?.consume || keepFocus) e.preventDefault(); };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("pointercancel", onCancel);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("pointercancel", onCancel);
+    };
+    // card.id is fixed for this instance (`key={selectedCard.id}`).
+  }, [card.id]);
+
+  // Transitions (#1914, cardSheetMotion.ts). Visual only: nothing here delays
+  // a close or a swap. The first measured placement is an open, or the
+  // second half of a swap when a different card's sheet just departed.
+  const placementRef = useRef<SheetPlacement>(placement);
+  placementRef.current = placement;
+  const shownPlacementRef = useRef<SheetPlacement | null>(null);
+  const shownRectRef = useRef<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!sheet.measured || !panel) return;
+    let from = shownPlacementRef.current;
+    let fromRect = shownRectRef.current;
+    let ghost: HTMLElement | null = null;
+    let reason: Parameters<typeof classifyTransition>[2] = sheet.reason;
+    if (!from) {
+      const departed = claimDeparture(card.id);
+      if (departed) {
+        from = departed.placement;
+        fromRect = departed.rect;
+        ghost = departed.ghost;
+        reason = "swap";
+      }
+    }
+    playTransition(classifyTransition(from, placement, reason), panel, { placement, from: fromRect, ghost });
+    shownPlacementRef.current = placement;
+    shownRectRef.current = panel.getBoundingClientRect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the placement object: each re-place is a new object, a no-op re-measure keeps the old one
+  }, [placement, sheet.measured]);
+  // Leaves a ghost of the sheet for the close (or swap) transition. Dropping
+  // our own pending departure on setup undoes React StrictMode's simulated
+  // unmount in development.
+  useLayoutEffect(() => {
+    dropOwnDeparture(card.id);
+    const panel = panelRef.current;
+    return () => {
+      if (panel) departSheet(card.id, placementRef.current, panel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- card.id is fixed for this instance (`key={selectedCard.id}`)
+  }, []);
   const bulkAddRef = useRef<HTMLDivElement>(null);
   useFocusTrap(bulkAddRef, showBulkAdd);
   // Debounce weight saves: rapid +/- clicks coalesce into one PATCH so the
@@ -215,20 +370,55 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // showed the failure closes with it (#1773).
   const [moveNotice, setMoveNotice] = useState("");
   const [moveToSeen, setMoveToSeen] = useMoveToSeenPref();
+  // Loading (#1914, design frame 6): the sheet opens at once with the title,
+  // breadcrumb and tabs from the board card; the three fetched sections show
+  // skeletons until they settle (success or failure), the body is
+  // aria-busy, and Archive waits until everything has loaded.
+  const [pendingSections, setPendingSections] = useState({ comments: true, attachments: true, checklist: true });
+  const loading = pendingSections.comments || pendingSections.attachments || pendingSections.checklist;
+  // "Loading card details" is announced once: set after mount, so it lands in
+  // an already-mounted live region, and cleared for good when loading ends.
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState("");
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
+  const [bodyShadows, setBodyShadows] = useState({ above: false, below: false });
+  const updateBodyShadows = () => {
+    const el = bodyScrollRef.current;
+    if (!el) return;
+    const above = el.scrollTop > 0;
+    const below = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    setBodyShadows((p) => (p.above === above && p.below === below ? p : { above, below }));
+  };
+  // Content height changes (a section loads, the Activity tab fills in)
+  // without a scroll event; observe it rather than measuring every render.
+  useLayoutEffect(() => {
+    updateBodyShadows();
+    const scroller = bodyScrollRef.current;
+    const content = scroller?.firstElementChild;
+    if (!scroller || !content || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => updateBodyShadows());
+    ro.observe(scroller);
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, [tab]);
+  useEffect(() => {
+    setLoadingAnnouncement(loading ? "Loading card details" : "");
+  }, [loading]);
 
   useEffect(() => {
     // Each fetch keeps its own .catch() rather than a single Promise.all/try-
     // catch wrapper, so a slow section's failure doesn't block the other two
     // from populating as soon as they resolve (unchanged success-path timing).
-    getCardComments(board.id, card.id).then(setComments).catch(() => setLoadError(true));
+    const settle = (section: keyof typeof pendingSections) => () =>
+      setPendingSections((p) => (p[section] ? { ...p, [section]: false } : p));
+    getCardComments(board.id, card.id).then(setComments).catch(() => setLoadError(true)).finally(settle("comments"));
     getCardAttachments(board.id, card.id).then((data) => {
       setAttachments(data);
       setAttachmentsOpen(data.length > 0);
-    }).catch(() => setLoadError(true));
+    }).catch(() => setLoadError(true)).finally(settle("attachments"));
     getChecklist(board.id, card.id).then((data) => {
       setChecklist(data);
       setChecklistOpen(data.length > 0);
-    }).catch(() => setLoadError(true));
+    }).catch(() => setLoadError(true)).finally(settle("checklist"));
   }, [board.id, card.id]);
 
   // Refetch comments/checklist/attachments when another session mutates this
@@ -779,7 +969,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     setConfirmAction(action);
   };
   const handleDelete = () => openCardAction("delete");
-  const handleArchive = () => openCardAction("archive");
+  // Archive waits for the sheet to finish loading (#1914, frame 6): it is
+  // aria-disabled, not `disabled`, so it keeps its Tab stop.
+  const handleArchive = () => { if (!loading) openCardAction("archive"); };
 
   const closeCardAction = () => {
     // Ignore dismissal while the request is in flight so the outcome is never hidden.
@@ -853,10 +1045,14 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // DEMO_MODE-gated carve-out in boards.permissions. Mirror that here as a
   // display heuristic only (`demoMode && member`) — the server stays the
   // authority, and the frontend never replicates its username check. Widened
-  // ONLY for writes the demo fence allows.
+  // ONLY for writes the demo fence allows. Since #1914 the sheet itself
+  // offers no Archive in the demo (its footer note replaces it), so here
+  // the widening only affects reassigning.
   const canModifyOthersContentInDemo =
     (demoMode && role === "member") || canModifyOthersContent;
-  const canArchive = canEdit && (isCardOwner || canModifyOthersContentInDemo);
+  // Shared demo (#1914, design frame 7): the footer note replaces Archive.
+  // A UI restriction only: the demo fence would allow the archive itself.
+  const canArchive = !demoMode && canEdit && (isCardOwner || canModifyOthersContentInDemo);
   const canAssign = canEdit && (isCardOwner || canModifyOthersContentInDemo);
   // Delete is NOT widened, and is hidden outright in demo mode: card DELETE is
   // not on DEMO_ALLOWED_WRITES, so the fence refuses it even for the visitor's
@@ -899,13 +1095,72 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     if (!allLabels.find((bl) => bl.id === l.id)) allLabels.push(l);
   });
 
-  return (
-    <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-backdrop/40" aria-hidden="true" onClick={onClose} />
+  const anchored = placement.mode === "anchored";
+  const fullscreen = placement.mode === "fullscreen";
+  // Geometry per mode (#1914). Anchored: 540px beside the column, below the
+  // board toolbar, rounded and elevated. Docked: full height at the right
+  // edge, square with a left border. Full-screen: the whole viewport.
+  const panelModeClass = anchored
+    ? "rounded-lg border border-line shadow-2xl"
+    : fullscreen
+      ? "inset-0"
+      : "top-0 bottom-0 right-0 w-[540px] border-l border-line shadow-2xl";
+  const panelStyle: React.CSSProperties | undefined = anchored
+    ? { left: placement.left ?? undefined, top: placement.top, bottom: placement.bottom, width: 540 }
+    : undefined;
+  const notch = anchored ? placement.notch : null;
 
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="card-detail-title" tabIndex={-1} className="w-full sm:w-[540px] bg-surface shadow-2xl flex flex-col overflow-hidden outline-none">
+  return (
+    // `contents`: no box of its own, so each layer below positions itself;
+    // the wrapper only marks pointer events from this React tree as inside.
+    <div className="contents" onPointerDownCapture={markPointerInside}>
+      {/* Docked only: a light dimming layer that is visual, not a click
+          target, so the cards behind stay clickable to swap (#1914). Anchored
+          and full-screen sheets have none. */}
+      {placement.mode === "docked" && (
+        <div className="fixed inset-0 z-50 bg-backdrop/20 pointer-events-none" aria-hidden="true" data-testid="card-detail-backdrop" />
+      )}
+
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="card-detail-title"
+        tabIndex={-1}
+        data-sheet-mode={placement.mode}
+        data-sheet-side={anchored ? placement.side ?? undefined : undefined}
+        style={panelStyle}
+        className={`fixed z-50 bg-surface flex flex-col outline-none ${panelModeClass}`}
+      >
+        {/* Notch: points at the card, tracks its center as the board scrolls
+            and pins near a corner when the card is scrolled away (frame 3).
+            Decorative: the card's 2px border and aria-current carry the link. */}
+        {notch && (
+          <div
+            aria-hidden="true"
+            data-testid="card-sheet-notch"
+            data-clamped={notch.clamped ? "true" : "false"}
+            className={`pointer-events-none absolute z-10 w-[14px] h-[14px] rotate-45 border-line ${
+              notch.clamped ? "bg-surface-hover" : "bg-surface"
+            } ${placement.side === "right" ? "border-l border-b" : "border-t border-r"}`}
+            style={{ top: notch.y - 7, ...(placement.side === "right" ? { left: -5 } : { right: -5 }) }}
+          />
+        )}
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 border-b border-line">
+          {fullscreen && (
+            // Full-screen (<= 640px, frame 4): a 44px "Board" back control.
+            // It closes the sheet like Close and Escape do.
+            <button
+              type="button"
+              onClick={onClose}
+              // Distinct from the toolbar's "Board" view tab; still contains the visible text (label-in-name).
+              aria-label="Back to board"
+              className="h-11 -my-2 -ml-2 px-2 flex items-center gap-1 rounded text-sm text-fg-secondary hover:text-fg hover:bg-surface-hover transition shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+            >
+              <span aria-hidden="true">‹</span> Board
+            </button>
+          )}
           <div className="flex-1 min-w-0">
             <input
               id="card-detail-title"
@@ -991,8 +1246,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             </div>
           </div>
           <button
+            ref={closeButtonRef}
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition text-lg leading-none shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+            className={`${fullscreen ? "w-11 h-11 -my-2 -mr-2" : "w-7 h-7"} flex items-center justify-center rounded text-fg-tertiary hover:text-fg hover:bg-surface-hover transition text-lg leading-none shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-emphasis`}
             title="Close"
             aria-label="Close"
           >×</button>
@@ -1021,10 +1277,19 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
           </p>
         )}
 
+        {/* Always mounted, so the one-time "Loading card details" text lands in an existing live region. */}
+        <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">{loadingAnnouncement}</p>
+
         <div className="relative flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto px-5 py-4">
+          <div ref={bodyScrollRef} onScroll={updateBodyShadows} aria-busy={loading} className="h-full overflow-y-auto px-5 py-4">
           {tab === "details" ? (
             <div className="flex flex-col gap-6">
+
+              {demoMode && (
+                // Shared demo (frame 7): one note at the top of the body; each
+                // section that is off here still carries its own reason.
+                <p className="text-xs text-fg-muted -mb-3">{DEMO_CARD_DETAIL_NOTE}</p>
+              )}
 
               {/* Description */}
               <div>
@@ -1364,6 +1629,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               <CardExternalRefSection
                 externalRef={localCard.external_ref}
                 canEdit={canEdit}
+                demoReason={demoMode ? DEMO_EXTERNAL_REF_REASON : undefined}
                 onSave={(next) => save({ external_ref: next })}
               />
 
@@ -1383,6 +1649,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
+                {pendingSections.checklist && <SectionSkeleton rows={2} testId="checklist-skeleton" />}
                 {checklistOpen && checklist.length > 0 && ( // items and progress only when expanded
                   <>
                     <div className="h-1 bg-surface-hover rounded-full mb-3 overflow-hidden">
@@ -1529,7 +1796,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                     {uploadsBlockedReason}
                   </p>
                 )}
-                {attachmentsOpen && (attachments.length === 0 ? (
+                {attachmentsOpen && (pendingSections.attachments ? (
+                  <SectionSkeleton rows={1} testId="attachments-skeleton" />
+                ) : attachments.length === 0 ? (
                   <p className="text-xs text-fg-faint italic">No attachments.</p>
                 ) : (<>
                   <div className="flex flex-col gap-1.5">
@@ -1584,6 +1853,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                 <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-3">
                   Comments {comments.length > 0 && <span className="normal-case font-normal text-fg-muted">({comments.length})</span>}
                 </p>
+                {pendingSections.comments && <SectionSkeleton rows={2} testId="comments-skeleton" />}
                 <div className="flex flex-col gap-3 mb-3">
                   {comments.map((c) => {
                     const authorName = c.author ? userDisplayName(c.author) : "Unknown";
@@ -1706,17 +1976,31 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             <ActivityTabPanel boardId={board.id} cardId={card.id} userDateFormat={userDateFormat} user={currentUser} />
           )}
           </div>
-          {/* Scroll affordance — fade gradient at bottom signals more content below */}
-          <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
+          {/* Scroll shadows (frame 5): the header and footer stay put while
+              the body scrolls; each fade shows only while there is more
+              content on its side. */}
+          {bodyShadows.above && (
+            <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-surface to-transparent pointer-events-none" aria-hidden="true" data-testid="card-body-shadow-top" />
+          )}
+          {bodyShadows.below && (
+            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" aria-hidden="true" data-testid="card-body-shadow-bottom" />
+          )}
         </div>
 
         {/* Footer */}
-        {(canArchive || canDelete) && (
+        {demoMode ? (
+          // Shared demo (frame 7): no destructive or removing action here.
+          <div className="px-5 py-3 border-t border-line">
+            <p className="text-xs text-fg-muted" data-testid="card-demo-footer">{DEMO_CARD_FOOTER_NOTE}</p>
+          </div>
+        ) : (canArchive || canDelete) && (
           <div className="px-5 py-3 border-t border-line flex items-center justify-between">
             {canArchive ? (
               <button
                 onClick={handleArchive}
-                className="text-xs text-fg-muted hover:text-warning transition focus:outline-none focus:ring-2 focus:ring-warning-emphasis rounded"
+                aria-disabled={loading || undefined}
+                title={loading ? "Available once the card has loaded" : undefined}
+                className={`text-xs text-fg-muted transition focus:outline-none focus:ring-2 focus:ring-warning-emphasis rounded ${loading ? "opacity-40 cursor-not-allowed" : "hover:text-warning"}`}
               >
                 Archive card
               </button>
@@ -1732,7 +2016,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
           </div>
         )}
 
-        {/* Move popover — position:fixed so the panel's overflow-hidden doesn't clip it; inside panelRef so the focus trap includes it (#1732) */}
+        {/* Move popover — position:fixed so the body's overflow-hidden scroll region doesn't clip it; inside panelRef so the focus trap includes it (#1732) */}
         {showMovePopover && movePopoverAnchor && (
           <div
             ref={movePopoverRef}

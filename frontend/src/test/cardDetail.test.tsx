@@ -118,6 +118,11 @@ function makeBoard(overrides: Partial<BoardFull> = {}): BoardFull {
   }
 }
 
+// #1914 (frame 6): Archive is aria-disabled until the three section fetches
+// settle; a test that archives waits for that first.
+const waitForSheetLoaded = () =>
+  waitFor(() => expect(screen.getByRole('button', { name: 'Archive card' })).not.toHaveAttribute('aria-disabled'))
+
 const defaultProps = () => ({
   card: makeCard(),
   board: makeBoard(),
@@ -180,11 +185,12 @@ describe('CardDetail', () => {
     expect(props.onClose).toHaveBeenCalledOnce()
   })
 
-  it('clicking the backdrop calls onClose', async () => {
+  // #1914: there is no click-target backdrop any more. A click outside the
+  // sheet closes it through the document-level click-catcher.
+  it('clicking outside the sheet calls onClose', async () => {
     const props = defaultProps()
-    const { container } = render(<CardDetail {...props} />)
-    const backdrop = container.querySelector('.bg-backdrop\\/40') as HTMLElement
-    await userEvent.setup().click(backdrop)
+    render(<CardDetail {...props} />)
+    await userEvent.setup().click(document.body)
     expect(props.onClose).toHaveBeenCalledOnce()
   })
 
@@ -422,9 +428,14 @@ describe('CardDetail', () => {
     expect(screen.getByPlaceholderText('Add item (Enter)…')).toBeInTheDocument()
   })
 
-  it('renders attachment section with empty state', () => {
+  it('renders attachment section with empty state', async () => {
     render(<CardDetail {...defaultProps()} />)
     expect(screen.getByText('Attachments')).toBeInTheDocument()
+    // A skeleton holds the section until its fetch settles (#1914, frame 6);
+    // an empty result then collapses it, and expanding shows the empty state.
+    expect(screen.getByTestId('attachments-skeleton')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('attachments-skeleton')).not.toBeInTheDocument())
+    await userEvent.setup().click(screen.getByText('Attachments'))
     expect(screen.getByText('No attachments.')).toBeInTheDocument()
   })
 
@@ -623,19 +634,22 @@ describe('CardDetail', () => {
       return props
     }
 
-    it('shows Archive and an enabled assignee picker, and hides Delete (not on the fence allowlist)', () => {
+    // #1914 (design frame 7): the demo footer note replaces Archive and Delete.
+    it('shows an enabled assignee picker, and the demo footer note in place of Archive and Delete', () => {
       render(<CardDetail {...demoProps()} currentUser={visitor} />)
-      expect(screen.getByRole('button', { name: 'Archive card' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('card-demo-footer')).toHaveTextContent("This is a shared demo — cards can't be archived or deleted here.")
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
       expect(screen.getByRole('combobox')).not.toBeDisabled()
       expect(screen.queryByText('Assigning cards requires Moderator or Admin access')).not.toBeInTheDocument()
     })
 
-    it('hides Delete in demo mode even on a card the visitor created', () => {
+    it('hides Archive and Delete in demo mode even on a card the visitor created', () => {
       const props = demoProps()
       props.card = makeCard({ created_by: { id: 99, username: 'visitor', display_name: 'Visitor', avatar_url: '' } })
       render(<CardDetail {...props} currentUser={visitor} />)
-      expect(screen.getByRole('button', { name: 'Archive card' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('card-demo-footer')).toBeInTheDocument()
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
     })
 
@@ -748,11 +762,16 @@ describe('CardDetail', () => {
     }
   })
 
-  it('click-only backdrop is hidden from assistive tech; Escape/Close are the keyboard paths (#1376)', async () => {
+  // #1376, #1914: the docked sheet's light backdrop is decorative only: hidden
+  // from assistive tech and not a click target (pointer-events-none), so the
+  // board behind it stays clickable. Escape/Close are the keyboard paths.
+  it('docked backdrop is decorative: aria-hidden, not a click target; Escape/Close are the keyboard paths (#1376)', async () => {
     const props = defaultProps()
     render(<CardDetail {...props} />)
-    const backdrop = document.querySelector('.bg-backdrop\\/40')!
+    const backdrop = screen.getByTestId('card-detail-backdrop')
     expect(backdrop).toHaveAttribute('aria-hidden', 'true')
+    expect(backdrop.className).toContain('bg-backdrop/20')
+    expect(backdrop.className).toContain('pointer-events-none')
     await userEvent.setup().keyboard('{Escape}')
     expect(props.onClose).toHaveBeenCalled()
   })
@@ -930,6 +949,7 @@ describe('CardDetail', () => {
 
   it('clicking Archive card shows confirmation modal, not window.confirm', async () => {
     render(<CardDetail {...defaultProps()} />)
+    await waitForSheetLoaded()
     fireEvent.click(screen.getByText('Archive card'))
     expect(screen.getByText('Archive this card?')).toBeInTheDocument()
   })
@@ -2101,8 +2121,10 @@ describe('CardDetail', () => {
       })
     })
 
-    // The toast's override is unreachable behind the panel's backdrop and focus
-    // trap (#1732), so the popover offers it itself on a soft-limit refusal.
+    // The toast's override is outside the panel's focus trap (#1732), so a
+    // keyboard user cannot reach it while the panel is open (there is no
+    // backdrop since #1914, but the trap stands); the popover offers it itself
+    // on a soft-limit refusal.
     describe('admin override in Move popover (#1772)', () => {
       const wipBody = { code: 'wip_limit_exceeded', column_name: 'In Progress', current_count: 3, wip_limit: 3 }
       const hardBody = { code: 'wip_hard_blocked', column_name: 'In Progress', current_count: 3, wip_limit: 3 }
@@ -2600,6 +2622,7 @@ describe('CardDetail — custom fields (#371, #1236)', () => {
       mockArch.mockImplementationOnce(() => d.promise)
       const props = defaultProps()
       render(<CardDetail {...props} />)
+      await waitForSheetLoaded()
       fireEvent.click(screen.getByText('Archive card'))
       const confirm = screen.getByRole('button', { name: 'Archive' })
       fireEvent.click(confirm)
@@ -2617,6 +2640,7 @@ describe('CardDetail — custom fields (#371, #1236)', () => {
       ;(archiveCard as ReturnType<typeof vi.fn>).mockImplementationOnce(() => d.promise)
       const props = defaultProps()
       render(<CardDetail {...props} />)
+      await waitForSheetLoaded()
       fireEvent.click(screen.getByText('Archive card'))
       fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
       fireEvent.keyDown(document, { key: 'Escape' })
@@ -2660,6 +2684,7 @@ describe('CardDetail — custom fields (#371, #1236)', () => {
       mockArch.mockRejectedValueOnce(new Error('boom'))
       const props = defaultProps()
       render(<CardDetail {...props} />)
+      await waitForSheetLoaded()
       fireEvent.click(screen.getByText('Archive card'))
       fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
       expect(await screen.findByText('Could not archive card.')).toBeInTheDocument()

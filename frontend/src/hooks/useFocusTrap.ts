@@ -29,11 +29,14 @@ export function useFocusTrap(
   active: boolean,
   /**
    * Fallback restore target for when the opener unmounts on its own (e.g. a
-   * menu item that closes its menu). Used only if the opener is gone.
+   * menu item that closes its menu). Used only if the opener is gone. A
+   * function is resolved when the trap deactivates, not at render: the right
+   * target can depend on what the same commit removed (#1914: the card
+   * detail sheet's card is archived or deleted along with the sheet).
    */
-  restoreTarget?: HTMLElement | null,
+  restoreTarget?: HTMLElement | null | (() => HTMLElement | null),
 ) {
-  const restoreTargetRef = useRef<HTMLElement | null>(null);
+  const restoreTargetRef = useRef<HTMLElement | null | (() => HTMLElement | null)>(null);
   restoreTargetRef.current = restoreTarget ?? null;
   const openerRef = useRef<HTMLElement | null>(null);
   const wasActiveRef = useRef(false);
@@ -91,7 +94,8 @@ export function useFocusTrap(
       // overwrites it during render.
       let target = openerRef.current;
       if (!target || !target.isConnected || target === document.body) {
-        target = restoreTargetRef.current;
+        const fallback = restoreTargetRef.current;
+        target = typeof fallback === "function" ? fallback() : fallback;
       }
       if (!target || !target.isConnected || target === document.body) return;
       const current = document.activeElement;
