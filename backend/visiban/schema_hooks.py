@@ -229,3 +229,21 @@ def require_declared_request_bodies(result, generator, request, public):
         if body is not None:
             body["required"] = True
     return result
+
+
+# (component, property) pairs that stay in the contract but are superseded.
+# drf-spectacular cannot express ``deprecated`` on an inline_serializer field.
+_DEPRECATED_PROPERTIES = (
+    # The change feed's cursor was renamed ``next_cursor`` before GA (#1869).
+    ("BoardEventFeedPage", "next"),
+)
+
+
+def mark_deprecated_fields(result, generator, request, public):
+    """Flag superseded response properties ``deprecated: true`` in the schema."""
+    schemas = result.get("components", {}).get("schemas", {})
+    for component, prop in _DEPRECATED_PROPERTIES:
+        field = schemas.get(component, {}).get("properties", {}).get(prop)
+        if field is not None:
+            field["deprecated"] = True
+    return result

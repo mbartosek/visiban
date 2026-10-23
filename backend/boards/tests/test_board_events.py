@@ -541,6 +541,7 @@ class EventsEndpointTests(BoardEventTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual([e["id"] for e in resp.data["results"]], self.ids)
         self.assertIsNone(resp.data["next"])
+        self.assertIsNone(resp.data["next_cursor"])
 
     def test_after_resumes_from_the_cursor(self):
         resp = self.client_for(self.owner).get(f"{self.url}?after={self.ids[1]}")
@@ -558,6 +559,39 @@ class EventsEndpointTests(BoardEventTestBase):
         last = c.get(f"{self.url}?after={second.data['next']}&limit=2")
         self.assertEqual([e["id"] for e in last.data["results"]], self.ids[4:])
         self.assertIsNone(last.data["next"])
+
+    def test_next_cursor_and_deprecated_next_are_identical_and_walk_the_feed(self):
+        """#1869: both keys on every page; following next_cursor visits every event."""
+        c = self.client_for(self.owner)
+        seen, after, pages = [], 0, 0
+        while True:
+            resp = c.get(f"{self.url}?after={after}&limit=2")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("next_cursor", resp.data)
+            self.assertIn("next", resp.data)
+            self.assertEqual(resp.data["next_cursor"], resp.data["next"])
+            seen += [e["id"] for e in resp.data["results"]]
+            pages += 1
+            if resp.data["next_cursor"] is None:
+                # Final page is short, so both keys are null.
+                self.assertLess(len(resp.data["results"]), 2)
+                self.assertIsNone(resp.data["next"])
+                break
+            # A full page carries the last id as the cursor.
+            self.assertEqual(resp.data["next_cursor"], resp.data["results"][-1]["id"])
+            after = resp.data["next_cursor"]
+        self.assertEqual(seen, self.ids)
+        self.assertEqual(pages, 3)
+
+    def test_openapi_marks_next_deprecated_and_next_cursor_required(self):
+        from drf_spectacular.generators import SchemaGenerator
+
+        page = SchemaGenerator().get_schema(request=None, public=True)[
+            "components"]["schemas"]["BoardEventFeedPage"]
+        self.assertIn("next_cursor", page["required"])
+        self.assertTrue(page["properties"]["next_cursor"]["nullable"])
+        self.assertTrue(page["properties"]["next"]["deprecated"])
+        self.assertIn("next_cursor", page["properties"]["next"]["description"])
 
     def test_event_shape(self):
         row = self.client_for(self.owner).get(self.url).data["results"][0]

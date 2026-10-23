@@ -44,7 +44,7 @@ Most paginated list endpoints return a consistent envelope:
 }
 ```
 
-Query parameters: `?offset=0&page_size=50` (max `200`). This shape is stable for the lifetime of `v1`. A few endpoints deliberately use another shape (cursor `{results, next_cursor}` on `/cards/`, `next`/`previous` links on a card timeline, `{results, next}` on the board events feed, and bare arrays for small bounded lists); see [Pagination](../api/index.md#pagination) for the full list.
+Query parameters: `?offset=0&page_size=50` (max `200`). This shape is stable for the lifetime of `v1`. A few endpoints deliberately use another shape (cursor `{results, next_cursor}` on `/cards/`, `next`/`previous` links on a card timeline, `{results, next_cursor}` on the board events feed, where `next_cursor` is an integer and the deprecated `next` is also returned, and bare arrays for small bounded lists); see [Pagination](../api/index.md#pagination) for the full list.
 
 ## How deprecation works
 
@@ -75,6 +75,7 @@ For endpoints being retired, return `410 Gone` with a JSON body explaining what 
 | Field | Since | Status |
 |---|---|---|
 | `Group.default_board_member_role` (also writable via `PATCH /groups/{id}/board-defaults/`) | 1.2 | No effect: it was never read, and group members get their group role on every group board. Still accepted and returned unchanged, and marked `deprecated: true` in the OpenAPI schema. Tracked in [#1430](https://gitlab.com/visiban/visiban/-/issues/1430). |
+| `next` on the change feed response (`GET /boards/{id}/events/`) | 1.2 | Deprecated in favor of `next_cursor`. Still returned in every response with a value identical to `next_cursor`, and marked `deprecated: true` in the OpenAPI schema. Removed only at a major version bump. Tracked in [#1869](https://gitlab.com/visiban/visiban/-/issues/1869). |
 
 ## Future versioning
 
