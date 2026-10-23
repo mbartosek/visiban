@@ -4,6 +4,7 @@ import tw from '../../tailwind.config.js?raw'
 import { describe, expect, it } from 'vitest'
 import { INVITE_STATUS_STYLES } from '../constants/invites'
 import { AGING_STAGE_CLASSES } from '../utils/agingTint'
+import { CHOICE_COLORS } from '../constants/choiceColors'
 
 // #1550: every on-tint text token must be declared in both theme blocks of index.css and exposed
 // to Tailwind. Read from disk: Vitest stubs CSS imports (`?raw` on a .css file comes back empty).
@@ -72,20 +73,22 @@ describe('urgent-on-tint contrast (#1594)', () => {
   })
 })
 
+// Hue, alpha and opacity are parsed from the real stage classes, so changing a
+// stage's fill or opacity re-runs these checks against the new values.
+const parse = (stage: keyof typeof AGING_STAGE_CLASSES) => {
+  const { overlayClass, bodyOpacityClass } = AGING_STAGE_CLASSES[stage]
+  const fill = /\bbg-([a-z-]+)\/(\d+)\b/.exec(overlayClass ?? '')
+  const op = /^opacity-(\d+)$/.exec(bodyOpacityClass)
+  if (!fill || !op) throw new Error(`unparseable classes for ${stage}`)
+  return { hue: fill[1], alpha: Number(fill[2]) / 100, opacity: Number(op[1]) / 100 }
+}
+const blend = (top: number[], bottom: number[], a: number) => top.map((v, i) => a * v + (1 - a) * bottom[i])
+
 // #1841: pin the card aging ramp contrast recorded in frontend/CLAUDE.md § Card aging ramp.
 // The overlay is `bg-<hue>/<alpha>` over the card's bg-surface; the card body (title and
 // urgency badge) renders at the stage's opacity, so its effective color is the text blended
 // toward that composite. Each stage lists the text tokens that may sit on it.
 describe('card aging ramp contrast (#1841)', () => {
-  // Hue, alpha and opacity are parsed from the real stage classes, so changing a
-  // stage's fill or opacity re-runs this check against the new values.
-  const parse = (stage: keyof typeof AGING_STAGE_CLASSES) => {
-    const { overlayClass, bodyOpacityClass } = AGING_STAGE_CLASSES[stage]
-    const fill = /\bbg-([a-z-]+)\/(\d+)\b/.exec(overlayClass ?? '')
-    const op = /^opacity-(\d+)$/.exec(bodyOpacityClass)
-    if (!fill || !op) throw new Error(`unparseable classes for ${stage}`)
-    return { hue: fill[1], alpha: Number(fill[2]) / 100, opacity: Number(op[1]) / 100 }
-  }
   type Stage = [name: string, hue: string, alpha: number, opacity: number, texts: string[]]
   const withTexts = (stage: 'warning' | 'stale' | 'stale2x' | 'stale3x', texts: string[]): Stage => {
     const { hue, alpha, opacity } = parse(stage)
@@ -97,7 +100,6 @@ describe('card aging ramp contrast (#1841)', () => {
     withTexts('stale2x', ['fg', 'danger-on-tint', 'info-on-tint']),
     withTexts('stale3x', ['fg', 'danger-on-tint', 'info-on-tint']),
   ]
-  const blend = (top: number[], bottom: number[], a: number) => top.map((v, i) => a * v + (1 - a) * bottom[i])
 
   it.each(stages)('%s: card title and badge text hold >= 4.5:1 in both themes', (_n, hue, alpha, opacity, texts) => {
     for (const block of [darkBlock, lightBlock]) {
@@ -128,6 +130,163 @@ describe('card aging ramp contrast (#1841)', () => {
     expect(darkBlock).toContain('--stale-severe:')
     expect(lightBlock).toContain('--stale-severe:')
     expect(tw).toContain('"stale-severe": "rgb(var(--stale-severe) / <alpha-value>)"')
+  })
+})
+
+
+// #1844: metadata text on a tinted card face. CardItem puts AGING_STAGE_CLASSES[stage].metaClass
+// (`card-aging-meta`) on the metadata row; index.css rescopes the row's text tokens to on-tint values
+// there. Everything below is derived from the real CSS and stage classes, and the ratios are the ones
+// recorded in frontend/CLAUDE.md § Card aging ramp.
+describe('card metadata on an aging tint (#1844)', () => {
+  const scopeStart = css.indexOf('.card-aging-meta {')
+  const scope = css.slice(scopeStart, css.indexOf('}', scopeStart))
+  const remap: Record<string, string> = Object.fromEntries(
+    [...scope.matchAll(/--([a-z-]+):\s*var\(--([a-z-]+)\);/g)].map((m) => [m[1], m[2]]),
+  )
+  const resolve = (block: string, token: string) => rgbOf(block, remap[token] ?? token)
+  // Every plain text token the metadata row renders, in CardItem and in the child components it
+  // mounts there (CustomFieldLink, MultiSelectChips). The source scan below keeps this list honest.
+  const META = ['fg-secondary', 'fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
+  const TINTED = ['warning', 'stale', 'stale2x', 'stale3x'] as const
+  // CardItem plus every component it mounts inside the metadata row (nested ones included:
+  // MultiSelectChips mounts ChoiceValue). The import guard below keeps this list complete.
+  const CARD_FACE_FILES = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue', 'ExternalRefGlyph', 'AgingCue']
+  // Sibling components CardItem imports that never render inside the row: they are portaled.
+  const PORTALED = ['CardPeekPopover', 'CustomFieldQuickEditPopover']
+  const themes = [
+    ['dark', darkBlock],
+    ['light', lightBlock],
+  ] as const
+  // Pinned floor per stage: the lowest ratio among META after the rescope.
+  const floors: Record<(typeof TINTED)[number], [dark: number, light: number]> = {
+    warning: [5.59, 6.41],
+    stale: [4.78, 5.27],
+    stale2x: [4.97, 5.06],
+    stale3x: [5.08, 4.55],
+  }
+  const metaRatio = (block: string, stage: (typeof TINTED)[number], color: number[]) => {
+    const { hue, alpha, opacity } = parse(stage)
+    const tint = blend(rgbOf(block, hue), rgbOf(block, 'surface'), alpha)
+    return ratio(blend(color, tint, opacity), tint)
+  }
+
+  it('rescopes exactly the metadata text tokens that fall below 4.5:1 on a tint', () => {
+    expect(scopeStart).toBeGreaterThan(-1)
+    expect(remap).toEqual({
+      'fg-tertiary': 'muted-on-tint',
+      'fg-muted': 'muted-on-tint',
+      'fg-faint': 'muted-on-tint',
+      info: 'info-on-tint',
+      danger: 'danger-on-tint',
+      success: 'success-on-aging-tint',
+    })
+  })
+
+  it('success-on-aging-tint is declared in both theme blocks and kept out of tailwind', () => {
+    expect(darkBlock).toContain('--success-on-aging-tint:')
+    expect(lightBlock).toContain('--success-on-aging-tint:')
+    expect(tw).not.toContain('success-on-aging-tint')
+  })
+
+  // fg-secondary is not rescoped; frontend/CLAUDE.md says it currently renders the same tone as
+  // muted-on-tint. If either token moves, this fails and the doc sentence must be revisited.
+  it('fg-secondary currently equals muted-on-tint in both themes', () => {
+    for (const [, block] of themes) expect(rgbOf(block, 'fg-secondary')).toEqual(rgbOf(block, 'muted-on-tint'))
+  })
+
+  it.each(TINTED.flatMap((st) => themes.map(([n, b], i) => [st, n, b, i] as const)))(
+    '%s, %s theme: every metadata text token holds >= 4.5:1',
+    (stage, _n, block, i) => {
+      const worst = Math.min(...META.map((t) => metaRatio(block, stage, resolve(block, t))))
+      expect(worst).toBeGreaterThanOrEqual(4.5)
+      expect(worst).toBeGreaterThanOrEqual(floors[stage][i] - 0.005)
+    },
+  )
+
+  it('without the rescope every remapped token is sub-AA on at least one stage, in each theme it fails', () => {
+    for (const t of Object.keys(remap)) {
+      const worst = Math.min(...themes.flatMap(([, b]) => TINTED.map((st) => metaRatio(b, st, rgbOf(b, t)))))
+      expect(worst, t).toBeLessThan(4.5)
+    }
+    // The ratios the issue reported for fg-tertiary at the 3x stage.
+    expect(metaRatio(darkBlock, 'stale3x', rgbOf(darkBlock, 'fg-tertiary'))).toBeCloseTo(3.85, 2)
+    expect(metaRatio(lightBlock, 'stale3x', rgbOf(lightBlock, 'fg-tertiary'))).toBeCloseTo(3.88, 2)
+  })
+
+  it('fg-muted is already sub-AA on an untinted dark card, so no overlay or opacity tuning could fix it', () => {
+    expect(ratio(rgbOf(darkBlock, 'fg-muted'), rgbOf(darkBlock, 'surface'))).toBeCloseTo(3.07, 2)
+  })
+
+  it('choice badges and multi-select chips keep >= 4.5:1 under the stage opacity', () => {
+    const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+    for (const stage of TINTED) {
+      const { hue, alpha, opacity } = parse(stage)
+      for (const [n, block] of themes) {
+        const tint = blend(rgbOf(block, hue), rgbOf(block, 'surface'), alpha)
+        const onTint = (fg: number[], bg: number[]) => ratio(blend(fg, tint, opacity), blend(bg, tint, opacity))
+        for (const [key, spec] of Object.entries(CHOICE_COLORS)) {
+          const pair = spec[n]
+          expect(onTint(hex(pair.fg), hex(pair.bg)), `${stage} ${n} ${key}`).toBeGreaterThanOrEqual(4.5)
+        }
+        // MultiSelectChips: bg-surface-hover text-fg-secondary (fg-secondary is not rescoped).
+        expect(onTint(resolve(block, 'fg-secondary'), rgbOf(block, 'surface-hover'))).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('every sibling component CardItem and the row components import is scanned or portaled', () => {
+    for (const f of CARD_FACE_FILES) {
+      const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
+      for (const m of src.matchAll(/from "\.\/([A-Za-z]+)"/g)) {
+        expect(CARD_FACE_FILES.includes(m[1]) || PORTALED.includes(m[1]), `${f}.tsx imports ./${m[1]}`).toBe(true)
+      }
+    }
+  })
+
+  // A new metadata element in a color outside META (for example plain `text-warning` or
+  // `text-primary-soft`) would not be rescoped, so it fails here until it is either rescoped or listed
+  // with a reason. Every `text-<x>` utility is checked except size, alignment, wrap and overflow ones,
+  // and an opacity modifier (`text-fg-muted/60`) on any text color is rejected: the pinned ratios
+  // assume full-opacity text.
+  it('every text color on the card face is covered by the rescope or listed with a reason', () => {
+    const notColor = new Set([
+      'xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl',
+      'left', 'center', 'right', 'justify', 'start', 'end',
+      'ellipsis', 'clip', 'wrap', 'nowrap', 'balance', 'pretty',
+    ])
+    const allowed = new Set([
+      ...META,
+      'fg', // card title and the aging tooltip (bg-sunken); pinned in the #1841 ramp test above
+      'on-primary', // selection checkbox tick on its solid bg-primary-emphasis fill, outside the metadata row
+    ])
+    for (const f of CARD_FACE_FILES) {
+      const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
+      for (const m of src.matchAll(/\btext-(\[[^\]]*\]|[a-z0-9][a-z0-9-]*)(\/\d+)?/g)) {
+        const [whole, name, alpha] = m
+        if (notColor.has(name)) continue
+        expect(alpha, `${f}.tsx uses ${whole}: no opacity modifier on card-face text`).toBeUndefined()
+        if (name.endsWith('-on-tint')) continue // explicit on-tint token, as the urgency badge uses
+        expect(allowed.has(name), `${f}.tsx uses ${whole}`).toBe(true)
+      }
+    }
+  })
+
+  // The rescope rebinds the token, not just its text utility, so a fill, border, ring or decoration
+  // in a rebound token inside the row would also shift. Each such use must be listed here with a reason.
+  it('every non-text utility on a rebound token is listed with a reason', () => {
+    const intended = new Set([
+      'border-fg-tertiary', // dotted quick-edit underline under a chip value: follows the rescoped text tone
+      'bg-info', // selected-card fill on the card root, outside the metadata row (and dropped under a tint)
+    ])
+    // Literal regex (no RegExp constructor); the token list must match the rescope exactly.
+    const rebound = ['fg-tertiary', 'fg-muted', 'fg-faint', 'info', 'danger', 'success']
+    expect([...rebound].sort()).toEqual(Object.keys(remap).sort())
+    const re = /\b(?:bg|border|ring|outline|fill|stroke|decoration|divide|shadow|from|via|to|accent|caret|placeholder)-(?:fg-tertiary|fg-muted|fg-faint|info|danger|success)(?![a-z-])/g
+    for (const f of CARD_FACE_FILES) {
+      const src = readFileSync(`src/components/Card/${f}.tsx`, 'utf8')
+      for (const [cls] of src.matchAll(re)) expect(intended.has(cls), `${f}.tsx uses ${cls}`).toBe(true)
+    }
   })
 })
 

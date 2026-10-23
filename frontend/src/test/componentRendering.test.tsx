@@ -336,6 +336,32 @@ describe('CardItem', () => {
     expect(cardEl.className).not.toContain('bg-info/20')
   })
 
+  // #1844: the metadata row rescopes its text tokens to on-tint values on every tinted stage.
+  it.each([8, 21, 35, 56])('a card idle %i days scopes its metadata row to on-tint text', (days) => {
+    renderAged(days, { checklist_total: 2, checklist_done: 1 })
+    expect(screen.getByText('✓1/2').closest('.card-aging-meta')).not.toBeNull()
+  })
+
+  it('an untinted card and a done-column card keep the plain metadata tokens', () => {
+    renderAged(1, { checklist_total: 2, checklist_done: 1 })
+    expect(screen.getByText('✓1/2').closest('.card-aging-meta')).toBeNull()
+    renderAged(56, { checklist_total: 3, checklist_done: 1 }, 'comfortable', true)
+    expect(screen.getByText('✓1/3').closest('.card-aging-meta')).toBeNull()
+  })
+
+  it('a compact tinted card scopes its metadata row too', () => {
+    render(
+      <CardItem
+        compact
+        density="dense"
+        card={makeCard({ blocker_count: 1, last_moved_at: new Date(Date.now() - 56 * 86_400_000).toISOString() })}
+        staleness_threshold_days={14}
+        stale_warning_pct={50}
+      />
+    )
+    expect(screen.getByRole('img', { name: 'Blocked by 1 card' }).closest('.card-aging-meta')).not.toBeNull()
+  })
+
   it('a selected untinted card keeps the bg-info/20 fill', () => {
     const { container } = render(
       <CardItem density="comfortable" card={makeCard({ last_moved_at: new Date().toISOString() })} selected />
