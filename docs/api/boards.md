@@ -1395,7 +1395,7 @@ Revoke a pending invite, emailed or shareable. Requires board admin; any board a
 | `403 Forbidden` | `{"detail": "You must be a board admin to manage invites."}` | The caller can see the board but is not a board admin. A caller with no access to the board gets `404`. |
 | `404 Not Found` | `{"detail": "No BoardInviteLink matches the given query."}` | No such invite, an invite that belongs to another board, or one already revoked. |
 
-The [site-admin revoke](admin.md#delete-apiv1adminboard-invite-linksid) answers an already-revoked invite with `400` instead of `404`, like the site invite-link revoke.
+The [site-admin board-invite revoke](admin.md#delete-apiv1adminboard-invite-linksid) behaves identically: `204` on success, `400` for a used invite, `404` for an unknown or already-revoked one.
 
 Creating, sending and revoking publish `invite_link.created` / `invite_link.revoked` on the board's [WebSocket channel](websockets.md#invite-events-since-12) with just `{ "id": <int> }`.
 
