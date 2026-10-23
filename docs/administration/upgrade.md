@@ -377,10 +377,12 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 !!! warning "Helm: the placeholder PostgreSQL password fails the render"
     As a deliberate default change before 1.2 GA, `helm install`, `helm upgrade`
     and `helm template` now **fail** while the bundled PostgreSQL
-    (`postgresql.enabled=true`, the default) is still using the chart's placeholder
-    password `visiban` and no `postgresql.auth.existingSecret` is set. This covers
-    both bundled modes: the default StatefulSet and `postgresql.subchartEnabled=true`.
-    Earlier chart versions refused it only in the subchart mode (#1864).
+    (`postgresql.enabled=true`, the default) has an empty or placeholder
+    (`visiban`) `postgresql.auth.password`. The check is skipped only when both
+    `postgresql.auth.existingSecret` and `secret.existingSecret` are set. Earlier
+    chart versions refused the placeholder only with `postgresql.subchartEnabled=true`
+    (#1864). The subchart mode itself does not render at all today because of an
+    unrelated values collision tracked in #1911.
 
     **Who is affected.** Installs that never set `postgresql.auth.password`. An
     external database (`postgresql.enabled=false`) and installs that already set
@@ -390,35 +392,55 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     **What to do, before upgrading.** PostgreSQL reads `POSTGRES_PASSWORD` only
     when it first initializes an empty data directory, so changing the value in
     Helm alone would leave the database on the old password and the backend
-    unable to connect. Back up first (step 1 above), change the database role,
-    then upgrade with the same value:
+    unable to connect. Work in this order:
 
-    ```bash
-    NEW_PW="$(openssl rand -hex 24)"
-    # 1. Change the role's password in the running database
-    kubectl -n visiban exec -i <release>-postgresql-0 -- \
-      psql -U visiban -d visiban -v pw="$NEW_PW" <<'SQL'
-    ALTER ROLE visiban PASSWORD :'pw';
-    SQL
-    # 2. Upgrade with the same value (prefer a gitignored values file)
-    helm upgrade <release> helm/visiban -n visiban --reuse-values \
-      --set-string postgresql.auth.password="$NEW_PW"
-    ```
+    1. Back up the database:
 
-    Use the role name from `postgresql.auth.username` if you changed it.
+        ```bash
+        kubectl -n visiban exec <release>-postgresql-0 -- \
+          pg_dump -U visiban visiban > visiban-backup-$(date +%Y%m%d%H%M%S).sql
+        ```
+
+    2. Prove the new render passes **before** touching the database. Use the new
+       password and every other flag this section lists (for example the Valkey
+       flags with `--reuse-values`, below):
+
+        ```bash
+        NEW_PW="$(openssl rand -hex 24)"
+        helm upgrade <release> helm/visiban -n visiban --reuse-values --dry-run \
+          --set-string postgresql.auth.password="$NEW_PW" <your other flags>
+        ```
+
+    3. Change the database role, then upgrade with the same value and flags:
+
+        ```bash
+        kubectl -n visiban exec -i <release>-postgresql-0 -- \
+          psql -U visiban -d visiban -v pw="$NEW_PW" <<'SQL'
+        ALTER ROLE visiban PASSWORD :'pw';
+        SQL
+        helm upgrade <release> helm/visiban -n visiban --reuse-values \
+          --set-string postgresql.auth.password="$NEW_PW" <your other flags>
+        ```
+
+    Use the role name from `postgresql.auth.username` if you changed it, and
+    prefer a gitignored values file to `--set-string` for the password.
 
     **The window.** Between the `ALTER ROLE` and the end of the `helm upgrade`
     rollout, running backend pods still hold the old password in their
     environment, so any new database connection (a new worker, a restart, a
-    scheduled-job pod) fails. Run both steps back to back. If the upgrade fails,
-    restore the previous password with `ALTER ROLE visiban PASSWORD '<previous>'`
-    and the existing pods keep working.
+    scheduled-job pod) fails. Run both steps back to back.
 
-    **`postgresql.auth.existingSecret`** also clears the guard, but the chart
-    builds the backend's database URL from `postgresql.auth.password`, not from
-    that Secret. Use it only together with `secret.existingSecret` supplying a
-    matching `database-url` (see [Kubernetes](../getting-started/kubernetes.md)),
-    or with `postgresql.auth.password` set to the same value. This is tracked in
+    **Rollback.** If the upgrade fails, restore the previous password with
+    `ALTER ROLE <username> PASSWORD '<previous>'`; the existing pods keep working.
+    The same applies if you use `helm upgrade --atomic` (which rolls the release
+    back on failure) or run `helm rollback` later: both put the chart-managed
+    `database-url` back to the old password, so change the role back to match
+    first.
+
+    **`postgresql.auth.existingSecret`** does not feed the backend's database URL:
+    the chart builds it from `postgresql.auth.password`. It clears the check only
+    together with `secret.existingSecret` supplying a matching `database-url` (see
+    [Kubernetes](../getting-started/kubernetes.md)). Chart behavior is tracked in
     #1910.
 
 !!! note "Deactivate-user `transfers` errors are now keyed by item index"

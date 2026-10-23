@@ -1663,34 +1663,47 @@ check_postgres_password_guard() {
   local errf bad=0
   errf="$(mktemp)"
   # Re-apply the literal values.yaml placeholder AFTER RENDER_ARGS' real-looking
-  # password. Only the default StatefulSet mode is rendered here: the bitnami
-  # subchart mode (including enabled=false with subchartEnabled=true) does not
-  # render offline with the vendored subchart, so those branches of the guard are
-  # not asserted.
-  if helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
-       --set-string postgresql.auth.password=visiban >/dev/null 2>"$errf"; then
-    fail "the placeholder PostgreSQL password rendered with the default bundled StatefulSet -- the guard must refuse it"
-    bad=1
-  elif ! grep -qF 'postgresql.auth.password' "$errf"; then
-    fail "the default bundled render failed, but not on the PostgreSQL password guard: $(head -2 "$errf" | tr '\n' ' ')"
-    bad=1
-  fi
-  # The two supported ways out must still render.
-  if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
-       --set-string postgresql.auth.password=visiban \
-       --set postgresql.auth.existingSecret=my-pg-secret >/dev/null 2>"$errf"; then
-    fail "postgresql.auth.existingSecret does not clear the guard: $(head -2 "$errf" | tr '\n' ' ')"
-    bad=1
-  fi
-  if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
-       --set-string postgresql.auth.password=visiban \
-       --set postgresql.enabled=false >/dev/null 2>"$errf"; then
-    fail "postgresql.enabled=false (external database) is refused over the unused placeholder: $(head -2 "$errf" | tr '\n' ' ')"
-    bad=1
-  fi
+  # password. Only the default StatefulSet mode is rendered here: every
+  # postgresql.subchartEnabled=true render fails offline because the schema-
+  # enforced string `postgresql.image` collides with the subchart's `image` map
+  # (predates #1864; tracked in #1911), so the subchart branches of the guard
+  # are not asserted.
+  local case_ name
+  # Must FAIL on the password guard: name|flags
+  local must_fail=(
+    "placeholder|--set-string postgresql.auth.password=visiban"
+    "empty password|--set-string postgresql.auth.password="
+    "placeholder with only postgresql.auth.existingSecret|--set-string postgresql.auth.password=visiban --set postgresql.auth.existingSecret=my-pg-secret"
+    "placeholder with only secret.existingSecret|--set-string postgresql.auth.password=visiban --set secret.existingSecret=my-secret"
+  )
+  for case_ in "${must_fail[@]}"; do
+    name="${case_%%|*}"
+    # shellcheck disable=SC2086  # flags are deliberately word-split
+    if helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" ${case_#*|} >/dev/null 2>"$errf"; then
+      fail "PostgreSQL password guard '$name': the render SUCCEEDED -- the guard must refuse it"
+      bad=1
+    elif ! grep -qF 'postgresql.auth.password' "$errf"; then
+      fail "PostgreSQL password guard '$name': the render failed, but not on the password guard: $(head -2 "$errf" | tr '\n' ' ')"
+      bad=1
+    fi
+  done
+  # Must render: name|flags
+  local must_pass=(
+    "both existing Secrets set|--set-string postgresql.auth.password=visiban --set postgresql.auth.existingSecret=my-pg-secret --set secret.existingSecret=my-secret"
+    "external database|--set-string postgresql.auth.password=visiban --set postgresql.enabled=false"
+    "a real password|--set-string postgresql.auth.password=a-real-looking-password"
+  )
+  for case_ in "${must_pass[@]}"; do
+    name="${case_%%|*}"
+    # shellcheck disable=SC2086
+    if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" ${case_#*|} >/dev/null 2>"$errf"; then
+      fail "PostgreSQL password guard '$name' is refused: $(head -2 "$errf" | tr '\n' ' ')"
+      bad=1
+    fi
+  done
   rm -f "$errf"
 
-  [ "$bad" -eq 0 ] && pass "the placeholder PostgreSQL password fails the render with the default bundled StatefulSet; existingSecret and an external database clear it"
+  [ "$bad" -eq 0 ] && pass "the placeholder PostgreSQL password (and an empty one) fails the render with the default bundled StatefulSet; only a real password, both existing Secrets, or an external database clear it"
 }
 
 run_all_checks() {
@@ -1838,7 +1851,7 @@ self_test() {
     "10 demo unsafe-hosts opt-in guard removed|templates/_validate.tpl|s/{{- if .Values.backend.settings.allowUnsafeHosts -}}/{{- if false -}}/"
     # 15 (#1864): the guard stops covering postgresql.enabled, so the default
     # bundled StatefulSet accepts the placeholder password again.
-    "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and (or .Values.postgresql.enabled .Values.postgresql.subchartEnabled) (not/{{- if and (or false .Values.postgresql.subchartEnabled) (not/"
+    "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and (or .Values.postgresql.enabled .Values.postgresql.subchartEnabled) (not (and/{{- if and (or false .Values.postgresql.subchartEnabled) (not (and/"
   )
 
   for fixture in "${fixtures[@]}"; do
