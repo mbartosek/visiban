@@ -55,14 +55,23 @@ export function agingStage(ratio: number, warningPct: number): AgingStage {
   return "none";
 }
 
-export const AGING_STAGE_CLASSES: Record<AgingStage, { overlayClass: string | null; bodyOpacityClass: string }> = {
-  none: { overlayClass: null, bodyOpacityClass: "" },
-  warning: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning-emphasis/10", bodyOpacityClass: "opacity-90" },
-  stale: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning/15", bodyOpacityClass: "opacity-85" },
-  stale2x: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-danger/15", bodyOpacityClass: "opacity-85" },
+/**
+ * Classes per stage. `metaClass` goes on the card's metadata row whenever a tint
+ * is shown (#1844): `card-aging-meta` (index.css) rescopes the metadata text
+ * tokens (`fg-tertiary`, `fg-muted`, `fg-faint`, `info`, `danger`, `success`) to on-tint
+ * values for that subtree, because each of them falls below 4.5:1 on at least
+ * one tinted stage. `fg-muted` is already 3.07:1 on an untinted dark card, so
+ * no overlay alpha or body opacity could fix it; only the text tone can.
+ */
+export const AGING_STAGE_CLASSES: Record<AgingStage, { overlayClass: string | null; bodyOpacityClass: string; metaClass: string }> = {
+  none: { overlayClass: null, bodyOpacityClass: "", metaClass: "" },
+  warning: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning-emphasis/10", bodyOpacityClass: "opacity-90", metaClass: "card-aging-meta" },
+  stale: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-warning/15", bodyOpacityClass: "opacity-85", metaClass: "card-aging-meta" },
+  stale2x: { overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-danger/15", bodyOpacityClass: "opacity-85", metaClass: "card-aging-meta" },
   stale3x: {
     overlayClass: "absolute inset-0 rounded-md pointer-events-none bg-stale-severe/20 ring-2 ring-inset ring-stale-severe",
     bodyOpacityClass: "opacity-85",
+    metaClass: "card-aging-meta",
   },
 };
 
@@ -85,6 +94,8 @@ export interface AgingTint {
   idleDays: number;
   overlayClass: string | null;
   bodyOpacityClass: string;
+  /** Scopes metadata text to on-tint tones while a tint is shown (#1844). Empty when untinted. */
+  metaClass: string;
 }
 
 export function agingTint(
