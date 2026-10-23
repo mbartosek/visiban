@@ -186,7 +186,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
             "swimlane reorder actions)."
         ),
         request=inline_serializer(
-            name="CustomFieldReorderRequest",
+            name="CustomFieldReorder",
             fields={
                 "order": drf_serializers.ListField(
                     child=drf_serializers.IntegerField(),

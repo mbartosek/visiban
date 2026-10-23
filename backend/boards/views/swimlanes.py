@@ -376,7 +376,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             "as checklist-item reorder, #1292)."
         ),
         request=inline_serializer(
-            name="SwimlaneReorderRequest",
+            name="SwimlaneReorder",
             fields={
                 "order": serializers.ListField(
                     child=serializers.IntegerField(),

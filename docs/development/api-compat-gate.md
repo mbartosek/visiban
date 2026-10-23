@@ -54,6 +54,24 @@ once and recorded:
 
 Decide before the baseline roll: the roll freezes whatever names the schema has that day.
 
+Decided in #1874, ahead of the first baseline roll that contains them (none of the names
+below exist in the v1.1.0 baseline, so nothing shipped was renamed):
+
+- **No `*RequestRequest` components.** `COMPONENT_SPLIT_REQUEST` already appends `Request`
+  to a request component, so an `inline_serializer(name="...")` on a `request=` must not end
+  in `Request`. Use `name="CardMove"` to get `CardMoveRequest`. This applied to the card
+  move, checklist/column/custom-field/swimlane/swimlane-custom-field reorder, board share,
+  add-or-update-member, and personal-access-token create bodies. The share body's expiry enum
+  is now `ShareBoardExpiresInDaysEnum`.
+- **List endpoints get `_list` operationIds.** `api_v1_admin_action_log_list`,
+  `api_v1_admin_board_invite_links_list` and `api_v1_boards_events_list` are set explicitly
+  with `operation_id=` because the generator names a non-`ViewSet` `APIView` GET, and the
+  `events` action, `_retrieve`.
+- A 1.1 name that shipped keeps its name; only 1.2-new names were changed.
+
+`backend/boards/tests/test_schema_generated_names_1874.py` fails if a `*RequestRequest`
+component or one of those `_retrieve` operationIds reappears.
+
 ## Allow-listing a deliberate break
 
 A break that is intentional (a planned major bump, or a removal of an item already deprecated

@@ -1058,7 +1058,7 @@ class PersonalAccessTokenListCreateView(APIView):
         # is validated via PersonalAccessTokenCreateSerializer) — documented
         # explicitly so drf-spectacular does not fall back to guessing.
         request=inline_serializer(
-            name="PersonalAccessTokenCreateRequest",
+            name="PersonalAccessTokenCreate",
             fields={
                 "name": drf_serializers.CharField(),
                 "expires_at": drf_serializers.DateTimeField(required=False, allow_null=True),
