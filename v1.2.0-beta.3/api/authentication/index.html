@@ -5690,7 +5690,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <p><strong>Response</strong> <code>200 OK</code></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="p">[</span>
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"google"</span><span class="p">,</span><span class="w"> </span><span class="nt">"connected"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice@gmail.com"</span><span class="p">,</span><span class="w"> </span><span class="nt">"connected_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-09-30T12:00:00Z"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github"</span><span class="p">,</span><span class="w"> </span><span class="nt">"connected"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"github"</span><span class="p">,</span><span class="w"> </span><span class="nt">"connected"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"email"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">"connected_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="p">}</span>
 <a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="p">]</span>
 </code></pre></div>
 <table>
@@ -5715,12 +5715,12 @@ actually bootstraps from) returns the identical shape — both are served by
 <tr>
 <td><code>email</code></td>
 <td>string or null</td>
-<td>The email the provider reported, when connected and known. Omitted when not connected.</td>
+<td>The email the provider reported, when connected and known; <code>null</code> when not connected. Always present.</td>
 </tr>
 <tr>
 <td><code>connected_at</code></td>
-<td>string (ISO 8601)</td>
-<td>When the provider was connected. Omitted when not connected.</td>
+<td>string (ISO 8601) or null</td>
+<td>When the provider was connected; <code>null</code> when not connected. Always present. <em>Changed in 1.2 (#1871): previously omitted on a disconnected row; the schema now documents both <code>email</code> and <code>connected_at</code> as always present and nullable.</em></td>
 </tr>
 </tbody>
 </table>
