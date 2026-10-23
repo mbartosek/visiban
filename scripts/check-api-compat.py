@@ -320,8 +320,10 @@ def env_names(source: str) -> set[str]:
     Covers `env("X")`, `env.bool("X")` (django-environ), `_secret_env("X")` (settings'
     secret-or-file helper), `os.environ.get("X")`,
     `os.getenv("X")`, `os.environ["X"]`, the `_warn_deprecated_env_alias`
-    helper whose first argument is a legacy name read indirectly, and the
-    `_env_alias_name("NEW", "OLD")` resolver (#1873), which reads both.
+    helper whose first argument is a legacy name read indirectly, the
+    `_env_alias_name("NEW", "OLD")` resolver (#1873), which reads both, and a
+    `JobSpec(name, "ENV", default)` scheduler entry (run_scheduler.py), whose
+    second argument is read through `environ.get(spec.env_var)`.
     """
     names: set[str] = set()
 
@@ -347,9 +349,36 @@ def env_names(source: str) -> set[str]:
                 for a in node.args[:2]:
                     if (v := lit(a)):
                         names.add(v)
+            elif f == "JobSpec" and len(node.args) > 1:
+                if (v := lit(node.args[1])) and re.fullmatch(r"[A-Z][A-Z0-9_]*", v):
+                    names.add(v)
         elif isinstance(node, ast.Subscript) and dotted(node.value) == "os.environ":
             if v := lit(node.slice):
                 names.add(v)
+    return names
+
+
+_SKIP_DIRS = {"tests", ".venv", "venv", "node_modules", "__pycache__", "migrations"}
+
+
+def env_names_in_tree(root: Path) -> set[str]:
+    """`env_names` over every non-test `.py` file under `root` (#1873).
+
+    For the env var INVENTORY (docs/development/api-compat-gate.md), which
+    must also see reads outside settings.py, such as management commands. Not
+    used by the gate itself, which still diffs settings.py only.
+    """
+    names: set[str] = set()
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root).parts
+        if any(part in _SKIP_DIRS for part in rel[:-1]):
+            continue
+        if path.name.startswith("test_") or path.name == "conftest.py":
+            continue
+        try:
+            names |= env_names(path.read_text())
+        except SyntaxError:
+            continue
     return names
 
 
@@ -514,7 +543,8 @@ def main() -> int:
     ap.add_argument("--experimental", type=Path, default=EXPERIMENTAL)
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--normalize", nargs=2, metavar=("IN", "OUT"), type=Path)
-    ap.add_argument("--dump-env", type=Path, metavar="SETTINGS_PY")
+    ap.add_argument("--dump-env", type=Path, metavar="SETTINGS_PY_OR_DIR",
+                    help="print env names read by a settings file, or by every non-test .py under a directory")
     args = ap.parse_args()
 
     if args.self_test:
@@ -532,8 +562,9 @@ def main() -> int:
         out.write_text(json.dumps(normalize(src), sort_keys=True, separators=(",", ":")) + "\n")
         return 0
     if args.dump_env:
-        text = resolve_within(roots, args.dump_env).read_text()
-        print("\n".join(sorted(env_names(text))))
+        target = resolve_within(roots, args.dump_env)
+        found = env_names_in_tree(target) if target.is_dir() else env_names(target.read_text())
+        print("\n".join(sorted(found)))
         return 0
 
     old_schema = json.loads(resolve_within(roots, args.baseline_schema).read_text())
@@ -650,8 +681,17 @@ def self_test() -> int:
         'C = os.environ.get("GAMMA")\nD = os.environ["DELTA"]\n'
         '_warn_deprecated_env_alias("OLD_NAME", "NEW_NAME")\nE = env(some_var)\nF = env("lower")\n'
         'G = env.int(_env_alias_name("CANON", "LEGACY"), default=1)\n'
+        'JOBS = [JobSpec("job", "SCHED_X", "off")]\n'
     )
-    check("env name extraction", sorted(env_names(src)), ["ALPHA", "BETA", "CANON", "DELTA", "GAMMA", "LEGACY", "NEW_NAME", "OLD_NAME"])
+    check("env name extraction", sorted(env_names(src)),
+          ["ALPHA", "BETA", "CANON", "DELTA", "GAMMA", "LEGACY", "NEW_NAME", "OLD_NAME", "SCHED_X"])
+    with tempfile.TemporaryDirectory() as td:
+        tree = Path(td)
+        (tree / "app" / "tests").mkdir(parents=True)
+        (tree / "app" / "cmd.py").write_text('import os\nX = os.environ.get(\n    "SPLIT_READ", ""\n)\n')
+        (tree / "app" / "tests" / "helper.py").write_text('import os\nos.environ.get("IN_TESTS_DIR")\n')
+        (tree / "app" / "test_thing.py").write_text('import os\nos.environ.get("IN_TEST_FILE")\n')
+        check("tree scan: multi-line read found, test code skipped", sorted(env_names_in_tree(tree)), ["SPLIT_READ"])
     check("env removal flagged", [f.key for f in diff_env({"A", "B"}, {"A"})], ["REMOVED_ENV_VAR B"])
     check("env alias kept passes", diff_env({"A"}, {"A", "A_NEW"}), [])
 

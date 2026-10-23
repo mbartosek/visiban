@@ -388,8 +388,11 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     - a custom `backend.migrate.connectTimeout` or `backend.migrate.lockTimeout` reverts to
       300 s or 900 s.
 
-    Upgrade the chart and the image together. The chart's default `backend.image.tag` is
-    already the matching release, so this only affects installs that override the tag.
+    Upgrade the chart and the image together. In a **released** chart (a tagged release or a
+    published chart version), the default `backend.image.tag` is the matching release, so the
+    skew only affects installs that override the tag. A chart taken from `main` between
+    releases still defaults to the previous pre-release image, which does not read the new
+    names. Set `backend.image.tag` to an image built from the same commit or later.
 
 !!! note "Clear stale card assignees after upgrading"
     Assignable and notification member sets now follow the same role-resolution ladder as board
@@ -1571,7 +1574,12 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     | `OIDC_SECRET` | `OIDC_CLIENT_SECRET` |
     | `ACCOUNT_EMAIL_VERIFICATION` | `EMAIL_VERIFICATION` |
 
-    Before upgrading, search your `.env` file and any CI/CD secret stores for these old names and rename them. From 1.1 on, setting either removed alias logs a startup deprecation warning naming the canonical replacement — but the old name is no longer read, so that warning is your only signal that SSO or email verification has silently stopped working. If neither alias appears anywhere in your config, no action is required.
+    Before upgrading, search your `.env` file and any CI/CD secret stores for these old names and rename them. The old names are no longer read, so SSO or email verification stops working **silently**. Do not count on a startup warning to tell you:
+
+    - **1.1.x** raises only a Python `DeprecationWarning`, which Python hides by default, so nothing appears in the container log.
+    - **From 1.2**, setting either name logs a visible startup warning: `OIDC_SECRET is no longer read and has no effect; replace it with OIDC_CLIENT_SECRET` (and the same for `ACCOUNT_EMAIL_VERIFICATION`).
+
+    If neither alias appears anywhere in your config, no action is required.
 
 !!! note "Card density migration — existing boards default to Dense"
     In 1.1, card display is controlled by a per-board **Card density** setting (Comfortable / Standard / Dense) that replaces the previous per-user per-field hide toggles.
