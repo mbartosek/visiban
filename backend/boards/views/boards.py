@@ -814,7 +814,7 @@ class BoardViewSet(
                 status=status.HTTP_410_GONE,
             )
 
-        # `next` means "there is probably more", not "the newest id you hold".
+        # `next_cursor` (and its deprecated alias `next`) means "there is probably more", not "the newest id you hold".
         # A full page may or may not be the last one; a short page definitely is.
         next_cursor = rows[-1].pk if len(rows) == limit else None
         # One bulk user fetch for the whole page (#1663), never one per row.

@@ -75,6 +75,7 @@ For endpoints being retired, return `410 Gone` with a JSON body explaining what 
 | Field | Since | Status |
 |---|---|---|
 | `Group.default_board_member_role` (also writable via `PATCH /groups/{id}/board-defaults/`) | 1.2 | No effect: it was never read, and group members get their group role on every group board. Still accepted and returned unchanged, and marked `deprecated: true` in the OpenAPI schema. Tracked in [#1430](https://gitlab.com/visiban/visiban/-/issues/1430). |
+| `next` on the change feed response (`GET /boards/{id}/events/`) | 1.2 | Deprecated in favor of `next_cursor`. Still returned in every response with a value identical to `next_cursor`, and marked `deprecated: true` in the OpenAPI schema. Removed only at a major version bump. Tracked in [#1869](https://gitlab.com/visiban/visiban/-/issues/1869). |
 
 ## Future versioning
 
