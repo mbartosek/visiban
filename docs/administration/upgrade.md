@@ -374,6 +374,42 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     Add `--board <id>` to limit it to one board. Assignees who are no longer members of a
     board are left in place (#1866).
 
+!!! warning "Helm: the placeholder PostgreSQL password fails the render"
+    `helm install`, `helm upgrade` and `helm template` now **fail** while the
+    bundled PostgreSQL (`postgresql.enabled=true`, the default) is still using the
+    chart's placeholder password `visiban` and no `postgresql.auth.existingSecret`
+    is set. This covers both bundled modes: the default StatefulSet and
+    `postgresql.subchartEnabled=true`. Earlier chart versions refused it only in
+    the subchart mode (#1864).
+
+    **Who is affected.** Installs that never set `postgresql.auth.password`. An
+    external database (`postgresql.enabled=false`) and installs that already set
+    their own password or `existingSecret` are not affected. If you are affected,
+    `helm upgrade` stops before anything is applied and the running release keeps
+    serving.
+
+    **What to do, before upgrading.** PostgreSQL reads `POSTGRES_PASSWORD` only
+    when it first initializes an empty data directory, so changing the value in
+    Helm alone would leave the database on the old password and the backend
+    unable to connect. Change the database role first, then upgrade with the
+    same value:
+
+    ```bash
+    NEW_PW="$(openssl rand -hex 24)"
+    # 1. Change the role's password in the running database
+    kubectl -n visiban exec -i <release>-postgresql-0 -- \
+      psql -U visiban -d visiban -v pw="$NEW_PW" <<'SQL'
+    ALTER ROLE visiban PASSWORD :'pw';
+    SQL
+    # 2. Upgrade with the same value (prefer a gitignored values file or a Secret)
+    helm upgrade <release> helm/visiban -n visiban --reuse-values \
+      --set-string postgresql.auth.password="$NEW_PW"
+    ```
+
+    Or create a Secret with a `password` key holding the same value and set
+    `postgresql.auth.existingSecret` instead. Use the role name from
+    `postgresql.auth.username` if you changed it. Back up first (step 1 above).
+
 !!! note "Deactivate-user `transfers` errors are now keyed by item index"
     On `POST /api/v1/admin/users/{id}/deactivate/`, a `400` for a malformed `transfers` item now
     returns `transfers` as an object keyed by zero-based item index, listing only the invalid

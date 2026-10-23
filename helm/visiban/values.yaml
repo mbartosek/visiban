@@ -275,7 +275,8 @@ postgresql:
     # Name of a pre-existing Secret containing the password (key: "password").
     # When set, the chart skips creating its own PostgreSQL Secret.
     existingSecret: ""
-    # Only used when existingSecret is empty.
+    # Only used when existingSecret is empty. "visiban" is a placeholder: the
+    # render refuses it (#1864), so set your own password or existingSecret.
     password: "visiban"
   primary:
     persistence:

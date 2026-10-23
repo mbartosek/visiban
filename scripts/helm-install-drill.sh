@@ -188,6 +188,7 @@ install_args() {
 --set backend.email.backend=console
 --set backend.mediaPersistence.enabled=false
 --set postgresql.primary.persistence.enabled=false
+--set-string postgresql.auth.password=drill-db-password-1
 --set ingress.enabled=false
 ARGS
 }
@@ -213,6 +214,7 @@ demo_install_args() {
 --set frontend.image.tag=$TAG
 --set frontend.image.pullPolicy=Never
 --set-string secret.djangoSecretKey=$SECRET_KEY_A
+--set-string postgresql.auth.password=drill-db-password-1
 --set-string demo.loginHint.password=drill-visitor-pw-1
 --set-string demo.adminPassword=drill-admin-password-1
 --set-string demo.memberPassword=drill-member-password-1

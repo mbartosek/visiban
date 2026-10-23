@@ -31,7 +31,7 @@
 #
 # SCOPE, stated plainly because a self-test that looks comprehensive and is not
 # is worse than none: the fixtures cover sections 1, 2, 3, 4, 6, 8, 9, 10, 11,
-# 12 and 13. Section 5 (probe paths) is asserted against the real chart only,
+# 12, 13 and 15. Section 5 (probe paths) is asserted against the real chart only,
 # and section 7 (NetworkPolicy client coverage) is fixture-covered only
 # through the demo render in section 9 — see the notes on those sections.
 
@@ -56,6 +56,7 @@ export TMPDIR="$RUN_TMP"
 # it will render at all. Arbitrary — only the wiring downstream is asserted.
 RENDER_ARGS=(
   --set-string secret.djangoSecretKey=structure-check-not-a-real-secret
+  --set-string postgresql.auth.password=structure-check-not-a-real-password
   --set backend.settings.allowedHosts=structure-check.visiban.local
   --set backend.email.backend=smtp
   --set backend.email.host=smtp.visiban.local
@@ -83,6 +84,7 @@ demo_args() {
   printf '%s\n' \
     -f "$chart/values-demo.yaml" \
     --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
+    --set-string postgresql.auth.password=structure-check-not-a-real-password \
     --set-string demo.loginHint.password=structure-check-visitor-pw \
     --set-string demo.adminPassword=structure-check-admin-pw \
     --set-string demo.memberPassword=structure-check-member-pw
@@ -1046,6 +1048,7 @@ check_image_pins() {
   default_out="$(mktemp)"; demo_out="$(mktemp)"
   if ! helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
+         --set-string postgresql.auth.password=structure-check-not-a-real-password \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
          > "$default_out" 2>"$RUN_TMP/helm-default-render-err.txt"; then
     fail "the chart's default values do not render: $(cat "$RUN_TMP/helm-default-render-err.txt")"
@@ -1090,6 +1093,7 @@ check_image_pins() {
     local flags=("${fields[@]:2}")
     if helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
+         --set-string postgresql.auth.password=structure-check-not-a-real-password \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
          "${flags[@]}" > "$out" 2>"$RUN_TMP/helm-valkey-guard-err.txt"; then
       fail "valkey guard '$name' did not fire: the render SUCCEEDED with ${flags[*]}"
@@ -1101,6 +1105,7 @@ check_image_pins() {
   done
   if ! helm template "$RELEASE" "$CHART_UNDER_TEST" \
          --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
+         --set-string postgresql.auth.password=structure-check-not-a-real-password \
          --set backend.settings.allowedHosts=structure-check.visiban.local \
          "${VALKEY_GUARD_FIX_ARGS[@]}" > "$out" 2>"$RUN_TMP/helm-valkey-guard-err.txt"; then
     fail "the fix the Valkey image guard prints does not clear it on a --reuse-values-shaped render: $(grep -m1 'Visiban:' "$RUN_TMP/helm-valkey-guard-err.txt")"
@@ -1446,7 +1451,8 @@ check_database_url_encoding() {
 
   local vals out got expected_pw bad=0
   vals="$(mktemp)"; out="$(mktemp)"
-  # Single-quoted YAML so every character reaches the chart verbatim.
+  # Single-quoted YAML so every character reaches the chart verbatim. RENDER_ARGS
+  # carries a --set password (#1864), which outranks -f, so it is re-set below.
   cat > "$vals" <<'VALUES'
 postgresql:
   auth:
@@ -1471,6 +1477,7 @@ VALUES
       expected="postgres://us%20er:${expected_pw}@db.example.com:5432/visiban"
     fi
     if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" -f "$vals" \
+          --set-string 'postgresql.auth.password=a/b+c d@e:f?g#h%i[j]k' \
           ${extra[@]+"${extra[@]}"} > "$out" 2>"$RUN_TMP/helm-dburl-err.txt"; then
       fail "database-url render ($mode) failed: $(head -2 "$RUN_TMP/helm-dburl-err.txt" | tr '\n' ' ')"
       bad=1; continue
@@ -1650,6 +1657,41 @@ check_allowed_hosts_not_widened() {
   [ "$bad" -eq 0 ] && pass "ALLOWED_HOSTS is exactly the configured hosts, every backend probe sends one of them, and catch-all/loopback entries need the explicit opt-in"
 }
 
+check_postgres_password_guard() {
+  section "15. The placeholder PostgreSQL password is refused with the default bundled PostgreSQL (#1864)"
+
+  local errf bad=0
+  errf="$(mktemp)"
+  # Re-apply the literal values.yaml placeholder AFTER RENDER_ARGS' real-looking
+  # password. Only the default StatefulSet mode is rendered here: the bitnami
+  # subchart mode does not render offline with the vendored subchart, so the
+  # subchart half of the guard (the pre-#1864 behavior) is not asserted.
+  if helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
+       --set-string postgresql.auth.password=visiban >/dev/null 2>"$errf"; then
+    fail "the placeholder PostgreSQL password rendered with the default bundled StatefulSet -- the guard must refuse it"
+    bad=1
+  elif ! grep -qF 'postgresql.auth.password' "$errf"; then
+    fail "the default bundled render failed, but not on the PostgreSQL password guard: $(head -2 "$errf" | tr '\n' ' ')"
+    bad=1
+  fi
+  # The two supported ways out must still render.
+  if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
+       --set-string postgresql.auth.password=visiban \
+       --set postgresql.auth.existingSecret=my-pg-secret >/dev/null 2>"$errf"; then
+    fail "postgresql.auth.existingSecret does not clear the guard: $(head -2 "$errf" | tr '\n' ' ')"
+    bad=1
+  fi
+  if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
+       --set-string postgresql.auth.password=visiban \
+       --set postgresql.enabled=false >/dev/null 2>"$errf"; then
+    fail "postgresql.enabled=false (external database) is refused over the unused placeholder: $(head -2 "$errf" | tr '\n' ' ')"
+    bad=1
+  fi
+  rm -f "$errf"
+
+  [ "$bad" -eq 0 ] && pass "the placeholder PostgreSQL password fails the render with the default bundled StatefulSet; existingSecret and an external database clear it"
+}
+
 run_all_checks() {
   check_migrate_placement
   check_secret_rotation_reaches_migrate
@@ -1668,6 +1710,7 @@ run_all_checks() {
   check_pod_hardening
   check_database_url_encoding
   check_allowed_hosts_not_widened
+  check_postgres_password_guard
 }
 
 # ---------------------------------------------------------------------------
@@ -1791,6 +1834,9 @@ self_test() {
     # 14 (#1360): the NOTES.txt opt-in warning disappears, so the opt-in is silent.
     "14 NOTES opt-in warning removed|templates/NOTES.txt|s/{{- if and \$unsafeHosts .Values.backend.settings.allowUnsafeHosts }}/{{- if false }}/"
     # 10 (#1360): the demo stops refusing the unsafe-hosts opt-in.
+    # 15 (#1864): the guard narrows back to the subchart-only mode, so the default
+    # bundled StatefulSet accepts the placeholder password again.
+    "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.existingSecret) }}/{{- if and .Values.postgresql.subchartEnabled (not .Values.postgresql.auth.existingSecret) }}/"
     "10 demo unsafe-hosts opt-in guard removed|templates/_validate.tpl|s/{{- if .Values.backend.settings.allowUnsafeHosts -}}/{{- if false -}}/"
   )
 

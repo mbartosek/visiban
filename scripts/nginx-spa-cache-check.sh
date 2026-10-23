@@ -91,7 +91,7 @@ run_config() {
 HOSTNAME_UNDER_TEST="spa-check.visiban.test"
 
 # 1. Helm ConfigMap (listens on 8080)
-helm template t helm/visiban --set-string secret.djangoSecretKey=structure-check-not-a-real-secret \
+helm template t helm/visiban --set-string secret.djangoSecretKey=structure-check-not-a-real-secret --set-string postgresql.auth.password=structure-check-not-a-real-password \
   --set backend.settings.allowedHosts=structure-check.visiban.local --set backend.email.backend=smtp \
   --set backend.email.host=smtp.visiban.local --set backend.email.fromAddress=noreply@visiban.local \
   > "$work/helm.yaml" 2>"$work/helm.err" || { cat "$work/helm.err" >&2; echo "helm template failed" >&2; exit 1; }
