@@ -53,6 +53,9 @@ from ..serializers import (
     _run_custom_field_validator_hooks, _swimlane_custom_field_values,
 )
 from ..services import trello_import as _trello
+from ..import_schemas import (
+    BoardImportResponseSerializer, TrelloImportConfirmSerializer, TrelloImportPreviewSerializer,
+)
 from ._helpers import annotate_board_counts, get_accessible_boards_queryset, get_board_for_user
 
 # #843: rank of each BoardMembership.Role for the export-threshold comparison.
@@ -1081,9 +1084,10 @@ class BoardImportExportMixin:
             )},
         }, "required": ["file"]}},
         responses={
-            201: OpenApiResponse(OpenApiTypes.OBJECT, description=(
-                "The new board (same shape as GET /boards/{id}/) plus an import_summary object."
-            )),
+            201: OpenApiResponse(
+                BoardImportResponseSerializer,
+                description="The new board (same shape as GET /boards/{id}/) plus an import_summary object.",
+            ),
             400: OpenApiTypes.OBJECT, 401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT,
             404: OpenApiTypes.OBJECT, 429: OpenApiTypes.OBJECT,
         },
@@ -1899,7 +1903,9 @@ class BoardImportExportMixin:
             "mapping": {"type": "string", "description": "JSON object of mapping options."},
             "file_sha256": {"type": "string", "description": "Optional guard: must match the previewed file."},
         }, "required": ["file"]}},
-        responses={200: OpenApiTypes.OBJECT, 201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT,
+        responses={200: OpenApiResponse(TrelloImportPreviewSerializer, description="Returned for ?dry_run=true."),
+                   201: OpenApiResponse(TrelloImportConfirmSerializer, description="Returned for ?confirm=true."),
+                   400: OpenApiTypes.OBJECT,
                    401: OpenApiTypes.OBJECT, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT,
                    413: OpenApiTypes.OBJECT, 429: OpenApiTypes.OBJECT},
     )

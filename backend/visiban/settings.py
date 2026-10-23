@@ -446,7 +446,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Maximum upload size. Operators can override via MAX_UPLOAD_SIZE_BYTES env var.
 MAX_UPLOAD_SIZE = env.int("MAX_UPLOAD_SIZE_BYTES", default=10 * 1024 * 1024)
 
-# Maximum Trello JSON export accepted by POST /api/boards/import/trello/ (#456),
+# Maximum Trello JSON export accepted by POST /api/v1/boards/import/trello/ (#456),
 # in bytes. Separate from MAX_UPLOAD_SIZE because Trello exports of large boards
 # routinely exceed the 10 MB attachment cap. The import runs synchronously, so
 # per-import count caps in boards/services/trello_import.py bound the work, not

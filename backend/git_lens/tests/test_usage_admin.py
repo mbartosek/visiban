@@ -207,3 +207,25 @@ class BoardOutcomeCounterTests(TestCase):
             views.LENS_FETCH_BUDGET + 50,
             views.LENS_FETCH_BUDGET_WINDOW,
         )
+
+
+class UsageSchemaTests(TestCase):
+    """The 200 body matches the named ``LensUsage`` component (#1870)."""
+
+    def test_live_response_matches_schema(self):
+        import jsonschema
+        from drf_spectacular.generators import SchemaGenerator
+
+        from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
+
+        cache.clear()
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        op = schema["paths"][USAGE_URL]["get"]
+        fragment = op["responses"]["200"]["content"]["application/json"]["schema"]
+        self.assertEqual(fragment, {"$ref": "#/components/schemas/LensUsage"})
+        client = APIClient()
+        client.force_authenticate(_make_user("usage_schema_admin", is_site_admin=True))
+        body = client.get(USAGE_URL).json()
+        combined = _openapi3_nullable_to_jsonschema({**fragment, "components": schema["components"]})
+        jsonschema.validate(instance=body, schema=combined)
+        self.assertEqual(len(body["hourly"]), body["window_hours"])
