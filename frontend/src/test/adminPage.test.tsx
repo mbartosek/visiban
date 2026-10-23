@@ -198,6 +198,11 @@ function renderAdminPage(user: User = adminUser) {
 // act before they run (#1319, occurrence 4). Waiting for the last stage (an
 // SMTP field) means every load and mount effect has already run, so the test
 // starts from a page with no work in flight.
+//
+// Use it for every test that acts on the page. Plain renderAdminPage() is left
+// only where the page never reaches that state or the test needs the unsettled
+// window: the non-admin redirect (renders nothing), a failed settings or email
+// settings load (no SMTP field ever appears), and the #1319 race regressions.
 async function renderAdminPageSettled(user: User = adminUser) {
   const view = renderAdminPage(user)
   await screen.findByLabelText('Host')
@@ -223,7 +228,7 @@ describe('AdminPage — access control', () => {
   })
 
   it('renders the page for site admins', async () => {
-    renderAdminPage(adminUser)
+    await renderAdminPageSettled(adminUser)
     await waitFor(() => {
       expect(screen.getByText('Site Administration')).toBeInTheDocument()
     })
@@ -244,7 +249,7 @@ describe('AdminPage — Settings tab', () => {
   })
 
   it('shows registration mode options', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => {
       expect(screen.getByText('Open')).toBeInTheDocument()
       expect(screen.getByText('Invite-only')).toBeInTheDocument()
@@ -257,7 +262,7 @@ describe('AdminPage — Settings tab', () => {
     // object here silently sets every other setting to undefined once
     // SettingsTab does setSettings(updated).
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, registration_mode: 'closed' })
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Closed'))
     fireEvent.click(screen.getByText('Closed'))
     await waitFor(() => {
@@ -274,7 +279,7 @@ describe('AdminPage — Settings tab', () => {
   })
 
   it('renders native radio inputs for registration mode', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Open'))
     const radios = screen.getAllByRole('radio')
     const openRadio = radios.find((r) => (r as HTMLInputElement).value === 'open')
@@ -301,7 +306,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows users table after switching to Users tab', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => {
       // username rendered as "@alice" in the table row
@@ -310,7 +315,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows Add User button', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => {
       expect(screen.getByText('+ Add User')).toBeInTheDocument()
@@ -318,7 +323,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('opens add user modal on Add User click', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -344,7 +349,7 @@ describe('AdminPage — Users tab', () => {
       owned_boards: [],
     }
     mockCreateAdminUser.mockResolvedValue(newUser)
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -365,7 +370,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows error for short password in add modal', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -391,7 +396,7 @@ describe('AdminPage — Users tab', () => {
 
   it('calls patchAdminUser on force reset click', async () => {
     mockPatchAdminUser.mockResolvedValue({ ...fakeAdminUsers[1], must_change_password: true })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -416,7 +421,7 @@ describe('AdminPage — Users tab', () => {
     mockPatchAdminUser.mockReturnValue(
       new Promise<AdminUser>((resolve) => { resolvePatch = resolve })
     )
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -469,7 +474,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], toured],
     })
     mockPatchAdminUser.mockReturnValue(new Promise<AdminUser>(() => { /* never resolves */ }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -498,7 +503,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], toured],
     })
     mockPatchAdminUser.mockResolvedValue({ ...toured, has_completed_tour: false })
-    const { unmount } = renderAdminPage()
+    const { unmount } = await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu(toured.display_name)
@@ -519,7 +524,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('confirm dialog starts on Cancel, traps Tab, and returns focus to the row kebab (#1732)', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -541,7 +546,7 @@ describe('AdminPage — Users tab', () => {
 
   it('calls clearAdminUserLockout after confirming the clear-lockout action (#1203)', async () => {
     mockClearAdminUserLockout.mockResolvedValue(fakeAdminUsers[1])
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -558,7 +563,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('does not call clearAdminUserLockout if the confirm dialog is canceled', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -574,7 +579,7 @@ describe('AdminPage — Users tab', () => {
     mockClearAdminUserLockout.mockRejectedValue({
       response: { data: { detail: 'Account is not currently locked out.' } },
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -595,7 +600,7 @@ describe('AdminPage — Users tab', () => {
       count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], holder],
     })
     mockPatchAdminUser.mockRejectedValue({ response: { data: { detail: message } } })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Alice')
@@ -630,7 +635,7 @@ describe('AdminPage — Users tab', () => {
     mockGetAdminUsers.mockResolvedValue({
       count: 3, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser, holder],
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -655,7 +660,7 @@ describe('AdminPage — Users tab', () => {
     mockGetAdminUsers.mockResolvedValue({
       count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser],
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Alice')
@@ -664,7 +669,7 @@ describe('AdminPage — Users tab', () => {
 
   it('falls back to a generic error message when clearAdminUserLockout fails without detail (#1203)', async () => {
     mockClearAdminUserLockout.mockRejectedValue(new Error('network error'))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -683,7 +688,7 @@ describe('AdminPage — Users tab', () => {
     // must_change_password, tour not completed) exercises the full inline
     // set (Deactivate, Make admin) plus the overflow trigger — three
     // controls total — with the remaining actions folded into its menu.
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -708,7 +713,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('clears the pending search debounce timer on unmount (#1304)', async () => {
-    const { unmount } = renderAdminPage()
+    const { unmount } = await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     const search = await waitFor(() =>
       screen.getByPlaceholderText('Search by name, email, or username…')
@@ -743,7 +748,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], owner],
     })
     mockClientGet.mockReturnValue(new Promise(() => { /* never resolves */ }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -773,6 +778,7 @@ describe('AdminPage — Invite Links tab', () => {
     mockGetAdminSettings.mockResolvedValue(fakeSettings)
     mockGetAdminUsers.mockResolvedValue({ count: 0, offset: 0, page_size: 50, results: [] })
     mockGetAdminInviteLinks.mockResolvedValue([])
+    mockGetAdminEmailSettings.mockResolvedValue(fakeEmailSettings)
 
     Object.defineProperty(window, 'location', {
       value: { ...window.location, origin: 'https://visiban.example.com' },
@@ -797,7 +803,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: rawToken,
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -822,7 +828,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: rawToken,
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -853,7 +859,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: 'vbnl_abc123def456',
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -884,7 +890,7 @@ describe('AdminPage — Escape key', () => {
   })
 
   it('Escape navigates back from the admin page', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => expect(screen.getByText('Site Administration')).toBeInTheDocument())
     fireEvent.keyDown(document, { key: 'Escape' })
     // JSDOM has no real history, so history.length === 1 → navigate("/")
@@ -895,7 +901,7 @@ describe('AdminPage — Escape key', () => {
     mockGetAdminInviteLinks.mockResolvedValue([
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -910,7 +916,7 @@ describe('AdminPage — Escape key', () => {
     mockGetAdminInviteLinks.mockResolvedValue([
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -925,7 +931,7 @@ describe('AdminPage — Escape key', () => {
     ])
     let resolveRevoke: (v: unknown) => void = () => {}
     mockRevokeAdminInviteLink.mockReturnValue(new Promise((r) => { resolveRevoke = r }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -943,7 +949,7 @@ describe('AdminPage — Escape key', () => {
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
     mockRevokeAdminInviteLink.mockRejectedValue(new Error('boom'))
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -953,7 +959,7 @@ describe('AdminPage — Escape key', () => {
   })
 
   it('Escape closes the Add User modal without navigating', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => expect(screen.getByText('Site Administration')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => expect(screen.getByText('+ Add User')).toBeInTheDocument())
@@ -1231,8 +1237,7 @@ describe('AdminPage — Email (SMTP) settings', () => {
 
   async function renderEmailSection(overrides: Partial<SiteEmailSettings> = {}) {
     mockGetAdminEmailSettings.mockResolvedValue({ ...fakeEmailSettings, ...overrides })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Host'))
+    await renderAdminPageSettled()
   }
 
   it('shows which source is actually sending mail', async () => {
@@ -1596,7 +1601,7 @@ describe('AdminPage — Invite by email', () => {
   })
 
   async function openInviteLinksTab() {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
   }
@@ -1648,7 +1653,7 @@ describe('AdminPage — Board Invites tab (#439)', () => {
   })
 
   it('sits after Invite Links and loads pending board invites', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     const nav = await screen.findByRole('navigation')
     const labels = within(nav).getAllByRole('button').map((b) => b.textContent)
     expect(labels.indexOf('Board Invites')).toBe(labels.indexOf('Invite Links') + 1)
@@ -1659,7 +1664,7 @@ describe('AdminPage — Board Invites tab (#439)', () => {
   })
 
   it('sidebar tabs carry a focus ring and mark the active tab with aria-current', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     const nav = await screen.findByRole('navigation')
     const settings = within(nav).getByRole('button', { name: 'Settings' })
     const boardInvites = within(nav).getByRole('button', { name: 'Board Invites' })

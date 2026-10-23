@@ -243,9 +243,12 @@ far (#1304, #1305, #1319) was a component defect that a loaded CI runner exposed
   `src/test/eventLoopStall.ts` inside the `waitFor` that finds the input, assert the mount effects
   have not run yet, then type. `customFieldValueInput.test.tsx` and `lensFilterBar.test.tsx` show
   it. The component rule this protects is in `frontend/CLAUDE.md` § Local input buffers and timers.
-- [ ] **No bare timer with a delay in a component.** ESLint `no-restricted-syntax` rejects a
-  `setTimeout`/`setInterval` whose id is discarded; hold the id in a ref and clear it on unmount,
-  and add a test that unmounts with the timer pending.
+- [ ] **No timer that can outlive its component.** Hold a delayed timer's id in a ref, clear it
+  on unmount, and add a test that unmounts with the timer pending. ESLint `no-restricted-syntax`
+  catches only a call whose id is visibly discarded (a whole statement, an arrow's expression
+  body such as `.then(() => setTimeout(...))`, or `void setTimeout(...)`) with a delay other
+  than a literal `0`. It does not catch a stored id that is never cleared, so review still has
+  to look for the cleanup.
 
 ## Writing tests that catch mutations
 
