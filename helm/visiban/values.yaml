@@ -60,7 +60,7 @@ backend:
     # path at once — see visiban.transportBodyLimitMB in _helpers.tpl.
     maxUploadSizeBytes: 10485760
     # Maximum Trello JSON export accepted by the board import wizard, in bytes
-    # (default 25 MB). Wired to VISIBAN_IMPORT_MAX_SIZE. The transport limits
+    # (default 25 MB). Wired to IMPORT_MAX_SIZE_BYTES. The transport limits
     # are derived from the LARGER of this and maxUploadSizeBytes.
     importMaxSizeBytes: 26214400
     # Number of reverse proxies in front of the backend that append to

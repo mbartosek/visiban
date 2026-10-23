@@ -77,7 +77,7 @@
               "minimum": 1
             },
             "importMaxSizeBytes": {
-              "description": "VISIBAN_IMPORT_MAX_SIZE — maximum Trello JSON export size for the board import wizard, in bytes. Also feeds the derived transport limits.",
+              "description": "IMPORT_MAX_SIZE_BYTES — maximum Trello JSON export size for the board import wizard, in bytes. Also feeds the derived transport limits.",
               "type": "integer",
               "minimum": 1
             },
@@ -576,7 +576,7 @@
           "additionalProperties": false,
           "properties": {
             "userRate": {
-              "description": "DEMO_USER_THROTTLE_RATE: ceiling on the one shared visitor account's `user` throttle scope. Empty keeps the normal rate.",
+              "description": "DEMO_THROTTLE_USER_RATE: ceiling on the one shared visitor account's `user` throttle scope. Empty keeps the normal rate.",
               "type": "string"
             }
           }

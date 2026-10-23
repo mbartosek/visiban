@@ -17,12 +17,48 @@ def _warn_deprecated_env_alias(old_name: str, new_name: str) -> None:
     worker start regardless of whether the alias is in use (#819).
     """
     if os.environ.get(old_name):
-        warnings.warn(
+        message = (
             f"{old_name} is deprecated; rename it to {new_name}. "
-            f"The {old_name} alias will be removed in a future release.",
-            DeprecationWarning,
-            stacklevel=2,
+            f"The {old_name} alias will be removed in a future release."
         )
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        # Python ignores a DeprecationWarning raised outside __main__ by
+        # default, so the warning above never reached an operator's container
+        # log (#1873). Logging is not configured yet while settings import, so
+        # this lands on stderr via logging's last-resort handler — the same
+        # route the dev CORS notice below uses.
+        import logging as _logging
+
+        _logging.getLogger("visiban.settings").warning(message)
+
+
+def _env_alias_name(new_name: str, old_name: str) -> str:
+    """Return which of a canonical env var and its deprecated alias to read (#1873).
+
+    For a rename whose old name must KEEP WORKING, unlike OIDC_SECRET below,
+    which is no longer read at all. 1.2 betas shipped the old names, so an
+    install that sets only the old name must behave exactly as before:
+
+    - canonical name set to a non-empty value: it wins, even if the alias is
+      also set (the operator has already migrated);
+    - otherwise the alias, whenever it is present at all (an empty alias
+      reads as empty, as it did before the rename);
+    - otherwise the canonical name, so the caller's default applies.
+
+    An empty canonical value is ignored rather than winning, so a compose-style
+    ``${NEW:-}`` passthrough can never shadow an operator's legacy value.
+
+    Pair every call with ``_warn_deprecated_env_alias(old, new)`` for the
+    startup warning. Pass both names as string literals: the compat gate
+    (scripts/check-api-compat.py) and the chart's reader check
+    (scripts/helm-structure-check.sh section 3) recognize this call as a
+    lookup of both names only when they are literals.
+    """
+    if os.environ.get(new_name):
+        return new_name
+    if old_name in os.environ:
+        return old_name
+    return new_name
 
 
 def _validate_redis_url(name: str, url: str) -> None:
@@ -451,7 +487,14 @@ MAX_UPLOAD_SIZE = env.int("MAX_UPLOAD_SIZE_BYTES", default=10 * 1024 * 1024)
 # routinely exceed the 10 MB attachment cap. The import runs synchronously, so
 # per-import count caps in boards/services/trello_import.py bound the work, not
 # this value alone. Reverse proxies must allow bodies at least this large.
-VISIBAN_IMPORT_MAX_SIZE = env.int("VISIBAN_IMPORT_MAX_SIZE", default=25 * 1024 * 1024)
+# The env var is IMPORT_MAX_SIZE_BYTES, named like its MAX_UPLOAD_SIZE_BYTES
+# sibling (#1873). VISIBAN_IMPORT_MAX_SIZE shipped in the 1.2 betas and stays
+# a working deprecated alias. The Django setting keeps its original name so
+# code and override_settings() callers are unaffected.
+_warn_deprecated_env_alias("VISIBAN_IMPORT_MAX_SIZE", "IMPORT_MAX_SIZE_BYTES")
+VISIBAN_IMPORT_MAX_SIZE = env.int(
+    _env_alias_name("IMPORT_MAX_SIZE_BYTES", "VISIBAN_IMPORT_MAX_SIZE"), default=25 * 1024 * 1024
+)
 
 # X-Accel-Redirect (Nginx sendfile) for media downloads. Default: enabled in
 # production, disabled in development. Operators on platforms that don't mount
@@ -1071,7 +1114,15 @@ elif os.environ.get("DEMO_LOGIN_USERNAME") or os.environ.get("DEMO_LOGIN_PASSWOR
 # DEMO_MODE is on, so a leftover variable cannot loosen a real install's limits.
 from visiban.demo import parse_demo_user_throttle_rate as _parse_demo_user_throttle_rate  # noqa: E402
 
-_DEMO_USER_THROTTLE_RATE = _parse_demo_user_throttle_rate(os.environ.get("DEMO_USER_THROTTLE_RATE"))
+# DEMO_THROTTLE_USER_RATE follows the <FEATURE>_THROTTLE_<SCOPE>_RATE form of
+# the MCP_THROTTLE_*_RATE family and mirrors the chart's demo.throttle.userRate
+# key (#1873). DEMO_USER_THROTTLE_RATE shipped in the 1.2 betas and stays a
+# working deprecated alias.
+_warn_deprecated_env_alias("DEMO_USER_THROTTLE_RATE", "DEMO_THROTTLE_USER_RATE")
+_DEMO_USER_THROTTLE_RATE_VAR = _env_alias_name("DEMO_THROTTLE_USER_RATE", "DEMO_USER_THROTTLE_RATE")
+_DEMO_USER_THROTTLE_RATE = _parse_demo_user_throttle_rate(
+    os.environ.get(_DEMO_USER_THROTTLE_RATE_VAR), name=_DEMO_USER_THROTTLE_RATE_VAR
+)
 if DEMO_MODE and _DEMO_USER_THROTTLE_RATE:
     REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["user"] = _DEMO_USER_THROTTLE_RATE
 

@@ -153,7 +153,7 @@ itself — otherwise an over-cap upload dies at nginx or the ingress controller
 with a bare 413 and Django never sees it, so the user gets no message naming the
 real limit. Derived from the larger of backend.settings.maxUploadSizeBytes (the
 value wired into MAX_UPLOAD_SIZE_BYTES) and backend.settings.importMaxSizeBytes
-(VISIBAN_IMPORT_MAX_SIZE, Trello import #456) plus 10 MB of multipart-framing
+(IMPORT_MAX_SIZE_BYTES, Trello import #456) plus 10 MB of multipart-framing
 headroom, so raising
 the application cap raises both transport limits with it and the two cannot
 drift apart.

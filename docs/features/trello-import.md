@@ -15,7 +15,7 @@ Bring a Trello board into Visiban in a few minutes. You export the board from Tr
 2. Open the board menu and choose **Print, export, and share**.
 3. Choose **Export as JSON** and save the file.
 
-Files up to 25 MB are accepted by default. Administrators can change this limit with `VISIBAN_IMPORT_MAX_SIZE`. See [Import limits](../administration/configuration.md#import-limits).
+Files up to 25 MB are accepted by default. Administrators can change this limit with `IMPORT_MAX_SIZE_BYTES`. See [Import limits](../administration/configuration.md#import-limits).
 
 ## Start the import
 

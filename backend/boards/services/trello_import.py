@@ -14,7 +14,7 @@ import run the exact same mapping logic and can never disagree:
 
 Why synchronous: the repo has no task queue yet (the issue lists one as a 1.7
 prerequisite). The import is bounded instead by the upload size cap
-(``VISIBAN_IMPORT_MAX_SIZE``), the per-import count caps below, and the
+(``IMPORT_MAX_SIZE_BYTES``), the per-import count caps below, and the
 ``board_import`` throttle. Moving it onto a background worker is a follow-up.
 
 Why ``bulk_create`` and never the card service layer: ``create_card`` sends

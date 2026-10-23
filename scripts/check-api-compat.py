@@ -319,8 +319,9 @@ def env_names(source: str) -> set[str]:
 
     Covers `env("X")`, `env.bool("X")` (django-environ), `_secret_env("X")` (settings'
     secret-or-file helper), `os.environ.get("X")`,
-    `os.getenv("X")`, `os.environ["X"]`, and the `_warn_deprecated_env_alias`
-    helper whose first argument is a legacy name read indirectly.
+    `os.getenv("X")`, `os.environ["X"]`, the `_warn_deprecated_env_alias`
+    helper whose first argument is a legacy name read indirectly, and the
+    `_env_alias_name("NEW", "OLD")` resolver (#1873), which reads both.
     """
     names: set[str] = set()
 
@@ -342,7 +343,7 @@ def env_names(source: str) -> set[str]:
             if f in ("env", "_secret_env") or f.startswith("env.") or f in ("os.environ.get", "os.getenv"):
                 if (v := lit(node.args[0])) and re.fullmatch(r"[A-Z][A-Z0-9_]*", v):
                     names.add(v)
-            elif f == "_warn_deprecated_env_alias":
+            elif f in ("_warn_deprecated_env_alias", "_env_alias_name"):
                 for a in node.args[:2]:
                     if (v := lit(a)):
                         names.add(v)
@@ -648,8 +649,9 @@ def self_test() -> int:
         'import os\nA = env("ALPHA")\nB = env.bool("BETA", default=False)\n'
         'C = os.environ.get("GAMMA")\nD = os.environ["DELTA"]\n'
         '_warn_deprecated_env_alias("OLD_NAME", "NEW_NAME")\nE = env(some_var)\nF = env("lower")\n'
+        'G = env.int(_env_alias_name("CANON", "LEGACY"), default=1)\n'
     )
-    check("env name extraction", sorted(env_names(src)), ["ALPHA", "BETA", "DELTA", "GAMMA", "NEW_NAME", "OLD_NAME"])
+    check("env name extraction", sorted(env_names(src)), ["ALPHA", "BETA", "CANON", "DELTA", "GAMMA", "LEGACY", "NEW_NAME", "OLD_NAME"])
     check("env removal flagged", [f.key for f in diff_env({"A", "B"}, {"A"})], ["REMOVED_ENV_VAR B"])
     check("env alias kept passes", diff_env({"A"}, {"A", "A_NEW"}), [])
 

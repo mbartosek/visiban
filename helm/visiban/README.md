@@ -122,7 +122,7 @@ is tagged `latest`.
 
 **Upload limits are derived, not set in three places.**
 `backend.settings.maxUploadSizeBytes` (attachments and native board imports) and
-`backend.settings.importMaxSizeBytes` (Trello imports, `VISIBAN_IMPORT_MAX_SIZE`,
+`backend.settings.importMaxSizeBytes` (Trello imports, `IMPORT_MAX_SIZE_BYTES`,
 default 25 MB) set the application caps; the larger of the two *also* drives
 the nginx `client_max_body_size` and the ingress `proxy-body-size` annotation,
 each with 10 MB of multipart-framing headroom. Raise the one value and the whole

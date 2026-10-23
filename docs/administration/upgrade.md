@@ -357,6 +357,22 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "Two environment variables from the 1.2 betas were renamed (old names still work)"
+    If you ran a 1.2 beta, two names it introduced changed before GA to follow the naming
+    convention of the variables around them. The beta names are **still read** as
+    deprecated aliases, so nothing breaks, but each one now logs a startup warning. Rename
+    them when convenient:
+
+    | Beta name (deprecated) | Use instead |
+    |---|---|
+    | `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` |
+    | `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` |
+
+    If both names are set, the new one wins. The Helm chart already sets the new names, and
+    its values keys (`backend.settings.importMaxSizeBytes`, `demo.throttle.userRate`) are
+    unchanged. If you are upgrading from 1.1, neither name existed, so no action is needed.
+    See [Deprecated environment variable names](configuration.md#deprecated-environment-variable-names).
+
 !!! note "Clear stale card assignees after upgrading"
     Assignable and notification member sets now follow the same role-resolution ladder as board
     access: an explicit board membership row takes precedence over group-inherited membership,
@@ -1066,7 +1082,7 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
 
 !!! note "Default transport body limit raised from 20 MB to 35 MB (Trello import)"
     1.2 adds a [Trello import](../features/trello-import.md) that accepts exports
-    up to `VISIBAN_IMPORT_MAX_SIZE` (default 25 MB, Helm:
+    up to `IMPORT_MAX_SIZE_BYTES` (default 25 MB, Helm:
     `backend.settings.importMaxSizeBytes`). So those uploads reach Visiban
     instead of dying at the edge, the transport limits are now derived from the
     **larger** of `maxUploadSizeBytes` and `importMaxSizeBytes` plus 10 MB:

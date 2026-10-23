@@ -34,8 +34,9 @@ read-only `string` is treated as untyped: it is drf-spectacular's fallback for a
 `SerializerMethodField`, so correcting it to its real type is not a break.
 
 **Settings** — every env var name that `backend/visiban/settings.py` reads at the GA tag
-(`env(...)`, `env.<type>(...)`, `_secret_env(...)`, `os.environ`/`os.getenv`, and the legacy
-name passed to `_warn_deprecated_env_alias`) must still be read at HEAD. A deprecated alias
+(`env(...)`, `env.<type>(...)`, `_secret_env(...)`, `os.environ`/`os.getenv`, the legacy
+name passed to `_warn_deprecated_env_alias`, and both names passed to `_env_alias_name`) must
+still be read at HEAD. A deprecated alias
 that is kept counts as present, which is exactly the rename policy in `CLAUDE.md`. The
 baseline is `scripts/compat-baseline/v1.1.0/settings-env.txt`.
 
@@ -71,6 +72,51 @@ below exist in the v1.1.0 baseline, so nothing shipped was renamed):
 
 `backend/boards/tests/test_schema_generated_names_1874.py` fails if a `*RequestRequest`
 component or one of those `_retrieve` operationIds reappears.
+
+## Environment variable naming
+
+Env var names freeze the same way, and the gate cannot tell a good name from a bad one. Decided
+in #1873 for every name added from 1.2 on:
+
+- **No product prefix on functional settings.** Name them `<FEATURE>_<NOUN>[_<UNIT>]`, like
+  `BOARD_EVENT_RETENTION_DAYS`, `NOTIFICATION_EMAIL_TIMEOUT` and `GIT_LENS_ENABLED`. Almost every
+  pre-1.2 variable is already unprefixed, and a prefix on some settings but not others is how
+  the inconsistency starts.
+- **Put the unit in the name when the value has one**: `_BYTES`, `_DAYS`, `_SECONDS`. A size
+  without `_BYTES` reads as megabytes to half of all operators.
+- **A name that mirrors an upstream setting keeps the upstream name and unit.** Django,
+  DRF and allauth settings read from the environment use their own names (`EMAIL_TIMEOUT`,
+  `NUM_PROXIES`), and a feature-scoped copy of one follows it: `NOTIFICATION_EMAIL_TIMEOUT` is
+  in seconds, like the `EMAIL_TIMEOUT` it mirrors, so it carries no `_SECONDS`.
+- **Feature on/off switches end in `_ENABLED`** (`MCP_SERVER_ENABLED`, `GIT_LENS_ENABLED`). A
+  boolean that picks a mode of a feature that is already on says what the mode is
+  (`NOTIFICATION_EMAIL_ASYNC`).
+- **Throttle rates are `<FEATURE>_THROTTLE_<SCOPE>_RATE`**, like `MCP_THROTTLE_READ_RATE` and
+  `DEMO_THROTTLE_USER_RATE`, so a feature's limits sort together.
+- **The `VISIBAN_` prefix is reserved** for security-sensitive keys
+  (`VISIBAN_SECRET_ENCRYPTION_KEY`) and for test- or CI-only switches that a production install
+  must never set (`VISIBAN_DISABLE_THROTTLING`, `VISIBAN_GIT_LENS_STUB_PROVIDERS`). The prefix
+  marks them as not ordinary tuning knobs.
+- **Fixing a name that has shipped** (in any release, betas included) means adding the new
+  name and keeping the old one as a working, deprecated alias. In `settings.py`,
+  `_env_alias_name("NEW", "OLD")` picks which one to read (the new name wins when it is
+  non-empty), and `_warn_deprecated_env_alias("OLD", "NEW")` logs the startup warning. Pass the
+  names as string literals, because that is how this gate and the chart's reader check find
+  them. List the alias in the deprecated-names table in
+  `docs/administration/configuration.md`.
+
+Applied in #1873, before the first baseline roll that contains them (neither old name is in
+the v1.1.0 baseline, but both shipped in the 1.2 betas, so both remain read):
+
+| Beta name (deprecated alias) | Canonical name |
+|---|---|
+| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` |
+| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` |
+
+Every other 1.2 name already fits the rules above and is unchanged. The Django setting
+`settings.VISIBAN_IMPORT_MAX_SIZE` keeps its name: settings attributes are internal, and
+renaming it would only churn callers. `backend/accounts/tests/test_deprecated_env_aliases.py`
+covers the resolution order for both aliases.
 
 ## Allow-listing a deliberate break
 
