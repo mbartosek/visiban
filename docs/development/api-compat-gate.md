@@ -115,6 +115,8 @@ this keeps a whole operation out of the contract.
 - Matching operations are skipped on both sides of the diff, and the gate prints each skipped
   `METHOD /path/` in the CI log so the exemption is visible.
 - An entry that matches no operation in the baseline or at HEAD is **dead and fails the job**.
+  With `--schema FILE`, generate the schema with `GIT_LENS_ENABLED=True`, otherwise the Git Lens
+  entries report as dead (the default run sets it for you).
 - `--normalize` honors the list, so a baseline regenerated at a GA tag never contains these
   operations (see "Regenerating the baseline"). Components are compared only through the
   operations that reference them, so a component shared with a non-experimental operation is

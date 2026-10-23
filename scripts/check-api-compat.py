@@ -477,7 +477,7 @@ def report(live, allowed, stale, errors, skipped=(), dead=()) -> int:
         for op in skipped:
             print(f"  {op}")
     if dead:
-        print(f"DEAD experimental entries (match no operation in the baseline or HEAD; remove them) - {len(dead)}:")
+        print(f"DEAD experimental entries (match no operation in the baseline or HEAD; remove them; with --schema FILE the schema must be generated with GIT_LENS_ENABLED=True or git-lens entries report as dead) - {len(dead)}:")
         for k in dead:
             print(f"  {k}")
     if allowed:
