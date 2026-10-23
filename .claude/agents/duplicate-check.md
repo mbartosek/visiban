@@ -16,17 +16,17 @@ Given the issue title, description, or summary in the current task or argument p
 ### 1. Fetch open issues
 
 ```bash
-glab issue list --repo visiban/visiban --state opened --per-page 100
+glab issue list --repo visiban/visiban --per-page 100
 ```
 
 If the project has more than 100 open issues, page through:
 ```bash
-glab issue list --repo visiban/visiban --state opened --per-page 100 --page 2
+glab issue list --repo visiban/visiban --per-page 100 --page 2
 ```
 
 Also fetch recently closed issues (duplicates are sometimes already resolved):
 ```bash
-glab issue list --repo visiban/visiban --state closed --per-page 50
+glab issue list --repo visiban/visiban --closed --per-page 50
 ```
 
 ### 2. Build a candidate list

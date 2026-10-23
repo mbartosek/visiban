@@ -16,9 +16,10 @@ Resolution order:
 1. Read `frontend/package.json` — the `version` field records the **last shipped** release (e.g. `1.0.0`).
 2. The **current working release** is the next open GitLab milestone strictly greater than the shipped version. Query:
    ```bash
-   glab api "projects/visiban%2Fvisiban/milestones?state=active" 2>/dev/null \
-     | python3 -c "import json,sys; ms=json.load(sys.stdin); print('\n'.join(m['title'] for m in sorted(ms, key=lambda m: [int(x) for x in m['title'].split('.')])))"
+   glab api "projects/visiban%2Fvisiban/milestones?state=active&per_page=100" \
+     | python3 -c "import json,re,sys; ms=[m for m in json.load(sys.stdin) if re.fullmatch(r'\d+(\.\d+)*', m['title'])]; print('\n'.join(m['title'] for m in sorted(ms, key=lambda m: [int(x) for x in m['title'].split('.')])))"
    ```
+   Non-numeric milestones (e.g. "Engineering health") are skipped on purpose; they are not releases and would crash a numeric sort. Do not hide stderr: if this call fails, stop and report it rather than guessing a release.
    Pick the smallest milestone title greater than the shipped version. That is `$WORKING_RELEASE` (e.g. `1.1`).
 3. Confirm with the user in one line: "Auditing against the **$WORKING_RELEASE** release (last shipped: $SHIPPED). Proceed?" — only if the audit type is `full`. For targeted audits, skip the confirmation and proceed silently.
 
@@ -54,15 +55,36 @@ Wait for the user's choice before proceeding.
 
 Before launching any agents, check whether a recent pre-release audit has already been run and its findings already filed as GitLab issues for the current working release.
 
+Use the issues API, not `glab issue list`: `glab issue list` has no `--state` flag (open is the default; use `-A/--all` or `-c/--closed`), its `--milestone` takes a numeric id rather than a title, it has no `--updated-after`, and its text output omits state and milestone. The API accepts the milestone **title** and returns JSON with `state`, `milestone`, and `closed_at`.
+
+Do **not** add `2>/dev/null` to any of these calls. A failed call must be visible: an empty result has to mean "no issues", never "the command broke" (#1901). Define the helper once, then run the three queries. A nonzero exit, a non-JSON body, or a non-array body prints a `🔴 could not run` line and must be reported as a 🔴 blocker, not as "no prior audit".
+
 ```bash
-glab issue list --repo visiban/visiban --state opened --label "$WORKING_RELEASE" --search "audit" 2>/dev/null | head -20
-glab issue list --repo visiban/visiban --state opened --label "$WORKING_RELEASE" 2>/dev/null | head -30
+gl_issues() {  # $1 = query string; prints iid, state, milestone, closed_at, title
+  glab api "projects/visiban%2Fvisiban/issues?$1&per_page=100" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+if not isinstance(d, list):
+    sys.exit("not a JSON array: %r" % (d,))
+for i in d:
+    print(i["iid"], i["state"], (i.get("milestone") or {}).get("title"), (i.get("closed_at") or "")[:10], i["title"][:70])
+print("checked %d issue(s)" % len(d))
+' || echo "🔴 pre-release Step 0.5 could not run: $1"
+}
+SINCE=$(date -v-7d +%Y-%m-%dT00:00:00Z 2>/dev/null || date -d '7 days ago' +%Y-%m-%dT00:00:00Z)
+
+# 1. Open issues on the working milestone (milestone takes the TITLE here, e.g. 1.2)
+gl_issues "milestone=$WORKING_RELEASE&state=opened"
+# 2. Recently closed on the working milestone (resolved since the last run)
+gl_issues "milestone=$WORKING_RELEASE&state=closed&updated_after=$SINCE"
+# 3. Audit issues filed in the last 7 days, any state or milestone (a prior audit's findings
+#    may sit on the next milestone; "audit" also matches issue descriptions)
+gl_issues "search=audit&state=all&created_after=$SINCE&order_by=created_at"
 ```
 
-Also check for recently closed audit issues (resolved since last run):
-```bash
-glab issue list --repo visiban/visiban --state closed --label "$WORKING_RELEASE" --updated-after "$(date -v-7d +%Y-%m-%d 2>/dev/null || date -d '7 days ago' +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)" 2>/dev/null | head -20
-```
+Query 3 is the one that detects "a prior audit already filed its findings"; it needs no label. `per_page` is capped at 100: if a query prints `checked 100 issue(s)`, page with `&page=2`.
+
+Note for any issue write you do later: the API `milestone_id` field takes the **global** milestone id (from `projects/visiban%2Fvisiban/milestones`, field `id`, not `iid`), and `glab api --method POST --input <file>` needs `-H "Content-Type: application/json"` or it returns 415.
 
 **If open `$WORKING_RELEASE` issues exist from a prior audit:**
 1. List them for the user grouped by severity (🔴 blocking vs 🟡 should-fix).
@@ -220,7 +242,7 @@ After all agents complete, before writing the report, **cross-reference every fi
 
 For each finding, run:
 ```bash
-glab issue list --repo visiban/visiban --state all --search "<keyword>" 2>/dev/null | head -20
+gl_issues "search=<keyword>&state=all"   # helper from Step 0.5; shows open vs closed, milestone, closed date
 ```
 
 Annotate every finding in the report with one of these tags:
@@ -264,7 +286,7 @@ After the report:
 1. Query GitLab for **both open and closed** issues related to each 🔴 and 🟡 finding. A closed match often represents a prior decision (fixed, won't-fix, or deferred) — re-filing without context turns the audit into a whack-a-mole loop and erases prior reasoning.
    ```bash
    # Open and closed, merged and ranked by recency — use per finding keyword
-   glab issue list --repo visiban/visiban --state all --search "<keyword>" 2>/dev/null | head -20
+   gl_issues "search=<keyword>&state=all"   # helper from Step 0.5; plain `glab issue list` output omits state
    ```
    Extract 2–3 keywords per finding (file path stem, endpoint, error class, security term) and run the search for each. For multi-faceted findings, run more than one query.
 
@@ -286,7 +308,7 @@ After the report:
    - All findings go under the current working milestone unless they genuinely require a major bump to fix — **do not use generic labels like `post-1.0`**; always name the specific target milestone
 
 4. Ask the user: "Create GitLab issues for the N untracked findings above? (y/n)"
-   - If yes, create them using `glab issue create` with heredoc descriptions and `--milestone "$WORKING_RELEASE"` (or the next-major milestone for already-shipped contracts). Cross-link any "new instance" findings to the closed issue they relate to.
+   - If yes, create them using `glab issue create` with heredoc descriptions and `--milestone "$WORKING_RELEASE"` (`glab issue create --milestone` accepts a title or a global id) (or the next-major milestone for already-shipped contracts). Cross-link any "new instance" findings to the closed issue they relate to.
    - If no, list the findings as a checklist the user can act on manually
 
 ---
