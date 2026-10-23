@@ -289,3 +289,33 @@ describe('card metadata on an aging tint (#1844)', () => {
     }
   })
 })
+
+// #1857: leftovers missed by the #1550 / #1237 / #831 sweeps. Source-level guards so they stay fixed.
+describe('design-system leftovers (#1857)', () => {
+  const read = (p: string) => readFileSync(p, 'utf8')
+
+  it.each(['src/components/Board/BoardView.tsx', 'src/pages/GroupDetail.tsx'])(
+    '%s passes on-tint text to JoinedNotice children',
+    (p) => {
+      const src = read(p)
+      expect(src).toContain('<JoinedNotice')
+      expect(src).not.toMatch(/<strong className="text-success">/)
+      expect(src).toContain('text-success-on-tint')
+    },
+  )
+
+  it('RoleInfoTooltip trigger respects the 12px typography floor', () => {
+    const src = read('src/components/Common/RoleInfoTooltip.tsx')
+    expect(src).not.toMatch(/text-\[(\d|1[01])px\]/)
+    expect(src).toContain('text-xs')
+  })
+
+  it('ActivityTabPanel has no raw hex colors and its tokens are declared in both themes', () => {
+    expect(read('src/components/Card/ActivityTabPanel.tsx')).not.toMatch(/["'`]#[0-9a-fA-F]{3,8}["'`]/)
+    for (const t of ['activity-date', 'activity-assign']) {
+      expect(darkBlock).toContain(`--${t}:`)
+      expect(lightBlock).toContain(`--${t}:`)
+      expect(tw).toContain(`"${t}": "rgb(var(--${t}) / <alpha-value>)"`)
+    }
+  })
+})

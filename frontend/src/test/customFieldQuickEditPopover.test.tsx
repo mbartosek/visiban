@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useEscapeStack } from "../hooks/useEscapeStack";
 import CustomFieldQuickEditPopover from "../components/Card/CustomFieldQuickEditPopover";
 
 // jsdom returns a zeroed DOMRect from getBoundingClientRect by default, but
@@ -50,6 +51,40 @@ describe("CustomFieldQuickEditPopover", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("consumes Escape so board-level handlers (selection-clear 10, focus-exit 12, view-toggle 15) never fire (#1856); stack-ordering proxy, the real BoardView case is in boardView.test.tsx", () => {
+    const onDismiss = vi.fn();
+    const clearSelection = vi.fn();
+    const exitFocus = vi.fn();
+    const viewToggle = vi.fn();
+    function Board({ open }: { open: boolean }) {
+      useEscapeStack(() => { clearSelection(); }, 10);
+      useEscapeStack(() => { exitFocus(); }, 12);
+      useEscapeStack(() => { viewToggle(); }, 15);
+      return open ? (
+        <CustomFieldQuickEditPopover
+          anchorRect={makeRect()}
+          choices={CHOICES}
+          selected="Low"
+          onSelect={() => {}}
+          onDismiss={onDismiss}
+        />
+      ) : null;
+    }
+    const { rerender } = render(<Board open />);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(clearSelection).not.toHaveBeenCalled();
+    expect(exitFocus).not.toHaveBeenCalled();
+    expect(viewToggle).not.toHaveBeenCalled();
+
+    // Once the popover is gone it no longer consumes Escape.
+    rerender(<Board open={false} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(viewToggle).toHaveBeenCalledTimes(1);
   });
 
   it("does not call onDismiss for a non-Escape key", () => {

@@ -44,6 +44,8 @@
   --danger: 248 113 113;           /* red-400 — text/icon */
   --warning: 251 146 60;           /* orange-400 — text/icon */
   --success: 74 222 128;           /* green-400 — text/icon */
+  --activity-date: 56 189 248;     /* sky-400 - Comments activity marker */
+  --activity-assign: 20 184 166;   /* teal-500 - Attachments activity marker */
   --info: 96 165 250;              /* blue-400 — active filter/selection text */
 
   /* On-tint text (#1550): text color for a pill/strip filled with `bg-<hue>/20`..`/30`.
@@ -135,6 +137,8 @@
   --danger: 220 38 38;             /* red-600 */
   --warning: 234 88 12;            /* orange-600 */
   --success: 22 163 74;            /* green-600 */
+  --activity-date: 56 189 248;     /* sky-400 - Comments activity marker */
+  --activity-assign: 20 184 166;   /* teal-500 - Attachments activity marker */
   --info: 37 99 235;               /* blue-600 */
 
   /* On-tint text (#1550) — the -600 text tokens fall to ~2.4-3.9:1 on `/20` tints; -800/-700 hold >= 4.7:1. */

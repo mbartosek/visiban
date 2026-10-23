@@ -2324,9 +2324,9 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
       {joinNotice && (
         <JoinedNotice onDismiss={() => setJoinNotice(null)}>
           {joinNotice.created ? (
-            <>You've joined <strong className="text-success">{joinNotice.board}</strong> as a {joinNotice.role}. Welcome!</>
+            <>You've joined <strong className="text-success-on-tint">{joinNotice.board}</strong> as a {joinNotice.role}. Welcome!</>
           ) : (
-            <>You already have access to <strong className="text-success">{joinNotice.board}</strong>.</>
+            <>You already have access to <strong className="text-success-on-tint">{joinNotice.board}</strong>.</>
           )}
         </JoinedNotice>
       )}

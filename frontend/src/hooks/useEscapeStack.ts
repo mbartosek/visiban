@@ -33,9 +33,11 @@ function dispatch(e: KeyboardEvent): void {
  * Priority conventions:
  *   48 — canceling an in-flight load inside a modal (Import Board sample load)
  *   40 — modals and overlays
+ *   32 — card-face custom-field quick-edit popover (CustomFieldQuickEditPopover, #1856)
  *   30 — side panels (card detail, archived cards)
  *   25 — dropdowns (SelectDropdown, FilterBar, BulkActionToolbar) — via useDropdownEscape
  *   20 — inline confirmation dialogs (bulk delete confirm)
+ *   18 — movement-history slide-in (above the view-toggle's 15, below menus and dropdowns at 25)
  *   15 — view-toggle navigation (analytics → summary → board)
  *   12 — focus mode (single-swimlane focus — above selection-clear, below view-toggle)
  *   10 — selection state (multi-card selection)
