@@ -223,6 +223,27 @@ async function settled(dialog: Locator) {
   return (await dialog.boundingBox())!
 }
 
+/** Records every card move request; answers each with the card in place. */
+async function recordMoves(page: Page): Promise<string[]> {
+  const moves: string[] = []
+  await page.route(/\/api\/v1\/boards\/\d+\/cards\/\d+\/move\/(\?.*)?$/, (route) => {
+    moves.push(route.request().url())
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ card: { ...CARD_TWO, position: 0, version: 2 } }) })
+  })
+  return moves
+}
+
+/** A mouse drag of `card` to just above `target` (dnd-kit needs > 5px of travel). */
+async function dragAbove(page: Page, card: Locator, target: Locator) {
+  const from = (await card.boundingBox())!
+  const to = (await target.boundingBox())!
+  await page.mouse.move(from.x + 20, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 20, from.y + from.height / 2 - 10, { steps: 4 })
+  await page.mouse.move(to.x + 20, to.y + 4, { steps: 10 })
+  await page.mouse.up()
+}
+
 async function routeTwoCardBoard(page: Page) {
   await routeAuth(page)
   await routeBoard(page, TWO_CARD_BOARD)
@@ -239,6 +260,7 @@ test.describe('card detail sheet — anchored (>= 1280px)', () => {
   test.beforeEach(async ({ page }) => { await routeTwoCardBoard(page) })
 
   test('opens beside the card, swaps on another card click, closes on empty space and returns focus', async ({ page }) => {
+    const moveRequests = await recordMoves(page)
     await page.goto(`/boards/${BOARD_FULL.id}`)
     const first = page.locator(`[data-card-id="${CARD.id}"]`)
     const second = page.locator(`[data-card-id="${CARD_TWO.id}"]`)
@@ -264,13 +286,14 @@ test.describe('card detail sheet — anchored (>= 1280px)', () => {
     await expect(page.getByRole('dialog', { name: /./ })).toHaveCount(1)
     await expect(second).toHaveAttribute('aria-current', 'true')
     await expect(first).not.toHaveAttribute('aria-current', 'true')
-    // Drag-and-drop is suspended while the sheet is open.
-    const secondBox = (await second.boundingBox())!
-    await page.mouse.move(secondBox.x + 20, secondBox.y + 10)
-    await page.mouse.down()
-    await page.mouse.move(secondBox.x + 200, secondBox.y + 60, { steps: 8 })
-    await page.mouse.up()
-    await expect(second).toBeVisible()
+    // Drag-and-drop is suspended while the sheet is open: dragging the second
+    // card above the first sends no move and leaves the order as it was. (The
+    // same drag with the sheet closed does move it; see the next test.)
+    await dragAbove(page, second, first)
+    await page.waitForTimeout(300)
+    expect(moveRequests).toHaveLength(0)
+    expect((await second.boundingBox())!.y).toBeGreaterThan((await first.boundingBox())!.y)
+    await expect(page.locator('#card-detail-title')).toHaveValue(CARD_TWO.title)
 
     // Empty board space closes it, and the click does not also start an
     // inline "add card" underneath; focus returns to the most recent card.
@@ -279,6 +302,18 @@ test.describe('card detail sheet — anchored (>= 1280px)', () => {
     await expect(page.getByPlaceholder('Card title…')).toHaveCount(0)
     await expect(second).toBeFocused()
     await expect(second).not.toHaveAttribute('aria-current', 'true')
+  })
+
+  // Control for the drag-suspended check above: with no sheet open the very
+  // same drag sends a move, so that check cannot pass vacuously.
+  test('the same drag moves the card when no sheet is open', async ({ page }) => {
+    const moveRequests = await recordMoves(page)
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    const first = page.locator(`[data-card-id="${CARD.id}"]`)
+    const second = page.locator(`[data-card-id="${CARD_TWO.id}"]`)
+    await expect(second).toBeVisible({ timeout: 10_000 })
+    await dragAbove(page, second, first)
+    await expect.poll(() => moveRequests.length, { timeout: 5_000 }).toBeGreaterThan(0)
   })
 
   test('Escape closes one layer at a time and returns focus to the card', async ({ page }) => {

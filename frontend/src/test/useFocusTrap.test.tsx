@@ -253,4 +253,29 @@ describe('useFocusTrap focus restore and nesting (#1732)', () => {
     fireEvent.click(getByTestId('inner'))
     expect(document.activeElement).toBe(getByTestId('kebab'))
   })
+
+  // #1914: a function fallback is resolved when the trap deactivates, so it can
+  // see what the same commit removed (the card detail sheet's archived card).
+  it('resolves a function restoreTarget at deactivation, not at render', () => {
+    const region = document.createElement('div')
+    region.tabIndex = -1
+    document.body.appendChild(region)
+    let candidate: HTMLElement | null = document.createElement('button')
+    document.body.appendChild(candidate)
+    function Lazy({ open }: { open: boolean }) {
+      const ref = useRef<HTMLDivElement>(null)
+      useFocusTrap(ref, open, () => (candidate?.isConnected ? candidate : region))
+      return open ? <div ref={ref}><button autoFocus>x</button></div> : null
+    }
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const { rerender } = render(<Lazy open />)
+    opener.remove()
+    candidate.remove()
+    candidate = null
+    rerender(<Lazy open={false} />)
+    expect(document.activeElement).toBe(region)
+    region.remove()
+  })
 })

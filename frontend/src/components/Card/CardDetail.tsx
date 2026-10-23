@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { BOARD_SCROLL_SELECTOR, classifyTransition, useCardSheetPlacement } from "../../hooks/useCardSheetPlacement";
+import { BOARD_SCROLL_SELECTOR, classifyTransition, findBoardCardElement, useCardSheetPlacement } from "../../hooks/useCardSheetPlacement";
 import type { SheetPlacement } from "../../hooks/useCardSheetPlacement";
 import { claimDeparture, departSheet, dropOwnDeparture, playTransition } from "./cardSheetMotion";
 import { useConfirmFocusReturn } from "../../hooks/useConfirmFocusReturn";
@@ -31,7 +31,7 @@ import { failureReason, isLimitFailure } from "../../utils/moveFailure";
 import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { importedNote } from "../../utils/importedHistory";
-import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON, DEMO_CARD_DETAIL_NOTE, DEMO_EXTERNAL_REF_REASON } from "../../constants/demoCopy";
+import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON, DEMO_CARD_DETAIL_NOTE, DEMO_EXTERNAL_REF_REASON, DEMO_CARD_FOOTER_NOTE } from "../../constants/demoCopy";
 
 interface Props {
   card: Card;
@@ -98,15 +98,15 @@ const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: "urgent", label: "Urgent", color: PRIORITY_COLORS.urgent },
 ];
 
+/** Controls whose click still works when it also dismisses the card detail sheet (#1914). */
+const OUTSIDE_CONTROL_SELECTOR = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="tab"], [role="link"], [role="menuitem"]';
+
 /**
  * Loading placeholder rows for one of the fetched card-detail sections
  * (#1914, frame 6), sized like that section's rows. Decorative: the body's
  * aria-busy and the one-time status line announce the load. The pulse stops
  * under reduced motion.
  */
-/** Controls whose click still works when it also dismisses the card detail sheet (#1914). */
-const OUTSIDE_CONTROL_SELECTOR = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="tab"], [role="link"], [role="menuitem"]';
-
 function SectionSkeleton({ rows, testId }: { rows: number; testId: string }) {
   return (
     <div aria-hidden="true" data-testid={testId} className="flex flex-col gap-1.5 mb-3">
@@ -199,8 +199,10 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // card's board element (opened from the command palette or a relation
   // link, whose opener is gone), else to the board region: never to the top
   // of the page (#1914).
-  const boardRegion = typeof document !== "undefined" ? document.querySelector<HTMLElement>(BOARD_SCROLL_SELECTOR) : null;
-  useFocusTrap(panelRef, true, sheet.cardEl?.isConnected ? sheet.cardEl : boardRegion);
+  // Resolved when the sheet closes, not at render: archiving or deleting the
+  // card removes its face in the same commit that closes the sheet.
+  useFocusTrap(panelRef, true, () =>
+    findBoardCardElement(card.id) ?? document.querySelector<HTMLElement>(BOARD_SCROLL_SELECTOR));
 
   // Click-catcher (#1914): no overlay. A primary click outside the sheet
   // closes it; a click on a board card is left to the card's own onClick,
@@ -1034,10 +1036,14 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // DEMO_MODE-gated carve-out in boards.permissions. Mirror that here as a
   // display heuristic only (`demoMode && member`) — the server stays the
   // authority, and the frontend never replicates its username check. Widened
-  // ONLY for writes the demo fence allows.
+  // ONLY for writes the demo fence allows. Since #1914 the sheet itself
+  // offers no Archive in the demo (its footer note replaces it), so here
+  // the widening only affects reassigning.
   const canModifyOthersContentInDemo =
     (demoMode && role === "member") || canModifyOthersContent;
-  const canArchive = canEdit && (isCardOwner || canModifyOthersContentInDemo);
+  // Shared demo (#1914, design frame 7): the footer note replaces Archive.
+  // A UI restriction only: the demo fence would allow the archive itself.
+  const canArchive = !demoMode && canEdit && (isCardOwner || canModifyOthersContentInDemo);
   const canAssign = canEdit && (isCardOwner || canModifyOthersContentInDemo);
   // Delete is NOT widened, and is hidden outright in demo mode: card DELETE is
   // not on DEMO_ALLOWED_WRITES, so the fence refuses it even for the visitor's
@@ -1973,7 +1979,12 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
         </div>
 
         {/* Footer */}
-        {(canArchive || canDelete) && (
+        {demoMode ? (
+          // Shared demo (frame 7): no destructive or removing action here.
+          <div className="px-5 py-3 border-t border-line">
+            <p className="text-xs text-fg-muted" data-testid="card-demo-footer">{DEMO_CARD_FOOTER_NOTE}</p>
+          </div>
+        ) : (canArchive || canDelete) && (
           <div className="px-5 py-3 border-t border-line flex items-center justify-between">
             {canArchive ? (
               <button
@@ -1996,7 +2007,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
           </div>
         )}
 
-        {/* Move popover — position:fixed so the panel's overflow-hidden doesn't clip it; inside panelRef so the focus trap includes it (#1732) */}
+        {/* Move popover — position:fixed so the body's overflow-hidden scroll region doesn't clip it; inside panelRef so the focus trap includes it (#1732) */}
         {showMovePopover && movePopoverAnchor && (
           <div
             ref={movePopoverRef}

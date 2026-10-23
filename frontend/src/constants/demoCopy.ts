@@ -30,3 +30,5 @@ export const DEMO_MARK_READ_REASON = demoReason("notifications can't be marked r
 // the top of the body, and one in the PR/MR section, which is read-only here.
 export const DEMO_CARD_DETAIL_NOTE = demoReason("edits to this card are visible to every visitor");
 export const DEMO_EXTERNAL_REF_REASON = demoReason("pull or merge request links can't be changed here");
+// The footer line that replaces Archive and Delete in the demo's card sheet.
+export const DEMO_CARD_FOOTER_NOTE = demoReason("cards can't be archived or deleted here");

@@ -403,7 +403,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       // selection ring alone still marks it.
       className={`group bg-surface rounded-md select-none transition-all border relative z-0
         ${readOnly ? "cursor-default" : "cursor-pointer hover:-translate-y-0.5 hover:z-20"}
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-emphasis focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-emphasis focus-visible:ring-offset-2 focus-visible:ring-offset-sunken
         ${isDragging && !overlay ? "opacity-25 !shadow-none !translate-y-0" : ""}
         ${overlay ? "rotate-1 opacity-95 !-translate-y-1" : ""}
         ${current ? "border-2 -m-px border-primary-emphasis ring-2 ring-primary-emphasis ring-offset-2 ring-offset-sunken" : highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? `ring-2 ring-primary-soft${overlayClass ? "" : " bg-info/20"}` : ""}

@@ -209,7 +209,7 @@ Empty cells show a dashed border to indicate they are valid drop targets even wh
 
 Click a card to open its **detail panel**. Where it opens depends on the window width. *Changed in 1.2 (#1914): before 1.2 the panel always opened at the right edge of the window, over a dimmed board.*
 
-- **1280 px and wider:** the panel opens next to the card's column, to its right if there is room, otherwise to its left. A small notch on the panel's edge points at the card, and the card gets a thick blue border and ring while it is open. The board is not dimmed. If neither side has room (the panel never covers the swimlane names), or the card is not on screen (for example, it is filtered out or its swimlane is collapsed), the panel opens at the right edge instead.
+- **1280 px and wider:** the panel opens next to the card's column, to its right if there is room, otherwise to its left. A small notch on the panel's edge points at the card, and the card gets a thick blue border and ring while it is open. The board is not dimmed. If neither side has room (the panel never covers the swimlane names), the card's column is scrolled off to the side, or the card isn't on the board (for example, it is filtered out or its swimlane is collapsed), the panel opens at the right edge instead. A card scrolled out of view up or down keeps the panel next to its column; the notch then sits near the panel's top or bottom corner.
 - **641 to 1279 px:** the panel opens at the right edge of the window, over a lightly dimmed board.
 - **640 px and narrower:** the panel fills the screen, with a **‹ Board** button to go back.
 

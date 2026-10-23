@@ -4,7 +4,7 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CardDetail from '../components/Card/CardDetail'
 import type { Card, BoardFull, User } from '../types'
-import { DEMO_CARD_DETAIL_NOTE, DEMO_EXTERNAL_REF_REASON } from '../constants/demoCopy'
+import { DEMO_CARD_DETAIL_NOTE, DEMO_CARD_FOOTER_NOTE, DEMO_EXTERNAL_REF_REASON } from '../constants/demoCopy'
 
 // #1914 — the card detail sheet anchored to the selected card's column.
 
@@ -436,7 +436,7 @@ describe('CardDetail sheet — click-catcher (#1914)', () => {
     palette.remove()
   })
 
-  it('does not close on a drag, a non-primary button, or a cancelled pointer', () => {
+  it('does not close on a drag, a non-primary button, or a canceled pointer', () => {
     const { scroll } = mountBoard()
     const props = defaultProps()
     render(<CardDetail {...props} />)
@@ -490,6 +490,18 @@ describe('CardDetail sheet — focus (#1914)', () => {
     palette.remove()
     unmount()
     expect(cardEl).toHaveFocus()
+  })
+
+  it('returns focus to the board region when the card was on the board at open but is gone at close (archive, delete)', () => {
+    const { scroll, cardEl } = mountBoard()
+    // Opened by clicking the card, so the card is the opener too.
+    cardEl.focus()
+    const { unmount } = render(<CardDetail {...defaultProps()} />)
+    expect(dialog()).toHaveAttribute('data-sheet-mode', 'anchored')
+    // The card leaves the board in the same commit that closes the sheet.
+    cardEl.remove()
+    unmount()
+    expect(scroll).toHaveFocus()
   })
 
   it('returns focus to the board region when the card is no longer on the board', () => {
@@ -554,8 +566,10 @@ describe('CardDetail sheet — shared demo and long content (#1914, frames 5 and
     // A determined click still opens no editor.
     fireEvent.click(add)
     expect(screen.queryByLabelText('URL')).not.toBeInTheDocument()
-    // No destructive action in the demo.
+    // No destructive action in the demo: the footer note replaces Archive and Delete.
     expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
+    expect(screen.queryByText('Archive card')).not.toBeInTheDocument()
+    expect(screen.getByTestId('card-demo-footer')).toHaveTextContent(DEMO_CARD_FOOTER_NOTE)
   })
 
   it('hides Edit and Remove on an existing PR/MR link in the demo', () => {

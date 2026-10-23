@@ -634,19 +634,22 @@ describe('CardDetail', () => {
       return props
     }
 
-    it('shows Archive and an enabled assignee picker, and hides Delete (not on the fence allowlist)', () => {
+    // #1914 (design frame 7): the demo footer note replaces Archive and Delete.
+    it('shows an enabled assignee picker, and the demo footer note in place of Archive and Delete', () => {
       render(<CardDetail {...demoProps()} currentUser={visitor} />)
-      expect(screen.getByRole('button', { name: 'Archive card' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('card-demo-footer')).toHaveTextContent("This is a shared demo — cards can't be archived or deleted here.")
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
       expect(screen.getByRole('combobox')).not.toBeDisabled()
       expect(screen.queryByText('Assigning cards requires Moderator or Admin access')).not.toBeInTheDocument()
     })
 
-    it('hides Delete in demo mode even on a card the visitor created', () => {
+    it('hides Archive and Delete in demo mode even on a card the visitor created', () => {
       const props = demoProps()
       props.card = makeCard({ created_by: { id: 99, username: 'visitor', display_name: 'Visitor', avatar_url: '' } })
       render(<CardDetail {...props} currentUser={visitor} />)
-      expect(screen.getByRole('button', { name: 'Archive card' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
+      expect(screen.getByTestId('card-demo-footer')).toBeInTheDocument()
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
     })
 
