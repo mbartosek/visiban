@@ -20,8 +20,8 @@ vi.mock('@dnd-kit/sortable', () => ({
 vi.mock('../api/cards', () => ({ createCard: vi.fn() }))
 
 vi.mock('../components/Card/CardItem', () => ({
-  default: ({ card, onClick, compact, inDoneColumn, current, onSelect }: { card: Card; onClick?: () => void; compact?: boolean; inDoneColumn?: boolean; current?: boolean; onSelect?: () => void }) => (
-    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} data-in-done-column={String(inDoneColumn ?? false)} data-current={String(current ?? false)} data-selectable={String(!!onSelect)} onClick={onClick}>{card.title}{onSelect && <button data-testid={`select-${card.id}`} onClick={(e) => { e.stopPropagation(); onSelect() }} />}</div>
+  default: ({ card, onClick, compact, inDoneColumn, current, onSelect, peekSuppressed }: { card: Card; peekSuppressed?: boolean; onClick?: () => void; compact?: boolean; inDoneColumn?: boolean; current?: boolean; onSelect?: () => void }) => (
+    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} data-in-done-column={String(inDoneColumn ?? false)} data-current={String(current ?? false)} data-selectable={String(!!onSelect)} data-peek-suppressed={String(peekSuppressed ?? false)} onClick={onClick}>{card.title}{onSelect && <button data-testid={`select-${card.id}`} onClick={(e) => { e.stopPropagation(); onSelect() }} />}</div>
   ),
 }))
 
@@ -92,6 +92,18 @@ describe('BoardCell', () => {
     expect(props.onToggleCardSelection).toHaveBeenCalledWith(1)
     rerender(<BoardCell {...props} currentCardId={7} />)
     expect(screen.getByTestId('card-1')).toHaveAttribute('data-selectable', 'false')
+  })
+
+  it('suppresses hover peeks on every card exactly while a card detail sheet is open (#1918)', () => {
+    const props = defaultProps()
+    props.cards = [makeCard({ id: 1 }), makeCard({ id: 2 })]
+    const { rerender } = render(<BoardCell {...props} currentCardId={null} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-peek-suppressed', 'false')
+    rerender(<BoardCell {...props} currentCardId={2} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-peek-suppressed', 'true')
+    expect(screen.getByTestId('card-2')).toHaveAttribute('data-peek-suppressed', 'true')
+    rerender(<BoardCell {...props} currentCardId={null} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-peek-suppressed', 'false')
   })
 
   it('renders + Add card button when canEdit and allow_card_creation', () => {

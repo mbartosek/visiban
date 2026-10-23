@@ -47,6 +47,11 @@ interface Props {
   userDateFormat?: string;
   /** When true, the card is non-interactive: no drag, no hover lift, no onClick. Used on the share page. */
   readOnly?: boolean;
+  /** When true, the hover peek never starts or renders (#1918). BoardView sets it
+   *  for every card while the card detail sheet is open, because a floating peek
+   *  would cover the fields being edited. Not folded into `readOnly`: hover lift,
+   *  `hovered` styling, click-to-swap and the aging tooltip all stay live. */
+  peekSuppressed?: boolean;
   /** When true, renders a compact single-line card with reduced padding (per-user layout pref, distinct from density). */
   compact?: boolean;
   staleness_threshold_days?: number;
@@ -140,6 +145,7 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.userTimezone === next.userTimezone &&
     prev.userDateFormat === next.userDateFormat &&
     prev.readOnly === next.readOnly &&
+    prev.peekSuppressed === next.peekSuppressed &&
     prev.compact === next.compact &&
     prev.staleness_threshold_days === next.staleness_threshold_days &&
     prev.stale_warning_pct === next.stale_warning_pct &&
@@ -150,7 +156,7 @@ function arePropsEqual(prev: Props, next: Props): boolean {
   );
 }
 
-const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, current = false, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
+const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, current = false, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, peekSuppressed = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
   // Per-density visibility booleans (#961). The decision tree:
   //   comfortable → one urgency badge, one primary label, checklist, assignee
   //   standard    → adds due date (when not in urgency), weight (>1), attachments, second label
@@ -219,7 +225,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     setHovered(true);
     setShowTooltip(true);
     // Disabled when: readOnly, overlay prop set. isDragging is checked in the timer callback.
-    if (readOnly || overlay) return;
+    if (readOnly || overlay || peekSuppressed) return;
     peekTimer.current = setTimeout(() => {
       // Bail out if dragging started while we were waiting.
       if (cardRef.current) {
@@ -251,6 +257,19 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       setQuickEditFieldId(null);
     }
   }, [isDragging]);
+
+  // #1918 — the card detail sheet opening clears a pending timer and unmounts a
+  // visible peek in the same commit. Closing does nothing: the peek only comes
+  // back on the next mouseenter.
+  useEffect(() => {
+    if (peekSuppressed) {
+      if (peekTimer.current !== null) {
+        clearTimeout(peekTimer.current);
+        peekTimer.current = null;
+      }
+      setPeekVisible(false);
+    }
+  }, [peekSuppressed]);
 
   // 24h is intentional here — it represents "moved in the current working session",
   // not the board's staleness threshold. The two concepts are independent:
@@ -828,7 +847,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       </div>
     </div>
     </div>
-    {peekVisible && anchorRect && !isDragging && createPortal(
+    {peekVisible && anchorRect && !isDragging && !peekSuppressed && createPortal(
       <CardPeekPopover
         card={card}
         anchorRect={anchorRect}
