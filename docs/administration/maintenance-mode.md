@@ -27,7 +27,7 @@ From **Admin → Settings → Maintenance**:
 | Control | Effect |
 |---|---|
 | **Maintenance mode** toggle | When on, every write from a non-admin is rejected with `503 Service Unavailable`. Reads keep working. |
-| **Message** | Plain-text notice (max 1000 characters) shown to everyone while maintenance mode is on. Leave it blank to use the built-in default. |
+| **Message** | Plain-text notice (max 1000 characters) shown to everyone while maintenance mode is on. Leave it blank to use the built-in default. The notice is public, so keep internal detail out of it (see below). |
 
 Turning the toggle **on** asks for inline confirmation — "Enable maintenance mode? All
 non-admin users will immediately lose write access." — since it's an instance-wide,
@@ -50,6 +50,9 @@ for every worker — there is no need to restart the service or wait for a cache
   `503` and a `maintenance_mode` error. This covers the REST API and the MCP write tools alike.
 - **Every signed-in user sees the notice** — a non-dismissible amber banner — until you turn
   maintenance mode back off.
+- **The notice is public.** Anyone who can reach the instance can read it without signing in:
+  it is returned by the public `GET /api/v1/auth/site-config/` endpoint and in the `503` body of
+  any blocked write. Keep internal detail (hostnames, ticket links, names) out of it.
 - **Site admins are exempt** and keep full read/write access, whether they're signed in
   through the browser or using a personal access token. Admins still see the notice, so they
   can tell at a glance that the instance is not in its normal state.

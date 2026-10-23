@@ -13,10 +13,9 @@ every user of the instance, and was already visible to anonymous clients in prac
 * ``maintenance_mode`` / ``maintenance_message``: while maintenance is on, any
   anonymous non-exempt write (e.g. ``POST /api/v1/auth/registration/``) is answered
   503 with this exact notice as ``detail`` (``visiban.middleware.MaintenanceModeMiddleware``).
-  One exception: with ``DEMO_MODE`` also on, ``DemoModeMiddleware`` runs first and
-  answers those writes 403, so the notice was not in a 503 body before. It is still
-  operator-written text intended for every visitor. The admin docs say the notice is
-  public, so operators do not write internal detail into it.
+  That holds with ``DEMO_MODE`` on too: the maintenance check runs in ``__call__``,
+  before ``DemoModeMiddleware.process_view`` can refuse the write. The admin docs say
+  the notice is public, so operators do not write internal detail into it.
 * ``demo_mode`` / ``demo_next_reset_at``: already on ``site-config`` since #1034 and #1179.
   The login page needs them before anyone signs in.
 * ``git_lens_enabled``: the ``GIT_LENS_ENABLED`` setting, the same value for every

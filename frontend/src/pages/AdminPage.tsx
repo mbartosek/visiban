@@ -940,7 +940,7 @@ function SettingsTab({ currentUser }: { currentUser: User }) {
               className="w-full bg-surface border border-line rounded px-3 py-1.5 text-sm text-fg-secondary focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent placeholder-fg-muted resize-none transition"
             />
             <p className="text-xs text-fg-muted mt-1">
-              Shown to all users while maintenance mode is on. Mentioning when you expect to finish helps people plan around the interruption.
+              Shown to all users while maintenance mode is on. Mentioning when you expect to finish helps people plan around the interruption. Anyone can read it without signing in, so keep internal detail out of it.
             </p>
             <p className="text-xs text-fg-muted mt-1">
               Leave blank to show the default: &ldquo;Visiban is in maintenance mode. You can still read boards and cards, but changes are temporarily disabled. Please try again shortly.&rdquo;
