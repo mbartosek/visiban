@@ -151,7 +151,7 @@ describe('card metadata on an aging tint (#1844)', () => {
   const TINTED = ['warning', 'stale', 'stale2x', 'stale3x'] as const
   // CardItem plus every component it mounts inside the metadata row (nested ones included:
   // MultiSelectChips mounts ChoiceValue). The import guard below keeps this list complete.
-  const CARD_FACE_FILES = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue', 'ExternalRefGlyph']
+  const CARD_FACE_FILES = ['CardItem', 'CustomFieldLink', 'MultiSelectChips', 'ChoiceValue', 'ExternalRefGlyph', 'AgingCue']
   // Sibling components CardItem imports that never render inside the row: they are portaled.
   const PORTALED = ['CardPeekPopover', 'CustomFieldQuickEditPopover']
   const themes = [

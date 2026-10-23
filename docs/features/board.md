@@ -324,7 +324,7 @@ The toolbar contains a **compact layout toggle** (icon button) that switches bet
 | Mode | Description |
 |---|---|
 | **Expanded** (default) | Full card face with title, priority border, label pills, assignee avatar, checklist progress, and due date |
-| **Compact** | Narrower cards showing title and priority indicator only — useful on dense boards with many cards per cell |
+| **Compact** | Narrower cards showing title and priority indicator only — useful on dense boards with many cards per cell. A stale card's title starts with a small bar meter in place of the `Stale · Nd` badge (see [Card aging tint](card-history.md#card-aging-tint)) |
 
 The preference is stored per-user in `localStorage` under the key `user:prefs:card-layout` and persists across boards and sessions. The toggle's `aria-pressed` attribute reflects the compact state for screen reader users.
 

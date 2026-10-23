@@ -6,6 +6,7 @@ import { PRIORITY_COLORS } from "../../constants/colors";
 import Avatar from "../Common/Avatar";
 import { formatDueDate, formatRelativeMovedAt } from "../../utils/date";
 import { agingReference, agingTint, formatAgingTooltip, staleBadgeToneClass, urgencyBadgeToneClass } from "../../utils/agingTint";
+import AgingCue from "./AgingCue";
 import { classifyCardUrgency } from "../../utils/cardUrgency";
 import CardPeekPopover from "./CardPeekPopover";
 import CustomFieldQuickEditPopover from "./CustomFieldQuickEditPopover";
@@ -295,6 +296,9 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // "Stale · 41d" — the server decides whether the badge shows (is_stale); the
   // label adds the idle days so the stage is never conveyed by color alone.
   const staleLabel = aging.stage !== "none" ? `Stale · ${aging.idleDays}d` : "Stale";
+  // Wherever that badge is not on the card face, the title carries the
+  // AgingCue stage glyph instead, so a stale tint is never color-only (#1843).
+  const staleBadgeShown = !compact && urgency?.kind === "stale";
 
   // Pinned custom fields (#371, Direction A). Quick-edit is only wired when
   // the caller opted in by passing both boardId and onCardUpdated — the
@@ -333,21 +337,27 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // set. Height + right padding together reserve the avatar's box below the
   // title; without the min-height the 20px avatar (bottom-1.5) overlaps the
   // last title line by ~12px.
+  //
+  // Only what renders in the compact layout may count without `!compact`
+  // (#1843): counting an item the compact branch never renders gives a compact
+  // card an empty row and 6px of extra height.
   const hasMetadataRow =
-    (showDescriptionIndicator && !!card.description) ||
-    card.labels.length > 0 ||
-    card.checklist_total > 0 ||
-    (showAttachments && card.attachment_count > 0) ||
-    (showDueDatePill && dueInfo && !dueAlreadyInUrgency) ||
     !!card.assignee ||
-    (showWeight && card.weight > 1) ||
-    (showRecentlyMovedDot && isRecent && !recentAlreadyInUrgency) ||
-    !!movedLabel ||
-    !!urgency ||
-    (showPriorityBadge && card.priority !== "low") ||
-    hasVisibleCustomFieldChips ||
     card.blocker_count > 0 ||
-    (!compact && !!externalRef);
+    (showRecentlyMovedDot && isRecent && !recentAlreadyInUrgency) ||
+    (showPriorityBadge && card.priority !== "low") ||
+    (!compact && (
+      (showDescriptionIndicator && !!card.description) ||
+      card.labels.length > 0 ||
+      card.checklist_total > 0 ||
+      (showAttachments && card.attachment_count > 0) ||
+      (showDueDatePill && !!dueInfo && !dueAlreadyInUrgency) ||
+      (showWeight && card.weight > 1) ||
+      !!movedLabel ||
+      !!urgency ||
+      hasVisibleCustomFieldChips ||
+      !!externalRef
+    ));
 
   return (
     <>
@@ -430,7 +440,10 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
         </div>
       )}
       <div className={`relative px-2.5 ${compact ? "py-1.5" : "py-2"}${bodyOpacityClass ? ` ${bodyOpacityClass}` : ""}`}>
-        <p className={`leading-snug ${compact ? "text-xs text-fg line-clamp-1" : "text-sm text-fg line-clamp-2"}`}>{card.title}</p>
+        <p className={`leading-snug ${compact ? "text-xs text-fg line-clamp-1" : "text-sm text-fg line-clamp-2"}`}>
+          {!staleBadgeShown && <AgingCue stage={aging.stage} idleDays={aging.idleDays} />}
+          {card.title}
+        </p>
 
         {/* Description exists — indicator only; full content shown in card detail */}
 
@@ -480,8 +493,9 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
 
             {/* The non-compact (per-user layout) branch shows the full density-driven
                 metadata row. compact (single-line layout) keeps only the universal
-                bits — urgency badge, recently-moved dot, priority badge, assignee —
-                regardless of density. */}
+                bits — blocked glyph, recently-moved dot, priority badge, assignee —
+                regardless of density; it has no urgency badge, so its age cue is
+                the AgingCue glyph in the title (#1843). */}
             {!compact && (
               <>
                 {/* MR/PR link badge (#352) — first in the non-compact row so the
