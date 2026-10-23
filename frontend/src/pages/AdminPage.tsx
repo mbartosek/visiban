@@ -688,10 +688,17 @@ function SettingsTab({ currentUser }: { currentUser: User }) {
   // load, and after a save returns the canonical value. Depending on the field
   // rather than the whole settings object keeps an unrelated settings change
   // (a registration mode flip, say) from discarding an in-progress edit.
+  //
+  // This runs during render (React's "adjust state when a prop changes"
+  // pattern), not in a useEffect. An effect only runs after the commit that
+  // first shows the textarea, so an edit landing in that window was queued
+  // ahead of the late seed and silently overwritten by it (#1319).
   const serverMaintenanceMessage = settings?.maintenance_message;
-  useEffect(() => {
-    if (serverMaintenanceMessage !== undefined) setMaintenanceMessage(serverMaintenanceMessage);
-  }, [serverMaintenanceMessage]);
+  const [seededMessage, setSeededMessage] = useState<string | undefined>(undefined);
+  if (serverMaintenanceMessage !== undefined && serverMaintenanceMessage !== seededMessage) {
+    setSeededMessage(serverMaintenanceMessage);
+    setMaintenanceMessage(serverMaintenanceMessage);
+  }
 
   const handleChange = async (mode: RegistrationMode) => {
     if (!settings || saving) return;

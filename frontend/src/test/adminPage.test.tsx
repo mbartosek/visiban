@@ -190,6 +190,36 @@ function renderAdminPage(user: User = adminUser) {
   )
 }
 
+// The Settings tab renders in stages: the instance settings load first, then
+// EmailSettingsSection mounts and loads its own settings. Finding an element
+// from the first stage does not mean the page is idle: the commit that shows
+// it can still have mount effects queued, and on a slow CI runner the test can
+// act before they run (#1319, occurrence 4). Waiting for the last stage (an
+// SMTP field) means every load and mount effect has already run, so the test
+// starts from a page with no work in flight.
+async function renderAdminPageSettled(user: User = adminUser) {
+  const view = renderAdminPage(user)
+  await screen.findByLabelText('Host')
+  return view
+}
+
+// Burns `ms` of CPU a few microtask hops later, i.e. after waitFor has queued
+// its trailing setTimeout(0) drain. Node then runs that ripe timer before the
+// setImmediate task in which React flushes passive effects, so the test
+// resumes in the window between a commit and its effects. This is the event
+// loop ordering a loaded CI runner produces by accident (#1319).
+function stallEventLoopAfterWaitFor(ms = 5, hops = 20) {
+  let step = () => {
+    const end = performance.now() + ms
+    while (performance.now() < end) { /* deliberately busy */ }
+  }
+  for (let i = 0; i < hops; i++) {
+    const next = step
+    step = () => queueMicrotask(next)
+  }
+  step()
+}
+
 // ---------------------------------------------------------------------------
 // Tests: access control
 // ---------------------------------------------------------------------------
@@ -984,15 +1014,13 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('renders the toggle and the message field', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     expect(screen.getByLabelText('Maintenance mode')).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByLabelText(/Message/)).toBeInTheDocument()
   })
 
   it('tells the admin they are exempt', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     expect(
       screen.getByText(/Site admins are exempt and keep full read\/write access/)
     ).toBeInTheDocument()
@@ -1008,8 +1036,7 @@ describe('AdminPage — maintenance mode', () => {
 
   it('prompts for confirmation before enabling, and does not save yet', async () => {
     // Enabling is instance-wide and takes effect immediately for every user.
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => screen.getByText(/All non-admin users will immediately lose write access/))
@@ -1020,8 +1047,7 @@ describe('AdminPage — maintenance mode', () => {
     // The confirm strip appears below the toggle rather than replacing it,
     // matching the two existing inline-confirm instances in BoardSettingsModal.
     // The toggle is never optimistically flipped, so Cancel has nothing to revert.
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => screen.getByText('Confirm'))
@@ -1031,8 +1057,7 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('Cancel on the enable confirm returns focus to the Maintenance mode toggle (#1367)', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     const prompt = screen.getByText(/Enable maintenance mode\?/).parentElement as HTMLElement
@@ -1044,8 +1069,7 @@ describe('AdminPage — maintenance mode', () => {
 
   it('saves when the confirmation is accepted', async () => {
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: true })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Confirm'))
@@ -1056,8 +1080,7 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('cancelling leaves the toggle off and saves nothing', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     // Scoped to the maintenance confirm row: the Email (SMTP) section's
     // Save/Cancel footer also renders a "Cancel", so a bare getByText would
@@ -1076,8 +1099,7 @@ describe('AdminPage — maintenance mode', () => {
     // Disabling only restores normal service — there is nothing to warn about.
     mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: true })
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: false })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => {
@@ -1087,8 +1109,8 @@ describe('AdminPage — maintenance mode', () => {
 
   it('saves the notice on blur, not on every keystroke', async () => {
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
 
     fireEvent.change(field, { target: { value: 'Back by 5.' } })
     expect(mockPatchAdminSettings).not.toHaveBeenCalled()
@@ -1100,8 +1122,8 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('does not save on blur when the notice is unchanged', async () => {
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
     fireEvent.blur(field)
     await waitFor(() => screen.getByLabelText('Maintenance mode'))
     expect(mockPatchAdminSettings).not.toHaveBeenCalled()
@@ -1109,14 +1131,13 @@ describe('AdminPage — maintenance mode', () => {
 
   it('prompts for an ETA in the placeholder', async () => {
     // A notice with no end time is the top persona complaint.
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
     expect(field).toHaveAttribute('placeholder', expect.stringContaining('expect service back by'))
   })
 
   it('shows a live character count against the 1000-character cap', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
     expect(screen.getByText('0/1000')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'abc' } })
@@ -1124,17 +1145,58 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('clamps the notice at the cap the serializer enforces', async () => {
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
-    fireEvent.change(field, { target: { value: 'x'.repeat(1200) } })
-    expect((field as HTMLTextAreaElement).value).toHaveLength(1000)
+    await renderAdminPageSettled()
+    fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'x'.repeat(1200) } })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toHaveLength(1000)
     expect(screen.getByText('1000/1000')).toBeInTheDocument()
+  })
+
+  it('keeps an edit made before the mount effects run (#1319)', async () => {
+    // The CI failure in #1319 (occurrence 4): the notice buffer used to be
+    // seeded from the server value by a useEffect, which runs after the commit
+    // that first shows the field. An edit landing in between was queued ahead
+    // of the late seed, so the seed overwrote it and the field read ''.
+    renderAdminPage()
+    const field = await waitFor(() => {
+      const f = screen.getByLabelText(/Message/)
+      stallEventLoopAfterWaitFor()
+      return f
+    })
+    // Proves the test really is inside the window: EmailSettingsSection's
+    // mount effect, which fetches its settings, has not run yet.
+    expect(mockGetAdminEmailSettings).not.toHaveBeenCalled()
+    fireEvent.change(field, { target: { value: 'x'.repeat(1200) } })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toHaveLength(1000)
+    await screen.findByLabelText('Host')
+  })
+
+  it('re-seeds the field from the canonical value a save returns', async () => {
+    mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText<HTMLTextAreaElement>(/Message/)
+    fireEvent.change(field, { target: { value: '  Back by 5.  ' } })
+    fireEvent.blur(field)
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Back by 5.')
+    })
+  })
+
+  it('shows the saved notice in the very first render of the field (#1319)', async () => {
+    mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    renderAdminPage()
+    // Record the value the first time the field is seen, before any effect
+    // could patch it up; waitFor would otherwise just retry until it matches.
+    let firstSeen: string | undefined
+    await waitFor(() => {
+      firstSeen ??= screen.getByLabelText<HTMLTextAreaElement>(/Message/).value
+    })
+    expect(firstSeen).toBe('Back by 5.')
+    await screen.findByLabelText('Host')
   })
 
   it('rolls the toggle back when the save fails', async () => {
     mockPatchAdminSettings.mockRejectedValue(new Error('boom'))
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Confirm'))
