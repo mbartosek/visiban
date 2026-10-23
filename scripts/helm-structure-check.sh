@@ -1834,10 +1834,10 @@ self_test() {
     # 14 (#1360): the NOTES.txt opt-in warning disappears, so the opt-in is silent.
     "14 NOTES opt-in warning removed|templates/NOTES.txt|s/{{- if and \$unsafeHosts .Values.backend.settings.allowUnsafeHosts }}/{{- if false }}/"
     # 10 (#1360): the demo stops refusing the unsafe-hosts opt-in.
+    "10 demo unsafe-hosts opt-in guard removed|templates/_validate.tpl|s/{{- if .Values.backend.settings.allowUnsafeHosts -}}/{{- if false -}}/"
     # 15 (#1864): the guard narrows back to the subchart-only mode, so the default
     # bundled StatefulSet accepts the placeholder password again.
     "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.existingSecret) }}/{{- if and .Values.postgresql.subchartEnabled (not .Values.postgresql.auth.existingSecret) }}/"
-    "10 demo unsafe-hosts opt-in guard removed|templates/_validate.tpl|s/{{- if .Values.backend.settings.allowUnsafeHosts -}}/{{- if false -}}/"
   )
 
   for fixture in "${fixtures[@]}"; do
