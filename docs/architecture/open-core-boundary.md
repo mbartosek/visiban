@@ -266,11 +266,13 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 
 ### Overriding `REST_FRAMEWORK` from the enterprise settings include
 
-`enterprise.settings.*` is imported at the end of `visiban/settings.py`, so assigning a new `REST_FRAMEWORK` dict **replaces** the OSS one rather than merging into it. An enterprise override must start from a copy of the OSS dict (or update individual keys in place) and keep every key OSS relies on, including those added in 1.2:
+`visiban/settings.py` ends with `from enterprise.settings import *`, so assigning a new `REST_FRAMEWORK` dict **replaces** the OSS one rather than merging into it. An enterprise override must start from a copy of the OSS dict (or update individual keys in place) and keep every key OSS relies on, including those added in 1.2:
 
 - `DEFAULT_FILTER_BACKENDS` must keep `visiban.filters.CodedDjangoFilterBackend` (#1832). It answers a malformed query parameter with `{detail, code: "invalid_query_param"}`. Falling back to the stock `DjangoFilterBackend` changes that 400 body, which is part of the API contract.
 - `DEFAULT_THROTTLE_RATES` must keep every scope OSS defines (`user_search`, `card_query`, `board_import`, `invite_email_*`, `password_change`, and the rest). A view that names a scope missing from this dict fails with `ImproperlyConfigured` on its first throttled request. Add enterprise scopes by updating the dict, not by replacing it.
-- `DEFAULT_THROTTLE_CLASSES` must stay in place, or the per-scope rates apply to no one.
+- `DEFAULT_THROTTLE_CLASSES` must stay in place. Dropping it removes the global anon/user limits from every view that does not name its own throttle classes (scoped throttles are attached per view).
+- `NUM_PROXIES` keys every per-IP throttle and `visiban.utils.get_client_ip`. Dropping it re-keys per-IP throttles to the wrong proxy hop.
+- `PAGE_SIZE` (50) pairs with the pagination class below.
 - `DEFAULT_AUTHENTICATION_CLASSES` must keep `accounts.authentication.PATAuthentication` first, and `DEFAULT_PERMISSION_CLASSES` must keep `MustNotHavePendingPasswordChange`, `MustNotHavePendingUsernameChange` and `accounts.permissions.TokenHasScope`. Dropping them silently removes the forced-change gate and personal access token scopes ([Security Invariants](../development/security-invariants.md)).
 - `DEFAULT_PAGINATION_CLASS` (`visiban.pagination.OffsetCountPagination`), `DEFAULT_VERSIONING_CLASS`, `DEFAULT_VERSION`, `ALLOWED_VERSIONS` and `DEFAULT_SCHEMA_CLASS` are part of the public API contract.
 
@@ -282,3 +284,6 @@ from visiban.settings import REST_FRAMEWORK  # noqa: F401
 
 REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["my_enterprise_scope"] = "60/min"
 ```
+
+!!! note "Verification scope (#1876)"
+    The check that no enterprise `ANALYTICS_EXTENSIONS` panel lacks `min_role` covered only the `main` branch of `visiban/visiban-enterprise`, which held no panel registrations at the time. It says nothing about private forks or out-of-tree add-ons.
