@@ -129,6 +129,20 @@ describe('Card peek popover', () => {
     rerender(<CardItem card={card} peekSuppressed />)
     await act(async () => { vi.advanceTimersByTime(1000) })
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    // Flip back: a timer that was merely ignored (not cleared) would fire now.
+    rerender(<CardItem card={card} peekSuppressed={false} />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('does not start a peek on a suppressed mouseenter even after suppression lifts', async () => {
+    const card = makeCard()
+    const { container, rerender } = render(<CardItem card={card} peekSuppressed />)
+    fireEvent.mouseEnter(getCardEl(container))
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    rerender(<CardItem card={card} peekSuppressed={false} />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('does not re-show a peek when peekSuppressed flips back, until the next mouseenter', async () => {
