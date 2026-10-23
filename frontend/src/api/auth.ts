@@ -182,5 +182,6 @@ export const getAdminBoardInviteLinks = (params: { status: AdminBoardInviteStatu
   ).then((r) => r.data);
 
 export const revokeAdminBoardInviteLink = (id: number) =>
-  client.delete<AdminBoardInviteLink>(`/api/v1/admin/board-invite-links/${id}/`).then((r) => r.data);
+  // 204 No Content (#1867): no body, matching the board-scoped revoke.
+  client.delete<void>(`/api/v1/admin/board-invite-links/${id}/`).then(() => undefined);
 

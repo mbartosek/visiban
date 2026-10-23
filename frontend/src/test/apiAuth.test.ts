@@ -229,8 +229,8 @@ describe('admin invite link API', () => {
   })
 
   it('revokeAdminBoardInviteLink calls DELETE /api/v1/admin/board-invite-links/:id/ (#439)', async () => {
-    mockDelete.mockResolvedValue({ data: { id: 4, status: 'revoked' } })
-    expect(await revokeAdminBoardInviteLink(4)).toEqual({ id: 4, status: 'revoked' })
+    mockDelete.mockResolvedValue({ data: '', status: 204 })
+    expect(await revokeAdminBoardInviteLink(4)).toBeUndefined()
     expect(mockDelete).toHaveBeenCalledWith('/api/v1/admin/board-invite-links/4/')
   })
 

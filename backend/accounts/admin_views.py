@@ -1572,17 +1572,18 @@ class AdminBoardInviteLinkRevokeView(APIView):
 
     A site admin may revoke an invite on any board, whether or not they belong
     to it: this is the instance-wide kill switch for a leaked link. Same
-    refusals as the board-scoped revoke and the site-invite revoke — a consumed
-    invite keeps its "used" record (400), and revoking twice is a 400 — and the
-    same ``invite_link.revoked`` ``{id}`` event on the board's channel, so a
-    board admin with the invite list open sees it go.
+    contract as the board-scoped revoke (#1867): 204 with no body on success, 400
+    for a consumed invite (it keeps its "used" record), and 404 for an invite
+    that is unknown or already revoked (a revoked row is hidden, as there). It
+    publishes the same ``invite_link.revoked`` ``{id}`` event on the board's
+    channel, so a board admin with the invite list open sees it go.
     """
 
     permission_classes = _ADMIN_PERMISSIONS
 
     @extend_schema(
         responses={
-            200: AdminBoardInviteLinkSerializer,
+            204: None,
             400: inline_serializer(
                 name="AdminBoardInviteRevokeRefused", fields={"detail": drf_serializers.CharField()},
             ),
@@ -1598,12 +1599,15 @@ class AdminBoardInviteLinkRevokeView(APIView):
         with transaction.atomic():
             # Lock the bare row: PostgreSQL refuses FOR UPDATE on the nullable
             # side of the outer join select_related("created_by") would add.
-            link = BoardInviteLink.objects.select_for_update().filter(pk=pk).first()
+            # A revoked row is hidden (404), matching the board-scoped revoke.
+            link = BoardInviteLink.objects.select_for_update().filter(pk=pk, revoked_at__isnull=True).first()
             if link is None:
                 return Response({"detail": "Invite not found."}, status=status.HTTP_404_NOT_FOUND)
-            if link.revoked_at is not None or link.used_at is not None:
+            # Revoking a consumed invite would flip "used" to "revoked" and lose
+            # the record that it was redeemed.
+            if link.used_at is not None:
                 return Response(
-                    {"detail": "This invite is already used or revoked and cannot be revoked."},
+                    {"detail": "This invite has already been used and cannot be revoked."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             link.revoked_at = timezone.now()
@@ -1619,9 +1623,7 @@ class AdminBoardInviteLinkRevokeView(APIView):
             "board_invite.revoked pk=%d prefix=%s board_id=%d revoked_by=%d via=admin",
             link.pk, link.prefix, link.board_id, request.user.pk,
         )
-        link = BoardInviteLink.objects.select_related("board", "created_by").get(pk=link.pk)
-        context = {"registration_mode": get_registration_mode()}
-        return Response(AdminBoardInviteLinkSerializer(link, context=context).data)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AdminUserDeactivateView(APIView):

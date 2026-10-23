@@ -120,7 +120,7 @@ describe('BoardInvitesTab (#439)', () => {
   it('revoke confirms in an inserted row, and under Pending the row leaves the list', async () => {
     const user = userEvent.setup()
     mockList.mockResolvedValue(page([row({ id: 1 }), row({ id: 2, board_name: 'Roadmap', prefix: 'vbnb_rm2' })]))
-    mockRevoke.mockResolvedValue(row({ id: 1, status: 'revoked' }))
+    mockRevoke.mockResolvedValue(undefined)
     render(<BoardInvitesTab />)
     await user.click(await screen.findByRole('button', { name: 'Revoke invite vbnb_ab1 for Launch Plan' }))
     const prompt = screen.getByText(
@@ -134,10 +134,10 @@ describe('BoardInvitesTab (#439)', () => {
     expect(screen.getByText('1 invite')).toBeInTheDocument()
   })
 
-  it('under All a revoked row is replaced in place from the response', async () => {
+  it('under All a revoked row is updated in place (204 has no body)', async () => {
     const user = userEvent.setup()
     mockList.mockResolvedValue(page([row({ id: 1, delivery: 'email' })]))
-    mockRevoke.mockResolvedValue(row({ id: 1, delivery: 'email', status: 'revoked' }))
+    mockRevoke.mockResolvedValue(undefined)
     render(<BoardInvitesTab />)
     await screen.findByText('Launch Plan')
     await user.click(screen.getByRole('button', { name: /^Status: / }))
@@ -185,6 +185,20 @@ describe('BoardInvitesTab (#439)', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Board Invites' })).toHaveFocus())
   })
 
+  it('a 404 (already revoked elsewhere) is handled like a 400: message and refetch', async () => {
+    const user = userEvent.setup()
+    mockList.mockResolvedValue(page([row()]))
+    mockRevoke.mockRejectedValue({ response: { status: 404 } })
+    render(<BoardInvitesTab />)
+    await user.click(await screen.findByRole('button', { name: /Revoke invite vbnb_ab1/ }))
+    mockList.mockResolvedValue(page([]))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(
+      await screen.findByText("This invite is no longer pending, so it can't be revoked."),
+    ).toBeInTheDocument()
+    expect(mockList).toHaveBeenCalledTimes(2)
+  })
+
   it('any other failure keeps the prompt open with the buttons re-enabled', async () => {
     const user = userEvent.setup()
     mockList.mockResolvedValue(page([row()]))
@@ -228,7 +242,7 @@ describe('BoardInvitesTab — gate fixes (#439)', () => {
     mockList.mockResolvedValueOnce(page([row({ id: 3, board_name: 'Last' })], { count: 3, page_size: 2, offset: 2 }))
     await user.click(screen.getByRole('button', { name: 'Next →' }))
     await screen.findByText('Last')
-    mockRevoke.mockResolvedValue(row({ id: 3, status: 'revoked' }))
+    mockRevoke.mockResolvedValue(undefined)
     mockList.mockResolvedValueOnce(page([row({ id: 1 }), row({ id: 2, board_name: 'Second' })], { count: 2, page_size: 2 }))
     await user.click(screen.getByRole('button', { name: /Revoke invite vbnb_ab1 for Last/ }))
     await user.click(screen.getByRole('button', { name: 'Confirm' }))
@@ -240,7 +254,7 @@ describe('BoardInvitesTab — gate fixes (#439)', () => {
   it('a successful revoke moves focus to the heading', async () => {
     const user = userEvent.setup()
     mockList.mockResolvedValue(page([row(), row({ id: 2, board_name: 'Roadmap', prefix: 'vbnb_rm2' })]))
-    mockRevoke.mockResolvedValue(row({ status: 'revoked' }))
+    mockRevoke.mockResolvedValue(undefined)
     render(<BoardInvitesTab />)
     await user.click(await screen.findByRole('button', { name: /Revoke invite vbnb_ab1/ }))
     await user.click(screen.getByRole('button', { name: 'Confirm' }))
