@@ -3297,11 +3297,10 @@ class BoardFullSerializer(serializers.ModelSerializer):
         Caches the full GroupMembership rows (with ``select_related("user")``)
         on ``_cached_group_memberships`` so that ``get_members()`` can iterate
         them directly without issuing a second query for the same group_id
-        filter (#927).  The user-id set required by ``_get_effective_member_ids``
-        is derived from the same list and stored on
-        ``_cached_group_member_ids`` to preserve the existing utils.py contract.
+        filter (#927).  ``_get_effective_member_ids`` and
+        ``_get_assignable_member_ids`` read the same cached rows.
         """
-        if instance.group_id and not hasattr(instance, "_cached_group_member_ids"):
+        if instance.group_id and not hasattr(instance, "_cached_group_memberships"):
             from groups.models import GroupMembership as _GM, Group as _Group
             from groups.models import _GROUP_TRAVERSAL_MAX_DEPTH
             group_obj = instance.group
@@ -3324,9 +3323,6 @@ class BoardFullSerializer(serializers.ModelSerializer):
                 )
             else:
                 instance._cached_group_memberships = []
-            instance._cached_group_member_ids = {
-                gm.user_id for gm in instance._cached_group_memberships
-            }
         return super().to_representation(instance)
 
     # Admin requesters additionally receive contact_email/notes (the admin
@@ -3476,9 +3472,22 @@ class BoardFullSerializer(serializers.ModelSerializer):
                         .filter(group_id__in=ancestor_ids)
                         .select_related("user")
                     )
+                # Same rule as get_board_role: the nearest ancestor group the
+                # user belongs to decides the role, and a stored group role
+                # outside the enum is skipped. A user with any explicit board
+                # row (even an out-of-enum one, listed so admins can remove it)
+                # is already in ``seen`` and keeps that row.
+                from groups.models import GroupMembership as _GMRole
+                rank = {gid: i for i, gid in enumerate(ancestor_ids)}
+                nearest = {}
                 for gm in cached_gms:
-                    if gm.user_id not in seen:
-                        seen[gm.user_id] = {"id": None, "user": gm.user, "role": gm.role, "is_moderator": False, "joined_at": gm.joined_at}
+                    if gm.user_id in seen or gm.role not in _GMRole.Role.values:
+                        continue
+                    cur = nearest.get(gm.user_id)
+                    if cur is None or rank.get(gm.group_id, len(rank)) < rank.get(cur.group_id, len(rank)):
+                        nearest[gm.user_id] = gm
+                for uid, gm in nearest.items():
+                    seen[uid] = {"id": None, "user": gm.user, "role": gm.role, "is_moderator": False, "joined_at": gm.joined_at}
 
         # Include the board owner if not already present
         if obj.owner_id and obj.owner_id not in seen:

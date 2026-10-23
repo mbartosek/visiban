@@ -270,7 +270,7 @@ class ClearViewerAssigneesCommandTests(TestCase):
     def test_board_owner_without_non_viewer_membership_not_cleared(self):
         """Board owner is exempt even if they hold only a viewer membership.
 
-        The command adds board.owner_id to non_viewer_ids unconditionally.
+        The command never selects the owner, who is always assignable.
         This covers the edge case where the owner's direct membership is VIEWER.
         """
         # Create a fresh board where the owner has only a VIEWER membership
@@ -296,6 +296,309 @@ class ClearViewerAssigneesCommandTests(TestCase):
 
         self._call()
 
-        # Owner is in non_viewer_ids via owner_id exemption — card must be kept
+        # The owner is always assignable, so the card must be kept
         owner_card.refresh_from_db()
         self.assertEqual(owner_card.assignee_id, owner2.id)
+
+
+class MemberSetLadderTests(TestCase):
+    """The assignable and effective member sets follow the same role-resolution
+    ladder as get_board_role: an explicit board row is judged alone, and group
+    inheritance applies only to users with no explicit row."""
+
+    def setUp(self):
+        from groups.models import Group, GroupMembership
+
+        self.GM = GroupMembership
+        self.owner = User.objects.create_user(username="ladder_owner", password="pass")
+        self.parent = Group.objects.create(name="Ladder parent", owner=self.owner)
+        self.child = Group.objects.create(name="Ladder child", owner=self.owner, parent=self.parent)
+        self.board, _col, _swim = _make_board(self.owner)
+        self.board.group = self.child
+        self.board.save()
+
+    def _user(self, name):
+        return User.objects.create_user(username=name, password="pass")
+
+    def _ids(self):
+        from boards.utils import _get_assignable_member_ids, _get_effective_member_ids
+
+        board = Board.objects.get(pk=self.board.pk)
+        return _get_assignable_member_ids(board), _get_effective_member_ids(board)
+
+    def test_group_member_with_explicit_viewer_row_is_not_assignable(self):
+        u = self._user("grp_member_viewer_row")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+        BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.VIEWER)
+        assignable, effective = self._ids()
+        self.assertNotIn(u.id, assignable)
+        self.assertIn(u.id, effective)  # a viewer still has read access
+
+    def test_group_member_without_explicit_row_stays_assignable(self):
+        u = self._user("grp_member_no_row")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+        assignable, effective = self._ids()
+        self.assertIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_group_viewer_is_not_assignable_but_is_effective(self):
+        u = self._user("grp_viewer")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        assignable, effective = self._ids()
+        self.assertNotIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_ancestor_group_member_is_assignable(self):
+        u = self._user("ancestor_member")
+        self.GM.objects.create(group=self.parent, user=u, role=self.GM.Role.MEMBER)
+        assignable, effective = self._ids()
+        self.assertIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_nearest_ancestor_role_decides(self):
+        """Viewer in the child group, member in the parent: the nearest group
+        wins, as in get_board_role, so the user is not assignable."""
+        u = self._user("nearest_viewer")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        self.GM.objects.create(group=self.parent, user=u, role=self.GM.Role.MEMBER)
+        assignable, _ = self._ids()
+        self.assertNotIn(u.id, assignable)
+
+    def test_explicit_member_row_overrides_group_viewer(self):
+        u = self._user("explicit_member")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.MEMBER)
+        assignable, _ = self._ids()
+        self.assertIn(u.id, assignable)
+
+    def test_out_of_enum_row_is_excluded_from_both_sets(self):
+        """A stored role outside the enum grants no access, so the user is
+        neither assignable nor a notification recipient, group or not."""
+        direct = self._user("bad_role_direct")
+        BoardMembership.objects.create(board=self.board, user=direct, role="bogus")
+        grouped = self._user("bad_role_grouped")
+        self.GM.objects.create(group=self.child, user=grouped, role=self.GM.Role.ADMIN)
+        BoardMembership.objects.create(board=self.board, user=grouped, role="bogus")
+        assignable, effective = self._ids()
+        for u in (direct, grouped):
+            self.assertNotIn(u.id, assignable)
+            self.assertNotIn(u.id, effective)
+
+    def test_sets_agree_with_get_board_role(self):
+        from boards.permissions import get_board_role
+
+        users = {}
+        for name, grole, brole in [
+            ("a", "member", "viewer"),
+            ("b", "member", None),
+            ("c", "viewer", None),
+            ("d", "admin", "bogus"),
+            ("e", "viewer", "collaborator"),
+        ]:
+            u = self._user(f"agree_{name}")
+            self.GM.objects.create(group=self.child, user=u, role=grole)
+            if brole:
+                BoardMembership.objects.create(board=self.board, user=u, role=brole)
+            users[u.id] = u
+        assignable, effective = self._ids()
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        for uid, u in users.items():
+            role = get_board_role(u, board)
+            self.assertEqual(uid in effective, role is not None, u.username)
+            self.assertEqual(
+                uid in assignable,
+                role in (BoardMembership.Role.ADMIN, BoardMembership.Role.MEMBER, BoardMembership.Role.COLLABORATOR),
+                u.username,
+            )
+
+    def test_multi_ancestor_and_invalid_group_role_agree_with_get_board_role(self):
+        from boards.permissions import get_board_role
+
+        users = {}
+        for name, child_role, parent_role in [
+            ("m1", "viewer", "member"),    # nearest viewer wins
+            ("m2", "member", "viewer"),    # nearest member wins
+            ("m3", "bogus", "member"),     # invalid nearest role skipped
+            ("m4", "bogus", None),         # invalid only: no access
+            ("m5", "bogus", "viewer"),     # invalid skipped, viewer decides
+        ]:
+            u = self._user(f"anc_{name}")
+            self.GM.objects.create(group=self.child, user=u, role=child_role)
+            if parent_role:
+                self.GM.objects.create(group=self.parent, user=u, role=parent_role)
+            users[u.id] = u
+        assignable, effective = self._ids()
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        for uid, u in users.items():
+            role = get_board_role(u, board)
+            self.assertEqual(uid in effective, role is not None, u.username)
+            self.assertEqual(
+                uid in assignable,
+                role in (BoardMembership.Role.ADMIN, BoardMembership.Role.MEMBER, BoardMembership.Role.COLLABORATOR),
+                u.username,
+            )
+
+    def test_query_count_is_bounded_in_user_count(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from boards.utils import _get_assignable_member_ids
+
+        for i in range(8):
+            u = self._user(f"bulk_{i}")
+            self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+            BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.VIEWER)
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        with CaptureQueriesContext(connection) as ctx:
+            _get_assignable_member_ids(board)
+        self.assertLessEqual(len(ctx), 3)
+
+
+class ClearAssigneesLadderTests(TestCase):
+    def test_clears_assignee_whose_explicit_viewer_row_overrides_group_role(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="clr_owner", password="pass")
+        u = User.objects.create_user(username="clr_user", password="pass")
+        group = Group.objects.create(name="Clr group", owner=owner)
+        GroupMembership.objects.create(group=group, user=u, role=GroupMembership.Role.MEMBER)
+        board, col, swim = _make_board(owner)
+        board.group = group
+        board.save()
+        BoardMembership.objects.create(board=board, user=u, role=BoardMembership.Role.VIEWER)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = u
+        card.save()
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+    def _assigned_card(self, owner, board, col, swim, user):
+        card = _make_card(board, col, swim, owner)
+        card.assignee = user
+        card.save()
+        return card
+
+    def test_clears_assignee_whose_only_access_is_a_group_viewer_role(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="gv_owner", password="pass")
+        u = User.objects.create_user(username="gv_user", password="pass")
+        group = Group.objects.create(name="Gv group", owner=owner)
+        GroupMembership.objects.create(group=group, user=u, role=GroupMembership.Role.VIEWER)
+        board, col, swim = _make_board(owner)
+        board.group = group
+        board.save()
+        card = self._assigned_card(owner, board, col, swim, u)
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+    def test_clears_assignee_whose_nearest_group_role_is_viewer(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="ng_owner", password="pass")
+        u = User.objects.create_user(username="ng_user", password="pass")
+        parent = Group.objects.create(name="Ng parent", owner=owner)
+        child = Group.objects.create(name="Ng child", owner=owner, parent=parent)
+        GroupMembership.objects.create(group=child, user=u, role=GroupMembership.Role.VIEWER)
+        GroupMembership.objects.create(group=parent, user=u, role=GroupMembership.Role.MEMBER)
+        board, col, swim = _make_board(owner)
+        board.group = child
+        board.save()
+        card = self._assigned_card(owner, board, col, swim, u)
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+
+class MemberSetImplicitAccessTests(TestCase):
+    """Owner and instance-wide content access outrank any explicit row."""
+
+    def test_owner_and_all_content_user_stay_in_both_sets_despite_odd_rows(self):
+        from boards.utils import _get_assignable_member_ids, _get_effective_member_ids
+
+        owner = User.objects.create_user(username="imp_owner", password="pass")
+        admin = User.objects.create_user(
+            username="imp_all", password="pass", can_access_all_content=True
+        )
+        board, _c, _s = _make_board(owner)
+        BoardMembership.objects.filter(board=board, user=owner).update(role="viewer")
+        BoardMembership.objects.create(board=board, user=admin, role="bogus")
+        board = Board.objects.get(pk=board.pk)
+        for fn in (_get_assignable_member_ids, _get_effective_member_ids):
+            ids = fn(board)
+            self.assertIn(owner.id, ids)
+            self.assertIn(admin.id, ids)
+            self.assertIn(admin.id, fn(board, site_admin_ids={admin.id}))
+
+
+
+class ClearAssigneesScopeTests(TestCase):
+    def test_keeps_assignee_who_is_no_longer_a_member(self):
+        owner = User.objects.create_user(username="fm_owner", password="pass")
+        former = User.objects.create_user(username="fm_former", password="pass")
+        board, col, swim = _make_board(owner)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = former  # no membership at all
+        card.save()
+        out = io.StringIO()
+        call_command("clear_viewer_assignees", stdout=out)
+        card.refresh_from_db()
+        self.assertEqual(card.assignee_id, former.id)
+
+    def test_still_clears_viewer_assignee(self):
+        owner = User.objects.create_user(username="cv_owner", password="pass")
+        viewer = User.objects.create_user(username="cv_viewer", password="pass")
+        board, col, swim = _make_board(owner)
+        BoardMembership.objects.create(board=board, user=viewer, role=BoardMembership.Role.VIEWER)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = viewer
+        card.save()
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+
+class FullRosterLadderTests(TestCase):
+    """/full/ roster roles match get_board_role for group-inherited roles.
+
+    Display differences for explicit rows (an owner or an out-of-enum row) are
+    tracked in #1905.
+    """
+
+    def test_full_roster_roles_match_get_board_role(self):
+        from groups.models import Group, GroupMembership
+        from boards.permissions import get_board_role
+
+        owner = User.objects.create_user(username="ros_owner", password="pass")
+        parent = Group.objects.create(name="Ros parent", owner=owner)
+        child = Group.objects.create(name="Ros child", owner=owner, parent=parent)
+        board, _c, _s = _make_board(owner)
+        board.group = child
+        board.save()
+        u1, u2, u3, u4 = (User.objects.create_user(username=f"ros_u{i}", password="pass") for i in range(1, 5))
+        GroupMembership.objects.create(group=child, user=u1, role="viewer")
+        GroupMembership.objects.create(group=parent, user=u1, role="member")
+        GroupMembership.objects.create(group=child, user=u3, role="member")
+        GroupMembership.objects.create(group=parent, user=u3, role="viewer")
+        BoardMembership.objects.create(board=board, user=u2, role="bogus")
+        GroupMembership.objects.create(group=child, user=u2, role="admin")
+        # invalid nearest group role is skipped; the farther valid one decides
+        GroupMembership.objects.create(group=child, user=u4, role="bogus")
+        GroupMembership.objects.create(group=parent, user=u4, role="member")
+        client = APIClient()
+        client.force_authenticate(owner)
+        with patch(PATCH_BROADCAST):
+            resp = client.get(f"/api/v1/boards/{board.id}/full/")
+        self.assertEqual(resp.status_code, 200)
+        roster = {m["user"]["id"]: m["role"] for m in resp.json()["members"]}
+        fresh = Board.objects.select_related("group__parent").get(pk=board.pk)
+        for u in (u1, u3, u4):
+            self.assertEqual(roster.get(u.id), get_board_role(u, fresh), u.username)
+        self.assertEqual(roster[u1.id], "viewer")
+        self.assertEqual(roster[u3.id], "member")
+        self.assertEqual(roster[u4.id], "member")
+        # out-of-enum explicit row stays listed so admins can remove it
+        # (display difference vs get_board_role tracked in #1905)
+        self.assertEqual(roster[u2.id], "bogus")
