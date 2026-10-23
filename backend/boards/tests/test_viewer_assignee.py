@@ -299,3 +299,129 @@ class ClearViewerAssigneesCommandTests(TestCase):
         # Owner is in non_viewer_ids via owner_id exemption — card must be kept
         owner_card.refresh_from_db()
         self.assertEqual(owner_card.assignee_id, owner2.id)
+
+
+class MemberSetLadderTests(TestCase):
+    """The assignable and effective member sets follow the same role-resolution
+    ladder as get_board_role: an explicit board row is judged alone, and group
+    inheritance applies only to users with no explicit row."""
+
+    def setUp(self):
+        from groups.models import Group, GroupMembership
+
+        self.GM = GroupMembership
+        self.owner = User.objects.create_user(username="ladder_owner", password="pass")
+        self.parent = Group.objects.create(name="Ladder parent", owner=self.owner)
+        self.child = Group.objects.create(name="Ladder child", owner=self.owner, parent=self.parent)
+        self.board, _col, _swim = _make_board(self.owner)
+        self.board.group = self.child
+        self.board.save()
+
+    def _user(self, name):
+        return User.objects.create_user(username=name, password="pass")
+
+    def _ids(self):
+        from boards.utils import _get_assignable_member_ids, _get_effective_member_ids
+
+        board = Board.objects.get(pk=self.board.pk)
+        return _get_assignable_member_ids(board), _get_effective_member_ids(board)
+
+    def test_group_member_with_explicit_viewer_row_is_not_assignable(self):
+        u = self._user("grp_member_viewer_row")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+        BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.VIEWER)
+        assignable, effective = self._ids()
+        self.assertNotIn(u.id, assignable)
+        self.assertIn(u.id, effective)  # a viewer still has read access
+
+    def test_group_member_without_explicit_row_stays_assignable(self):
+        u = self._user("grp_member_no_row")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+        assignable, effective = self._ids()
+        self.assertIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_group_viewer_is_not_assignable_but_is_effective(self):
+        u = self._user("grp_viewer")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        assignable, effective = self._ids()
+        self.assertNotIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_ancestor_group_member_is_assignable(self):
+        u = self._user("ancestor_member")
+        self.GM.objects.create(group=self.parent, user=u, role=self.GM.Role.MEMBER)
+        assignable, effective = self._ids()
+        self.assertIn(u.id, assignable)
+        self.assertIn(u.id, effective)
+
+    def test_nearest_ancestor_role_decides(self):
+        """Viewer in the child group, member in the parent: the nearest group
+        wins, as in get_board_role, so the user is not assignable."""
+        u = self._user("nearest_viewer")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        self.GM.objects.create(group=self.parent, user=u, role=self.GM.Role.MEMBER)
+        assignable, _ = self._ids()
+        self.assertNotIn(u.id, assignable)
+
+    def test_explicit_member_row_overrides_group_viewer(self):
+        u = self._user("explicit_member")
+        self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.VIEWER)
+        BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.MEMBER)
+        assignable, _ = self._ids()
+        self.assertIn(u.id, assignable)
+
+    def test_out_of_enum_row_is_excluded_from_both_sets(self):
+        """A stored role outside the enum grants no access, so the user is
+        neither assignable nor a notification recipient, group or not."""
+        direct = self._user("bad_role_direct")
+        BoardMembership.objects.create(board=self.board, user=direct, role="bogus")
+        grouped = self._user("bad_role_grouped")
+        self.GM.objects.create(group=self.child, user=grouped, role=self.GM.Role.ADMIN)
+        BoardMembership.objects.create(board=self.board, user=grouped, role="bogus")
+        assignable, effective = self._ids()
+        for u in (direct, grouped):
+            self.assertNotIn(u.id, assignable)
+            self.assertNotIn(u.id, effective)
+
+    def test_sets_agree_with_get_board_role(self):
+        from boards.permissions import get_board_role
+
+        users = {}
+        for name, grole, brole in [
+            ("a", "member", "viewer"),
+            ("b", "member", None),
+            ("c", "viewer", None),
+            ("d", "admin", "bogus"),
+            ("e", "viewer", "collaborator"),
+        ]:
+            u = self._user(f"agree_{name}")
+            self.GM.objects.create(group=self.child, user=u, role=grole)
+            if brole:
+                BoardMembership.objects.create(board=self.board, user=u, role=brole)
+            users[u.id] = u
+        assignable, effective = self._ids()
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        for uid, u in users.items():
+            role = get_board_role(u, board)
+            self.assertEqual(uid in effective, role is not None, u.username)
+            self.assertEqual(
+                uid in assignable,
+                role in (BoardMembership.Role.ADMIN, BoardMembership.Role.MEMBER, BoardMembership.Role.COLLABORATOR),
+                u.username,
+            )
+
+    def test_query_count_is_bounded_in_user_count(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from boards.utils import _get_assignable_member_ids
+
+        for i in range(8):
+            u = self._user(f"bulk_{i}")
+            self.GM.objects.create(group=self.child, user=u, role=self.GM.Role.MEMBER)
+            BoardMembership.objects.create(board=self.board, user=u, role=BoardMembership.Role.VIEWER)
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        with CaptureQueriesContext(connection) as ctx:
+            _get_assignable_member_ids(board)
+        self.assertLessEqual(len(ctx), 3)
