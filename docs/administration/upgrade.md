@@ -374,6 +374,75 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     Add `--board <id>` to limit it to one board. Assignees who are no longer members of a
     board are left in place (#1866).
 
+!!! warning "Helm: the placeholder PostgreSQL password fails the render"
+    As a deliberate default change before 1.2 GA, `helm install`, `helm upgrade`
+    and `helm template` now **fail** while the bundled PostgreSQL
+    (`postgresql.enabled=true`, the default) has an empty or placeholder
+    (`visiban`) `postgresql.auth.password`. The check is skipped only when both
+    `postgresql.auth.existingSecret` and `secret.existingSecret` are set. Earlier
+    chart versions refused the placeholder only with `postgresql.subchartEnabled=true`
+    (#1864). The subchart mode itself does not render at all today because of an
+    unrelated values collision tracked in #1911.
+
+    **Who is affected.** Installs that never set `postgresql.auth.password`. An
+    external database (`postgresql.enabled=false`) and installs that already set
+    their own password are not affected. If you are affected, `helm upgrade` stops
+    before anything is applied and the running release keeps serving.
+
+    **What to do, before upgrading.** PostgreSQL reads `POSTGRES_PASSWORD` only
+    when it first initializes an empty data directory, so changing the value in
+    Helm alone would leave the database on the old password and the backend
+    unable to connect. Work in this order:
+
+    1. Back up the database:
+
+        ```bash
+        kubectl -n visiban exec <release>-postgresql-0 -- \
+          pg_dump -U visiban visiban > visiban-backup-$(date +%Y%m%d%H%M%S).sql
+        ```
+
+    2. Prove the new render passes **before** touching the database. Use the new
+       password and every other flag this section lists (for example the Valkey
+       flags with `--reuse-values`, below):
+
+        ```bash
+        NEW_PW="$(openssl rand -hex 24)"
+        helm upgrade <release> helm/visiban -n visiban --reuse-values --dry-run \
+          --set-string postgresql.auth.password="$NEW_PW" <your other flags>
+        ```
+
+    3. Change the database role, then upgrade with the same value and flags:
+
+        ```bash
+        kubectl -n visiban exec -i <release>-postgresql-0 -- \
+          psql -U visiban -d visiban -v pw="$NEW_PW" <<'SQL'
+        ALTER ROLE visiban PASSWORD :'pw';
+        SQL
+        helm upgrade <release> helm/visiban -n visiban --reuse-values \
+          --set-string postgresql.auth.password="$NEW_PW" <your other flags>
+        ```
+
+    Use the role name from `postgresql.auth.username` if you changed it, and
+    prefer a gitignored values file to `--set-string` for the password.
+
+    **The window.** Between the `ALTER ROLE` and the end of the `helm upgrade`
+    rollout, running backend pods still hold the old password in their
+    environment, so any new database connection (a new worker, a restart, a
+    scheduled-job pod) fails. Run both steps back to back.
+
+    **Rollback.** If the upgrade fails, restore the previous password with
+    `ALTER ROLE <username> PASSWORD '<previous>'`; the existing pods keep working.
+    The same applies if you use `helm upgrade --atomic` (which rolls the release
+    back on failure) or run `helm rollback` later: both put the chart-managed
+    `database-url` back to the old password, so change the role back to match
+    first.
+
+    **`postgresql.auth.existingSecret`** does not feed the backend's database URL:
+    the chart builds it from `postgresql.auth.password`. It clears the check only
+    together with `secret.existingSecret` supplying a matching `database-url` (see
+    [Kubernetes](../getting-started/kubernetes.md)). Chart behavior is tracked in
+    #1910.
+
 !!! note "Deactivate-user `transfers` errors are now keyed by item index"
     On `POST /api/v1/admin/users/{id}/deactivate/`, a `400` for a malformed `transfers` item now
     returns `transfers` as an object keyed by zero-based item index, listing only the invalid

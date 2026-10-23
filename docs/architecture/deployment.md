@@ -225,7 +225,7 @@ helm install visiban helm/visiban \
 | `secret.existingSecret` | `""` | Name of a pre-existing K8s Secret — when set, the chart does not create its own |
 | `secret.djangoSecretKey` | `change-me-in-production` | Django `SECRET_KEY` (ignored when `existingSecret` is set) |
 | `postgresql.auth.existingSecret` | `""` | Name of a pre-existing K8s Secret for the PG password (key: `password`) |
-| `postgresql.auth.password` | `visiban` | Database password (ignored when `existingSecret` is set) |
+| `postgresql.auth.password` | `visiban` | Database password (ignored when `existingSecret` is set). The default is a placeholder: the render fails until you set your own password (`postgresql.auth.existingSecret` clears it only together with `secret.existingSecret` supplying a matching `database-url`, #1910) |
 | `backend.image.tag` | current release tag (e.g. `vX.Y.Z`) | Backend image tag — bumped by `scripts/release.sh` on every release |
 | `frontend.image.tag` | current release tag (e.g. `vX.Y.Z`) | Frontend image tag — bumped by `scripts/release.sh` on every release |
 | `postgresql.enabled` | `true` | Use bundled PostgreSQL 17; set `false` to use `externalDatabase` |
@@ -333,6 +333,11 @@ kubectl port-forward -n visiban svc/<release-name>-backend 8000:8000
 helm upgrade visiban helm/visiban --reuse-values
 ```
 
+An install that still uses the default PostgreSQL password (`visiban`, or an empty
+one) must change the database role's password and set `postgresql.auth.password`
+first, or the render fails. See the
+[upgrade guide](../administration/upgrade.md#upgrading-to-12x).
+
 The first `--reuse-values` upgrade onto chart 0.5.0 or later, from a release that
 used the Bitnami Valkey subchart, also needs
 `--set valkey.image.repository=valkey/valkey --set valkey.image.tag=8-alpine`
@@ -355,9 +360,12 @@ The bundled PostgreSQL subchart does not perform in-place major version upgrades
    kubectl delete pvc -n visiban data-visiban-postgresql-0
    ```
 
-3. **Upgrade the Helm release** — this provisions a fresh PostgreSQL 17 pod:
+3. **Upgrade the Helm release** — this provisions a fresh PostgreSQL 17 pod. The
+   new data directory takes its password from `postgresql.auth.password`, which must
+   be your own value (the placeholder fails the render):
    ```bash
-   helm upgrade visiban helm/visiban --reuse-values
+   helm upgrade visiban helm/visiban --reuse-values \
+     --set-string postgresql.auth.password="$PG_PASSWORD"
    ```
 
 4. **Wait for PostgreSQL to become ready**, then restore:

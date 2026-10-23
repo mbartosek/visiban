@@ -1965,6 +1965,7 @@ helm-lint:
     # committed defaults without baking real values into values.yaml.
     HELM_CI_OVERRIDES: >-
       --set-string secret.djangoSecretKey=ci-not-a-real-secret
+      --set-string postgresql.auth.password=ci-not-a-real-password
       --set backend.email.backend=console
       --set backend.settings.allowedHosts=ci.visiban.local
   script:
@@ -1976,6 +1977,7 @@ helm-lint:
     - |
       helm lint helm/visiban -f helm/visiban/values-prod.yaml \
         --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+        --set-string postgresql.auth.password=ci-not-a-real-password \
         --set backend.settings.allowedHosts=ci.visiban.local \
         --set backend.email.fromAddress=noreply@visiban.local \
         --set backend.email.host=smtp.visiban.local
@@ -1985,6 +1987,7 @@ helm-lint:
     - |
       helm lint helm/visiban -f helm/visiban/values-demo.yaml \
         --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+        --set-string postgresql.auth.password=ci-not-a-real-password \
         --set-string demo.loginHint.password=ci-visitor-pw-1 \
         --set-string demo.adminPassword=ci-admin-password-1 \
         --set-string demo.memberPassword=ci-member-password-1
@@ -2041,6 +2044,7 @@ helm-template:
     - |
       helm template visiban helm/visiban \
         --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+        --set-string postgresql.auth.password=ci-not-a-real-password \
         --set backend.settings.allowedHosts=ci.visiban.local \
         --set backend.email.backend=console \
         --set networkPolicy.enabled=true \
@@ -2058,12 +2062,14 @@ helm-template:
     - |
       helm template visiban helm/visiban -f helm/visiban/values-dev.yaml \
         --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+        --set-string postgresql.auth.password=ci-not-a-real-password \
         --set backend.settings.allowedHosts=ci.visiban.local \
         > /tmp/rendered-dev.yaml
     - kubeconform -strict -summary -ignore-missing-schemas /tmp/rendered-dev.yaml
     - |
       helm template visiban helm/visiban -f helm/visiban/values-prod.yaml \
         --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+        --set-string postgresql.auth.password=ci-not-a-real-password \
         --set backend.settings.allowedHosts=ci.visiban.local \
         --set backend.email.fromAddress=noreply@visiban.local \
         --set backend.email.host=smtp.visiban.local \
@@ -2077,6 +2083,7 @@ helm-template:
       for reset in true false; do
         helm template visiban helm/visiban -f helm/visiban/values-demo.yaml \
           --set-string secret.djangoSecretKey=ci-not-a-real-secret \
+          --set-string postgresql.auth.password=ci-not-a-real-password \
           --set-string demo.loginHint.password=ci-visitor-pw-1 \
           --set-string demo.adminPassword=ci-admin-password-1 \
           --set-string demo.memberPassword=ci-member-password-1 \

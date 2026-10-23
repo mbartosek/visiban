@@ -18,6 +18,7 @@ From the published OCI chart:
 helm install visiban oci://ghcr.io/visiban/charts/visiban \
   --namespace visiban --create-namespace \
   --set-string secret.djangoSecretKey="$(python3 -c 'import secrets; print(secrets.token_hex(50))')" \
+  --set-string postgresql.auth.password="$(openssl rand -hex 24)" \
   --set ingress.host=boards.example.com \
   --set backend.settings.allowedHosts=boards.example.com \
   --set backend.settings.corsAllowedOrigins=https://boards.example.com \

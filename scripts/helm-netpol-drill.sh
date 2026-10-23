@@ -259,6 +259,7 @@ release_args() {
 --set frontend.image.tag=$TAG
 --set frontend.image.pullPolicy=Never
 --set-string secret.djangoSecretKey=netpol-drill-key-aaaaaaaaaaaaaaaaaaaaaaaa
+--set-string postgresql.auth.password=netpol-drill-db-password
 --set backend.settings.allowedHosts=netpol.visiban.local
 --set backend.settings.corsAllowedOrigins=http://netpol.visiban.local
 --set backend.settings.frontendUrl=http://netpol.visiban.local

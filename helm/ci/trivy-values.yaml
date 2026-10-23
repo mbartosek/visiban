@@ -8,6 +8,9 @@
 # different render shape and is not scanned (see docs/development/ci-gates.md).
 secret:
   djangoSecretKey: trivy-scan-not-a-real-secret
+postgresql:
+  auth:
+    password: trivy-scan-not-a-real-password
 backend:
   settings:
     allowedHosts: trivy-scan.visiban.local

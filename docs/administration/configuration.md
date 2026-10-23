@@ -94,7 +94,7 @@ For production clusters, you can bring your own Kubernetes Secret instead of hav
 | `secret.existingSecret` | Name of a pre-existing K8s Secret — when set, the chart does not create its own |
 | `secret.djangoSecretKey` | Production Django signing key (ignored when `existingSecret` is set) |
 | `postgresql.auth.existingSecret` | Name of a pre-existing K8s Secret for the PG password (key: `password`) |
-| `postgresql.auth.password` | PostgreSQL password (ignored when `existingSecret` is set) |
+| `postgresql.auth.password` | PostgreSQL password (ignored when `existingSecret` is set). An empty or placeholder (`visiban`) value fails the render; set your own password. `existingSecret` clears the check only together with `secret.existingSecret` supplying a matching `database-url` (#1910) |
 | `backend.settings.frontendUrl` | Full URL of the SPA — allauth redirects here after OAuth login/logout |
 | `backend.settings.siteDomain` | Public hostname for OAuth callback URLs |
 | `backend.oauth.google.*` | Google OAuth credentials |

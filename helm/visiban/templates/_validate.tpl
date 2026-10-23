@@ -77,9 +77,25 @@ manage the Secret in that case and cannot inspect its contents.
 {{- fail (printf "\n\nVisiban: backend.settings.allowedHosts contains %s.\nThe frontend nginx forwards whatever Host header a client sends, so a catch-all (*) or loopback entry lets any client that reaches the Service directly be accepted under that Host -- the password-reset link and cache-key poisoning #1230 closed.\n\nList only your real hostname(s) (comma-separated):\n    --set backend.settings.allowedHosts=boards.yourdomain.com\n\nFor `kubectl port-forward`, send the real Host instead of adding localhost:\n    curl -H \"Host: boards.yourdomain.com\" http://localhost:8080/\n\nIf you knowingly need the entry (only the backend's in-cluster callers can reach it, or a strict Ingress rejects other hosts), opt in explicitly:\n    --set backend.settings.allowUnsafeHosts=true\nSee \"Helm: catch-all and loopback allowedHosts entries fail the render\" in docs/administration/upgrade.md.\n" $unsafeHosts) -}}
 {{- end }}
 
-{{- if and .Values.postgresql.subchartEnabled (not .Values.postgresql.auth.existingSecret) }}
-{{- if eq .Values.postgresql.auth.password "visiban" }}
-{{- fail "\n\nVisiban: postgresql.auth.password is set to the chart's placeholder \"visiban\".\nThis is the literal default — anyone with access to the source can guess it.\n\nGenerate a strong password and pass it via:\n    --set-string postgresql.auth.password=<password>\nor in your values.secret.yaml file.\n" -}}
+{{- /*
+  Bundled PostgreSQL password (#1864). Applies in BOTH bundled modes -- the
+  default StatefulSet (templates/postgresql.yaml) and the bitnami subchart --
+  so it keys on postgresql.enabled OR subchartEnabled (the Chart.yaml
+  dependency condition is subchartEnabled alone). A literal default in a
+  published values.yaml is not a secret, and an empty value is no better, so
+  the render refuses both.
+
+  The check is skipped only when BOTH postgresql.auth.existingSecret and
+  secret.existingSecret are set: visiban.databaseUrl always builds DATABASE_URL
+  from postgresql.auth.password, so auth.existingSecret alone would satisfy the
+  guard while the chart-managed database-url still carried the placeholder
+  (#1910 tracks making the chart read the Secret). Tightening this after GA
+  would itself break upgrades, so it is tight now.
+*/ -}}
+{{- $pgPw := toString .Values.postgresql.auth.password -}}
+{{- if and (or .Values.postgresql.enabled .Values.postgresql.subchartEnabled) (not (and .Values.postgresql.auth.existingSecret .Values.secret.existingSecret)) }}
+{{- if or (eq $pgPw "visiban") (eq $pgPw "") }}
+{{- fail "\n\nVisiban: postgresql.auth.password is empty or set to the chart's placeholder \"visiban\".\nThe placeholder is the literal default in values.yaml, so it is not a secret.\n\nGenerate a strong password and pass it via:\n    --set-string postgresql.auth.password=<password>\nor in your values.secret.yaml file.\n\npostgresql.auth.existingSecret clears this check only together with secret.existingSecret supplying a matching database-url (tracked in #1910).\n\nExisting installs: set the password BEFORE upgrading. See \"Helm: the placeholder PostgreSQL password fails the render\" in docs/administration/upgrade.md.\n" -}}
 {{- end }}
 {{- end }}
 {{- include "visiban.valkeyGuards" . }}

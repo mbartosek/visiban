@@ -2,12 +2,14 @@
 #
 # A single-node, no-TLS, throw-away install: everything in-cluster, emails to
 # stdout, no persistence to leave behind. Do NOT use this for anything holding
-# real data — it runs the bundled PostgreSQL with the chart's placeholder
-# password and disables secure cookies.
+# real data — it runs the bundled PostgreSQL with a password given on the
+# command line and disables secure cookies. The chart's placeholder password is
+# refused, so a password is required (below).
 #
 # Usage:
 #   helm install visiban ./helm/visiban -f helm/visiban/values-dev.yaml \
 #     --set-string secret.djangoSecretKey="$(python3 -c 'import secrets;print(secrets.token_hex(50))')" \
+#     --set-string postgresql.auth.password="$(openssl rand -hex 24)" \
 #     --set backend.settings.allowedHosts=visiban.localtest.me \
 #     --set backend.settings.corsAllowedOrigins=http://visiban.localtest.me \
 #     --set backend.settings.frontendUrl=http://visiban.localtest.me \
