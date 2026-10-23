@@ -411,6 +411,33 @@ class MemberSetLadderTests(TestCase):
                 u.username,
             )
 
+    def test_multi_ancestor_and_invalid_group_role_agree_with_get_board_role(self):
+        from boards.permissions import get_board_role
+
+        users = {}
+        for name, child_role, parent_role in [
+            ("m1", "viewer", "member"),    # nearest viewer wins
+            ("m2", "member", "viewer"),    # nearest member wins
+            ("m3", "bogus", "member"),     # invalid nearest role skipped
+            ("m4", "bogus", None),         # invalid only: no access
+            ("m5", "bogus", "viewer"),     # invalid skipped, viewer decides
+        ]:
+            u = self._user(f"anc_{name}")
+            self.GM.objects.create(group=self.child, user=u, role=child_role)
+            if parent_role:
+                self.GM.objects.create(group=self.parent, user=u, role=parent_role)
+            users[u.id] = u
+        assignable, effective = self._ids()
+        board = Board.objects.select_related("group__parent").get(pk=self.board.pk)
+        for uid, u in users.items():
+            role = get_board_role(u, board)
+            self.assertEqual(uid in effective, role is not None, u.username)
+            self.assertEqual(
+                uid in assignable,
+                role in (BoardMembership.Role.ADMIN, BoardMembership.Role.MEMBER, BoardMembership.Role.COLLABORATOR),
+                u.username,
+            )
+
     def test_query_count_is_bounded_in_user_count(self):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -466,3 +493,69 @@ class MemberSetImplicitAccessTests(TestCase):
             self.assertIn(owner.id, ids)
             self.assertIn(admin.id, ids)
             self.assertIn(admin.id, fn(board, site_admin_ids={admin.id}))
+
+
+
+class ClearAssigneesScopeTests(TestCase):
+    def test_keeps_assignee_who_is_no_longer_a_member(self):
+        owner = User.objects.create_user(username="fm_owner", password="pass")
+        former = User.objects.create_user(username="fm_former", password="pass")
+        board, col, swim = _make_board(owner)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = former  # no membership at all
+        card.save()
+        out = io.StringIO()
+        call_command("clear_viewer_assignees", stdout=out)
+        card.refresh_from_db()
+        self.assertEqual(card.assignee_id, former.id)
+
+    def test_still_clears_viewer_assignee(self):
+        owner = User.objects.create_user(username="cv_owner", password="pass")
+        viewer = User.objects.create_user(username="cv_viewer", password="pass")
+        board, col, swim = _make_board(owner)
+        BoardMembership.objects.create(board=board, user=viewer, role=BoardMembership.Role.VIEWER)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = viewer
+        card.save()
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+
+class FullRosterLadderTests(TestCase):
+    """/full/ roster roles match get_board_role."""
+
+    def test_full_roster_roles_match_get_board_role(self):
+        from groups.models import Group, GroupMembership
+        from boards.permissions import get_board_role
+
+        owner = User.objects.create_user(username="ros_owner", password="pass")
+        parent = Group.objects.create(name="Ros parent", owner=owner)
+        child = Group.objects.create(name="Ros child", owner=owner, parent=parent)
+        board, _c, _s = _make_board(owner)
+        board.group = child
+        board.save()
+        u1, u2, u3, u4 = (User.objects.create_user(username=f"ros_u{i}", password="pass") for i in range(1, 5))
+        GroupMembership.objects.create(group=child, user=u1, role="viewer")
+        GroupMembership.objects.create(group=parent, user=u1, role="member")
+        GroupMembership.objects.create(group=child, user=u3, role="member")
+        GroupMembership.objects.create(group=parent, user=u3, role="viewer")
+        BoardMembership.objects.create(board=board, user=u2, role="bogus")
+        GroupMembership.objects.create(group=child, user=u2, role="admin")
+        # invalid nearest group role is skipped; the farther valid one decides
+        GroupMembership.objects.create(group=child, user=u4, role="bogus")
+        GroupMembership.objects.create(group=parent, user=u4, role="member")
+        client = APIClient()
+        client.force_authenticate(owner)
+        with patch(PATCH_BROADCAST):
+            resp = client.get(f"/api/v1/boards/{board.id}/full/")
+        self.assertEqual(resp.status_code, 200)
+        roster = {m["user"]["id"]: m["role"] for m in resp.json()["members"]}
+        fresh = Board.objects.select_related("group__parent").get(pk=board.pk)
+        for u in (u1, u3, u4):
+            self.assertEqual(roster.get(u.id), get_board_role(u, fresh), u.username)
+        self.assertEqual(roster[u1.id], "viewer")
+        self.assertEqual(roster[u3.id], "member")
+        self.assertEqual(roster[u4.id], "member")
+        # out-of-enum explicit row stays listed so admins can remove it
+        self.assertEqual(roster[u2.id], "bogus")

@@ -1,9 +1,9 @@
 """
-Find and clear card assignees who are not in the board's assignable set.
+Find and clear card assignees who have board access but are not assignable.
 
 Before the _get_assignable_member_ids() fix, the CardSerializer accepted any
 board member as an assignee — including viewers.  This command finds cards
-that are still assigned to users outside the assignable set (viewers, and
+that are still assigned to users with board access who are not assignable (viewers, and
 users whose explicit board row overrides a group-inherited role) and either reports them (dry-run)
 or clears the assignee field.
 
@@ -20,11 +20,11 @@ Usage:
 from django.core.management.base import BaseCommand
 
 from boards.models import Board, Card
-from boards.utils import _get_assignable_member_ids
+from boards.utils import _get_assignable_member_ids, _get_effective_member_ids
 
 
 class Command(BaseCommand):
-    help = "Clear card assignees who hold only a viewer role on the board."
+    help = "Clear card assignees who have board access but are not assignable."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,17 +50,20 @@ class Command(BaseCommand):
         total_cleared = 0
 
         for board in boards_qs.prefetch_related("memberships"):
-            # Use the same assignable set as the card serializer, so the
-            # backfill agrees with the role-resolution ladder (explicit board
-            # rows override group inheritance) rather than carrying its own copy.
+            # Same sets as the card serializer, so the backfill agrees with the
+            # role-resolution ladder (explicit board rows override group
+            # inheritance). Only users who still hold board access but are not
+            # assignable are candidates: a former member's assignee is left in
+            # place on purpose (see notifications_email.py), so it is not touched.
             assignable_ids = _get_assignable_member_ids(board)
+            access_only_ids = _get_effective_member_ids(board) - assignable_ids
             viewer_only_ids = set(
                 Card.objects.filter(
                     board=board, assignee_id__isnull=False, archived_at__isnull=True
                 )
                 .values_list("assignee_id", flat=True)
                 .distinct()
-            ) - assignable_ids
+            ) & access_only_ids
 
             if not viewer_only_ids:
                 continue
@@ -76,7 +79,7 @@ class Command(BaseCommand):
                     f"{'[DRY RUN] ' if dry_run else ''}"
                     f"Board {board.pk} ({board.name!r})  "
                     f"Card {card.pk} ({card.title!r})  "
-                    f"assignee={card.assignee.username!r} (viewer)"
+                    f"assignee={card.assignee.username!r} (not assignable)"
                 )
 
             if not dry_run and affected.exists():
