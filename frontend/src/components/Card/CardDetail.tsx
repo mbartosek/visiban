@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { BOARD_SCROLL_SELECTOR, classifyTransition, findBoardCardElement, useCardSheetPlacement } from "../../hooks/useCardSheetPlacement";
+import { BOARD_SCROLL_SELECTOR, classifyTransition, findBoardCardElement, isBoardTreePointerEvent, useCardSheetPlacement } from "../../hooks/useCardSheetPlacement";
 import type { SheetPlacement } from "../../hooks/useCardSheetPlacement";
 import { claimDeparture, departSheet, dropOwnDeparture, playTransition } from "./cardSheetMotion";
 import { useConfirmFocusReturn } from "../../hooks/useConfirmFocusReturn";
@@ -226,12 +226,20 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     // in the app (toolbar, sidebar, navbar) closes the sheet AND works, in one
     // click, and takes focus as it normally would.
     let pending: { x: number; y: number; consume: boolean } | null = null;
+    // A press on the open card's own face: its click re-selects the same card,
+    // so keep focus in the sheet instead of letting the press move it there.
+    let keepFocus = false;
     const onPointerDown = (e: PointerEvent) => {
       pending = null;
+      keepFocus = false;
       if (insidePointerEvents.current.has(e)) return;
       if (e.button !== 0) return;
       const t = e.target;
       if (!(t instanceof Element)) return;
+      if (t.closest(`[data-card-id="${card.id}"]`)) { keepFocus = true; return; }
+      // A popover a card face portaled to document.body (custom-field quick
+      // edit, its dropdowns, the hover peek): part of the board, not outside.
+      if (isBoardTreePointerEvent(e) && !t.closest(BOARD_SCROLL_SELECTOR)) return;
       // A card swaps through its own onClick; a toast stays usable; another
       // dialog opened over the sheet (the command palette, the shortcuts
       // overlay) handles its own clicks.
@@ -259,7 +267,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     const onCancel = () => { pending = null; };
     // A press that may dismiss must not move focus first (mousedown's default
     // action), or focus would not return to the card on close.
-    const onMouseDown = (e: MouseEvent) => { if (pending?.consume) e.preventDefault(); };
+    const onMouseDown = (e: MouseEvent) => { if (pending?.consume || keepFocus) e.preventDefault(); };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("click", onClick, true);
@@ -270,7 +278,8 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("pointercancel", onCancel);
     };
-  }, []);
+    // card.id is fixed for this instance (`key={selectedCard.id}`).
+  }, [card.id]);
 
   // Transitions (#1914, cardSheetMotion.ts). Visual only: nothing here delays
   // a close or a swap. The first measured placement is an open, or the

@@ -11,6 +11,7 @@ import MovementHistoryView from "./MovementHistoryView";
 import { useBoardSocket } from "../../hooks/useBoardSocket";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { useDragSensors } from "../../hooks/useDragSensors";
+import { markBoardTreePointerEvent } from "../../hooks/useCardSheetPlacement";
 import type { BoardEvent } from "../../hooks/useBoardSocket";
 import ConnectionStatus from "../Common/ConnectionStatus";
 import {
@@ -2376,7 +2377,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
         {/* data-board-scroll: the card detail sheet measures cards inside it (#1914).
             Focusable from script only (tabIndex -1): focus returns here when the
             sheet closes and its card is no longer on the board. */}
-        <div ref={setScrollEl} data-board-scroll role="region" aria-label="Board" tabIndex={-1} className="board-scroll flex-1 overflow-auto bg-sunken focus:outline-none">
+        <div ref={setScrollEl} data-board-scroll role="region" aria-label="Board" tabIndex={-1} onPointerDownCapture={markBoardTreePointerEvent} className="board-scroll flex-1 overflow-auto bg-sunken focus:outline-none">
           {/*
             min-w-max wrapper — gives the sticky header row and all swimlane
             rows the same containing-block width (max-content).  Without this,

@@ -42,7 +42,10 @@ export interface SheetGeometry {
   column: { left: number; right: number };
   /** Viewport x of the swimlane label column's right edge; the sheet never covers it. */
   lanesRight: number;
-  /** Viewport y of the board toolbar's bottom edge. */
+  /**
+   * Viewport y of the bottom of the board chrome above the grid: the board
+   * toolbar, or the filter row (and any banner) below it when one is shown.
+   */
   toolbarBottom: number;
   /** Viewport y of the card's vertical center. */
   cardCenterY: number;
@@ -147,6 +150,19 @@ export function classifyTransition(prev: SheetPlacement | null, next: SheetPlace
 /** The board's scroll container (`BoardView`), the root every board marker is looked up in. */
 export const BOARD_SCROLL_SELECTOR = "[data-board-scroll]";
 
+// Pointer events that came from the board's React tree (#1914). BoardView's
+// scroll container marks them in onPointerDownCapture; React events bubble
+// through portals, so this includes popovers a card face portals to
+// document.body (the custom-field quick-edit popover and its dropdowns, the
+// hover peek). The card detail sheet's click-catcher leaves those alone.
+const boardTreePointerEvents = new WeakSet<Event>();
+export function markBoardTreePointerEvent(e: { nativeEvent: Event }) {
+  boardTreePointerEvents.add(e.nativeEvent);
+}
+export function isBoardTreePointerEvent(e: Event): boolean {
+  return boardTreePointerEvents.has(e);
+}
+
 /**
  * The rendered face of a card on the board, or `null` when it has none to
  * measure. Looked up inside the board's scroll container only, so the drag
@@ -172,10 +188,17 @@ export function measureCardSheetGeometry(cardEl: HTMLElement): SheetGeometry {
   const lane = root?.querySelector("[data-lane-label]");
   const lanesRight = lane ? lane.getBoundingClientRect().right : (root?.getBoundingClientRect().left ?? 0);
   const toolbar = document.querySelector('nav[aria-label="Board toolbar"]');
+  // The board grid starts at the scroll container's top. With the filter row
+  // (F) or a banner shown it sits below the toolbar, and the sheet must not
+  // cover those controls; with neither, the two are the same edge.
+  const chromeBottom = Math.max(
+    toolbar ? toolbar.getBoundingClientRect().bottom : 0,
+    root ? root.getBoundingClientRect().top : 0,
+  );
   return {
     column: { left: col.left, right: col.right },
     lanesRight,
-    toolbarBottom: toolbar ? toolbar.getBoundingClientRect().bottom : 0,
+    toolbarBottom: chromeBottom,
     cardCenterY: card.top + card.height / 2,
   };
 }

@@ -148,7 +148,10 @@ const BoardCell = memo(function BoardCell({ column, swimlane, cards, boardId, ca
               selected={selectedCardIds.has(card.id)}
               highlighted={highlightedCardId === card.id}
               current={currentCardId === card.id}
-              onSelect={canEdit ? () => onToggleCardSelection(card.id) : undefined}
+              // No selection checkbox while the card detail sheet is open
+              // (#1914): it would take focus out of the aria-modal sheet and
+              // raise the bulk toolbar behind it. A click there swaps cards.
+              onSelect={canEdit && currentCardId == null ? () => onToggleCardSelection(card.id) : undefined}
               density={density}
               userTimezone={userTimezone}
               userDateFormat={userDateFormat}

@@ -20,8 +20,8 @@ vi.mock('@dnd-kit/sortable', () => ({
 vi.mock('../api/cards', () => ({ createCard: vi.fn() }))
 
 vi.mock('../components/Card/CardItem', () => ({
-  default: ({ card, onClick, compact, inDoneColumn, current }: { card: Card; onClick?: () => void; compact?: boolean; inDoneColumn?: boolean; current?: boolean }) => (
-    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} data-in-done-column={String(inDoneColumn ?? false)} data-current={String(current ?? false)} onClick={onClick}>{card.title}</div>
+  default: ({ card, onClick, compact, inDoneColumn, current, onSelect }: { card: Card; onClick?: () => void; compact?: boolean; inDoneColumn?: boolean; current?: boolean; onSelect?: () => void }) => (
+    <div data-testid={`card-${card.id}`} data-compact={String(compact ?? false)} data-in-done-column={String(inDoneColumn ?? false)} data-current={String(current ?? false)} data-selectable={String(!!onSelect)} onClick={onClick}>{card.title}{onSelect && <button data-testid={`select-${card.id}`} onClick={(e) => { e.stopPropagation(); onSelect() }} />}</div>
   ),
 }))
 
@@ -81,6 +81,17 @@ describe('BoardCell', () => {
     expect(container.querySelector('[data-board-cell]')).not.toBeNull()
     expect(screen.getByTestId('card-1')).toHaveAttribute('data-current', 'false')
     expect(screen.getByTestId('card-2')).toHaveAttribute('data-current', 'true')
+  })
+
+  it('offers no selection checkbox while a card detail sheet is open, so focus stays in the sheet', () => {
+    const props = defaultProps()
+    props.cards = [makeCard({ id: 1 })]
+    const { rerender } = render(<BoardCell {...props} currentCardId={null} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-selectable', 'true')
+    fireEvent.click(screen.getByTestId('select-1'))
+    expect(props.onToggleCardSelection).toHaveBeenCalledWith(1)
+    rerender(<BoardCell {...props} currentCardId={7} />)
+    expect(screen.getByTestId('card-1')).toHaveAttribute('data-selectable', 'false')
   })
 
   it('renders + Add card button when canEdit and allow_card_creation', () => {

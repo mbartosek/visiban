@@ -1,9 +1,11 @@
 import { StrictMode } from 'react'
+import { createPortal } from 'react-dom'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CardDetail from '../components/Card/CardDetail'
 import type { Card, BoardFull, User } from '../types'
+import { markBoardTreePointerEvent } from '../hooks/useCardSheetPlacement'
 import { DEMO_CARD_DETAIL_NOTE, DEMO_CARD_FOOTER_NOTE, DEMO_EXTERNAL_REF_REASON } from '../constants/demoCopy'
 
 // #1914 — the card detail sheet anchored to the selected card's column.
@@ -162,6 +164,14 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     expect(notch.style.top).toBe('199px')
     expect(notch.style.left).toBe('-5px')
     expect(screen.queryByTestId('card-detail-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('starts below the filter row when it is shown, not just below the toolbar', () => {
+    const { scroll } = mountBoard()
+    // Toolbar bottom 96; the filter row ends, and the board grid starts, at 150.
+    stubRect(scroll, () => ({ left: 0, top: 150, width: 1600, height: 750 }))
+    render(<CardDetail {...defaultProps()} />)
+    expect(dialog().style.top).toBe('158px')
   })
 
   it('flips left of the column when the right side has no room', () => {
@@ -389,17 +399,65 @@ describe('CardDetail sheet — click-catcher (#1914)', () => {
     expect(updateCard).toHaveBeenCalledWith(1, 1, expect.objectContaining({ title: 'Renamed' }))
   })
 
-  it('leaves a click on a board card to the card itself (it swaps the open card)', () => {
+  it('leaves a click on another board card to that card (it swaps the open card)', () => {
+    const { cell } = mountBoard()
+    const other = document.createElement('div')
+    other.setAttribute('data-card-id', '2')
+    cell.appendChild(other)
+    const cardClick = vi.fn()
+    other.addEventListener('click', cardClick)
+    const props = defaultProps()
+    render(<CardDetail {...props} />)
+    press(other)
+    // The press focuses the new card, which becomes the opener for the swap.
+    expect(fireEvent.mouseDown(other)).toBe(true)
+    click(other)
+    expect(props.onClose).not.toHaveBeenCalled()
+    expect(cardClick).toHaveBeenCalledOnce()
+  })
+
+  it('keeps focus in the sheet when the open card itself is clicked', () => {
     const { cardEl } = mountBoard()
     const cardClick = vi.fn()
     cardEl.addEventListener('click', cardClick)
     const props = defaultProps()
     render(<CardDetail {...props} />)
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
     press(cardEl)
-    expect(fireEvent.mouseDown(cardEl)).toBe(true)
+    // Default-prevented: the press does not move focus onto the card face.
+    expect(fireEvent.mouseDown(cardEl)).toBe(false)
     click(cardEl)
     expect(props.onClose).not.toHaveBeenCalled()
     expect(cardClick).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus()
+  })
+
+  it('leaves a popover a board card portaled to document.body alone (custom-field quick edit)', () => {
+    const { scroll } = mountBoard()
+    function PortaledFromCard() {
+      return (
+        <div data-testid="board-tree" onPointerDownCapture={markBoardTreePointerEvent}>
+          {createPortal(<div data-testid="quick-edit"><button data-testid="choice">Won</button></div>, document.body)}
+        </div>
+      )
+    }
+    const picked = vi.fn()
+    const props = defaultProps()
+    render(<><PortaledFromCard /><CardDetail {...props} /></>)
+    const choice = screen.getByTestId('choice')
+    choice.addEventListener('click', picked)
+    // Portaled: outside the board's DOM and the sheet's.
+    expect(scroll.contains(choice)).toBe(false)
+    expect(dialog().contains(choice)).toBe(false)
+    press(choice)
+    expect(fireEvent.mouseDown(choice)).toBe(true)
+    click(choice)
+    expect(props.onClose).not.toHaveBeenCalled()
+    expect(picked).toHaveBeenCalledOnce()
+    // The popover's padding (not a control) is not consumed either.
+    press(screen.getByTestId('quick-edit'))
+    click(screen.getByTestId('quick-edit'))
+    expect(props.onClose).not.toHaveBeenCalled()
   })
 
   it('never closes from a click on a toast marked data-keeps-card-sheet-open', () => {
