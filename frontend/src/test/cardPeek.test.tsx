@@ -103,6 +103,65 @@ describe('Card peek popover', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('A description for the card peek popover.')
   })
 
+  // #1918 — the card detail sheet suppresses every hover peek.
+  it('never starts a peek while peekSuppressed, but still sets hover state', async () => {
+    const { container } = render(<CardItem card={makeCard()} peekSuppressed />)
+    fireEvent.mouseEnter(getCardEl(container))
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('unmounts a visible peek when peekSuppressed flips true', async () => {
+    const card = makeCard()
+    const { container, rerender } = render(<CardItem card={card} />)
+    fireEvent.mouseEnter(getCardEl(container))
+    await act(async () => { vi.advanceTimersByTime(600) })
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    rerender(<CardItem card={card} peekSuppressed />)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('clears a pending peek timer when peekSuppressed flips true', async () => {
+    const card = makeCard()
+    const { container, rerender } = render(<CardItem card={card} />)
+    fireEvent.mouseEnter(getCardEl(container))
+    await act(async () => { vi.advanceTimersByTime(300) })
+    rerender(<CardItem card={card} peekSuppressed />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    // Flip back: a timer that was merely ignored (not cleared) would fire now.
+    rerender(<CardItem card={card} peekSuppressed={false} />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('does not start a peek on a suppressed mouseenter even after suppression lifts', async () => {
+    const card = makeCard()
+    const { container, rerender } = render(<CardItem card={card} peekSuppressed />)
+    fireEvent.mouseEnter(getCardEl(container))
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    rerender(<CardItem card={card} peekSuppressed={false} />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('does not re-show a peek when peekSuppressed flips back, until the next mouseenter', async () => {
+    const card = makeCard()
+    const { container, rerender } = render(<CardItem card={card} />)
+    const cardEl = getCardEl(container)
+    fireEvent.mouseEnter(cardEl)
+    await act(async () => { vi.advanceTimersByTime(600) })
+    rerender(<CardItem card={card} peekSuppressed />)
+    rerender(<CardItem card={card} peekSuppressed={false} />)
+    await act(async () => { vi.advanceTimersByTime(1000) })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    fireEvent.mouseLeave(cardEl)
+    fireEvent.mouseEnter(cardEl)
+    await act(async () => { vi.advanceTimersByTime(600) })
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+  })
+
   // Regression guard (#1305): mouseleave/drag-start already clear peekTimer,
   // but a card can also unmount directly while the timer is still pending
   // (e.g. a WebSocket move/delete broadcast removes it from the board while
