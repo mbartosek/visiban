@@ -567,9 +567,43 @@ class ConnectedAccountsEndpointTests(TestCase):
         rows = {r["provider"]: r for r in self.client.get(LIST_URL).json()}
         self.assertTrue(rows["github"]["connected"])
         self.assertEqual(rows["github"]["email"], "a@gh.example")
-        self.assertIn("connected_at", rows["github"])
+        self.assertIsNotNone(rows["github"]["connected_at"])
         self.assertNotIn("uid", rows["github"])
         self.assertNotIn("extra_data", rows["github"])
+
+    def test_disconnected_row_carries_null_email_and_date(self):
+        # #1871: the keys are always present so the schema's `required` is true.
+        for row in self.client.get(LIST_URL).json():
+            self.assertIn("email", row)
+            self.assertIn("connected_at", row)
+            self.assertIsNone(row["email"])
+            self.assertIsNone(row["connected_at"])
+
+    def test_rows_match_the_published_schema(self):
+        # #1871: pin the contract, not just the payload. The component must
+        # require both keys and mark both nullable, and live rows (one
+        # disconnected, one connected) must validate against it.
+        import jsonschema
+        from drf_spectacular.generators import SchemaGenerator
+
+        from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        component = schema["components"]["schemas"]["ConnectedAccount"]
+        self.assertTrue({"email", "connected_at"} <= set(component["required"]))
+        self.assertTrue(component["properties"]["email"]["nullable"])
+        self.assertTrue(component["properties"]["connected_at"]["nullable"])
+
+        SocialAccount.objects.create(
+            user=self.user, provider="github", uid="gh-1", extra_data={"email": "a@gh.example"}
+        )
+        rows = self.client.get(LIST_URL).json()
+        self.assertEqual({r["connected"] for r in rows}, {True, False})
+        validator_schema = _openapi3_nullable_to_jsonschema(
+            {"$ref": "#/components/schemas/ConnectedAccount", "components": schema["components"]}
+        )
+        for row in rows:
+            jsonschema.validate(instance=row, schema=validator_schema)
 
     def test_connected_but_unconfigured_provider_is_still_listed(self):
         SocialAccount.objects.create(user=self.user, provider="gitlab", uid="gl-1", extra_data={})

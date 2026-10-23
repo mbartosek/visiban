@@ -1098,11 +1098,11 @@ class ConnectedAccountSerializer(serializers.Serializer):
 
     Read-only and never bound to request data — built from
     ``social_connect.connected_accounts_status``. ``email`` and
-    ``connected_at`` are present only on a connected row. Exposes nothing a
+    ``connected_at`` are always present, ``null`` on a disconnected row (#1871). Exposes nothing a
     provider token could be recovered from: no uid, no ``extra_data``.
     """
 
     provider = serializers.CharField(read_only=True)
     connected = serializers.BooleanField(read_only=True)
-    email = serializers.EmailField(read_only=True, required=False, allow_null=True)
-    connected_at = serializers.DateTimeField(read_only=True, required=False)
+    email = serializers.EmailField(read_only=True, allow_null=True)
+    connected_at = serializers.DateTimeField(read_only=True, allow_null=True)
