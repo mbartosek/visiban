@@ -357,6 +357,23 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "Clear stale card assignees after upgrading"
+    Assignable and notification member sets now follow the same role-resolution ladder as board
+    access: an explicit board membership row takes precedence over group-inherited membership,
+    and the nearest ancestor group decides a group-inherited role. Cards assigned before the
+    upgrade are not changed automatically. Run the cleanup once, preview first, to clear
+    assignees who have board access but are not assignable (viewers, for example):
+
+    ```bash
+    docker compose -f docker-compose.prod.yml run --rm backend \
+      python manage.py clear_viewer_assignees --dry-run
+    docker compose -f docker-compose.prod.yml run --rm backend \
+      python manage.py clear_viewer_assignees
+    ```
+
+    Add `--board <id>` to limit it to one board. Assignees who are no longer members of a
+    board are left in place (#1866).
+
 !!! note "Deactivate-user `transfers` errors are now keyed by item index"
     On `POST /api/v1/admin/users/{id}/deactivate/`, a `400` for a malformed `transfers` item now
     returns `transfers` as an object keyed by zero-based item index, listing only the invalid

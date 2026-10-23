@@ -270,7 +270,7 @@ class ClearViewerAssigneesCommandTests(TestCase):
     def test_board_owner_without_non_viewer_membership_not_cleared(self):
         """Board owner is exempt even if they hold only a viewer membership.
 
-        The command adds board.owner_id to non_viewer_ids unconditionally.
+        The command never selects the owner, who is always assignable.
         This covers the edge case where the owner's direct membership is VIEWER.
         """
         # Create a fresh board where the owner has only a VIEWER membership
@@ -296,7 +296,7 @@ class ClearViewerAssigneesCommandTests(TestCase):
 
         self._call()
 
-        # Owner is in non_viewer_ids via owner_id exemption — card must be kept
+        # The owner is always assignable, so the card must be kept
         owner_card.refresh_from_db()
         self.assertEqual(owner_card.assignee_id, owner2.id)
 
@@ -473,6 +473,44 @@ class ClearAssigneesLadderTests(TestCase):
         card.refresh_from_db()
         self.assertIsNone(card.assignee_id)
 
+    def _assigned_card(self, owner, board, col, swim, user):
+        card = _make_card(board, col, swim, owner)
+        card.assignee = user
+        card.save()
+        return card
+
+    def test_clears_assignee_whose_only_access_is_a_group_viewer_role(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="gv_owner", password="pass")
+        u = User.objects.create_user(username="gv_user", password="pass")
+        group = Group.objects.create(name="Gv group", owner=owner)
+        GroupMembership.objects.create(group=group, user=u, role=GroupMembership.Role.VIEWER)
+        board, col, swim = _make_board(owner)
+        board.group = group
+        board.save()
+        card = self._assigned_card(owner, board, col, swim, u)
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+    def test_clears_assignee_whose_nearest_group_role_is_viewer(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="ng_owner", password="pass")
+        u = User.objects.create_user(username="ng_user", password="pass")
+        parent = Group.objects.create(name="Ng parent", owner=owner)
+        child = Group.objects.create(name="Ng child", owner=owner, parent=parent)
+        GroupMembership.objects.create(group=child, user=u, role=GroupMembership.Role.VIEWER)
+        GroupMembership.objects.create(group=parent, user=u, role=GroupMembership.Role.MEMBER)
+        board, col, swim = _make_board(owner)
+        board.group = child
+        board.save()
+        card = self._assigned_card(owner, board, col, swim, u)
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
 
 class MemberSetImplicitAccessTests(TestCase):
     """Owner and instance-wide content access outrank any explicit row."""
@@ -523,7 +561,11 @@ class ClearAssigneesScopeTests(TestCase):
 
 
 class FullRosterLadderTests(TestCase):
-    """/full/ roster roles match get_board_role."""
+    """/full/ roster roles match get_board_role for group-inherited roles.
+
+    Display differences for explicit rows (an owner or an out-of-enum row) are
+    tracked in #1905.
+    """
 
     def test_full_roster_roles_match_get_board_role(self):
         from groups.models import Group, GroupMembership
@@ -558,4 +600,5 @@ class FullRosterLadderTests(TestCase):
         self.assertEqual(roster[u3.id], "member")
         self.assertEqual(roster[u4.id], "member")
         # out-of-enum explicit row stays listed so admins can remove it
+        # (display difference vs get_board_role tracked in #1905)
         self.assertEqual(roster[u2.id], "bogus")
