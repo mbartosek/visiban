@@ -987,16 +987,14 @@ class SwimlaneCustomFieldReorderSchemaTests(SwimlaneCustomFieldTestBase):
     def test_documented_response_is_an_array(self):
         paths = SchemaGenerator().get_schema(request=None, public=True)["paths"]
         self.assertNotIn("put", paths[self.PATH])
-        for method in ("post",):
-            schema = paths[self.PATH][method]["responses"]["200"]["content"][
-                "application/json"
-            ]["schema"]
-            self.assertEqual(schema["type"], "array", method)
-            self.assertEqual(
-                schema["items"]["$ref"],
-                "#/components/schemas/SwimlaneCustomFieldDefinition",
-                method,
-            )
+        schema = paths[self.PATH]["post"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]
+        self.assertEqual(schema["type"], "array")
+        self.assertEqual(
+            schema["items"]["$ref"],
+            "#/components/schemas/SwimlaneCustomFieldDefinition",
+        )
 
     def test_empty_body_returns_a_bare_array(self):
         _definition(self.board, name="A", position=0)

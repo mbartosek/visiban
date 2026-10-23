@@ -133,12 +133,11 @@ class MalformedInputTests(TestCase):
     def test_custom_field_reorders_malformed(self):
         for path in ("custom-fields", "swimlane-custom-fields"):
             url = f"/api/v1/boards/{self.board.id}/{path}/reorder/"
-            for method in (self.client.post,):
-                for bad in NON_OBJECT_BODIES:
-                    self.assertEqual(method(url, bad, format="json").status_code, 400, f"{path} {bad!r}")
-                for bad in (HUGE, str(HUGE), "abc", [1]):
-                    r = method(url, {"order": [bad]}, format="json")
-                    self.assertEqual(r.status_code, 400, f"{path} {bad!r}")
+            for bad in NON_OBJECT_BODIES:
+                self.assertEqual(self.client.post(url, bad, format="json").status_code, 400, f"{path} {bad!r}")
+            for bad in (HUGE, str(HUGE), "abc", [1]):
+                r = self.client.post(url, {"order": [bad]}, format="json")
+                self.assertEqual(r.status_code, 400, f"{path} {bad!r}")
             # Valid (empty) order is unchanged.
             self.assertEqual(self.client.post(url, {"order": []}, format="json").status_code, 200)
 
