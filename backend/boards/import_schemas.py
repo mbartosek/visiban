@@ -172,4 +172,3 @@ class TrelloImportConfirmSerializer(serializers.Serializer):
 
     board = BoardSerializer()
     summary = TrelloImportSummarySerializer()
-

@@ -7,6 +7,8 @@ against the generated OpenAPI components, and pin the envelope difference so an
 accidental change to either body fails here (aligning them is deferred).
 """
 
+import json
+
 import jsonschema
 from django.core.cache import cache
 from django.test import TestCase
@@ -16,7 +18,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from boards.tests.test_import_options import _board_data, _csv_file, _json_file
 from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
-from boards.tests.test_trello_import import URL as TRELLO_URL, as_file, load_fixture
+from boards.tests.test_trello_import import as_file, load_fixture
 
 _IMPORT = "/api/v1/boards/import/"
 _TRELLO = "/api/v1/boards/import/trello/"
@@ -63,7 +65,6 @@ class ImportResponseSchemaTests(TestCase):
         self._assert_valid(body, _IMPORT, "201")
 
     def test_json_import_with_options_and_date_shift_matches_schema(self):
-        import json
         resp = self.client.post(
             _IMPORT,
             {
@@ -86,14 +87,14 @@ class ImportResponseSchemaTests(TestCase):
         self._assert_valid(body, _IMPORT, "201")
 
     def test_trello_preview_matches_schema(self):
-        resp = self.client.post(TRELLO_URL + "?dry_run=true", {"file": as_file(load_fixture())}, format="multipart")
+        resp = self.client.post(_TRELLO + "?dry_run=true", {"file": as_file(load_fixture())}, format="multipart")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertNotIn("board_id", body)
         self._assert_valid(body, _TRELLO, "200")
 
     def test_trello_confirm_matches_schema(self):
-        resp = self.client.post(TRELLO_URL + "?confirm=true", {"file": as_file(load_fixture())}, format="multipart")
+        resp = self.client.post(_TRELLO + "?confirm=true", {"file": as_file(load_fixture())}, format="multipart")
         self.assertEqual(resp.status_code, 201, resp.content)
         body = resp.json()
         self.assertEqual(set(body), {"board", "summary"})

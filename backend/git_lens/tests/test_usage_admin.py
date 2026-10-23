@@ -16,13 +16,16 @@ if not settings.GIT_LENS_ENABLED:  # pragma: no cover - exercised only in the fl
 import time
 from unittest.mock import MagicMock, patch
 
+import jsonschema
 from django.core.cache import cache
+from drf_spectacular.generators import SchemaGenerator
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.admin_views import _ADMIN_PERMISSIONS
 from boards.tests.conftest import _make_board, _make_user
+from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
 from git_lens import metrics, providers, views
 from git_lens.models import LensConnection
 from git_lens.tests.test_api import _fake_lens_data
@@ -213,11 +216,6 @@ class UsageSchemaTests(TestCase):
     """The 200 body matches the named ``LensUsage`` component (#1870)."""
 
     def test_live_response_matches_schema(self):
-        import jsonschema
-        from drf_spectacular.generators import SchemaGenerator
-
-        from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
-
         cache.clear()
         schema = SchemaGenerator().get_schema(request=None, public=True)
         op = schema["paths"][USAGE_URL]["get"]
