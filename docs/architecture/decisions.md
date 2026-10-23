@@ -175,3 +175,9 @@ Key design decisions and the reasoning behind each:
 **Migration safety job.** This job catches three dangerous patterns before they reach production: missing migrations (a model change with no corresponding migration file), destructive column operations (DROP COLUMN in a migration), and NOT NULL columns added without a default (which blocks zero-downtime deploys). These are the three most common sources of production migration incidents.
 
 **Claude Code reviewer stage.** A dedicated CI stage runs the Claude Code reviewer on every MR. This catches patterns that static analysis misses — incorrect permission checks, missing `transaction.on_commit()` wrappers on broadcast calls, serializer fields that expose data beyond what the endpoint should return.
+
+---
+
+## API pagination shapes
+
+> **Note (2026-10-23, #1869):** The change feed (`GET /boards/{id}/events/`) returns `next_cursor` (an integer event id, passed back as `after`) and keeps `next` as a deprecated duplicate with the same value through 1.x, because 1.2.0-beta.1 shipped `next` as a documented public key. The other non-standard list shapes stay as they are: `GET /cards/` uses an opaque string `next_cursor`, and the card timeline (1.1) uses `limit`/`offset` with `next`/`previous` URLs and is frozen. Renaming the feed cursor before GA is additive; after GA it would be a breaking change. Details and rationale: [Pagination shapes](../api/events.md#pagination-shapes).

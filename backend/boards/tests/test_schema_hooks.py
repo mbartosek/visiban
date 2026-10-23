@@ -7,7 +7,7 @@ an undocumented error response.
 """
 from django.test import TestCase
 
-from visiban.schema_hooks import add_standard_error_responses
+from visiban.schema_hooks import add_standard_error_responses, mark_deprecated_fields
 
 
 class AddStandardErrorResponsesTests(TestCase):
@@ -219,3 +219,32 @@ class PinNamedEnumsTests(TestCase):
         result = self._result(dict(ref))
         pin_named_enums(result, self._generator(), None, True)
         self.assertEqual(result["components"]["schemas"]["EffectiveBoardMember"]["properties"]["role"], ref)
+
+
+class MarkDeprecatedFieldsTests(TestCase):
+    """#1869: only the feed's superseded ``next`` is flagged deprecated."""
+
+    def test_flags_only_the_feed_next_property(self):
+        result = {
+            "components": {"schemas": {
+                "BoardEventFeedPage": {"properties": {"next": {"type": "integer"}, "next_cursor": {"type": "integer"}}},
+                "CardTimelinePage": {"properties": {"next": {"type": "string"}}},
+            }},
+        }
+
+        mark_deprecated_fields(result, generator=None, request=None, public=True)
+
+        schemas = result["components"]["schemas"]
+        self.assertTrue(schemas["BoardEventFeedPage"]["properties"]["next"]["deprecated"])
+        self.assertNotIn("deprecated", schemas["BoardEventFeedPage"]["properties"]["next_cursor"])
+        self.assertNotIn("deprecated", schemas["CardTimelinePage"]["properties"]["next"])
+
+    def test_missing_component_or_property_is_a_no_op(self):
+        for result in (
+            {},
+            {"components": {"schemas": {}}},
+            {"components": {"schemas": {"BoardEventFeedPage": {"properties": {}}}}},
+        ):
+            before = repr(result)
+            self.assertIs(mark_deprecated_fields(result, None, None, True), result)
+            self.assertEqual(repr(result), before)

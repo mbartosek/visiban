@@ -115,14 +115,16 @@ Keep calling with `after` set to the previous response's `next_cursor` until
 
 ### Pagination shapes
 
-The API has three cursor shapes. They differ on purpose, and each is frozen by the
-release that introduced it (decision recorded for #1869):
+Besides the standard offset envelope (`{count, offset, page_size, results}`) and bare
+arrays for small bounded lists, the API has three non-standard list shapes. See
+[Pagination](index.md#pagination) for the full list. The three differ on purpose, and
+each is frozen by the release that introduced it (decision recorded for #1869):
 
 | Endpoint | Shape | Why it stays |
 |---|---|---|
 | Change feed, `GET /boards/{id}/events/` | `{results, next_cursor: int \| null}` (plus deprecated `next`) | The cursor is the exclusive event `id`, a monotonic integer a consumer also gets as `event_id` on WebSocket frames, so it is an integer rather than an opaque string. Named `next_cursor` to match `/cards/`. |
 | Cross-board `GET /cards/` | `{results, next_cursor: string \| null}` | The cursor is an opaque string the server may re-encode, so clients must not parse it. |
-| Card timeline (1.1) | `next` as a URL string | Frozen in 1.1; a field cannot be renamed or retyped without a major bump. |
+| Card timeline (1.1) | `limit`/`offset` with `next` / `previous` as URL strings | A limit/offset shape, not a cursor. Frozen in 1.1; a field cannot be renamed or retyped without a major bump. |
 
 New paginated endpoints should use `next_cursor`. The feed's earlier `next` key
 (1.2.0-beta.1) is kept as a deprecated duplicate so the rename is not a breaking change.
