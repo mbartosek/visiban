@@ -341,6 +341,12 @@ class WeightUpdateEnforcementTests(_LimitFixture):
             return len(ctx.captured_queries)
 
         unlimited = self._card(self.limited, weight=1)  # `Doing` has no weight_limit
+        # The first request in a process pays one-time queries (caches that
+        # later requests reuse); warm them so the delta below measures only
+        # the weight check regardless of which tests ran earlier in the shard.
+        # The warm-up uses a different weight so the baseline is still a real
+        # weight change (a no-op PATCH skips the activity row).
+        count(3, unlimited)
         baseline = count(2, unlimited)
         checked = count(3, self.card)  # `Backlog`: 4 -> 5 of 5, allowed
         self.assertEqual(checked - baseline, 2)
