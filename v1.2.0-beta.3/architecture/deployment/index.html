@@ -4442,7 +4442,7 @@
 <tr>
 <td><code>postgresql.auth.password</code></td>
 <td><code>visiban</code></td>
-<td>Database password (ignored when <code>existingSecret</code> is set)</td>
+<td>Database password (ignored when <code>existingSecret</code> is set). The default is a placeholder: the render fails until you set your own password (<code>postgresql.auth.existingSecret</code> clears it only together with <code>secret.existingSecret</code> supplying a matching <code>database-url</code>, #1910)</td>
 </tr>
 <tr>
 <td><code>backend.image.tag</code></td>
@@ -4593,6 +4593,10 @@
 <h3 id="upgrade">Upgrade<a class="headerlink" href="#upgrade" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>visiban<span class="w"> </span>helm/visiban<span class="w"> </span>--reuse-values
 </code></pre></div>
+<p>An install that still uses the default PostgreSQL password (<code>visiban</code>, or an empty
+one) must change the database role's password and set <code>postgresql.auth.password</code>
+first, or the render fails. See the
+<a href="../../administration/upgrade/#upgrading-to-12x">upgrade guide</a>.</p>
 <p>The first <code>--reuse-values</code> upgrade onto chart 0.5.0 or later, from a release that
 used the Bitnami Valkey subchart, also needs
 <code>--set valkey.image.repository=valkey/valkey --set valkey.image.tag=8-alpine</code>
@@ -4614,8 +4618,11 @@ used the Bitnami Valkey subchart, also needs
 </code></pre></div></p>
 </li>
 <li>
-<p><strong>Upgrade the Helm release</strong> — this provisions a fresh PostgreSQL 17 pod:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>visiban<span class="w"> </span>helm/visiban<span class="w"> </span>--reuse-values
+<p><strong>Upgrade the Helm release</strong> — this provisions a fresh PostgreSQL 17 pod. The
+   new data directory takes its password from <code>postgresql.auth.password</code>, which must
+   be your own value (the placeholder fails the render):
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>visiban<span class="w"> </span>helm/visiban<span class="w"> </span>--reuse-values<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--set-string<span class="w"> </span>postgresql.auth.password<span class="o">=</span><span class="s2">"</span><span class="nv">$PG_PASSWORD</span><span class="s2">"</span>
 </code></pre></div></p>
 </li>
 <li>

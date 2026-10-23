@@ -4410,7 +4410,7 @@
 </tr>
 <tr>
 <td><code>postgresql.auth.password</code></td>
-<td>PostgreSQL password (ignored when <code>existingSecret</code> is set)</td>
+<td>PostgreSQL password (ignored when <code>existingSecret</code> is set). An empty or placeholder (<code>visiban</code>) value fails the render; set your own password. <code>existingSecret</code> clears the check only together with <code>secret.existingSecret</code> supplying a matching <code>database-url</code> (#1910)</td>
 </tr>
 <tr>
 <td><code>backend.settings.frontendUrl</code></td>
