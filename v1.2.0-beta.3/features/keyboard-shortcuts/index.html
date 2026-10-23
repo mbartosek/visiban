@@ -1419,6 +1419,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#history-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        History view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#board-actions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4077,6 +4088,30 @@
 </tbody>
 </table>
 <p>View-tab shortcuts only fire while you are on a board route (<code>/boards/&lt;id&gt;</code>). They write to the <code>?view=</code> URL param with replace-history semantics so the browser Back button skips tab transitions.</p>
+<h2 id="history-view">History view<a class="headerlink" href="#history-view" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><kbd>↑</kbd> / <kbd>↓</kbd></td>
+<td>Move between rows (only while focus is on the table; they do nothing in the filter controls or the detail panel)</td>
+</tr>
+<tr>
+<td><kbd>Enter</kbd></td>
+<td>Open the detail panel for the focused row</td>
+</tr>
+<tr>
+<td><kbd>Esc</kbd></td>
+<td>Close an open filter menu, then the detail panel, then return to the board — one level per press</td>
+</tr>
+</tbody>
+</table>
+<p>The rows are a single <kbd>Tab</kbd> stop. Closing the detail panel returns focus to the row that opened it, so <kbd>Enter</kbd> reopens it.</p>
 <h2 id="board-actions">Board actions<a class="headerlink" href="#board-actions" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
