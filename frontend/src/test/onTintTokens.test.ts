@@ -126,6 +126,19 @@ describe('card aging ramp contrast (#1841)', () => {
     expect(r).toBeGreaterThanOrEqual(pinned)
   })
 
+  // #1863: the warning stage's AgingCue is a hollow bar in text-warning-on-tint inside the
+  // opacity-90 card body. A non-text graphic needs 3:1; pin the recorded 6.25 / 5.53.
+  it.each([
+    ['dark', darkBlock, 6.25],
+    ['light', lightBlock, 5.53],
+  ])('%s theme: the warning-stage hollow-bar cue holds >= 3:1 on its tint', (_n, block, pinned) => {
+    const { hue, alpha, opacity } = parse('warning')
+    const tint = blend(rgbOf(block, hue), rgbOf(block, 'surface'), alpha)
+    const r = ratio(blend(rgbOf(block, 'warning-on-tint'), tint, opacity), tint)
+    expect(r).toBeGreaterThanOrEqual(3)
+    expect(r).toBeCloseTo(pinned, 2)
+  })
+
   it('stale-severe is declared in both themes and exposed to tailwind', () => {
     expect(darkBlock).toContain('--stale-severe:')
     expect(lightBlock).toContain('--stale-severe:')

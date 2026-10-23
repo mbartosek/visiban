@@ -297,7 +297,8 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
   // label adds the idle days so the stage is never conveyed by color alone.
   const staleLabel = aging.stage !== "none" ? `Stale · ${aging.idleDays}d` : "Stale";
   // Wherever that badge is not on the card face, the title carries the
-  // AgingCue stage glyph instead, so a stale tint is never color-only (#1843).
+  // AgingCue stage glyph instead, so an aging tint (including the yellow
+  // warning stage, which never gets the badge) is never color-only (#1843, #1863).
   const staleBadgeShown = !compact && urgency?.kind === "stale";
 
   // Pinned custom fields (#371, Direction A). Quick-edit is only wired when
