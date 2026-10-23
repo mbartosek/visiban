@@ -208,7 +208,7 @@ Tests that assert "setting persists across reload" should pre-seed the key with 
 
 ```ts
 await page.addInitScript(() => {
-  window.localStorage.setItem('visiban-theme', 'dark')
+  window.localStorage.setItem('user:prefs:theme', 'dark')
 })
 await page.goto('/settings')
 await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')

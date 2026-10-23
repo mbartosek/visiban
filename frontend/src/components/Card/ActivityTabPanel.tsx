@@ -16,10 +16,10 @@ interface ActivityTabPanelProps {
 
 const EVENT_TYPE_OPTIONS = [
   { value: "move",       label: "Column moves",  color: "rgb(var(--primary-emphasis))" },
-  { value: "comment",    label: "Comments",       color: "#38bdf8" },
+  { value: "comment",    label: "Comments",       color: "rgb(var(--activity-date))" },
   { value: "field",      label: "Field changes",  color: "rgb(var(--fg-muted))" },
   { value: "checklist",  label: "Checklist",      color: "rgb(var(--fg-muted))" },
-  { value: "attachment", label: "Attachments",    color: "#14b8a6" },
+  { value: "attachment", label: "Attachments",    color: "rgb(var(--activity-assign))" },
   { value: "system",     label: "System events",  color: "rgb(var(--fg-muted))" },
 ] as const;
 

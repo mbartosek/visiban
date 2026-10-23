@@ -2105,6 +2105,11 @@ def _annotate_is_stale(qs, stale_cutoff):
 
     Used by both the authenticated ``_card_queryset`` and the public share-link
     queryset (#926) so all read paths share the same stale logic.
+
+    Deliberately ignores ``column.is_done`` (#1845): ``is_stale`` is a public
+    API value, so changing it for Done-column cards would alter an existing
+    contract. Clients decide display (the board UI suppresses the tint via
+    ``inDoneColumn``); only the ``notify_stale_cards`` digest skips Done cards.
     """
     from .models import CardMovement as _CM
     _last_moved_sq = _db_models.Subquery(

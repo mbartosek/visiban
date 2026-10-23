@@ -3,6 +3,7 @@ import React from 'react'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import BoardView from '../components/Board/BoardView'
+import CustomFieldQuickEditPopover from '../components/Card/CustomFieldQuickEditPopover'
 import type { BoardFull, User } from '../types'
 import type { BoardContextType } from '../contexts/BoardContext'
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
@@ -1249,6 +1250,43 @@ describe('BoardView', () => {
       mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [], columns: makeBoard().columns.slice(1) }) })
       rerender(<BoardView {...defaultProps()} />)
 
+      expect(screen.queryByTestId('bulk-toolbar')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('quick-edit popover Escape (#1856)', () => {
+    it('Escape closes only the popover and leaves the real BoardView card selection intact', async () => {
+      const card = {
+        id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Quick Edit Card',
+        description: '', priority: 'medium' as const, assignee: null,
+        labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: 'user1', display_name: 'User 1', avatar_url: '' },
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+        last_moved_at: null, attachment_count: 0, checklist_total: 0,
+        checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+        custom_field_values: [],
+        blocker_count: 0, external_ref: null,
+      }
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      const onDismiss = vi.fn()
+      const rect = { top: 0, left: 0, bottom: 10, right: 10, width: 10, height: 10, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+      const ui = (open: boolean) => (
+        <>
+          <BoardView {...defaultProps()} />
+          {open && <CustomFieldQuickEditPopover anchorRect={rect} choices={['Low']} selected="" onSelect={() => {}} onDismiss={onDismiss} />}
+        </>
+      )
+      const { rerender } = render(ui(false))
+      await userEvent.setup().click(screen.getByTestId('select-card-1-20'))
+      expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument()
+
+      rerender(ui(true))
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onDismiss).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument()
+
+      // With the popover gone, the next Escape clears the selection as before.
+      rerender(ui(false))
+      fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.queryByTestId('bulk-toolbar')).not.toBeInTheDocument()
     })
   })

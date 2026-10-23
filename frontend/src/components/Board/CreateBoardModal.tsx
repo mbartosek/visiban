@@ -366,7 +366,7 @@ export default function CreateBoardModal({ onConfirm, onCancel, user }: Props) {
               type="checkbox"
               checked={setAsDefault}
               onChange={(e) => setSetAsDefault(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-line-strong bg-surface text-info focus:ring-primary-emphasis focus:ring-offset-sunken cursor-pointer flex-shrink-0"
+              className="mt-0.5 accent-primary w-4 h-4 rounded border-line-strong bg-surface text-info focus:ring-primary-emphasis focus:ring-offset-sunken cursor-pointer flex-shrink-0"
             />
             <div>
               <label htmlFor="set-default-board" className="text-sm text-fg-secondary cursor-pointer">

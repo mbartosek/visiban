@@ -166,7 +166,7 @@ The following fields are returned for every card object in this endpoint, `POST 
 | `attachment_count` | integer | yes | no | Number of attachments on this card |
 | `checklist_total` | integer | yes | no | Total number of checklist items |
 | `checklist_done` | integer | yes | no | Number of checked checklist items |
-| `is_stale` | boolean | yes | no | `true` when the card has not moved within the board's `staleness_threshold_days` window; `false` otherwise |
+| `is_stale` | boolean | yes | no | `true` when the card has not moved within the board's `staleness_threshold_days` window; `false` otherwise. `is_stale` ignores the card's column, so a Done-column card can be `true`; clients decide display. The stale-card notification digest, by contrast, skips Done-column cards. |
 | `archived_at` | string / null | yes | yes | ISO 8601 timestamp of archiving, or `null` for active cards |
 | `version` | integer | yes | no | Optimistic concurrency counter; increments on every mutation. Pass as `version` in the [move endpoint](#move) to enable OCC. PATCH and PUT do not accept or check `version`. |
 | `custom_field_values` | array | no | no | Values for the board's [custom fields](boards.md#custom-fields-since-12) — `[{ field_definition, value }]`. Readable and writable in the same shape; see below. Empty array when the card has no values. |
