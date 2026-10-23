@@ -5551,23 +5551,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <h3 id="delete-apiv1adminboard-invite-linksid"><code>DELETE /api/v1/admin/board-invite-links/{id}/</code><a class="headerlink" href="#delete-apiv1adminboard-invite-linksid" title="Permanent link">&para;</a></h3>
 <p>Revoke any board's invite, emailed or shareable. Sets <code>revoked_at</code> and <code>revoked_by</code> (the caller) and publishes <code>invite_link.revoked</code> <code>{ "id" }</code> on that board's <a href="../websockets/#invite-events-since-12">WebSocket channel</a>, exactly like the board-scoped revoke. Revoking an expired invite is allowed.</p>
 <p><strong>Permission:</strong> <code>IsSiteAdmin</code>.</p>
-<p><strong>Response</strong> <code>200 OK</code> — the updated row (a single object, same shape as a list row), with <code>status: "revoked"</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">51</span><span class="p">,</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">"board_id"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="nt">"board_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Launch Plan"</span><span class="p">,</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"viewer"</span><span class="p">,</span>
-<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span><span class="nt">"delivery"</span><span class="p">:</span><span class="w"> </span><span class="s2">"link"</span><span class="p">,</span>
-<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"revoked"</span><span class="p">,</span>
-<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"vbnb_8a2"</span><span class="p">,</span>
-<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-10-14T09:30:00.101Z"</span><span class="p">,</span>
-<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-10-07T09:30:00.120Z"</span><span class="p">,</span>
-<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">  </span><span class="nt">"created_by_username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"alice"</span><span class="p">,</span>
-<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">  </span><span class="nt">"single_use"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">  </span><span class="nt">"use_count"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">  </span><span class="nt">"can_register"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
-<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="p">}</span>
-</code></pre></div>
+<p><strong>Response</strong> <code>204 No Content</code> — no body, like the <a href="../boards/#delete-apiv1boardsidinvite-linkslink_id">board-scoped revoke</a>. Re-fetch the list (or set the row's <code>status</code> to <code>revoked</code>) to show the new state.</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -5580,8 +5564,8 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tbody>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td><code>{"detail": "This invite is already used or revoked and cannot be revoked."}</code></td>
-<td>The invite was consumed (its "used" record is kept) or is already revoked.</td>
+<td><code>{"detail": "This invite has already been used and cannot be revoked."}</code></td>
+<td>The invite was consumed; its "used" record is kept.</td>
 </tr>
 <tr>
 <td><code>401 Unauthorized</code></td>
@@ -5596,11 +5580,11 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <tr>
 <td><code>404 Not Found</code></td>
 <td><code>{"detail": "Invite not found."}</code></td>
-<td>No invite with that id.</td>
+<td>No invite with that id, or it is already revoked (a revoked row is hidden, so a repeat revoke is <code>404</code>).</td>
 </tr>
 </tbody>
 </table>
-<p>An already-revoked invite is <code>400</code> here, matching the site invite-link revoke; the <a href="../boards/#delete-apiv1boardsidinvite-linkslink_id">board-scoped revoke</a> answers it with <code>404</code>.</p>
+<p>This endpoint behaves exactly like the <a href="../boards/#delete-apiv1boardsidinvite-linkslink_id">board-scoped revoke</a>: <code>204</code> on success, <code>400</code> for a used invite, <code>404</code> for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered <code>200</code> with the row and <code>400</code> for a repeat revoke. The separate site invite-link revoke (<code>DELETE /api/v1/admin/invite-links/{id}/</code>) keeps its 1.1 behavior (<code>200</code> with a body, <code>400</code> on a repeat revoke), which differs from this family; that is tracked in #1912.</p>
 
 
 

@@ -7512,7 +7512,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 </tr>
 </tbody>
 </table>
-<p>The <a href="../admin/#delete-apiv1adminboard-invite-linksid">site-admin revoke</a> answers an already-revoked invite with <code>400</code> instead of <code>404</code>, like the site invite-link revoke.</p>
+<p>The <a href="../admin/#delete-apiv1adminboard-invite-linksid">site-admin board-invite revoke</a> behaves identically: <code>204</code> on success, <code>400</code> for a used invite, <code>404</code> for an unknown or already-revoked one.</p>
 <p>Creating, sending and revoking publish <code>invite_link.created</code> / <code>invite_link.revoked</code> on the board's <a href="../websockets/#invite-events-since-12">WebSocket channel</a> with just <code>{ "id": &lt;int&gt; }</code>.</p>
 <h3 id="get-apiv1boardsjointoken"><code>GET /api/v1/boards/join/{token}/</code><a class="headerlink" href="#get-apiv1boardsjointoken" title="Permanent link">&para;</a></h3>
 <p>Public preview of an invite — no authentication. Returns <code>{ "board_id", "board_name", "role", "can_register" }</code>.</p>
