@@ -85,3 +85,93 @@ class LensConnectionSerializer(serializers.ModelSerializer):
                 f"swimlane_dim must be one of: {', '.join(sorted(_VALID_SWIMLANE_DIMS))}."
             )
         return value
+
+
+# --- Schema-only components for GET /admin/git-lens/usage/ (#1870) ----------
+# The view builds a plain dict from ``metrics.snapshot()`` and ``lens_bounds()``;
+# these classes only describe it so the OpenAPI document carries a named
+# component instead of an untyped object. ``test_usage_schema_1870`` validates a
+# live response against them.
+
+
+class LensOutboundOutcomesSerializer(serializers.Serializer):
+    """Outbound-call counts keyed by outcome (``metrics.OUTBOUND_OUTCOMES``)."""
+
+    ok = serializers.IntegerField()
+    not_found = serializers.IntegerField()
+    auth_error = serializers.IntegerField()
+    rate_limited = serializers.IntegerField()
+    http_error = serializers.IntegerField()
+    network_error = serializers.IntegerField()
+
+
+class LensOutboundByKindSerializer(serializers.Serializer):
+    """Outbound-call outcomes keyed by upstream resource kind (``metrics.KINDS``)."""
+
+    issues = LensOutboundOutcomesSerializer()
+    branches = LensOutboundOutcomesSerializer()
+    merge_requests = LensOutboundOutcomesSerializer()
+    milestones = LensOutboundOutcomesSerializer()
+
+
+class LensBoardRequestOutcomesSerializer(serializers.Serializer):
+    """Board-request counts keyed by outcome (``metrics.BOARD_OUTCOMES``)."""
+
+    cache_fresh = serializers.IntegerField()
+    cache_stale_locked = serializers.IntegerField()
+    budget_exhausted_stale = serializers.IntegerField()
+    budget_exhausted_429 = serializers.IntegerField()
+    fetched = serializers.IntegerField()
+    error_stale = serializers.IntegerField()
+    error = serializers.IntegerField()
+
+
+class LensProviderUsageSerializer(serializers.Serializer):
+    outbound_calls = serializers.IntegerField()
+    outbound_by_kind = LensOutboundByKindSerializer()
+    board_requests = LensBoardRequestOutcomesSerializer()
+
+
+class LensUsageByProviderSerializer(serializers.Serializer):
+    github = LensProviderUsageSerializer()
+    gitlab = LensProviderUsageSerializer()
+
+
+class LensHourlyOutboundCallsSerializer(serializers.Serializer):
+    github = serializers.IntegerField()
+    gitlab = serializers.IntegerField()
+
+
+class LensHourlyUsageSerializer(serializers.Serializer):
+    hour = serializers.DateTimeField(help_text="Start of the hour bucket, UTC.")
+    outbound_calls = LensHourlyOutboundCallsSerializer()
+
+
+class LensBoundsSerializer(serializers.Serializer):
+    """The static limits from ``views.lens_bounds()``."""
+
+    fetch_budget_per_user_repo = serializers.IntegerField()
+    fetch_budget_per_user = serializers.IntegerField()
+    fetch_budget_window_seconds = serializers.IntegerField()
+    force_refresh_cooldown_seconds = serializers.IntegerField()
+    cache_soft_ttl_seconds = serializers.IntegerField()
+    cache_hard_ttl_seconds = serializers.IntegerField()
+    cache_filtered_hard_ttl_seconds = serializers.IntegerField()
+    max_issue_pages = serializers.IntegerField()
+    max_aux_pages = serializers.IntegerField()
+    per_page = serializers.IntegerField()
+    request_timeout_seconds = serializers.IntegerField()
+    max_outbound_calls_per_fetch = serializers.IntegerField()
+    max_outbound_calls_per_user_per_window = serializers.IntegerField()
+
+
+class LensUsageSerializer(serializers.Serializer):
+    """``GET /admin/git-lens/usage/`` 200 response."""
+
+    generated_at = serializers.DateTimeField()
+    window_hours = serializers.IntegerField()
+    bucket_seconds = serializers.IntegerField()
+    current_hour = LensUsageByProviderSerializer()
+    last_24h = LensUsageByProviderSerializer()
+    hourly = LensHourlyUsageSerializer(many=True, help_text="Oldest first.")
+    bounds = LensBoundsSerializer()

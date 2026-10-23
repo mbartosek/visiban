@@ -497,6 +497,8 @@ the `admin` scope (see [Scopes](authentication.md#scopes)).
 
 **Response — 200 OK**
 
+The OpenAPI document names this body `LensUsage`.
+
 The example below trims `outbound_by_kind` to a single provider (`github`) and kind (`issues`)
 for brevity. The real response repeats `outbound_by_kind` for every kind
 (`issues`, `branches`, `merge_requests`, `milestones`) and every outcome

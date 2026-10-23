@@ -7,7 +7,6 @@ import requests
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
-from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
@@ -38,6 +37,7 @@ from .serializers import (
     _VALID_COLUMN_DIMS,
     _VALID_SWIMLANE_DIMS,
     LensConnectionSerializer,
+    LensUsageSerializer,
 )
 from .types import LensConfig, LensFilters
 
@@ -702,7 +702,7 @@ class LensUsageAdminView(APIView):
     permission_classes = _ADMIN_PERMISSIONS
 
     @extend_schema(
-        responses={200: OpenApiTypes.OBJECT},
+        responses={200: LensUsageSerializer},
         description=(
             "Outbound GitHub/GitLab API call counters and cache outcomes for the "
             "Issue Board Lens over the last 24 hours, plus the static limits that "
