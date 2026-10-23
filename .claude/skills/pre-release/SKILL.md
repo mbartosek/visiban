@@ -59,29 +59,34 @@ Use the issues API through `scripts/gl-issues.sh`, not `glab issue list`: `glab 
 
 Do **not** add `2>/dev/null` to any of these calls. A failed call must be visible: an empty result has to mean "no issues", never "the command broke" (#1901). `scripts/gl-issues.sh key=value ...` takes one issues-API query parameter per argument (it URL-encodes the values, so `"search=prior audit"` and `a&b` work), prints `iid state milestone closed_at title` rows plus `checked N issue(s)`, and on any failure (glab error, non-JSON or non-array body, unknown milestone title) prints a `🔴 ... could not run` line and exits nonzero. Report that line as a 🔴 blocker, never as "no prior audit".
 
-Each Bash call is a fresh shell, so set `WORKING_RELEASE` in the same command (or substitute the literal title):
+Each Bash call is a fresh shell, so set `WORKING_RELEASE` in the same command (or substitute the literal title). An unset or empty value is rejected by the script, never treated as "all milestones":
 
 ```bash
 export WORKING_RELEASE=<resolved in Step 0, e.g. 1.2>
-SINCE=$(date -v-7d +%Y-%m-%dT00:00:00Z 2>/dev/null || date -d '7 days ago' +%Y-%m-%dT00:00:00Z)
+SINCE=$(date -v-14d +%Y-%m-%dT00:00:00Z 2>/dev/null || date -d '14 days ago' +%Y-%m-%dT00:00:00Z)
 
-# 1. Open issues on the working milestone (milestone takes the TITLE here)
+# Q1: open issues on the working milestone (context: what is still unresolved)
 scripts/gl-issues.sh milestone="$WORKING_RELEASE" state=opened
-# 2. Recently closed on the working milestone (resolved since the last run)
+# Q2: issues closed on the working milestone in the window (context: what a prior run already resolved)
 scripts/gl-issues.sh milestone="$WORKING_RELEASE" state=closed updated_after="$SINCE"
-# 3. Audit-titled issues filed in the last 7 days, any state or milestone: a prior audit's
-#    findings may sit on other milestones. in=title keeps description matches from
-#    saturating the 100-row page.
-scripts/gl-issues.sh search=audit in=title state=all created_after="$SINCE" order_by=created_at
+# Q3: the audit-origin detector. Audit issues say "pre-release audit" in their description
+#     ("Found by the ... pre-release audit"), not their title, so this searches title and
+#     description, any state, any milestone: a prior audit's findings may sit on other milestones.
+scripts/gl-issues.sh "search=pre-release audit" state=all created_after="$SINCE" order_by=created_at
 ```
 
-Query 3 is the one that detects "a prior audit already filed its findings"; it needs no label. `per_page` is capped at 100: if a query prints `checked 100 issue(s)`, page with `page=2`.
+**What Q3 does and does not find.** Measured 2026-10-23 over a 14-day window: 92 rows, containing 16 of 16 of #1745-#1760 and 37 of 39 of #1864-#1902 (the two misses, #1889 and #1901, are not audit findings). It finds issues whose title or description contains the phrase; it will miss audit findings filed without it, and it matches any unrelated issue that mentions a pre-release audit. Treat a hit as "probably audit-origin" and say so. `per_page` is capped at 100: if Q3 prints `checked 100 issue(s)`, re-run with `page=2` before concluding anything.
 
 Note for any issue write you do later: the API `milestone_id` field takes the **global** milestone id (from `projects/visiban%2Fvisiban/milestones`, field `id`, not `iid`), and `glab api --method POST --input <file>` needs `-H "Content-Type: application/json"` or it returns 415.
 
-**If open `$WORKING_RELEASE` issues exist from a prior audit, or query 3 returned any hits** (recent audit-titled issues in any state or milestone, e.g. findings filed against the next milestone or "Engineering health"):
-1. List them for the user with state and milestone, open ones grouped by severity (🔴 blocking vs 🟡 should-fix).
-2. Say: "A prior audit has N finding(s) filed in the last 7 days, M of them still open (see above). Re-running will re-discover the same issues. Options:
+**Decision rule.** Call an issue *audit-origin* if its iid appears in Q3's output. Q1 and Q2 are context, not detectors: most open milestone issues are ordinary backlog.
+
+- **Prompt** iff Q3 returned any audit-origin issue that is still open, or any Q1 issue is audit-origin (the same thing from the milestone side). Also mention audit-origin issues closed since (Q2 or Q3), as evidence of what the prior run already resolved.
+- **Otherwise** (Q3 empty, or every Q3 hit already closed): print Q1 and Q2 as informational and proceed to Step 1 with no prompt.
+
+When prompting:
+1. List the audit-origin issues for the user with state and milestone, open ones grouped by severity (🔴 blocking vs 🟡 should-fix).
+2. Say: "A prior audit filed N finding(s) in the last 14 days, M of them still open (see above). Re-running will re-discover the same issues. Options:
    - **resolve** — work through the open issues first, then re-run the audit
    - **continue** — re-run anyway (e.g. significant code has changed since the last run)
    - **targeted** — run only a specific sub-audit (e.g. `/pre-release security`) on the area you just fixed"
@@ -89,8 +94,6 @@ Note for any issue write you do later: the API `milestone_id` field takes the **
    - If "resolve" → run Step 1.5 and show its result, then stop here. Do not launch any agents.
    - If "targeted" → jump to Step 0.1 to let the user pick a specific audit type.
    - If "continue" → proceed to Step 1.
-
-**If query 1 and query 3 both returned zero issues** → proceed to Step 1 immediately with no prompt.
 
 ---
 

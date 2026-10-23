@@ -70,13 +70,13 @@ lens`), take them and skip the ask.
 ## Step 2 — Select the issues
 
 ```bash
-glab issue list --milestone <M> --label <L> --per-page 100
+scripts/gl-issues.sh "milestone=<M>" "state=opened" "labels=<L>" "per_page=100"
 ```
 
-`--per-page 100` is a first page, not a result set. A milestone with more open
+`per_page=100` is a first page, not a result set. A milestone with more open
 issues than that truncates silently here, and the issues you never see are
 indistinguishable from issues that do not exist. When the count comes back at
-exactly the page size, re-read it with
+exactly the page size (the script prints `checked N issue(s)`), re-read it with
 `glab api --paginate "projects/:id/issues?milestone=<M>&labels=<L>&state=opened&per_page=100"`
 — which emits one JSON array **per page, concatenated**, so decode it with a
 `raw_decode` loop rather than `json.load`.
@@ -88,7 +88,7 @@ Then filter, in this order:
    MR, or a worktree in `scripts/wt list`. `scripts/wt new` refuses a checked-out issue
    (see `scripts/wt help`), and `scripts/check-issue-collision.sh` backstops it at push
    time — but check first so you are not selecting work you cannot start. To exclude
-   claimed issues up front, add `--not-label status::wip` (or `$WT_LOCK_LABEL`) to the list command. Read the
+   claimed issues up front, add `"not[labels]=status::wip"` (or `$WT_LOCK_LABEL`) to the list command. Read the
    check-out comment (`🔒 checked out …`) before assuming a label is stale: it names the
    branch and worktree holding the issue. A label with no live worktree behind it is a
    stale lock — ask the user before taking it over; never `--force` it on your own.
