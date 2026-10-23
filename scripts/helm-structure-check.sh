@@ -1664,8 +1664,9 @@ check_postgres_password_guard() {
   errf="$(mktemp)"
   # Re-apply the literal values.yaml placeholder AFTER RENDER_ARGS' real-looking
   # password. Only the default StatefulSet mode is rendered here: the bitnami
-  # subchart mode does not render offline with the vendored subchart, so the
-  # subchart half of the guard (the pre-#1864 behavior) is not asserted.
+  # subchart mode (including enabled=false with subchartEnabled=true) does not
+  # render offline with the vendored subchart, so those branches of the guard are
+  # not asserted.
   if helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" \
        --set-string postgresql.auth.password=visiban >/dev/null 2>"$errf"; then
     fail "the placeholder PostgreSQL password rendered with the default bundled StatefulSet -- the guard must refuse it"
@@ -1835,9 +1836,9 @@ self_test() {
     "14 NOTES opt-in warning removed|templates/NOTES.txt|s/{{- if and \$unsafeHosts .Values.backend.settings.allowUnsafeHosts }}/{{- if false }}/"
     # 10 (#1360): the demo stops refusing the unsafe-hosts opt-in.
     "10 demo unsafe-hosts opt-in guard removed|templates/_validate.tpl|s/{{- if .Values.backend.settings.allowUnsafeHosts -}}/{{- if false -}}/"
-    # 15 (#1864): the guard narrows back to the subchart-only mode, so the default
+    # 15 (#1864): the guard stops covering postgresql.enabled, so the default
     # bundled StatefulSet accepts the placeholder password again.
-    "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.existingSecret) }}/{{- if and .Values.postgresql.subchartEnabled (not .Values.postgresql.auth.existingSecret) }}/"
+    "15 postgres password guard limited to the subchart|templates/_validate.tpl|s/{{- if and (or .Values.postgresql.enabled .Values.postgresql.subchartEnabled) (not/{{- if and (or false .Values.postgresql.subchartEnabled) (not/"
   )
 
   for fixture in "${fixtures[@]}"; do

@@ -276,7 +276,7 @@ postgresql:
     # When set, the chart skips creating its own PostgreSQL Secret.
     existingSecret: ""
     # Only used when existingSecret is empty. "visiban" is a placeholder: the
-    # render refuses it (#1864), so set your own password or existingSecret.
+    # render refuses it (#1864), so set your own password.
     password: "visiban"
   primary:
     persistence:
