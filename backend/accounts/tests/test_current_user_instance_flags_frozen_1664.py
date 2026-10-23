@@ -27,7 +27,9 @@ GUIDANCE = (
 
 # Instance-wide (not per-user) flags already on the identity object. Frozen:
 # never remove or rename (1.0 contract), never add to this list.
-# uploads_enabled predates 1.2; git_lens_enabled's freeze status is tracked in #1666.
+# uploads_enabled predates 1.2. git_lens_enabled is frozen here as a normal,
+# non-deprecated field (#1666, decided: accept the freeze); the other four are
+# deprecated in favor of /auth/site-config/ (#1872) but still never removed in 1.x.
 FROZEN_INSTANCE_FLAGS = {
     "uploads_enabled",
     "git_lens_enabled",
