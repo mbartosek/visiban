@@ -16,3 +16,26 @@ id = "GHSA-8pqf-f4m5-798g"
 # extended to 2027-01-31 (about one quarter). Re-check before it expires (#1778).
 ignoreUntil = 2027-01-31
 reason = "No fixed twisted release exists; IMAP-only code path (twisted.mail) that Visiban never loads"
+
+# Three unauthenticated-DoS advisories published 2026-10-23 against twisted
+# <= 26.4.0. All are fixed only in 26.10.0rc1 (a prerelease; no stable release
+# exists, and pinning an rc under daphne is a larger risk than the finding).
+# Each is in a Twisted server protocol Visiban never starts: the IRC server
+# (twisted.words.protocols.irc), the conch Telnet transport, and the words
+# domish XML stream. Visiban uses twisted only as daphne's HTTP/WebSocket
+# reactor. Re-check PyPI for a stable 26.10.0 and remove all three entries
+# when it lands; expiry is a month so this cannot go stale silently.
+[[IgnoredVulns]]
+id = "GHSA-53xc-49m8-p798"
+ignoreUntil = 2026-11-23
+reason = "Twisted IRC server DoS; fixed only in 26.10.0rc1; Visiban never runs the IRC server"
+
+[[IgnoredVulns]]
+id = "GHSA-cwm5-jh59-mwxr"
+ignoreUntil = 2026-11-23
+reason = "Twisted conch Telnet transport DoS; fixed only in 26.10.0rc1; Visiban never runs conch/Telnet"
+
+[[IgnoredVulns]]
+id = "GHSA-3476-c5c2-fr73"
+ignoreUntil = 2026-11-23
+reason = "Twisted words domish XML stream DoS; fixed only in 26.10.0rc1; Visiban never uses twisted.words"
