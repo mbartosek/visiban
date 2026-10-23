@@ -4705,7 +4705,7 @@ keeps the source's name as text in <code>imported_from_username</code> (#1675, #
 which the timeline, comment list, History view and exports display. A new import
 path that writes history rows or comments applies the same rule rather than
 linking them to accounts.</p>
-<p>Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, direct and group-inherited members whose role is not viewer, and users with <code>can_access_all_content</code>. A viewer role alone never makes a user assignable. REST card create and update and the MCP <code>create_card</code> and <code>update_card</code> username lookup all use this set (<code>_get_assignable_member_ids</code>).</p>
+<p>Card assignees follow a separate scope (#1716). The assignable set for a board is its owner, users with <code>can_access_all_content</code>, and members whose resolved role is not viewer. The set follows the same ladder as <code>get_board_role</code>: a user with an explicit board membership row is judged by that row alone (a viewer row, or a row whose role is outside the enum, excludes them even if a group would make them a member), and a group-inherited role (nearest ancestor group, as in <code>get_board_role</code>) applies only to users with no explicit row. A viewer role alone never makes a user assignable. The effective member set used for notification recipients follows the same ladder, so an out-of-enum row grants no recipient status either. REST card create and update and the MCP <code>create_card</code> and <code>update_card</code> username lookup all use this set (<code>_get_assignable_member_ids</code>).</p>
 <p>Scope of this rule: the surfaces in the table below. Comment mentions are
 validated against board membership by their own check (<code>boards/utils.py</code>,
 <code>extract_mentions</code>) and are not covered here.</p>
@@ -4760,7 +4760,7 @@ the status filter and the uniform response, not scope.</p>
 <tr>
 <td>Card assignee (REST)</td>
 <td><code>boards/serializers.py</code> <code>CardSerializer.__init__</code> (<code>assignee_id</code> queryset), <code>boards/views/cards.py</code>, <code>boards/views/_helpers.py</code></td>
-<td><code>boards/utils.py</code> <code>_get_assignable_member_ids</code>: owner, non-viewer direct and group-inherited members, and users with <code>can_access_all_content</code> (#1716). Pinned by <code>boards/tests/test_viewer_assignee.py</code></td>
+<td><code>boards/utils.py</code> <code>_get_assignable_member_ids</code>: owner, <code>can_access_all_content</code> users, and members whose role resolves through the <code>get_board_role</code> ladder to a non-viewer role (#1716, #1866). Pinned by <code>boards/tests/test_viewer_assignee.py</code> (<code>MemberSetLadderTests</code>, which also compares both sets with <code>get_board_role</code>)</td>
 </tr>
 <tr>
 <td>Card assignee (MCP)</td>
@@ -5003,6 +5003,16 @@ arrives by any other route, any non-API write.</p>
 <td>Invite redemption at registration</td>
 <td><code>boards/invites.py</code> <code>role_is_grantable</code>, <code>_would_create_membership</code>; <code>groups/invite_registration.py</code> <code>group_link_registration_refusal</code></td>
 <td>The stored link role must be in the grantable set (<code>GRANTABLE_ROLES</code>) or <code>GroupMembership.Role.values</code>, else the invite is refused as invalid</td>
+</tr>
+<tr>
+<td>Assignable and notification member sets</td>
+<td><code>boards/utils.py</code> <code>_get_effective_member_ids</code>, <code>_get_assignable_member_ids</code></td>
+<td>Follow the <code>get_board_role</code> ladder: an explicit row is judged by that row alone, so a row outside <code>BoardMembership.Role.values</code> grants nothing and group membership does not re-admit it; a group role outside <code>GroupMembership.Role.values</code> is skipped and the nearest ancestor group decides. Pinned by <code>boards/tests/test_viewer_assignee.py</code> <code>MemberSetLadderTests</code> (#1866)</td>
+</tr>
+<tr>
+<td>Board roster on <code>/full/</code></td>
+<td><code>boards/serializers.py</code> <code>BoardFullSerializer.get_members</code></td>
+<td>Group-inherited roles use the same nearest-ancestor rule and skip out-of-enum group roles. Explicit rows are listed as stored, including out-of-enum ones, so admins can see and remove them; those display differences are tracked in #1905. Pinned by <code>FullRosterLadderTests</code></td>
 </tr>
 <tr>
 <td>Board role resolution (all transports)</td>
