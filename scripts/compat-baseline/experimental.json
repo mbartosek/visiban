@@ -1,0 +1,14 @@
+{
+ "experimental": [
+  {
+   "path_pattern": "/api/v1/git-lens/*",
+   "issue": "#1875",
+   "reason": "Git Lens REST endpoints are documented experimental in docs/api/git-lens.md (owner decision on #1666: only the lens_connection WS events and the git_lens_enabled user field are frozen)"
+  },
+  {
+   "path_pattern": "/api/v1/admin/git-lens/usage/",
+   "issue": "#1875",
+   "reason": "Git Lens admin usage endpoint is part of the experimental REST surface documented in docs/api/git-lens.md"
+  }
+ ]
+}

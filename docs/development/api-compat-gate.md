@@ -97,6 +97,39 @@ operation, so use it only when the whole operation is deliberately retired (the 
 `#1080` catch-all entries are an example). The self-test pins the opposite behavior for
 `key` entries: a *new* finding under an operation that already has entries still fails.
 
+## Experimental operations
+
+An operation documented as experimental (no stability promise until it graduates) must not
+freeze when the baseline is rolled. List it in `scripts/compat-baseline/experimental.json`
+(#1875), which is separate from the allow-list: the allow-list excuses one specific break,
+this keeps a whole operation out of the contract.
+
+```json
+{"experimental": [
+  {"path_pattern": "/api/v1/git-lens/*", "issue": "#1875", "reason": "documented experimental in docs/api/git-lens.md"}
+]}
+```
+
+- `path_pattern` is an `fnmatch` pattern against the schema path (`*` is a wildcard).
+- Every entry needs an `issue` and a `reason`; the gate fails without them.
+- Matching operations are skipped on both sides of the diff, and the gate prints each skipped
+  `METHOD /path/` in the CI log so the exemption is visible.
+- An entry that matches no operation in the baseline or at HEAD is **dead and fails the job**.
+  With `--schema FILE`, generate the schema with `GIT_LENS_ENABLED=True`, otherwise the Git Lens
+  entries report as dead (the default run sets it for you).
+- `--normalize` honors the list, so a baseline regenerated at a GA tag never contains these
+  operations (see "Regenerating the baseline"). Components are compared only through the
+  operations that reference them, so a component shared with a non-experimental operation is
+  still checked through that operation.
+- **When to add an entry:** only for a surface the public docs already call experimental, with
+  a tracking issue. Do not use it to get a pipeline green.
+- **Leaving experimental:** remove the entry **before** the baseline roll that should freeze the
+  operation, and update the API doc's experimental notice in the same MR. Removing it after the
+  roll leaves the operation permanently unfrozen.
+
+The only entries today are the Git Lens REST endpoints. The `lens_connection.*` WebSocket
+events and the `git_lens_enabled` user field are deliberately frozen (#1666) and are not listed.
+
 ### Frozen snapshot of the v1.1.0 baseline drift
 
 The v1.1.0 schema was generated before the schema-hygiene work (#1135-#1138, #1209, #1080) and
@@ -221,7 +254,8 @@ release checklist, point `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-ap
 (lines 52-53) at the new
 directory, delete every allow-list entry the new baseline no longer needs, and delete the old
 baseline directory. `--normalize` strips prose, examples, and `x-` extensions so the fixture
-stays small and docs edits never read as contract changes.
+stays small and docs edits never read as contract changes, and drops every operation listed in
+`experimental.json`. Before the roll, remove the entry of any operation that should now freeze.
 
 Every allow-list entry is a diff against the v1.1.0 baseline. Once the baseline is the v1.2.0
 schema and HEAD matches it, none of those findings fire, so all entries go stale, and a stale

@@ -17,6 +17,8 @@ Three Git Lens surfaces are part of the frozen 1.x API contract and are **not** 
 
 Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.
 
+The compatibility gate enforces this split: the REST endpoints are listed in `scripts/compat-baseline/experimental.json`, so they stay out of the frozen OpenAPI baseline. See [Experimental operations](../development/api-compat-gate.md#experimental-operations).
+
 The feature is flag-gated: all endpoints below return `404 Not Found` unless the server is started with `GIT_LENS_ENABLED=true`.
 
 All endpoints require authentication (`Authorization: Token <value>`). Unauthenticated requests receive `401 Unauthorized` (with a `WWW-Authenticate: Token` header).

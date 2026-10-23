@@ -14,6 +14,13 @@ manual claim. This gate does that diff on every MR:
   2. Settings: every env var name read by `backend/visiban/settings.py` at the
      GA tag must still be read at HEAD (a kept deprecated alias counts).
 
+Experimental operations (#1875) are listed in
+`scripts/compat-baseline/experimental.json` by path pattern. They are skipped on
+both sides of the diff and stripped by `--normalize`, so they never freeze when
+the baseline is rolled. This is not the allow-list: that excuses one specific
+break, this keeps a whole operation out of the contract. Every entry needs an
+issue and a reason, and an entry that matches no operation fails the gate.
+
 Deliberate breaks are allow-listed in `scripts/compat-baseline/allowlist.json`,
 one entry per finding, each with a mandatory issue reference. An allow-list
 entry that no longer matches a finding is itself a failure, so the list cannot
@@ -52,6 +59,7 @@ BASELINE_DIR = REPO_ROOT / "scripts" / "compat-baseline"
 BASELINE_SCHEMA = BASELINE_DIR / "v1.1.0" / "openapi.json"
 BASELINE_ENV = BASELINE_DIR / "v1.1.0" / "settings-env.txt"
 ALLOWLIST = BASELINE_DIR / "allowlist.json"
+EXPERIMENTAL = BASELINE_DIR / "experimental.json"
 SETTINGS_PY = BACKEND_DIR / "visiban" / "settings.py"
 
 HTTP_METHODS = ("get", "put", "post", "patch", "delete", "head", "options", "trace")
@@ -397,6 +405,54 @@ def apply_allowlist(findings: list[Finding], entries: list[dict]):
     return live, [entries[i] for i in sorted(hit)], sorted(stale)
 
 
+# --- experimental operations (#1875) -----------------------------------------
+
+
+def load_experimental(path: Path) -> tuple[list[dict], list[str]]:
+    if not path.exists():
+        return [], []
+    data = json.loads(path.read_text())
+    entries = data.get("experimental", []) if isinstance(data, dict) else []
+    errors = []
+    for i, e in enumerate(entries):
+        name = e.get("path_pattern") or f"#{i}"
+        if not e.get("path_pattern"):
+            errors.append(f"experimental entry {i}: missing 'path_pattern'")
+        if not ISSUE_RE.match(str(e.get("issue", ""))):
+            errors.append(f"experimental entry {i} ({name}): 'issue' must look like #1234")
+        if not e.get("reason"):
+            errors.append(f"experimental entry {i} ({name}): missing 'reason'")
+    return entries, errors
+
+
+def _is_experimental(entries: list[dict], path: str) -> list[int]:
+    # "[" is literal: spectacular can emit regex-ish paths with brackets.
+    return [
+        i for i, e in enumerate(entries)
+        if e.get("path_pattern") and fnmatch.fnmatchcase(path, e["path_pattern"].replace("[", "[[]"))
+    ]
+
+
+def strip_experimental(spec: dict, entries: list[dict]):
+    """Drop experimental paths from a schema.
+
+    Returns (stripped spec, sorted "METHOD /path" ops dropped, entry indexes
+    that matched a path). Only `paths` is filtered: components are compared
+    solely through the operations that reference them, so a component shared
+    with a non-experimental operation is still checked through that operation.
+    """
+    paths = spec.get("paths", {})
+    kept, dropped, hit = {}, [], set()
+    for path, item in paths.items():
+        matched = _is_experimental(entries, path)
+        if not matched:
+            kept[path] = item
+            continue
+        hit.update(matched)
+        dropped += [f"{m.upper()} {path}" for m in HTTP_METHODS if m in item]
+    return dict(spec, paths=kept), sorted(dropped), hit
+
+
 # --- driver ------------------------------------------------------------------
 
 
@@ -413,9 +469,17 @@ def generate_schema(destination: Path) -> None:
     )
 
 
-def report(live, allowed, stale, errors) -> int:
+def report(live, allowed, stale, errors, skipped=(), dead=()) -> int:
     for e in errors:
         print(f"ERROR {e}")
+    if skipped:
+        print(f"Experimental operations skipped, not frozen ({len(skipped)}):")
+        for op in skipped:
+            print(f"  {op}")
+    if dead:
+        print(f"DEAD experimental entries (match no operation in the baseline or HEAD; remove them; with --schema FILE the schema must be generated with GIT_LENS_ENABLED=True or git-lens entries report as dead) - {len(dead)}:")
+        for k in dead:
+            print(f"  {k}")
     if allowed:
         print(f"Allow-listed breaking changes ({len(allowed)}):")
         for e in allowed:
@@ -433,7 +497,7 @@ def report(live, allowed, stale, errors) -> int:
             "or (if the break is deliberate and planned for a major bump) add an entry with an "
             "issue reference to scripts/compat-baseline/allowlist.json."
         )
-    if live or stale or errors:
+    if live or stale or errors or dead:
         return 1
     print("OK - no breaking OpenAPI or settings changes vs the GA baseline.")
     return 0
@@ -446,6 +510,7 @@ def main() -> int:
     ap.add_argument("--baseline-schema", type=Path, default=BASELINE_SCHEMA)
     ap.add_argument("--baseline-env", type=Path, default=BASELINE_ENV)
     ap.add_argument("--allowlist", type=Path, default=ALLOWLIST)
+    ap.add_argument("--experimental", type=Path, default=EXPERIMENTAL)
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--normalize", nargs=2, metavar=("IN", "OUT"), type=Path)
     ap.add_argument("--dump-env", type=Path, metavar="SETTINGS_PY")
@@ -456,6 +521,12 @@ def main() -> int:
     roots = cli_roots()
     if args.normalize:
         src = json.loads(resolve_within(roots, args.normalize[0]).read_text())
+        # Experimental operations must never enter a rolled baseline (#1875).
+        exp_entries, exp_errors = load_experimental(resolve_within(roots, args.experimental))
+        if exp_errors:
+            print("\n".join(f"ERROR {e}" for e in exp_errors))
+            return 1
+        src, _, _ = strip_experimental(src, exp_entries)
         out = resolve_within(roots, args.normalize[1])
         out.write_text(json.dumps(normalize(src), sort_keys=True, separators=(",", ":")) + "\n")
         return 0
@@ -472,6 +543,11 @@ def main() -> int:
             out = Path(tmp) / "openapi.json"
             generate_schema(out)
             new_schema = json.loads(out.read_text())
+    exp_entries, exp_errors = load_experimental(resolve_within(roots, args.experimental))
+    old_schema, old_skipped, old_hit = strip_experimental(old_schema, exp_entries)
+    new_schema, new_skipped, new_hit = strip_experimental(new_schema, exp_entries)
+    skipped = sorted(set(old_skipped) | set(new_skipped))
+    dead = [e.get("path_pattern") or f"#{i}" for i, e in enumerate(exp_entries) if i not in old_hit | new_hit]
     findings = diff_schemas(normalize(old_schema), normalize(new_schema))
 
     old_env = {ln.strip() for ln in resolve_within(roots, args.baseline_env).read_text().splitlines() if ln.strip()}
@@ -479,7 +555,7 @@ def main() -> int:
 
     entries, errors = load_allowlist(resolve_within(roots, args.allowlist))
     live, allowed, stale = apply_allowlist(findings, entries)
-    return report(live, allowed, stale, errors)
+    return report(live, allowed, stale, errors + exp_errors, skipped, sorted(dead))
 
 
 # --- self-test ---------------------------------------------------------------
@@ -599,6 +675,19 @@ def self_test() -> int:
         p.write_text(json.dumps({"allow": [{"key": "K x", "issue": "soon", "reason": "r"}, {"key": "K y", "issue": "#2"}, {"issue": "#3", "reason": "r"}]}))
         _, errs = load_allowlist(p)
         check("allow-list requires target, issue ref and reason", len(errs), 3)
+
+    # experimental exclusion (#1875)
+    exp = [{"path_pattern": "/api/exp/*", "issue": "#1", "reason": "r"}]
+    spec = {"paths": {"/api/exp/a/": {"get": {}, "post": {}}, "/api/x/": {"get": {}}}}
+    kept, dropped, hit = strip_experimental(spec, exp)
+    check("experimental strip keeps others", sorted(kept["paths"]), ["/api/x/"])
+    check("experimental strip reports ops", (dropped, hit), (["GET /api/exp/a/", "POST /api/exp/a/"], {0}))
+    check("experimental dead entry unmatched", strip_experimental(spec, [dict(exp[0], path_pattern="/nope/*")])[2], set())
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "e.json"
+        p.write_text(json.dumps({"experimental": [{"path_pattern": "/a/*", "issue": "soon"}, {"issue": "#2", "reason": "r"}]}))
+        _, errs = load_experimental(p)
+        check("experimental requires pattern, issue ref and reason", len(errs), 3)
 
     if failures:
         print("SELF-TEST FAILED:")

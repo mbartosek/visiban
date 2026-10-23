@@ -49,12 +49,13 @@ printf 'ALPHA\nBETA\n' > "$TMP/env_base.txt"
 printf 'ALPHA = env("ALPHA")\nBETA = env.bool("BETA", default=False)\n' > "$TMP/settings_ok.py"
 printf 'ALPHA = env("ALPHA")\n' > "$TMP/settings_missing.py"
 echo '{"allow": []}' > "$TMP/allow_empty.json"
+echo '{"experimental": []}' > "$TMP/exp_empty.json"
 
 mk_schema "$TMP/base.json" '{"id":{"type":"integer"},"name":{"type":"string"}}' '["id","name"]'
 
 gate() { # gate <head-schema> <settings> <allowlist>
   run_gate --baseline-schema "$TMP/base.json" --baseline-env "$TMP/env_base.txt" \
-    --schema "$1" --settings "$2" --allowlist "$3"
+    --schema "$1" --settings "$2" --allowlist "$3" --experimental "$TMP/exp_empty.json"
 }
 
 # Unchanged contract passes.
@@ -82,7 +83,8 @@ check "type change is named" "$(grep -q 'TYPE_CHANGED.*integer->string' <<<"$OUT
 mk_schema "$TMP/req_base.json" '{}' '[]' '{"a":{"type":"string"}}' '[]'
 mk_schema "$TMP/req_head.json" '{}' '[]' '{"a":{"type":"string"}}' '["a"]'
 run_gate --baseline-schema "$TMP/req_base.json" --baseline-env "$TMP/env_base.txt" \
-  --schema "$TMP/req_head.json" --settings "$TMP/settings_ok.py" --allowlist "$TMP/allow_empty.json"
+  --schema "$TMP/req_head.json" --settings "$TMP/settings_ok.py" --allowlist "$TMP/allow_empty.json" \
+  --experimental "$TMP/exp_empty.json"
 check "request field became required exits 1" "$([[ $RC -eq 1 ]] && echo 0 || echo 1)"
 check "required-ness finding is named" "$(grep -q 'REQUEST_FIELD_BECAME_REQUIRED' <<<"$OUT" && echo 0 || echo 1)"
 
@@ -112,6 +114,55 @@ check "removed env var is named" "$(grep -q 'REMOVED_ENV_VAR BETA' <<<"$OUT" && 
 # Fail closed on a missing baseline.
 run_gate --baseline-schema "$TMP/nope.json" --baseline-env "$TMP/env_base.txt" --schema "$TMP/base.json"
 check "missing baseline does not exit 0" "$([[ $RC -ne 0 ]] && echo 0 || echo 1)"
+
+# Experimental operations (#1875). mk_exp builds a schema whose only operation
+# lives under /api/v1/exp/; a break there passes when the path is excluded.
+mk_exp() { # mk_exp <file> <props-json> <required-json>
+  "$PYTHON" - "$@" <<'PY'
+import json, sys
+out, props, req = sys.argv[1], json.loads(sys.argv[2]), json.loads(sys.argv[3])
+ok = {"responses": {"200": {"content": {"application/json": {"schema": {
+    "type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]}}}}}}
+exp = {"responses": {"200": {"content": {"application/json": {"schema": {
+    "type": "object", "properties": props, "required": req}}}}}}
+json.dump({"paths": {"/api/v1/x/": {"get": ok}, "/api/v1/exp/a/": {"get": exp}}}, open(out, "w"))
+PY
+}
+mk_exp "$TMP/exp_base.json" '{"id":{"type":"integer"},"name":{"type":"string"}}' '["id","name"]'
+mk_exp "$TMP/exp_broken.json" '{"id":{"type":"string"}}' '["id"]'
+echo '{"experimental": [{"path_pattern": "/api/v1/exp/*", "issue": "#1875", "reason": "test"}]}' > "$TMP/exp_ok.json"
+echo '{"experimental": [{"path_pattern": "/api/v1/nope/*", "issue": "#1875", "reason": "test"}]}' > "$TMP/exp_dead.json"
+echo '{"experimental": [{"path_pattern": "/api/v1/exp/*", "reason": "test"}]}' > "$TMP/exp_noissue.json"
+exp_gate() { # exp_gate <head-schema> <experimental-file>
+  run_gate --baseline-schema "$TMP/exp_base.json" --baseline-env "$TMP/env_base.txt" \
+    --schema "$1" --settings "$TMP/settings_ok.py" --allowlist "$TMP/allow_empty.json" --experimental "$2"
+}
+exp_gate "$TMP/exp_broken.json" "$TMP/exp_ok.json"
+check "break in experimental op exits 0" "$([[ $RC -eq 0 ]] && echo 0 || echo 1)"
+check "skipped experimental op is printed" "$(grep -q 'GET /api/v1/exp/a/' <<<"$OUT" && echo 0 || echo 1)"
+exp_gate "$TMP/exp_broken.json" "$TMP/allow_empty.json"
+check "same break without exclusion exits 1" "$([[ $RC -eq 1 ]] && echo 0 || echo 1)"
+# A break in a NON-excluded op still fails while the experimental one is excluded.
+"$PYTHON" - "$TMP/exp_base.json" "$TMP/exp_other_broken.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["paths"]["/api/v1/x/"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["properties"] = {}
+d["paths"]["/api/v1/x/"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["required"] = []
+json.dump(d, open(sys.argv[2], "w"))
+PY
+exp_gate "$TMP/exp_other_broken.json" "$TMP/exp_ok.json"
+check "break in non-excluded op still exits 1" "$([[ $RC -eq 1 ]] && echo 0 || echo 1)"
+check "non-excluded break is named" "$(grep -q 'REMOVED_RESPONSE_FIELD.*/api/v1/x/' <<<"$OUT" && echo 0 || echo 1)"
+exp_gate "$TMP/exp_base.json" "$TMP/exp_dead.json"
+check "dead experimental entry exits 1" "$([[ $RC -eq 1 ]] && echo 0 || echo 1)"
+check "dead experimental entry is reported" "$(grep -q DEAD <<<"$OUT" && echo 0 || echo 1)"
+exp_gate "$TMP/exp_base.json" "$TMP/exp_noissue.json"
+check "experimental entry without issue exits 1" "$([[ $RC -eq 1 ]] && echo 0 || echo 1)"
+# --normalize strips experimental ops so a rolled baseline never freezes them.
+run_gate --normalize "$TMP/exp_base.json" "$TMP/exp_norm.json" --experimental "$TMP/exp_ok.json"
+check "--normalize exits 0" "$([[ $RC -eq 0 ]] && echo 0 || echo 1)"
+check "--normalize drops experimental path" "$(grep -q '/api/v1/exp/' "$TMP/exp_norm.json" && echo 1 || echo 0)"
+check "--normalize keeps other paths" "$(grep -q '/api/v1/x/' "$TMP/exp_norm.json" && echo 0 || echo 1)"
 
 # Built-in self-test.
 run_gate --self-test

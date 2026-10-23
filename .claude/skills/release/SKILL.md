@@ -219,7 +219,9 @@ that is the tag-only job flagged in Step 1's pre-flight inventory if it changed 
       here, after Step 2).** Regenerate `scripts/compat-baseline/<tag>/` from the tag and
       repoint `BASELINE_SCHEMA` / `BASELINE_ENV` in `scripts/check-api-compat.py`, per
       `docs/development/api-compat-gate.md`, so the next cycle's `api-compat-check` diffs
-      against this release. Land it as a branch and MR, never on `main`.
+      against this release. Before regenerating, review `scripts/compat-baseline/experimental.json`
+      and remove entries for operations that should freeze, since `--normalize` strips listed
+      operations silently. Land it as a branch and MR, never on `main`.
 - [ ] **Clear the API allow-list (v1.2.0 roll only).** Every entry is a diff against the v1.1.0
       baseline, so against the freshly rolled baseline all of them go stale and fail
       `api-compat-check`. Run `python3 scripts/check-api-compat.py`, delete every entry it
