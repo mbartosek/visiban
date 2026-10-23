@@ -4204,6 +4204,11 @@ own header — is never mistaken for a real exemption.</p>
 <td>Offline self-test against stubbed forge responses.</td>
 </tr>
 <tr>
+<td><code>scripts/gl-issues.sh</code></td>
+<td>not a CI job (a maintainer-side helper for <code>/pre-release</code> and <code>/wave</code>, so the parity gate does not reach it)</td>
+<td>#1901: <code>--self-test</code> stubs <code>glab</code> on <code>PATH</code> and covers a failing <code>glab</code>, a missing <code>glab</code>, an HTTP-error object, a non-JSON body, an empty value (an unset <code>$WORKING_RELEASE</code> must not widen the query), an unknown milestone title, <code>&amp;</code> and space URL-encoding, and the happy path. Fails closed so an empty result always means "no issues".</td>
+</tr>
+<tr>
 <td><code>scripts/check-memory-index.sh</code></td>
 <td>not currently a CI job</td>
 <td>Self-test builds a synthetic memory store.</td>
