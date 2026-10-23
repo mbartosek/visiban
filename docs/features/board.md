@@ -207,9 +207,17 @@ Any board member — not just admins — can flip **Use my own density** in **Bo
 
 Empty cells show a dashed border to indicate they are valid drop targets even when no cards are present.
 
-Click a card to open its **detail panel** on the right side. The panel contains all editable fields plus two tabs:
+Click a card to open its **detail panel**. Where it opens depends on the window width. *Changed in 1.2 (#1914): before 1.2 the panel always opened at the right edge of the window, over a dimmed board.*
 
-- **Details** — description, priority, assignee, labels, due date, weight, checklist, attachments, and comments. The Checklist and Attachments sections are collapsible via a chevron toggle; each auto-collapses when empty on load. A scroll gradient at the bottom of the panel indicates there is more content below the visible area.
+- **1280 px and wider:** the panel opens next to the card's column, to its right if there is room, otherwise to its left. A small notch on the panel's edge points at the card, and the card gets a thick blue border and ring while it is open. The board is not dimmed. If neither side has room (the panel never covers the swimlane names), or the card is not on screen (for example, it is filtered out or its swimlane is collapsed), the panel opens at the right edge instead.
+- **641 to 1279 px:** the panel opens at the right edge of the window, over a lightly dimmed board.
+- **640 px and narrower:** the panel fills the screen, with a **‹ Board** button to go back.
+
+While the panel is open, click another card to switch the panel to it, or click an empty part of the board to close it. Escape and the **×** button also close it, and focus returns to the card you opened. Cards can't be dragged while the panel is open. The panel stays put when you scroll the board: the notch follows the card, and the panel moves to the card's column again when you stop scrolling or resize the window.
+
+The panel contains all editable fields plus two tabs:
+
+- **Details** — description, priority, assignee, labels, due date, weight, checklist, attachments, and comments. The Checklist and Attachments sections are collapsible via a chevron toggle; each auto-collapses when empty on load. While a card's checklist, attachments and comments load, those sections show placeholders and **Archive card** waits until they finish. The title, tabs and footer stay in place while the details scroll, and a fade at the top or bottom shows there is more content in that direction.
 - **Activity** — the full movement and activity timeline. See [Card History](card-history.md).
 
 The panel header also includes a **Move** button next to the column name in the breadcrumb row (visible to members and above). It opens a **Move to** popover that lets you move the card to a different column and/or swimlane without closing the panel — select the destination swimlane and column from the dropdowns, then click **Move**. WIP and weight limits are enforced the same way as drag-and-drop moves. When a limit blocks the move, the popover names the column and shows the limit's numbers; for a soft WIP or weight limit, board admins also get a **Move anyway (admin override)** link right there, which forces the move to the selected destination. Hard WIP limits have no override.

@@ -23,6 +23,8 @@ interface Props {
   filteredCardIds: Set<number> | null;
   selectedCardIds: Set<number>;
   highlightedCardId?: number | null;
+  /** The card open in the card detail sheet, if any (#1914). */
+  currentCardId?: number | null;
   onToggleCardSelection: (cardId: number) => void;
   onCardClick: (card: Card) => void;
   onCardAdded: (card: Card) => void;
@@ -89,7 +91,7 @@ interface Props {
   overlayLabel?: string;
 }
 
-export default function SwimlaneRow({ swimlane, columns, cards, boardId, isAdmin, canEdit, closeEditorOnEnter, collapsedColumnIds, hiddenColumnIds, filteredCardIds, selectedCardIds, highlightedCardId, onToggleCardSelection, onCardClick, onCardAdded, onSwimlaneUpdated, onSwimlaneDeleted, collapsed, onToggleCollapse, onFocus, onExitFocus, isFocused, onHoverEnter, onHoverLeave, sidebarWidth, setSidebarWidth, colWidths, setColumnWidth, onInsertColumn, hoveredSepIndex, onSepHoverChange, minHeight, setSwimlaneHeight, density, userTimezone, userDateFormat, compact, staleness_threshold_days, stale_warning_pct, customFieldDefinitions, swimlaneFieldDefinitions, hideRowChipFieldNames, onEditFieldOrder, onCardUpdated, overlayCells, overlayLabel }: Props) {
+export default function SwimlaneRow({ swimlane, columns, cards, boardId, isAdmin, canEdit, closeEditorOnEnter, collapsedColumnIds, hiddenColumnIds, filteredCardIds, selectedCardIds, highlightedCardId, currentCardId, onToggleCardSelection, onCardClick, onCardAdded, onSwimlaneUpdated, onSwimlaneDeleted, collapsed, onToggleCollapse, onFocus, onExitFocus, isFocused, onHoverEnter, onHoverLeave, sidebarWidth, setSidebarWidth, colWidths, setColumnWidth, onInsertColumn, hoveredSepIndex, onSepHoverChange, minHeight, setSwimlaneHeight, density, userTimezone, userDateFormat, compact, staleness_threshold_days, stale_warning_pct, customFieldDefinitions, swimlaneFieldDefinitions, hideRowChipFieldNames, onEditFieldOrder, onCardUpdated, overlayCells, overlayLabel }: Props) {
   const [editing, setEditing] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
@@ -185,6 +187,8 @@ export default function SwimlaneRow({ swimlane, columns, cards, boardId, isAdmin
           className={`shrink-0 flex items-center gap-2 pl-1 pr-3 sticky left-0 z-10 bg-surface border-l-4 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-surface-hover/30 before:opacity-0 hover:before:opacity-100 group relative ${collapsed ? "py-1" : "py-3 items-start"}`}
           style={{ width: sidebarWidth ?? 220, borderLeftColor: swimlane.color || "transparent" }}
           data-tour-step="swimlane"
+          // The card detail sheet never covers the lane labels (#1914).
+          data-lane-label
           data-no-pan
           onDoubleClick={isAdmin ? () => setEditing(true) : undefined}
         >
@@ -455,6 +459,7 @@ export default function SwimlaneRow({ swimlane, columns, cards, boardId, isAdmin
                 filteredCardIds={filteredCardIds}
                 selectedCardIds={selectedCardIds}
                 highlightedCardId={highlightedCardId}
+                currentCardId={currentCardId}
                 onToggleCardSelection={onToggleCardSelection}
                 onCardClick={onCardClick}
                 onCardAdded={onCardAdded}

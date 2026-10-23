@@ -1,0 +1,153 @@
+import { describe, it, expect } from 'vitest'
+import {
+  SHEET_GAP, SHEET_WIDTH, NOTCH_INSET,
+  classifyTransition, computeCardSheetPlacement, computeNotch, sameFrame, samePlacement,
+} from '../hooks/useCardSheetPlacement'
+import type { SheetGeometry, SheetPlacement } from '../hooks/useCardSheetPlacement'
+
+// #1914 — the anchor rule for the card detail sheet.
+const VH = 900
+const geometry = (overrides: Partial<SheetGeometry> = {}): SheetGeometry => ({
+  column: { left: 240, right: 460 },
+  lanesRight: 220,
+  toolbarBottom: 96,
+  cardCenterY: 300,
+  ...overrides,
+})
+const place = (viewportWidth: number, g: SheetGeometry | null = geometry()) =>
+  computeCardSheetPlacement({ viewportWidth, viewportHeight: VH, geometry: g })
+
+describe('computeCardSheetPlacement (#1914)', () => {
+  it('is full-screen at <= 640px, whatever the geometry', () => {
+    expect(place(640).mode).toBe('fullscreen')
+    expect(place(375).mode).toBe('fullscreen')
+    expect(place(375, null).mode).toBe('fullscreen')
+  })
+
+  it('docks to the right edge from 641px up to 1279px, even when the column has room', () => {
+    for (const vw of [641, 1024, 1279]) {
+      const p = place(vw)
+      expect(p).toMatchObject({ mode: 'docked', side: null, left: null, top: 0, bottom: 0, notch: null })
+    }
+  })
+
+  it('anchors to the right of the column when it fits (1280px is anchored)', () => {
+    const p = place(1280)
+    expect(p.mode).toBe('anchored')
+    expect(p.side).toBe('right')
+    expect(p.left).toBe(460 + SHEET_GAP)
+    // Top: toolbar bottom + 8px; bottom: 12px above the viewport edge.
+    expect(p.top).toBe(96 + 8)
+    expect(p.bottom).toBe(12)
+    expect(p.notch).toEqual({ y: 300 - 104, clamped: false })
+  })
+
+  it('flips to the left of the column when the right side has no room', () => {
+    const p = place(1440, geometry({ column: { left: 1000, right: 1220 } }))
+    expect(p.mode).toBe('anchored')
+    expect(p.side).toBe('left')
+    expect(p.left).toBe(1000 - SHEET_GAP - SHEET_WIDTH)
+  })
+
+  it('docks when neither side fits, rather than covering the lane labels', () => {
+    // Right: 826 + 540 > 1300 - 16. Left: 594 - 540 = 54, inside the 220px labels.
+    const p = place(1300, geometry({ column: { left: 600, right: 820 } }))
+    expect(p.mode).toBe('docked')
+  })
+
+  it('docks when the card has no measurable element (it is never centered)', () => {
+    expect(place(1600, null)).toMatchObject({ mode: 'docked', left: null, notch: null })
+  })
+
+  it('docks rather than start under the sticky lane labels or run off screen', () => {
+    // Column scrolled under the labels: the right placement would begin at 126px.
+    expect(place(1600, geometry({ column: { left: -100, right: 120 } })).mode).toBe('docked')
+    // Column scrolled past the right edge: the left placement would overflow it.
+    expect(place(1600, geometry({ column: { left: 1700, right: 1920 } })).mode).toBe('docked')
+  })
+
+  // Dense board: 9 columns x 6 swimlanes, the card in the last column.
+  describe('dense board, 9 columns x 6 swimlanes', () => {
+    const LANES = 220
+    const COL = 220
+    const SEP = 16
+    const columnAt = (index: number, scrollLeft: number) => {
+      const left = LANES + SEP + index * (COL + SEP) - scrollLeft
+      return { left, right: left + COL }
+    }
+    const lanes = Array.from({ length: 6 }, (_, i) => 100 + i * 140)
+
+    it('flips left for a card in the last column scrolled into view, on every lane', () => {
+      const vw = 1600
+      const content = LANES + SEP + 9 * (COL + SEP)
+      const column = columnAt(8, content - vw)
+      for (const cardCenterY of lanes) {
+        const p = place(vw, geometry({ column, lanesRight: LANES, cardCenterY }))
+        expect(p.mode).toBe('anchored')
+        expect(p.side).toBe('left')
+        expect(p.left! >= LANES).toBe(true)
+        expect(p.left! + SHEET_WIDTH <= vw - 16).toBe(true)
+      }
+    })
+
+    it('anchors right for a card in the first column', () => {
+      const p = place(1600, geometry({ column: columnAt(0, 0), lanesRight: LANES }))
+      expect(p.side).toBe('right')
+    })
+
+    it('docks for the last column while it is still off screen', () => {
+      expect(place(1600, geometry({ column: columnAt(8, 0), lanesRight: LANES })).mode).toBe('docked')
+    })
+  })
+})
+
+describe('computeNotch (#1914, frame 3)', () => {
+  it('tracks the card center inside the sheet', () => {
+    expect(computeNotch(400, 100, 12, VH)).toEqual({ y: 300, clamped: false })
+  })
+
+  it('clamps 28px from the top corner when the card is scrolled above the sheet', () => {
+    expect(computeNotch(-50, 100, 12, VH)).toEqual({ y: NOTCH_INSET, clamped: true })
+  })
+
+  it('clamps 28px from the bottom corner when the card is scrolled below it', () => {
+    expect(computeNotch(2000, 100, 12, VH)).toEqual({ y: VH - 12 - NOTCH_INSET - 100, clamped: true })
+  })
+})
+
+describe('classifyTransition (#1914)', () => {
+  const anchoredRight = place(1600)
+  const anchoredRightElsewhere = place(1600, geometry({ column: { left: 480, right: 700 } }))
+  const anchoredLeft = place(1600, geometry({ column: { left: 1000, right: 1220 } }))
+  const docked = place(1024)
+
+  it('opens on the first placement', () => {
+    expect(classifyTransition(null, anchoredRight, 'open')).toBe('open')
+  })
+
+  it('slides when the sheet stays on the same side', () => {
+    expect(classifyTransition(anchoredRight, anchoredRightElsewhere, 'resize')).toBe('slide')
+    expect(classifyTransition(anchoredRight, anchoredRightElsewhere, 'swap')).toBe('slide')
+  })
+
+  it('a swap to the same frame still cross-fades the body (a zero-distance slide)', () => {
+    expect(classifyTransition(docked, docked, 'swap')).toBe('slide')
+  })
+
+  it('fades when the side flips or the mode changes', () => {
+    expect(classifyTransition(anchoredRight, anchoredLeft, 'scroll')).toBe('fade')
+    expect(classifyTransition(docked, anchoredRight, 'appear')).toBe('fade')
+    expect(classifyTransition(anchoredRight, docked, 'resize')).toBe('fade')
+  })
+
+  it('always fades after an in-sheet Move, even on the same side', () => {
+    expect(classifyTransition(anchoredRight, anchoredRightElsewhere, 'move')).toBe('fade')
+  })
+
+  it('plays nothing for a notch-only change', () => {
+    const moved: SheetPlacement = { ...anchoredRight, notch: { y: 10, clamped: true } }
+    expect(sameFrame(anchoredRight, moved)).toBe(true)
+    expect(samePlacement(anchoredRight, moved)).toBe(false)
+    expect(classifyTransition(anchoredRight, moved, 'scroll')).toBe('none')
+  })
+})

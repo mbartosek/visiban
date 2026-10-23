@@ -15,6 +15,9 @@ import { BOARD_FULL, CARD } from './fixtures/board'
  * on every platform, not only the one it happens to scroll on.
  */
 test.describe('card description caret', () => {
+  // Desktop Chrome is exactly 1280px, the card detail sheet's anchored/docked
+  // boundary (#1914): pin a viewport that is unambiguously anchored.
+  test.use({ viewport: { width: 1600, height: 900 } })
   test.beforeEach(async ({ page }) => {
     await routeAuth(page)
     await routeBoard(page)

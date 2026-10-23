@@ -29,6 +29,10 @@ const VISITOR = { ...USER, id: 9, username: 'visitor', display_name: 'Demo Visit
 const BOARD = BOARD_FULL
 
 test.describe('hosted demo visitor loop', () => {
+  // Desktop Chrome is exactly 1280px, the card detail sheet's anchored/docked
+  // boundary (#1914): pin a viewport that is unambiguously anchored.
+  test.use({ viewport: { width: 1600, height: 900 } })
+
   test('explore → move a card → see it in History → create-board refused', async ({ page }) => {
     // Everything an authenticated shell needs, then override the auth bits.
     await routeAuth(page)
@@ -126,6 +130,15 @@ test.describe('hosted demo visitor loop', () => {
     await page.getByText(CARD.title, { exact: true }).first().click()
     const dialog = page.locator('[role="dialog"]')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
+    // #1914 (frame 7): the anchored sheet starts below the demo bar and the app
+    // bar, and carries the demo note at the top of its body.
+    await expect(dialog).toHaveAttribute('data-sheet-mode', 'anchored')
+    await expect.poll(async () => {
+      const sheet = (await dialog.boundingBox())!
+      const demoBar = (await bar.boundingBox())!
+      return sheet.y >= demoBar.y + demoBar.height
+    }).toBe(true)
+    await expect(dialog.getByText("This is a shared demo — edits to this card are visible to every visitor.")).toBeVisible()
 
     // 4a. #1193 — a second refused write, this time inside the card panel:
     // adding a relation is refused up front too, not left to the fallback

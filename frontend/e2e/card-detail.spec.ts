@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { routeAuth, routeBoard } from './helpers'
 import { BOARD_FULL, CARD, COLUMN_DONE, COLUMN_TODO, SWIMLANE } from './fixtures/board'
 
 test.describe('card detail', () => {
+  // Desktop Chrome is exactly 1280px wide, the anchored/docked boundary of the
+  // card detail sheet (#1914). Pin a viewport that is unambiguously anchored.
+  test.use({ viewport: { width: 1600, height: 900 } })
+
   test.beforeEach(async ({ page }) => {
     await routeAuth(page)
     await routeBoard(page)
@@ -133,10 +138,10 @@ test.describe('card detail', () => {
     await expect(dialog.getByText('To Do → Done')).toBeVisible({ timeout: 5_000 })
   })
 
-  // The Move-blocked toast sits under the panel's backdrop and outside its
-  // focus trap (#1732), so an admin overrides a limit from the Move popover
-  // itself (#1772). Keyboard-only from the failure on: the override must be
-  // reachable with Tab inside the trap.
+  // The Move-blocked toast is outside the panel's focus trap (#1732; there is
+  // no backdrop since #1914, but the trap stands), so an admin overrides a
+  // limit from the Move popover itself (#1772). Keyboard-only from the failure
+  // on: the override must be reachable with Tab inside the trap.
   test('admin overrides a WIP limit from the Move popover by keyboard', async ({ page }) => {
     const moveUrls: string[] = []
     await page.route(/\/api\/v1\/boards\/\d+\/cards\/\d+\/move\/(\?.*)?$/, (route) => {
@@ -204,5 +209,131 @@ test.describe('card detail', () => {
     expect(moveUrls[1]).toContain('force=true')
     await expect(dialog.getByTitle(COLUMN_DONE.name)).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'Move card to different column or swimlane' })).toBeFocused()
+  })
+})
+
+// #1914 — the card detail sheet's placement, swap, close and focus return.
+// Same column, below the first card: the anchored sheet covers the next column.
+const CARD_TWO = { ...CARD, id: 2, uid: 'card000002b', title: 'Second task', position: 1 }
+const TWO_CARD_BOARD = { ...BOARD_FULL, cards: [CARD, CARD_TWO] }
+
+/** Waits for the sheet's open/swap transition, which moves its box while it runs. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
+  return (await dialog.boundingBox())!
+}
+
+async function routeTwoCardBoard(page: Page) {
+  await routeAuth(page)
+  await routeBoard(page, TWO_CARD_BOARD)
+  await page.route(/\/api\/v1\/boards\/\d+\/cards\/\d+\/(comments|attachments|checklist|relations|activity|movements)\/(\?.*)?$/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }),
+  )
+  await page.route(/\/api\/v1\/boards\/\d+\/cards\/\d+\/timeline\//, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 0, next: null, results: [] }) }),
+  )
+}
+
+test.describe('card detail sheet — anchored (>= 1280px)', () => {
+  test.use({ viewport: { width: 1600, height: 900 } })
+  test.beforeEach(async ({ page }) => { await routeTwoCardBoard(page) })
+
+  test('opens beside the card, swaps on another card click, closes on empty space and returns focus', async ({ page }) => {
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    const first = page.locator(`[data-card-id="${CARD.id}"]`)
+    const second = page.locator(`[data-card-id="${CARD_TWO.id}"]`)
+    await expect(first).toBeVisible({ timeout: 10_000 })
+    await first.click()
+    const dialog = page.getByRole('dialog', { name: /./ })
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toHaveAttribute('data-sheet-mode', 'anchored')
+    await expect(dialog).toHaveAttribute('data-sheet-side', 'right')
+    await expect(page.getByRole('button', { name: 'Close' })).toBeFocused()
+    await expect(first).toHaveAttribute('aria-current', 'true')
+    await expect(page.getByTestId('card-sheet-notch')).toBeAttached()
+
+    // 6px from the column's edge, 14px from the card's (cells pad by 8px).
+    const cardBox = (await first.boundingBox())!
+    const sheetBox = await settled(dialog)
+    expect(Math.abs(sheetBox.x - (cardBox.x + cardBox.width + 14))).toBeLessThanOrEqual(2)
+    expect(sheetBox.width).toBe(540)
+
+    // Swap: the click on another card passes through and replaces the sheet.
+    await second.click()
+    await expect(page.locator('#card-detail-title')).toHaveValue(CARD_TWO.title)
+    await expect(page.getByRole('dialog', { name: /./ })).toHaveCount(1)
+    await expect(second).toHaveAttribute('aria-current', 'true')
+    await expect(first).not.toHaveAttribute('aria-current', 'true')
+    // Drag-and-drop is suspended while the sheet is open.
+    const secondBox = (await second.boundingBox())!
+    await page.mouse.move(secondBox.x + 20, secondBox.y + 10)
+    await page.mouse.down()
+    await page.mouse.move(secondBox.x + 200, secondBox.y + 60, { steps: 8 })
+    await page.mouse.up()
+    await expect(second).toBeVisible()
+
+    // Empty board space closes it, and the click does not also start an
+    // inline "add card" underneath; focus returns to the most recent card.
+    await page.mouse.click(300, 860)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByPlaceholder('Card title…')).toHaveCount(0)
+    await expect(second).toBeFocused()
+    await expect(second).not.toHaveAttribute('aria-current', 'true')
+  })
+
+  test('Escape closes one layer at a time and returns focus to the card', async ({ page }) => {
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    const first = page.locator(`[data-card-id="${CARD.id}"]`)
+    await first.click()
+    const dialog = page.getByRole('dialog', { name: /./ })
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Move card to different column or swimlane' }).click()
+    await expect(dialog.getByText('Move to')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog.getByText('Move to')).toHaveCount(0)
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(first).toBeFocused()
+  })
+})
+
+test.describe('card detail sheet — docked (641-1279px)', () => {
+  test.use({ viewport: { width: 1024, height: 768 } })
+  test.beforeEach(async ({ page }) => { await routeTwoCardBoard(page) })
+
+  test('docks to the right edge with a light backdrop', async ({ page }) => {
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    const first = page.locator(`[data-card-id="${CARD.id}"]`)
+    await first.click()
+    const dialog = page.getByRole('dialog', { name: /./ })
+    await expect(dialog).toHaveAttribute('data-sheet-mode', 'docked')
+    const box = await settled(dialog)
+    expect(box.x + box.width).toBe(1024)
+    expect(box.width).toBe(540)
+    await expect(page.getByTestId('card-detail-backdrop')).toBeVisible()
+    await page.getByRole('button', { name: 'Close' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(first).toBeFocused()
+  })
+})
+
+test.describe('card detail sheet — full-screen (<= 640px)', () => {
+  test.use({ viewport: { width: 600, height: 900 } })
+  test.beforeEach(async ({ page }) => { await routeTwoCardBoard(page) })
+
+  test('fills the screen with a Board back control that returns focus to the card', async ({ page }) => {
+    await page.goto(`/boards/${BOARD_FULL.id}`)
+    const first = page.locator(`[data-card-id="${CARD.id}"]`)
+    await first.click()
+    const dialog = page.getByRole('dialog', { name: /./ })
+    await expect(dialog).toHaveAttribute('data-sheet-mode', 'fullscreen')
+    const box = await settled(dialog)
+    expect(Math.round(box.width)).toBe(600)
+    const back = dialog.getByRole('button', { name: 'Back to board' })
+    expect((await back.boundingBox())!.height).toBe(44)
+    await back.click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(first).toBeFocused()
   })
 })

@@ -26,6 +26,13 @@ interface Props {
   overlay?: boolean;
   selected?: boolean;
   highlighted?: boolean;
+  /**
+   * This card is the one open in the card detail sheet (#1914): a 2px
+   * `primary-emphasis` border plus a 2px ring at a 2px offset, and
+   * `aria-current="true"`, so color is never the only signal. Takes
+   * precedence over the selection and highlight rings while it lasts.
+   */
+  current?: boolean;
   onSelect?: () => void;
   /**
    * Per-board card layout density (#961). Drives how much metadata renders on
@@ -127,6 +134,7 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.overlay === next.overlay &&
     prev.selected === next.selected &&
     prev.highlighted === next.highlighted &&
+    prev.current === next.current &&
     prev.onSelect === next.onSelect &&
     prev.density === next.density &&
     prev.userTimezone === next.userTimezone &&
@@ -142,7 +150,7 @@ function arePropsEqual(prev: Props, next: Props): boolean {
   );
 }
 
-const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
+const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, current = false, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
   // Per-density visibility booleans (#961). The decision tree:
   //   comfortable → one urgency badge, one primary label, checklist, assignee
   //   standard    → adds due date (when not in urgency), weight (>1), attachments, second label
@@ -384,6 +392,10 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       // makes the keyboard handler visible to static analysis (S1082) (#1376).
       onKeyDown={(e) => { listeners?.onKeyDown?.(e); }}
       onClick={readOnly ? undefined : onClick}
+      // The card detail sheet finds the open card's face by this (#1914). The
+      // drag-overlay copy has none, so it never matches.
+      data-card-id={overlay ? undefined : card.id}
+      aria-current={current ? "true" : undefined}
       data-no-pan
       data-tour-step="card"
       // A selected card drops its bg-info/20 fill while an aging tint is shown:
@@ -394,7 +406,7 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-emphasis focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
         ${isDragging && !overlay ? "opacity-25 !shadow-none !translate-y-0" : ""}
         ${overlay ? "rotate-1 opacity-95 !-translate-y-1" : ""}
-        ${highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? `ring-2 ring-primary-soft${overlayClass ? "" : " bg-info/20"}` : ""}
+        ${current ? "border-2 -m-px border-primary-emphasis ring-2 ring-primary-emphasis ring-offset-2 ring-offset-sunken" : highlighted ? "ring-2 ring-primary-soft ring-offset-1 ring-offset-sunken animate-pulse motion-reduce:animate-none" : selected ? `ring-2 ring-primary-soft${overlayClass ? "" : " bg-info/20"}` : ""}
       `}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -403,7 +415,9 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
       onFocus={(e) => { if (e.target === e.currentTarget && isKeyboardFocus(e.currentTarget)) setShowTooltip(true); }}
       onBlur={() => setShowTooltip(false)}
       style={{
-        borderColor: priorityColor,
+        // The open card's border is the primary-emphasis class above; the
+        // -m-px offsets its extra pixel so the card stack does not shift.
+        borderColor: current ? undefined : priorityColor,
         boxShadow: isDragging && !overlay
           ? "none"
           : overlay

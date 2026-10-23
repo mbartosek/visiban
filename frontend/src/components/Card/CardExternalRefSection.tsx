@@ -16,6 +16,12 @@ interface Props {
   /** `undefined` is treated exactly like `null` — see `Card.external_ref`. */
   externalRef: CardExternalRef | null | undefined;
   canEdit: boolean;
+  /**
+   * Shared demo (#1914, design frame 7): the link is read-only and this
+   * reason shows under it. Add is aria-disabled and points at the reason
+   * (it keeps its Tab stop); Edit and Remove are not offered.
+   */
+  demoReason?: string;
   /** Rejects on failure; the section surfaces the error and stays in place. */
   onSave: (next: CardExternalRef | null) => Promise<void>;
 }
@@ -29,7 +35,7 @@ const PROVIDERS: ExternalRefProvider[] = ["github", "gitlab", "other"];
  * write half-edited links. Save is pessimistic (no optimistic update) because
  * the server's URL validation is authoritative.
  */
-export default function CardExternalRefSection({ externalRef, canEdit, onSave }: Props) {
+export default function CardExternalRefSection({ externalRef, canEdit, demoReason, onSave }: Props) {
   const current = externalRef ?? null;
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState("");
@@ -282,7 +288,7 @@ export default function CardExternalRefSection({ externalRef, canEdit, onSave }:
                   <span className="truncate font-mono">{current.ref}</span>
                 </span>
               )}
-              {canEdit && (
+              {canEdit && !demoReason && (
                 <>
                   <button
                     ref={editButtonRef}
@@ -310,6 +316,16 @@ export default function CardExternalRefSection({ externalRef, canEdit, onSave }:
               <p role="alert" className="text-xs text-danger mt-1">{removeError}</p>
             )}
           </>
+        ) : demoReason ? (
+          <button
+            type="button"
+            aria-disabled="true"
+            aria-describedby="ext-ref-demo-reason"
+            onClick={(e) => e.preventDefault()}
+            className="text-xs text-fg-muted border border-dashed border-line-strong rounded px-2.5 py-1 opacity-40 cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+          >
+            + Link a pull or merge request
+          </button>
         ) : (
           <button
             ref={addButtonRef}
@@ -319,6 +335,9 @@ export default function CardExternalRefSection({ externalRef, canEdit, onSave }:
           >
             + Link a pull or merge request
           </button>
+        )}
+        {canEdit && demoReason && (
+          <p id="ext-ref-demo-reason" className="text-xs text-fg-muted mt-1">{demoReason}</p>
         )}
       </div>
       <div className="border-t border-line" />

@@ -25,3 +25,8 @@ export const DEMO_DELETE_ATTACHMENT_REASON = demoReason("attachments can't be de
 export const DEMO_ADD_RELATION_REASON = demoReason("card relations can't be added here");
 export const DEMO_STAR_REASON = demoReason("boards can't be starred here");
 export const DEMO_MARK_READ_REASON = demoReason("notifications can't be marked read here");
+
+// #1914 — the card detail sheet's shared-demo notes (design frame 7): one at
+// the top of the body, and one in the PR/MR section, which is read-only here.
+export const DEMO_CARD_DETAIL_NOTE = demoReason("edits to this card are visible to every visitor");
+export const DEMO_EXTERNAL_REF_REASON = demoReason("pull or merge request links can't be changed here");

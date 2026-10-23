@@ -19,9 +19,11 @@ const mockSetSearchParams = vi.fn()
 let capturedOnDragStart: ((e: DragStartEvent) => void) | undefined
 let capturedOnDragEnd: ((e: DragEndEvent) => void) | undefined
 let capturedCollisionDetection: ((args: Parameters<CollisionDetection>[0]) => ReturnType<CollisionDetection>) | undefined
+let capturedSensors: unknown[] | undefined
 
 vi.mock('@dnd-kit/core', () => ({
-  DndContext: ({ children, onDragStart, onDragEnd, collisionDetection }: { children: React.ReactNode; onDragStart?: (e: DragStartEvent) => void; onDragEnd?: (e: DragEndEvent) => void; collisionDetection?: (args: Parameters<CollisionDetection>[0]) => ReturnType<CollisionDetection> }) => {
+  DndContext: ({ children, onDragStart, onDragEnd, collisionDetection, sensors }: { children: React.ReactNode; onDragStart?: (e: DragStartEvent) => void; onDragEnd?: (e: DragEndEvent) => void; collisionDetection?: (args: Parameters<CollisionDetection>[0]) => ReturnType<CollisionDetection>; sensors?: unknown[] }) => {
+    capturedSensors = sensors
     capturedOnDragStart = onDragStart
     capturedOnDragEnd = onDragEnd
     capturedCollisionDetection = collisionDetection
@@ -33,7 +35,8 @@ vi.mock('@dnd-kit/core', () => ({
   KeyboardSensor: class {},
   closestCenter: vi.fn((_args: Parameters<CollisionDetection>[0]) => []),
   useSensor: () => ({}),
-  useSensors: () => [],
+  // Mirrors the real useSensors closely enough to tell "no sensors" apart (#1914).
+  useSensors: (...sensors: unknown[]) => sensors.filter(Boolean),
   useDroppable: () => ({ setNodeRef: () => {}, isOver: false }),
 }))
 
@@ -111,9 +114,9 @@ vi.mock('../components/Board/ColumnHeader', () => ({
 // existing per-board write gate) so tests can assert on it without rendering the
 // real SwimlaneRow tree.
 vi.mock('../components/Board/SwimlaneRow', () => ({
-  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth, onToggleCardSelection }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number; onToggleCardSelection?: (cardId: number) => void }) => {
+  default: ({ swimlane, onFocus, onExitFocus, isFocused, compact, canEdit, onEditFieldOrder, hideRowChipFieldNames, sidebarWidth, onToggleCardSelection, currentCardId }: { swimlane: { id: number; name: string }; onFocus?: (id: number) => void; onExitFocus?: () => void; isFocused?: boolean; compact?: boolean; canEdit?: boolean; onEditFieldOrder?: () => void; hideRowChipFieldNames?: boolean; sidebarWidth?: number; onToggleCardSelection?: (cardId: number) => void; currentCardId?: number | null }) => {
     return (
-      <div data-testid={`swim-${swimlane.id}`} data-focused={String(isFocused ?? false)} data-compact={String(compact ?? false)} data-can-edit={String(canEdit ?? false)} data-hide-row-chip-names={String(hideRowChipFieldNames ?? false)} data-sidebar-width={String(sidebarWidth)}>
+      <div data-testid={`swim-${swimlane.id}`} data-current-card-id={String(currentCardId ?? '')} data-focused={String(isFocused ?? false)} data-compact={String(compact ?? false)} data-can-edit={String(canEdit ?? false)} data-hide-row-chip-names={String(hideRowChipFieldNames ?? false)} data-sidebar-width={String(sidebarWidth)}>
         {swimlane.name}
         <button data-testid={`focus-btn-${swimlane.id}`} onClick={() => onFocus?.(swimlane.id)}>Focus</button>
         <button data-testid={`exit-focus-btn-${swimlane.id}`} onClick={() => onExitFocus?.()}>ExitFocusMock</button>
@@ -822,6 +825,35 @@ describe('BoardView', () => {
     render(<BoardView {...defaultProps()} />)
     await userEvent.setup().click(screen.getByText('Board'))
     expect(mockSetSearchParams).toHaveBeenCalled()
+  })
+
+  // #1914: while the sheet is open the board marks its card as current and
+  // suspends drag-and-drop; closing restores both.
+  it('marks the open card current and suspends drag-and-drop while the sheet is open (#1914)', async () => {
+    mockSearchParams = new URLSearchParams('card=1')
+    const card = {
+      id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Deep Link Card',
+      description: '', priority: 'medium' as const, assignee: null,
+      labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: "user1", display_name: "User 1", avatar_url: "" },
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      last_moved_at: null, attachment_count: 0, checklist_total: 0,
+      checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+      custom_field_values: [],
+      blocker_count: 0, external_ref: null,
+    }
+    mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+    render(<BoardView {...defaultProps()} />)
+    expect(screen.getByTestId('card-detail')).toBeInTheDocument()
+    const lane = document.querySelector('[data-current-card-id]') as HTMLElement
+    expect(lane).toHaveAttribute('data-current-card-id', '1')
+    expect(capturedSensors).toEqual([])
+    // The board region is the focus-return target when the card is gone.
+    expect(document.querySelector('[data-board-scroll]')).toHaveAttribute('tabindex', '-1')
+
+    await userEvent.setup().click(screen.getByText('Close Detail'))
+    expect(screen.queryByTestId('card-detail')).not.toBeInTheDocument()
+    expect(lane).toHaveAttribute('data-current-card-id', '')
+    expect(capturedSensors?.length).toBeGreaterThan(0)
   })
 
   it('?card= param opens CardDetail for a matching card', () => {

@@ -18,9 +18,10 @@ vi.mock('@dnd-kit/sortable', () => ({
 }))
 
 vi.mock('../components/Board/BoardCell', () => ({
-  default: ({ column, swimlane, overlayCell, overlayLabel }: { column: Column; swimlane: Swimlane; overlayCell?: { value: number } | null; overlayLabel?: string }) => (
+  default: ({ column, swimlane, overlayCell, overlayLabel, currentCardId }: { column: Column; swimlane: Swimlane; overlayCell?: { value: number } | null; overlayLabel?: string; currentCardId?: number | null }) => (
     <div
       data-testid={`cell-${column.id}-${swimlane.id}`}
+      data-current-card-id={String(currentCardId ?? '')}
       data-overlay-value={overlayCell ? String(overlayCell.value) : ''}
       data-overlay-label={overlayLabel ?? ''}
     >
@@ -94,6 +95,15 @@ describe('SwimlaneRow', () => {
     expect(panel.className).toContain('bg-surface')
     // A hover:bg-* here would swap the opaque background for a translucent one.
     expect(panel.className).not.toMatch(/(^|\s)hover:bg-/)
+  })
+
+  // #1914: the card detail sheet never covers the lane labels; it finds
+  // their right edge by this marker on the sticky label panel.
+  it('marks the sticky label panel for the card detail sheet and forwards currentCardId to cells', () => {
+    const { container } = render(<SwimlaneRow {...defaultProps()} currentCardId={7} />)
+    const panel = container.querySelector('[data-tour-step="swimlane"]') as HTMLElement
+    expect(panel).toHaveAttribute('data-lane-label')
+    expect(container.querySelector('[data-current-card-id="7"]')).not.toBeNull()
   })
 
   it('renders swimlane contact email', () => {
