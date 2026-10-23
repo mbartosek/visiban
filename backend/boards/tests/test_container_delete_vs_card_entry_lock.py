@@ -1257,6 +1257,55 @@ class SeedWipeUsesLockedDeleteTests(TestCase):
         self.assertIn("Software Team", deleted)
 
 
+@skipUnless(
+    connection.vendor == "postgresql", "row locks are only observable on PostgreSQL"
+)
+class DeleteSeedBoardsQueuedBehindDeleteTests(TransactionTestCase):
+    """A seed --wipe queued behind another delete of the same board records no
+    second board.deleted (#1889), as BoardViewSet.destroy does (#1602, #1712):
+    which boards to announce is read under the board row lock, not before it."""
+
+    def test_wipe_that_waited_on_a_delete_announces_nothing(self):
+        from boards.management.commands._seed_history import delete_seed_boards
+
+        owner = User.objects.create_user(username="owner1889", password="x")
+        board = Board.objects.create(name="Wiped twice", owner=owner)
+        held, release = threading.Event(), threading.Event()
+        results = {}
+
+        def first_delete():
+            try:
+                with transaction.atomic():
+                    list(Board.objects.select_for_update().filter(pk=board.pk))
+                    held.set()
+                    release.wait(HOLD_TIMEOUT)
+                    Board.objects.filter(pk=board.pk).delete()
+            finally:
+                connections.close_all()
+
+        def wipe():
+            try:
+                results["wipe"] = delete_seed_boards(Board.objects.filter(name="Wiped twice"))
+            except Exception as exc:  # surfaced by the assertion below
+                results["wipe"] = exc
+            finally:
+                connections.close_all()
+
+        holder = threading.Thread(target=first_delete)
+        holder.start()
+        self.assertTrue(held.wait(HOLD_TIMEOUT))
+        waiter = threading.Thread(target=wipe)
+        waiter.start()
+        try:
+            assert_blocked_on_lock(self, waiter, "the wipe did not wait on the board row lock")
+        finally:
+            release.set()
+            holder.join(HOLD_TIMEOUT)
+            waiter.join(HOLD_TIMEOUT)
+        self.assertEqual(results.get("wipe"), (0, {}), results.get("wipe"))
+        self.assertFalse(BoardEvent.objects.filter(board_id=board.pk, event="board.deleted").exists())
+
+
 class UserAdminLocksContainersTests(TestCase):
     """The user admin's delete still takes the container locks (#1602, #1616).
 

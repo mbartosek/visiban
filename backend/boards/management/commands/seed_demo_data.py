@@ -2036,6 +2036,11 @@ class Command(BaseCommand):
                 title="Schema-fuzz fixture card", created_by=member,
                 position=(last.position + 1) if last else 0,
             )
+        # The hook hands the fuzz user this card's first checklist item, and a
+        # member may only edit items it created. Items with no creator yet
+        # (the generator draws none) are the member's: _complete_demo_history
+        # would otherwise credit them to someone else (#1889).
+        card.checklist_items.filter(created_by__isnull=True).update(created_by=member)
         content = b"Member-owned attachment seeded by seed_demo_data (#1570).\n"
         CardAttachment.objects.create(
             card=card,

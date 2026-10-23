@@ -196,7 +196,18 @@ def delete_seed_boards(boards):
     Returns ``QuerySet.delete()``'s result.
     """
     with transaction.atomic():
-        doomed = list(boards.values_list("pk", "uid", "group_id"))
+        # Read under the board row locks, as BoardViewSet.destroy does: a board
+        # another delete removed while this one waited is gone from the result,
+        # so it gets no second board.deleted (#1602), and group_id is the
+        # group the board is in at the delete, not before the wait (#1712).
+        # Board rows first, in pk order: the order delete_boards_locked then
+        # re-locks them in (board -> card -> column), so the lock order holds.
+        doomed = list(
+            boards.model.objects.select_for_update()
+            .filter(pk__in=boards.values("pk"))
+            .order_by("pk")
+            .values_list("pk", "uid", "group_id")
+        )
         if not doomed:
             return 0, {}
         result = delete_boards_locked(boards.model.objects.filter(pk__in=[pk for pk, _, _ in doomed]))

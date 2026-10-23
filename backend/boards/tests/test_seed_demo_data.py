@@ -294,10 +294,30 @@ class SeedGroupCustomFieldAndSubResourceTests(TestCase):
         self.assertEqual(card.created_by.username, "demo2")
         self.assertTrue(CardComment.objects.filter(card=card, author__username="demo2").exists())
         self.assertTrue(card.checklist_items.exists())
+        # The hook hands out the card's first item, and a member may only edit
+        # items it created (#1889: seeded items now always have a creator).
+        self.assertEqual(card.checklist_items.order_by("id").first().created_by.username, "demo2")
         self.assertTrue(
             CardRelation.objects.filter(from_card=card).exists()
             or CardRelation.objects.filter(to_card=card).exists()
         )
+
+    def test_fuzz_user_can_edit_the_checklist_item_the_hook_picks(self):
+        """The ids the schema-fuzz hook resolves reach the success path for demo2 (#1570, #1889)."""
+        import importlib
+
+        from rest_framework.test import APIClient
+
+        _seed()
+        ids = importlib.import_module("schemathesis_hooks")._load_real_ids()
+        board = Board.objects.get(name=BOARD_NAME)
+        client = APIClient()
+        client.force_authenticate(User.objects.get(username="demo2"))
+        resp = client.patch(
+            f"/api/v1/boards/{board.pk}/cards/{ids['card_id']}/checklist/{ids['checklist_item_id']}/",
+            {"text": "Edited by the fuzz user"}, format="json",
+        )
+        self.assertEqual(resp.status_code, 200, getattr(resp, "data", None))
 
     def test_fixture_card_is_created_when_member_authored_none(self):
         """No RNG dependence: creates a new card, never rewrites an existing one's author."""
@@ -1697,6 +1717,16 @@ class DemoSiteOverlayBoardTests(TestCase):
             }
             self.assertEqual(stored, expected, lane["name"])
 
+    def test_imported_cards_are_dated_to_their_creation(self):
+        """The importer dates each card to the import; the demo moves it back
+        to the card's creation movement, so nothing in its history predates
+        it (the reconciler skips this check for imported boards)."""
+        cards = self.board.cards.all()
+        self.assertEqual(cards.count(), len(self.data["cards"]))
+        for card in cards:
+            first = card.movements.order_by("moved_at", "id").first()
+            self.assertEqual(card.created_at, first.moved_at, card.title)
+
     def test_history_is_the_files_with_import_provenance(self):
         moves = CardMovement.objects.filter(card__board=self.board)
         self.assertEqual(moves.count(), sum(len(c["movements"]) for c in self.data["cards"]))
@@ -1823,16 +1853,25 @@ class DemoSiteFiltersAndDensityTests(TestCase):
             rows = resp.json()
             rows = rows["results"] if isinstance(rows, dict) else rows
             self.assertIn(f.name, [r["name"] for r in rows])
-            # Each filter selects something on its board.
+            # Each filter selects something on its board, matched the way the
+            # SPA matches it (frontend/src/utils/filterCards.ts).
             state = f.state_json
             cards = f.board.cards.filter(archived_at__isnull=True)
             if state["labelIds"]:
                 cards = cards.filter(labels__in=state["labelIds"])
             if state["priorities"]:
                 cards = cards.filter(priority__in=state["priorities"])
+            today = timezone.localdate()
             if state["dueDate"] == "overdue":
-                cards = cards.filter(due_date__lt=timezone.localdate(), column__is_done=False)
+                cards = cards.filter(due_date__lt=today)
+            elif state["dueDate"] == "this_week":
+                cards = cards.filter(due_date__gte=today, due_date__lt=today + datetime.timedelta(days=7))
+            else:
+                self.assertIsNone(state["dueDate"], f.name)
             self.assertTrue(cards.exists(), f.name)
+        self.assertEqual(
+            {f.state_json["dueDate"] for f in filters} - {None}, {"overdue", "this_week"},
+        )
 
     def test_one_board_uses_the_dense_layout(self):
         self.assertEqual(Board.objects.get(name="Software Team").card_density, "dense")
