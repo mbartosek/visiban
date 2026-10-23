@@ -146,7 +146,7 @@ class BoardInviteSuccessBodySchemaContractTests(TestCase):
         self.assertEqual(len(r.json()), 2)
         self._assert_valid("/api/v1/boards/{id}/invite-links/", "get", 200, r.json())
 
-    def test_admin_list_200_and_revoke_200_bodies(self):
+    def test_admin_list_200_body_and_revoke_204_empty(self):
         self.owner_client.post(f"/api/v1/boards/{self.board.pk}/invite-links/", {"expiry_days": 30}, format="json")
         r = self.admin_client.get("/api/v1/admin/board-invite-links/?status=all")
         self.assertEqual(r.status_code, 200)
@@ -155,6 +155,7 @@ class BoardInviteSuccessBodySchemaContractTests(TestCase):
 
         link_id = r.json()["results"][0]["id"]
         r = self.admin_client.delete(f"/api/v1/admin/board-invite-links/{link_id}/")
-        self.assertEqual(r.status_code, 200)
-        self._assert_valid("/api/v1/admin/board-invite-links/{id}/", "delete", 200, r.json())
+        # 204 since #1867: no body, matching the board-scoped revoke.
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.content, b"")
 
