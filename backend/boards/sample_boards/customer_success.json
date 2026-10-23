@@ -411,7 +411,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -427,7 +427,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-11T15:36:00+00:00"
@@ -456,7 +456,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-13T03:36:00+00:00"
         },
@@ -470,7 +470,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-13T18:00:00+00:00"
         }
@@ -537,7 +537,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -563,7 +563,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-03T06:00:00+00:00"
@@ -627,7 +627,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-10T18:00:00+00:00"
         },
@@ -641,7 +641,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-13T18:00:00+00:00"
         }
@@ -686,7 +686,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -722,7 +722,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-24T02:24:00+00:00"
@@ -799,7 +799,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -838,7 +838,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-06T09:36:00+00:00"
@@ -929,7 +929,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1036,7 +1036,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T03:36:00+00:00"
         },
@@ -1050,7 +1050,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-15T18:00:00+00:00"
         }
@@ -1092,7 +1092,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1108,7 +1108,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2025-12-13T15:36:00+00:00"
@@ -1144,7 +1144,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-15T10:48:00+00:00"
         }
@@ -1199,7 +1199,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1268,7 +1268,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-11T03:36:00+00:00"
@@ -1399,7 +1399,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1425,7 +1425,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-04T06:00:00+00:00"
@@ -1454,7 +1454,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-13T06:00:00+00:00"
         }
@@ -1487,7 +1487,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-18T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1526,7 +1526,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-19T09:36:00+00:00"
@@ -1583,7 +1583,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1655,7 +1655,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-20T22:48:00+00:00"
         }
@@ -1689,7 +1689,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1698,7 +1698,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2025-12-13T15:36:00+00:00"
@@ -1787,7 +1787,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1806,7 +1806,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-01T09:36:00+00:00"
@@ -1898,7 +1898,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-12T04:48:00+00:00"
         },
@@ -1947,7 +1947,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1963,7 +1963,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-05T15:36:00+00:00"
@@ -1992,7 +1992,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-07T10:48:00+00:00"
         }
@@ -2045,7 +2045,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2064,7 +2064,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-17T21:36:00+00:00"
@@ -2179,7 +2179,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2244,14 +2244,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-30T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-04T06:00:00+00:00"
         }
@@ -2293,7 +2293,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2339,7 +2339,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T02:24:00+00:00"
@@ -2382,7 +2382,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-31T07:12:00+00:00"
         }
@@ -2428,7 +2428,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2464,7 +2464,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-24T06:00:00+00:00"
@@ -2500,14 +2500,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-31T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-03T18:00:00+00:00"
         }
@@ -2557,7 +2557,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2576,7 +2576,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-31T18:00:00+00:00"
@@ -2684,7 +2684,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2723,7 +2723,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-19T16:48:00+00:00"
@@ -2795,7 +2795,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2833,7 +2833,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-31T10:48:00+00:00"
         }
@@ -2889,7 +2889,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2955,7 +2955,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-04T16:48:00+00:00"
@@ -3012,7 +3012,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-19T02:24:00+00:00"
         }
@@ -3063,7 +3063,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3112,7 +3112,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-11T22:48:00+00:00"
@@ -3228,7 +3228,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2025-12-24T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3247,7 +3247,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2025-12-25T14:24:00+00:00"
@@ -3276,7 +3276,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-05T14:24:00+00:00"
         },
@@ -3290,7 +3290,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-10T00:00:00+00:00"
         }
@@ -3356,7 +3356,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3439,7 +3439,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-14T07:12:00+00:00"
@@ -3531,14 +3531,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-01T07:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-08T12:00:00+00:00"
         }
@@ -3587,7 +3587,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3625,14 +3625,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-18T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-18T18:00:00+00:00"
         }
@@ -3697,7 +3697,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3723,7 +3723,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-31T03:36:00+00:00"
@@ -3836,7 +3836,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-07T22:48:00+00:00"
         }
@@ -3872,7 +3872,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3921,7 +3921,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-12T03:36:00+00:00"
@@ -3996,7 +3996,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4045,7 +4045,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-02T09:36:00+00:00"
@@ -4074,7 +4074,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T09:36:00+00:00"
         },
@@ -4088,7 +4088,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-15T00:00:00+00:00"
         }
@@ -4137,7 +4137,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4176,7 +4176,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-09T14:24:00+00:00"
@@ -4219,7 +4219,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-20T14:24:00+00:00"
         },
@@ -4233,7 +4233,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-25T00:00:00+00:00"
         }
@@ -4277,7 +4277,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4315,7 +4315,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-23T10:48:00+00:00"
         },
@@ -4374,7 +4374,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4403,7 +4403,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T18:00:00+00:00"
@@ -4521,7 +4521,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4570,7 +4570,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-24T09:36:00+00:00"
@@ -4606,7 +4606,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-04T04:48:00+00:00"
         }
@@ -4654,7 +4654,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4673,7 +4673,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-13T02:24:00+00:00"
@@ -4702,14 +4702,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-19T02:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-21T12:00:00+00:00"
         }
@@ -4759,7 +4759,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4805,7 +4805,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-12T03:36:00+00:00"
@@ -4924,7 +4924,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4972,14 +4972,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-09T22:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-13T18:00:00+00:00"
         }
@@ -5013,7 +5013,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5059,7 +5059,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-14T20:24:00+00:00"
@@ -5117,7 +5117,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5153,7 +5153,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-08T13:12:00+00:00"
@@ -5229,7 +5229,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5248,7 +5248,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-02T03:36:00+00:00"
@@ -5369,7 +5369,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5415,7 +5415,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-15T16:48:00+00:00"
@@ -5465,7 +5465,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-11T02:24:00+00:00"
         }
@@ -5502,7 +5502,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5618,7 +5618,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5654,7 +5654,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-11T04:48:00+00:00"
@@ -5690,7 +5690,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-19T14:24:00+00:00"
         },
@@ -5753,7 +5753,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -5769,7 +5769,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-16T15:36:00+00:00"
@@ -5833,7 +5833,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-18T10:48:00+00:00"
         }
@@ -5895,7 +5895,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5944,7 +5944,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-27T21:36:00+00:00"
@@ -6022,7 +6022,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T16:48:00+00:00"
         }
@@ -6067,7 +6067,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6096,7 +6096,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-30T14:24:00+00:00"
@@ -6182,7 +6182,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6251,7 +6251,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-24T10:48:00+00:00"
         }
@@ -6308,7 +6308,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6384,7 +6384,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2026-01-24T02:24:00+00:00"
@@ -6462,7 +6462,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-12T07:12:00+00:00"
         }
@@ -6503,7 +6503,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6529,7 +6529,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-20T22:48:00+00:00"
@@ -6558,7 +6558,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-26T08:24:00+00:00"
         }
@@ -6600,7 +6600,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6636,7 +6636,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-21T12:00:00+00:00"
@@ -6686,7 +6686,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-02T12:00:00+00:00"
         }
@@ -6753,7 +6753,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6769,7 +6769,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-12T15:36:00+00:00"
@@ -6875,7 +6875,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-14T03:36:00+00:00"
         },
@@ -6896,7 +6896,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-14T18:00:00+00:00"
         }
@@ -6949,7 +6949,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7084,7 +7084,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7120,7 +7120,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-26T18:00:00+00:00"
@@ -7156,7 +7156,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-08T06:00:00+00:00"
         },
@@ -7177,7 +7177,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T06:00:00+00:00"
         }
@@ -7227,7 +7227,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7313,7 +7313,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-25T16:48:00+00:00"
@@ -7391,7 +7391,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-09T02:24:00+00:00"
         }
@@ -7440,7 +7440,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -7456,7 +7456,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-07T15:36:00+00:00"
@@ -7499,7 +7499,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-09T03:36:00+00:00"
         },
@@ -7513,7 +7513,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-09T18:00:00+00:00"
         }
@@ -7566,7 +7566,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7632,7 +7632,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-15T00:00:00+00:00"
@@ -7689,7 +7689,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-02T00:00:00+00:00"
         }
@@ -7740,7 +7740,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7846,7 +7846,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-14T03:36:00+00:00"
         }
@@ -7888,7 +7888,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7907,7 +7907,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-21T03:36:00+00:00"
@@ -7943,7 +7943,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-28T22:48:00+00:00"
         }
@@ -7989,7 +7989,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8008,7 +8008,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T03:36:00+00:00"
@@ -8126,7 +8126,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8169,7 +8169,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-27T15:36:00+00:00"
@@ -8233,14 +8233,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-08T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-12T18:00:00+00:00"
         }
@@ -8279,7 +8279,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8328,7 +8328,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-07T00:00:00+00:00"
@@ -8357,7 +8357,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-25T00:00:00+00:00"
         }
@@ -8391,7 +8391,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8482,7 +8482,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8518,7 +8518,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-01-07T19:12:00+00:00"
@@ -8610,7 +8610,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8626,7 +8626,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo4",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -8755,7 +8755,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8774,7 +8774,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-02T09:36:00+00:00"
@@ -8839,7 +8839,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8868,7 +8868,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-06T03:36:00+00:00"
@@ -8954,7 +8954,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9041,7 +9041,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-23T10:48:00+00:00"
         }
@@ -9079,7 +9079,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9135,7 +9135,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-17T21:36:00+00:00"
@@ -9221,7 +9221,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9257,7 +9257,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2025-12-24T03:36:00+00:00"
@@ -9321,14 +9321,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-09T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-16T06:00:00+00:00"
         }
@@ -9388,7 +9388,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9421,7 +9421,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-10T20:24:00+00:00"
@@ -9499,14 +9499,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-14T08:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-15T18:00:00+00:00"
         }
@@ -9542,7 +9542,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9598,7 +9598,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-26T22:48:00+00:00"
@@ -9657,7 +9657,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9737,7 +9737,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9783,7 +9783,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-02T16:48:00+00:00"
@@ -9805,14 +9805,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-14T16:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-19T12:00:00+00:00"
         }
@@ -9868,7 +9868,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9904,7 +9904,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-07T07:12:00+00:00"
@@ -9968,7 +9968,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-16T21:36:00+00:00"
         }
@@ -10027,7 +10027,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10043,7 +10043,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-27T15:36:00+00:00"
@@ -10135,7 +10135,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-29T10:48:00+00:00"
         }
@@ -10175,7 +10175,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10208,7 +10208,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-17T04:48:00+00:00"
@@ -10244,7 +10244,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-25T14:24:00+00:00"
         }
@@ -10297,7 +10297,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10486,7 +10486,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10515,7 +10515,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-06T02:24:00+00:00"
@@ -10597,7 +10597,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10633,7 +10633,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-01T06:00:00+00:00"
@@ -10676,7 +10676,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-08T18:00:00+00:00"
         },
@@ -10690,7 +10690,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-11T18:00:00+00:00"
         }
@@ -10749,7 +10749,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10768,7 +10768,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-29T22:48:00+00:00"
@@ -10832,7 +10832,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-04T08:24:00+00:00"
         }
@@ -10901,7 +10901,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10917,7 +10917,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-14T15:36:00+00:00"
@@ -11002,7 +11002,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-16T03:36:00+00:00"
         },
@@ -11030,7 +11030,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-16T18:00:00+00:00"
         }
@@ -11073,7 +11073,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11138,7 +11138,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-01T07:12:00+00:00"
         }
@@ -11196,7 +11196,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11215,7 +11215,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-29T19:12:00+00:00"
@@ -11333,7 +11333,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11362,7 +11362,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-27T08:24:00+00:00"
@@ -11405,7 +11405,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-04T20:24:00+00:00"
         },
@@ -11419,7 +11419,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-08T06:00:00+00:00"
         }
@@ -11456,7 +11456,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11502,7 +11502,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-01-20T16:48:00+00:00"
@@ -11594,7 +11594,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11670,7 +11670,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-14T18:00:00+00:00"
@@ -11713,14 +11713,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-06T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-15T06:00:00+00:00"
         }
@@ -11762,7 +11762,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11821,7 +11821,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-12T10:48:00+00:00"
         }
@@ -11858,7 +11858,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11891,7 +11891,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-08T20:24:00+00:00"
@@ -11991,7 +11991,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12040,7 +12040,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo4",
           "created_at": "2026-01-08T01:12:00+00:00"
@@ -12104,14 +12104,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-23T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-29T18:00:00+00:00"
         }
@@ -12154,7 +12154,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12183,7 +12183,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-10T22:48:00+00:00"
@@ -12212,7 +12212,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-28T08:24:00+00:00"
         }
@@ -12262,7 +12262,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12301,7 +12301,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-13T04:48:00+00:00"
@@ -12406,7 +12406,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12447,14 +12447,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-01T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-04T06:00:00+00:00"
         }
@@ -12515,7 +12515,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -12531,7 +12531,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-27T15:36:00+00:00"
@@ -12595,14 +12595,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-29T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-29T18:00:00+00:00"
         }
@@ -12639,7 +12639,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12665,7 +12665,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-10T09:36:00+00:00"
@@ -12753,7 +12753,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12789,7 +12789,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-06T14:24:00+00:00"
@@ -12839,7 +12839,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-19T19:12:00+00:00"
         }
@@ -12891,7 +12891,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12927,7 +12927,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-22T13:12:00+00:00"
@@ -13053,7 +13053,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13121,7 +13121,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-22T04:48:00+00:00"
         },
@@ -13135,7 +13135,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-29T00:00:00+00:00"
         }
@@ -13192,7 +13192,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13241,7 +13241,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-06T08:24:00+00:00"
@@ -13370,7 +13370,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -13386,7 +13386,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-03T15:36:00+00:00"
@@ -13408,7 +13408,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-05T10:48:00+00:00"
         }
@@ -13458,7 +13458,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13484,7 +13484,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-15T21:36:00+00:00"
@@ -13583,7 +13583,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13612,7 +13612,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-23T07:12:00+00:00"
@@ -13662,7 +13662,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-01T21:36:00+00:00"
         },
@@ -13702,7 +13702,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13799,7 +13799,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13848,7 +13848,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-20T22:48:00+00:00"
@@ -13877,7 +13877,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-07T08:24:00+00:00"
         }
@@ -13924,7 +13924,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13943,7 +13943,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-19T01:12:00+00:00"
@@ -13965,14 +13965,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-24T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-26T18:00:00+00:00"
         }
@@ -14026,7 +14026,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14055,7 +14055,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-13T04:48:00+00:00"
@@ -14195,7 +14195,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14221,7 +14221,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-24T19:12:00+00:00"
@@ -14257,7 +14257,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-27T19:12:00+00:00"
         },
@@ -14271,7 +14271,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-29T00:00:00+00:00"
         }
@@ -14314,7 +14314,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14379,7 +14379,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-15T01:12:00+00:00"
         }
@@ -14436,7 +14436,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14482,7 +14482,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-28T14:24:00+00:00"
@@ -14525,14 +14525,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-08T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T00:00:00+00:00"
         }
@@ -14599,7 +14599,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14655,7 +14655,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-22T18:00:00+00:00"
@@ -14740,7 +14740,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-04T06:00:00+00:00"
         },
@@ -14754,7 +14754,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-09T06:00:00+00:00"
         }
@@ -14796,7 +14796,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14862,7 +14862,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-17T13:12:00+00:00"
@@ -14919,7 +14919,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-11T03:36:00+00:00"
         }
@@ -14979,7 +14979,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -14995,7 +14995,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2025-12-21T15:36:00+00:00"
@@ -15080,7 +15080,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-23T10:48:00+00:00"
         }
@@ -15133,7 +15133,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15296,7 +15296,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15352,7 +15352,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-01-08T03:36:00+00:00"
@@ -15451,14 +15451,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-24T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-31T06:00:00+00:00"
         }
@@ -15495,7 +15495,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15531,7 +15531,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-12T07:12:00+00:00"
@@ -15603,7 +15603,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15662,7 +15662,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-01T03:36:00+00:00"
@@ -15698,7 +15698,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Renewal conversation started. Positive signals so far.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-20T22:48:00+00:00"
         },
@@ -15742,7 +15742,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -15758,7 +15758,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-11T15:36:00+00:00"
@@ -15829,7 +15829,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15977,7 +15977,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16003,7 +16003,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-09T22:48:00+00:00"
@@ -16079,7 +16079,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16115,7 +16115,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-03T07:12:00+00:00"
@@ -16151,14 +16151,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-11T07:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-14T12:00:00+00:00"
         }
@@ -16216,7 +16216,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16265,7 +16265,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-01-04T00:00:00+00:00"
@@ -16336,14 +16336,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T00:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-25T00:00:00+00:00"
         }
@@ -16385,7 +16385,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16411,7 +16411,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-10T00:00:00+00:00"
@@ -16447,7 +16447,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Champion mentioned interest in expanding seats.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-16T00:00:00+00:00"
         }
@@ -16491,7 +16491,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16566,7 +16566,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-15T20:24:00+00:00"
         }
@@ -16599,7 +16599,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -16615,7 +16615,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-08T15:36:00+00:00"
@@ -16706,7 +16706,7 @@
           "to_swimlane": "Americas",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16732,7 +16732,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-02-01T06:00:00+00:00"
@@ -16845,7 +16845,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-10T06:00:00+00:00"
         }
@@ -16888,7 +16888,7 @@
           "to_swimlane": "EMEA",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16917,7 +16917,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-01T06:00:00+00:00"
@@ -16953,7 +16953,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-10T06:00:00+00:00"
         }
@@ -17010,7 +17010,7 @@
           "to_swimlane": "APAC",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17039,7 +17039,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-07T07:12:00+00:00"
@@ -17217,7 +17217,7 @@
           "to_swimlane": "Enterprise Accounts",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17385,14 +17385,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-19T01:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-23T06:00:00+00:00"
         }
@@ -17433,7 +17433,7 @@
           "to_swimlane": "Mid-Market",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17452,7 +17452,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-20T08:24:00+00:00"
@@ -17474,7 +17474,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Account health score trending up this month.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-30T13:12:00+00:00"
         }
@@ -17529,7 +17529,7 @@
           "to_swimlane": "Strategic Partners",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -17538,7 +17538,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-20T15:36:00+00:00"
@@ -17660,7 +17660,7 @@
           "to_swimlane": "Government & Edu",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17686,7 +17686,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-02T01:12:00+00:00"
@@ -17766,7 +17766,7 @@
           "to_swimlane": "Healthcare",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17822,7 +17822,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-16T12:00:00+00:00"
@@ -17963,7 +17963,7 @@
           "to_swimlane": "Financial Services",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -18076,14 +18076,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "QBR went well -- no concerns raised.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-16T09:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Adoption is below target. Scheduling enablement session.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-20T00:00:00+00:00"
         }
@@ -18123,7 +18123,7 @@
           "to_swimlane": "Startup & SMB",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -18162,7 +18162,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-01T16:48:00+00:00"
@@ -18198,7 +18198,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Feature request logged and shared with product team.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-16T02:24:00+00:00"
         },
@@ -18241,7 +18241,7 @@
           "to_swimlane": "Agency & Creative",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -18324,7 +18324,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-26T22:48:00+00:00"

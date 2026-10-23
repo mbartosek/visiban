@@ -15,7 +15,7 @@ from boards.models import (
     CardChecklist,
     CardMovement,
 )
-from boards.management.commands.seed_template_boards import TEMPLATE_DATA, VALID_SLUGS
+from boards.management.commands.seed_template_boards import _LOST_RX, TEMPLATE_DATA, VALID_SLUGS
 
 
 def _seed(template="sales_pipeline", **kwargs):
@@ -175,9 +175,15 @@ class SeedMovementHistoryTests(TestCase):
         leftmost = self.board.columns.order_by("position").first()
         non_col0_cards = self.board.cards.exclude(column=leftmost)
         for card in non_col0_cards[:5]:  # spot-check first 5
-            # col_idx N → N creation + N stage movements = N+1 total
+            # col_idx N → N creation + N stage movements = N+1 total, less any
+            # outcome column a lost card skips (#1889: "Closed Lost" is not
+            # reached through "Closed Won").
             col_pos = card.column.position
-            expected = col_pos + 1  # creation + transitions
+            skipped = (
+                self.board.columns.filter(position__lt=col_pos, is_done=True).count()
+                if card.column.is_done and _LOST_RX.search(card.column.name) else 0
+            )
+            expected = col_pos + 1 - skipped  # creation + transitions
             actual = CardMovement.objects.filter(card=card).count()
             self.assertEqual(
                 actual, expected,
@@ -397,3 +403,39 @@ class SeedExportRetiredTests(TestCase):
         self.assertIn("generate_seed_data.py", str(ctx.exception))
         mock_open.assert_not_called()
         self.assertFalse(Board.objects.filter(name="Template: Sales Pipeline").exists())
+
+
+# ---------------------------------------------------------------------------
+# History accounts for every card's state (#1889)
+# ---------------------------------------------------------------------------
+
+@override_settings(DEBUG=True)
+class SeedHistoryReconciliationTests(TestCase):
+    """Every seeded template card is fully explained by its history: each label,
+    assignee, priority, weight, due date, checklist item and comment has the
+    movement or activity the API writes for it (see history_reconciliation)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed("all")
+
+    def test_every_template_card_is_fully_explained_by_its_history(self):
+        from boards.tests.history_reconciliation import board_history_problems
+
+        boards = Board.objects.filter(name__startswith="Template:")
+        self.assertEqual(boards.count(), len(VALID_SLUGS))
+        for board in boards:
+            with self.subTest(board.name):
+                self.assertEqual(board_history_problems(board), {})
+
+    def test_wipe_records_board_deleted_in_the_change_feed(self):
+        """#1636: a re-seed with --wipe ends each deleted board's change feed."""
+        from boards.models import BoardEvent
+
+        board = Board.objects.get(name="Template: Sales Pipeline")
+        _seed("sales_pipeline", wipe=True)
+        self.assertFalse(Board.objects.filter(pk=board.pk).exists())
+        self.assertEqual(
+            list(BoardEvent.objects.filter(board_id=board.pk).values_list("event", "data")),
+            [("board.deleted", {"board_uid": board.uid})],
+        )

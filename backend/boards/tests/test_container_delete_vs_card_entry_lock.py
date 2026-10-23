@@ -1213,24 +1213,97 @@ class DeleteBoardsLockedTests(_EntryRaceBase, TransactionTestCase):
 
 
 class SeedWipeUsesLockedDeleteTests(TestCase):
-    """Both seed commands' --wipe go through delete_boards_locked (#1602)."""
+    """Both seed commands' --wipe go through delete_boards_locked (#1602).
+
+    Through ``_seed_history.delete_seed_boards`` since #1889, which also
+    records each board's board.deleted feed row (#1636). The demo-site boards
+    are covered too: before #1889 their --wipe was a bare QuerySet.delete().
+    """
+
+    TARGET = "boards.management.commands._seed_history.delete_boards_locked"
 
     def test_seed_template_boards_wipe(self):
         from boards.tests.test_seed_template_boards import _seed
 
         _seed("sales_pipeline", force=True)
-        target = "boards.management.commands.seed_template_boards.delete_boards_locked"
-        with patch(target, wraps=card_services.delete_boards_locked) as spy:
+        with patch(self.TARGET, wraps=card_services.delete_boards_locked) as spy:
             _seed("sales_pipeline", wipe=True, force=True)
         spy.assert_called()
 
     def test_seed_demo_data_wipe(self):
         from boards.tests.test_seed_demo_data import _seed
 
-        target = "boards.management.commands.seed_demo_data.delete_boards_locked"
-        with patch(target, wraps=card_services.delete_boards_locked) as spy:
+        _seed(force=True)
+        with patch(self.TARGET, wraps=card_services.delete_boards_locked) as spy:
             _seed(wipe=True, force=True)
         spy.assert_called()
+
+    def test_seed_demo_data_demo_site_wipe(self):
+        from django.test import override_settings
+
+        from boards.tests.test_seed_demo_data import _DEMO_SITE_SETTINGS, _seed
+
+        with override_settings(**_DEMO_SITE_SETTINGS):
+            _seed(demo_site=True)
+            deleted = set()
+
+            def record(boards):
+                deleted.update(boards.values_list("name", flat=True))
+                return card_services.delete_boards_locked(boards)
+
+            with patch(self.TARGET, side_effect=record):
+                _seed(demo_site=True, wipe=True)
+        self.assertIn("Sales Territory (Overlay)", deleted)
+        self.assertIn("Software Team", deleted)
+
+
+@skipUnless(
+    connection.vendor == "postgresql", "row locks are only observable on PostgreSQL"
+)
+class DeleteSeedBoardsQueuedBehindDeleteTests(TransactionTestCase):
+    """A seed --wipe queued behind another delete of the same board records no
+    second board.deleted (#1889), as BoardViewSet.destroy does (#1602, #1712):
+    which boards to announce is read under the board row lock, not before it."""
+
+    def test_wipe_that_waited_on_a_delete_announces_nothing(self):
+        from boards.management.commands._seed_history import delete_seed_boards
+
+        owner = User.objects.create_user(username="owner1889", password="x")
+        board = Board.objects.create(name="Wiped twice", owner=owner)
+        held, release = threading.Event(), threading.Event()
+        results = {}
+
+        def first_delete():
+            try:
+                with transaction.atomic():
+                    list(Board.objects.select_for_update().filter(pk=board.pk))
+                    held.set()
+                    release.wait(HOLD_TIMEOUT)
+                    Board.objects.filter(pk=board.pk).delete()
+            finally:
+                connections.close_all()
+
+        def wipe():
+            try:
+                results["wipe"] = delete_seed_boards(Board.objects.filter(name="Wiped twice"))
+            except Exception as exc:  # surfaced by the assertion below
+                results["wipe"] = exc
+            finally:
+                connections.close_all()
+
+        holder = threading.Thread(target=first_delete)
+        holder.start()
+        self.assertTrue(held.wait(HOLD_TIMEOUT))
+        waiter = threading.Thread(target=wipe)
+        waiter.start()
+        try:
+            assert_blocked_on_lock(self, waiter, "the wipe did not wait on the board row lock")
+        finally:
+            release.set()
+            holder.join(HOLD_TIMEOUT)
+            waiter.join(HOLD_TIMEOUT)
+        self.assertEqual(results.get("wipe"), (0, {}), results.get("wipe"))
+        self.assertFalse(BoardEvent.objects.filter(board_id=board.pk, event="board.deleted").exists())
 
 
 class UserAdminLocksContainersTests(TestCase):

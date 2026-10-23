@@ -1153,8 +1153,12 @@ backend-schema-fuzz:
         - backend/schemathesis_hooks.py
         # Pruning or adding a baseline entry must run the job that consumes it (#1791).
         - backend/schemathesis-baseline.json
-        # The hook resolves ids from the seeded rows (#1570).
+        # The hook resolves ids from the seeded rows (#1570), which the
+        # shared history writer also touches (checklist creators, #1889).
         - backend/boards/management/commands/seed_demo_data.py
+        - backend/boards/management/commands/_seed_history.py
+        # The hook maps a real sample slug from the manifest (#1570).
+        - backend/boards/sample_boards/manifest.json
   # "Missing valid test data" accounting (#1570). Before it, 43 operations
   # repeatedly 404ed: the fuzz user (demo2) was not a GROUP member, so
   # GroupViewSet.get_queryset() hid every /groups/{id}/... route whatever id the
@@ -1463,6 +1467,7 @@ backend-schema-fuzz-git-lens:
         - backend/schemathesis_hooks.py
         - backend/schemathesis-baseline-git-lens.json
         - backend/boards/management/commands/seed_demo_data.py
+        - backend/boards/management/commands/_seed_history.py
   variables:
     GIT_LENS_ENABLED: "True"
     VISIBAN_GIT_LENS_STUB_PROVIDERS: "True"

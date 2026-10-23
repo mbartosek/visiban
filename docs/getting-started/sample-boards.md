@@ -117,9 +117,11 @@ The templates include everything below.
 - **A full audit trail on every card.** Creation, assignments and reassignments, labels
   added and removed, priority escalations, due-date changes, renames, description edits,
   checklist items added, checked, unchecked and deleted, and comments. Each entry has the
-  user and time it happened.
+  user and time it happened, and is written in the same form the app writes it, so every
+  label, assignee and checked item on a card can be traced to the entry that set it.
 - **Movement history.** Cards move through the workflow, sometimes skipping a stage or
-  going back one. Backward moves carry a note explaining why. The heatmap and dwell-time
+  going back one. Backward moves carry a note explaining why. A card that ends in a lost
+  outcome (Lost, Rejected, Denied) never passes through a winning one first. The heatmap and dwell-time
   charts are populated as soon as you import.
 - **Archived cards.** Some finished cards are archived, the way a team clears its Done
   column.

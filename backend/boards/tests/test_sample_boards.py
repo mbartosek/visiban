@@ -101,6 +101,11 @@ def _load(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def data_anchor(path):
+    """The manifest's ``date_anchor`` for a sample file."""
+    return next(e["date_anchor"] for e in MANIFEST if e["file"] == path.name)
+
+
 @contextlib.contextmanager
 def _generator():
     """The generator module, with ``seed_data`` importable for its part-2 loaders."""
@@ -231,6 +236,26 @@ class SampleBoardFeatureCoverageTests(SimpleTestCase):
         self.assertEqual(field_types, {t.value for t in CustomFieldDefinition.FieldType})
         self.assertEqual(event_types, CARRIED_EVENT_TYPES)
 
+    def test_newest_event_is_a_day_before_the_anchor(self):
+        """An import moves the anchor (noon) to noon on the import day. With
+        every event at least a day before it, an import at any hour dates
+        nothing in the future (#1889)."""
+        import datetime
+
+        for path in TEMPLATES:
+            data = _load(path)
+            anchor = datetime.datetime.fromisoformat(f"{data_anchor(path)}T12:00:00+00:00")
+            stamps = [
+                datetime.datetime.fromisoformat(ts)
+                for c in data["cards"]
+                for ts in [c.get("created_at"), c.get("archived_at")]
+                + [m["moved_at"] for m in c["movements"]]
+                + [a["created_at"] for a in c["activities"]]
+                + [cm["created_at"] for cm in c["comments"]]
+                if ts
+            ]
+            self.assertLessEqual(max(stamps), anchor - datetime.timedelta(days=1), path.name)
+
     def test_sales_overlay_uses_every_card_field_type_and_the_row_field_maximum(self):
         data = _load(SAMPLE_DIR / "sales_overlay.json")
         self.assertEqual(
@@ -352,3 +377,43 @@ class SampleBoardImportTests(TestCase):
             ).select_related("field_definition")
         }
         self.assertEqual(stored, card["custom_field_values"])
+
+
+class SampleBoardHistoryTests(TestCase):
+    """#1889: every sample card's history accounts for its state once imported.
+
+    Imported the way the gallery and the hosted demo import them (dates
+    shifted from the manifest's ``date_anchor`` to today), by a user who
+    shares a board with the samples' cast, so each assignee resolves to an
+    account, as on the demo. History rows are credited to the importer with
+    the file's names kept as provenance, which the reconciler is told
+    (``imported=True``).
+    """
+
+    def setUp(self):
+        patcher = mock.patch.object(BoardImportThrottle, "allow_request", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.user = User.objects.create_user(username="importer", password="pass")
+        cast = Board.objects.create(name="Team", owner=self.user)
+        cast.memberships.create(user=self.user, role="admin")
+        for i in range(1, 6):
+            cast.memberships.create(user=User.objects.create_user(username=f"demo{i}", password="pass"), role="member")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_every_sample_card_is_fully_explained_by_its_history(self):
+        from boards.tests.history_reconciliation import board_history_problems
+
+        for entry in MANIFEST:
+            with self.subTest(entry["id"]):
+                f = io.BytesIO((SAMPLE_DIR / entry["file"]).read_bytes())
+                f.name = entry["file"]
+                resp = self.client.post(
+                    "/api/v1/boards/import/",
+                    {"file": f, "options": json.dumps({"shift_dates_from": entry["date_anchor"]})},
+                    format="multipart",
+                )
+                self.assertEqual(resp.status_code, 201, getattr(resp, "data", None))
+                board = Board.objects.get(pk=resp.data["id"])
+                self.assertEqual(board_history_problems(board, imported=True), {})

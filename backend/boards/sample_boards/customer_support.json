@@ -456,7 +456,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -548,7 +548,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-15T16:48:00+00:00"
         },
@@ -562,7 +562,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-20T12:00:00+00:00"
         }
@@ -609,7 +609,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -665,7 +665,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2026-02-13T06:00:00+00:00"
@@ -790,7 +790,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -846,7 +846,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-11T10:48:00+00:00"
@@ -889,7 +889,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-20T22:48:00+00:00"
         },
@@ -910,7 +910,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-24T18:00:00+00:00"
         }
@@ -967,7 +967,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1003,7 +1003,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-06T19:12:00+00:00"
@@ -1053,14 +1053,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T19:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-25T00:00:00+00:00"
         }
@@ -1097,7 +1097,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1143,7 +1143,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-06T03:36:00+00:00"
@@ -1213,7 +1213,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1287,14 +1287,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-16T08:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-21T18:00:00+00:00"
         }
@@ -1342,7 +1342,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1358,7 +1358,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-02-09T15:36:00+00:00"
@@ -1387,14 +1387,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-11T18:00:00+00:00"
         }
@@ -1439,7 +1439,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1475,7 +1475,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-09T00:00:00+00:00"
@@ -1589,7 +1589,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2026-02-02T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1612,7 +1612,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-02T15:36:00+00:00"
@@ -1741,7 +1741,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1777,7 +1777,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-17T00:00:00+00:00"
@@ -1941,7 +1941,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2057,7 +2057,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2133,7 +2133,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-09T06:00:00+00:00"
@@ -2223,7 +2223,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2242,7 +2242,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-04T21:36:00+00:00"
@@ -2313,7 +2313,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-09T16:48:00+00:00"
         }
@@ -2359,7 +2359,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2422,7 +2422,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-13T09:36:00+00:00"
@@ -2451,14 +2451,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-22T09:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-26T00:00:00+00:00"
         }
@@ -2495,7 +2495,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2521,7 +2521,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-23T20:24:00+00:00"
@@ -2609,7 +2609,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2689,14 +2689,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-11T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-11T18:00:00+00:00"
         }
@@ -2738,7 +2738,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2764,7 +2764,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2025-12-29T22:48:00+00:00"
@@ -2807,7 +2807,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-04T08:24:00+00:00"
         }
@@ -2850,7 +2850,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2926,7 +2926,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-19T14:24:00+00:00"
@@ -2955,7 +2955,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-13T19:12:00+00:00"
         }
@@ -2991,7 +2991,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3020,7 +3020,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-30T19:12:00+00:00"
@@ -3111,7 +3111,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3127,7 +3127,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-19T15:36:00+00:00"
@@ -3205,14 +3205,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-21T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-21T18:00:00+00:00"
         }
@@ -3249,7 +3249,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3374,7 +3374,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3393,7 +3393,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-12T15:36:00+00:00"
@@ -3466,7 +3466,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3502,7 +3502,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-06T22:48:00+00:00"
@@ -3584,7 +3584,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3660,7 +3660,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-01T19:12:00+00:00"
@@ -3754,7 +3754,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3777,7 +3777,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2025-12-16T15:36:00+00:00"
@@ -3904,7 +3904,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3989,7 +3989,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-31T21:36:00+00:00"
         },
@@ -4010,7 +4010,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-06T12:00:00+00:00"
         }
@@ -4062,7 +4062,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4078,7 +4078,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-31T15:36:00+00:00"
@@ -4142,7 +4142,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-02T10:48:00+00:00"
         }
@@ -4180,7 +4180,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4256,7 +4256,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2025-12-27T16:48:00+00:00"
@@ -4345,7 +4345,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4384,7 +4384,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-18T15:36:00+00:00"
@@ -4462,7 +4462,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-01T10:48:00+00:00"
         }
@@ -4499,7 +4499,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4555,7 +4555,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2026-02-10T08:24:00+00:00"
@@ -4661,7 +4661,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4757,7 +4757,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-10T03:36:00+00:00"
         }
@@ -4791,7 +4791,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4850,7 +4850,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-18T18:00:00+00:00"
@@ -4909,7 +4909,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4965,7 +4965,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-27T19:12:00+00:00"
@@ -5037,7 +5037,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5086,7 +5086,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-23T13:12:00+00:00"
@@ -5165,7 +5165,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -5181,7 +5181,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-01T15:36:00+00:00"
@@ -5275,7 +5275,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5387,7 +5387,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -5403,7 +5403,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -5460,7 +5460,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-22T03:36:00+00:00"
         },
@@ -5474,7 +5474,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-22T18:00:00+00:00"
         }
@@ -5544,7 +5544,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5603,7 +5603,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-31T22:48:00+00:00"
@@ -5695,7 +5695,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-15T10:48:00+00:00"
         },
@@ -5723,7 +5723,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-21T06:00:00+00:00"
         }
@@ -5770,7 +5770,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5796,7 +5796,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-01-03T19:12:00+00:00"
@@ -5884,7 +5884,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5923,7 +5923,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-26T14:24:00+00:00"
@@ -5997,7 +5997,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6073,7 +6073,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-02T09:36:00+00:00"
         },
@@ -6087,7 +6087,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-06T00:00:00+00:00"
         }
@@ -6125,7 +6125,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2026-01-28T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6181,7 +6181,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-29T08:24:00+00:00"
@@ -6255,7 +6255,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6291,7 +6291,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-23T18:00:00+00:00"
@@ -6441,7 +6441,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6474,7 +6474,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-01T19:12:00+00:00"
@@ -6517,7 +6517,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-17T09:36:00+00:00"
         }
@@ -6565,7 +6565,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6621,7 +6621,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2026-02-13T08:24:00+00:00"
@@ -6657,7 +6657,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-21T20:24:00+00:00"
         },
@@ -6671,7 +6671,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-25T06:00:00+00:00"
         }
@@ -6735,7 +6735,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6869,14 +6869,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-07T22:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-15T18:00:00+00:00"
         }
@@ -6937,7 +6937,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6963,7 +6963,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-03T10:48:00+00:00"
@@ -7041,14 +7041,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-12T22:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-16T18:00:00+00:00"
         }
@@ -7116,7 +7116,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7135,7 +7135,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-22T14:24:00+00:00"
@@ -7234,7 +7234,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-02T14:24:00+00:00"
         },
@@ -7262,7 +7262,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-07T00:00:00+00:00"
         }
@@ -7313,7 +7313,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -7329,7 +7329,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo1",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -7444,7 +7444,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7500,7 +7500,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-29T04:48:00+00:00"
@@ -7648,7 +7648,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7719,7 +7719,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-16T18:00:00+00:00"
         }
@@ -7766,7 +7766,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7815,7 +7815,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-02T13:12:00+00:00"
@@ -7851,7 +7851,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T01:12:00+00:00"
         },
@@ -7865,7 +7865,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-17T06:00:00+00:00"
         }
@@ -7908,7 +7908,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7957,7 +7957,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T18:00:00+00:00"
@@ -7993,7 +7993,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-01T18:00:00+00:00"
         },
@@ -8063,7 +8063,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8119,7 +8119,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-02T06:00:00+00:00"
@@ -8225,7 +8225,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-23T06:00:00+00:00"
         }
@@ -8281,7 +8281,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8347,7 +8347,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo3",
           "created_at": "2025-12-30T06:00:00+00:00"
@@ -8453,7 +8453,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-20T06:00:00+00:00"
         }
@@ -8494,7 +8494,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8552,7 +8552,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-19T08:24:00+00:00"
         }
@@ -8610,7 +8610,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8646,7 +8646,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-11T01:12:00+00:00"
@@ -8703,14 +8703,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-16T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-18T18:00:00+00:00"
         }
@@ -8747,7 +8747,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8763,7 +8763,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -8875,7 +8875,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8884,7 +8884,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-14T15:36:00+00:00"
@@ -8962,7 +8962,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-16T03:36:00+00:00"
         },
@@ -8976,7 +8976,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-16T18:00:00+00:00"
         }
@@ -9031,7 +9031,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9060,7 +9060,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-27T08:24:00+00:00"
@@ -9166,7 +9166,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-01-28T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9258,7 +9258,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9301,7 +9301,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-27T22:48:00+00:00"
@@ -9337,7 +9337,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-11T10:48:00+00:00"
         },
@@ -9351,7 +9351,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-17T06:00:00+00:00"
         }
@@ -9400,7 +9400,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9409,7 +9409,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-24T15:36:00+00:00"
@@ -9445,7 +9445,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-26T03:36:00+00:00"
         },
@@ -9466,7 +9466,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-26T18:00:00+00:00"
         }
@@ -9524,7 +9524,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9563,7 +9563,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-22T02:24:00+00:00"
@@ -9768,7 +9768,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9787,7 +9787,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo3",
           "created_at": "2026-01-24T19:12:00+00:00"
@@ -9879,7 +9879,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-27T19:12:00+00:00"
         },
@@ -9900,7 +9900,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-29T00:00:00+00:00"
         }
@@ -9960,7 +9960,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-02-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10097,7 +10097,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-13T13:12:00+00:00"
         },
@@ -10148,7 +10148,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10184,7 +10184,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-18T12:00:00+00:00"
@@ -10220,7 +10220,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-30T12:00:00+00:00"
         }
@@ -10257,7 +10257,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10306,7 +10306,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T14:24:00+00:00"
@@ -10369,7 +10369,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10415,7 +10415,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-27T08:24:00+00:00"
@@ -10451,7 +10451,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-06T13:12:00+00:00"
         }
@@ -10494,7 +10494,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10520,7 +10520,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-31T21:36:00+00:00"
@@ -10549,7 +10549,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T16:48:00+00:00"
         }
@@ -10586,7 +10586,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-02-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10655,7 +10655,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10671,7 +10671,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-04T15:36:00+00:00"
@@ -10700,14 +10700,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-06T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-06T18:00:00+00:00"
         }
@@ -10756,7 +10756,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10812,7 +10812,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-14T08:24:00+00:00"
@@ -10848,14 +10848,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-01T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-09T06:00:00+00:00"
         }
@@ -10901,7 +10901,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10950,7 +10950,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-12T12:00:00+00:00"
@@ -11052,7 +11052,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11078,7 +11078,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-05T02:24:00+00:00"
@@ -11206,7 +11206,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11247,7 +11247,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-25T09:36:00+00:00"
         }
@@ -11290,7 +11290,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11319,7 +11319,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-30T16:48:00+00:00"
@@ -11348,7 +11348,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-14T02:24:00+00:00"
         }
@@ -11417,7 +11417,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11440,7 +11440,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-13T15:36:00+00:00"
@@ -11525,7 +11525,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-15T03:36:00+00:00"
         },
@@ -11546,7 +11546,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-15T18:00:00+00:00"
         }
@@ -11611,7 +11611,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11667,7 +11667,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-25T08:24:00+00:00"
@@ -11745,7 +11745,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-04T13:12:00+00:00"
         }
@@ -11783,7 +11783,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11839,7 +11839,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-02-12T06:00:00+00:00"
@@ -11934,7 +11934,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11996,7 +11996,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-14T09:36:00+00:00"
         }
@@ -12057,7 +12057,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-28T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12083,7 +12083,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-29T00:00:00+00:00"
@@ -12196,7 +12196,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-04T00:00:00+00:00"
         }
@@ -12233,7 +12233,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-02-02T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12259,7 +12259,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-02-03T03:36:00+00:00"
@@ -12345,7 +12345,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12378,7 +12378,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-14T07:12:00+00:00"
@@ -12428,7 +12428,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-04T21:36:00+00:00"
         }
@@ -12468,7 +12468,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12494,7 +12494,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-21T03:36:00+00:00"
@@ -12523,7 +12523,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-28T22:48:00+00:00"
         },
@@ -12591,7 +12591,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12716,14 +12716,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-31T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-02T18:00:00+00:00"
         }
@@ -12759,7 +12759,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-01-18T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -12775,7 +12775,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-18T15:36:00+00:00"
@@ -12844,7 +12844,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12900,7 +12900,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-15T15:36:00+00:00"
@@ -12936,7 +12936,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-10T10:48:00+00:00"
         }
@@ -12974,7 +12974,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13013,7 +13013,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-05T22:48:00+00:00"
@@ -13071,7 +13071,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13177,7 +13177,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-01T13:12:00+00:00"
@@ -13265,7 +13265,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13350,7 +13350,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-18T08:24:00+00:00"
         }
@@ -13400,7 +13400,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13446,7 +13446,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-14T14:24:00+00:00"
@@ -13503,7 +13503,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-27T19:12:00+00:00"
         }
@@ -13546,7 +13546,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13592,7 +13592,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-01-30T15:36:00+00:00"
@@ -13635,7 +13635,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-13T10:48:00+00:00"
         }
@@ -13686,7 +13686,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13762,7 +13762,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-04T22:48:00+00:00"
@@ -13857,7 +13857,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13913,7 +13913,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-01T20:24:00+00:00"
@@ -13984,7 +13984,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14081,14 +14081,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-09T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-17T06:00:00+00:00"
         }
@@ -14131,7 +14131,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14187,7 +14187,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-30T16:48:00+00:00"
@@ -14216,7 +14216,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-14T02:24:00+00:00"
         },
@@ -14268,7 +14268,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -14291,7 +14291,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-11T15:36:00+00:00"
@@ -14313,14 +14313,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-13T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-13T18:00:00+00:00"
         }
@@ -14380,7 +14380,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14413,7 +14413,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo1",
           "created_at": "2026-01-09T09:36:00+00:00"
@@ -14470,14 +14470,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-18T09:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-22T00:00:00+00:00"
         }
@@ -14513,7 +14513,7 @@
           "to_swimlane": "TechNova Inc",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14542,7 +14542,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-09T21:36:00+00:00"
@@ -14628,7 +14628,7 @@
           "to_swimlane": "Apex Retail Group",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14768,14 +14768,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-19T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed resolution. Closing ticket.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-23T12:00:00+00:00"
         }
@@ -14824,7 +14824,7 @@
           "to_swimlane": "FinEdge Ltd",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14880,7 +14880,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-06T04:48:00+00:00"
@@ -14916,14 +14916,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-23T04:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-30T00:00:00+00:00"
         }
@@ -14960,7 +14960,7 @@
           "to_swimlane": "BlueSky Health",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14986,7 +14986,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-08T04:48:00+00:00"
@@ -15082,7 +15082,7 @@
           "to_swimlane": "Mosaic Creative",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15111,7 +15111,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-01-29T22:48:00+00:00"
@@ -15147,7 +15147,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-03T10:48:00+00:00"
         },
@@ -15161,7 +15161,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Root cause identified -- fix in progress.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T06:00:00+00:00"
         }
@@ -15198,7 +15198,7 @@
           "to_swimlane": "Global Freight Co",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -15214,7 +15214,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-07T15:36:00+00:00"
@@ -15291,7 +15291,7 @@
           "to_swimlane": "Pinnacle Finance",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -15365,7 +15365,7 @@
           "to_swimlane": "Redwood Agency",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15391,7 +15391,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-28T10:48:00+00:00"
@@ -15448,7 +15448,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-08T20:24:00+00:00"
         }
@@ -15496,7 +15496,7 @@
           "to_swimlane": "Atlas Logistics BV",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15525,7 +15525,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2025-12-22T06:00:00+00:00"
@@ -15568,14 +15568,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Escalated to engineering -- this affects the core API.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-08T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Deployed to staging. Waiting for customer to verify.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-15T18:00:00+00:00"
         }
@@ -15641,7 +15641,7 @@
           "to_swimlane": "Vertex Media",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15670,7 +15670,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-02-13T21:36:00+00:00"
@@ -15769,14 +15769,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Workaround shared with customer while fix is in progress.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-17T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Customer confirmed the repro steps. Investigating now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-19T12:00:00+00:00"
         }
@@ -15813,7 +15813,7 @@
           "to_swimlane": "Ironside Manufacturing",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15839,7 +15839,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo3",
           "created_at": "2026-01-30T20:24:00+00:00"

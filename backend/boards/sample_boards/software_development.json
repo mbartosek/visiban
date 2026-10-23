@@ -383,7 +383,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -392,7 +392,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-31T15:36:00+00:00"
@@ -479,7 +479,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -495,7 +495,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -593,7 +593,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -609,7 +609,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-15T15:36:00+00:00"
@@ -725,7 +725,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -877,7 +877,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -893,7 +893,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-04T15:36:00+00:00"
@@ -922,7 +922,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-06T10:48:00+00:00"
         }
@@ -960,7 +960,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -989,7 +989,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-12T06:00:00+00:00"
@@ -1068,7 +1068,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1127,7 +1127,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-08T10:48:00+00:00"
@@ -1252,7 +1252,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1275,7 +1275,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-14T15:36:00+00:00"
@@ -1367,7 +1367,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1485,7 +1485,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1514,7 +1514,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-16T06:00:00+00:00"
@@ -1543,7 +1543,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-25T06:00:00+00:00"
         }
@@ -1617,7 +1617,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1653,7 +1653,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-05T03:36:00+00:00"
@@ -1752,7 +1752,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T15:36:00+00:00"
         },
@@ -1773,7 +1773,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-14T06:00:00+00:00"
         }
@@ -1827,7 +1827,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1843,7 +1843,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-01-11T15:36:00+00:00"
@@ -1879,7 +1879,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-13T03:36:00+00:00"
         },
@@ -1893,7 +1893,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-13T18:00:00+00:00"
         }
@@ -1935,7 +1935,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1971,7 +1971,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-03T13:12:00+00:00"
@@ -2000,7 +2000,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-16T03:36:00+00:00"
         }
@@ -2059,7 +2059,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2139,7 +2139,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-15T10:48:00+00:00"
         }
@@ -2203,7 +2203,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-01-18T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2259,7 +2259,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-19T19:12:00+00:00"
@@ -2323,14 +2323,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-01T19:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-07T00:00:00+00:00"
         }
@@ -2381,7 +2381,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2407,7 +2407,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-04T03:36:00+00:00"
@@ -2436,14 +2436,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-10T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-13T06:00:00+00:00"
         }
@@ -2504,7 +2504,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2533,7 +2533,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-23T21:36:00+00:00"
@@ -2604,14 +2604,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-27T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-29T12:00:00+00:00"
         }
@@ -2654,7 +2654,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2697,7 +2697,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-13T01:12:00+00:00"
@@ -2740,7 +2740,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-19T15:36:00+00:00"
         },
@@ -2799,7 +2799,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2844,14 +2844,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-05T18:00:00+00:00"
         }
@@ -2900,7 +2900,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2923,7 +2923,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-03T15:36:00+00:00"
@@ -2959,14 +2959,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-05T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-05T18:00:00+00:00"
         }
@@ -3003,7 +3003,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3059,7 +3059,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-24T10:48:00+00:00"
@@ -3126,7 +3126,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3142,7 +3142,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-01T15:36:00+00:00"
@@ -3256,7 +3256,7 @@
           "to_swimlane": "Security",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3312,7 +3312,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2025-12-21T18:00:00+00:00"
@@ -3469,7 +3469,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3531,7 +3531,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-17T15:36:00+00:00"
         }
@@ -3585,7 +3585,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3614,7 +3614,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-28T18:00:00+00:00"
@@ -3786,7 +3786,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3849,7 +3849,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-25T21:36:00+00:00"
@@ -3878,7 +3878,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-08T21:36:00+00:00"
         },
@@ -3892,7 +3892,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-14T12:00:00+00:00"
         }
@@ -3945,7 +3945,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3961,7 +3961,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-02-04T15:36:00+00:00"
@@ -4018,7 +4018,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-06T10:48:00+00:00"
         }
@@ -4075,7 +4075,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4084,7 +4084,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-25T15:36:00+00:00"
@@ -4155,7 +4155,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-27T10:48:00+00:00"
         }
@@ -4205,7 +4205,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4342,7 +4342,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4371,7 +4371,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-28T15:36:00+00:00"
@@ -4452,7 +4452,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4491,7 +4491,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-02-09T07:12:00+00:00"
@@ -4534,7 +4534,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-17T07:12:00+00:00"
         },
@@ -4548,7 +4548,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-20T12:00:00+00:00"
         }
@@ -4613,7 +4613,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4662,7 +4662,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-29T09:36:00+00:00"
@@ -4733,7 +4733,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-21T04:48:00+00:00"
         }
@@ -4771,7 +4771,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4804,7 +4804,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo3",
           "created_at": "2026-01-25T20:24:00+00:00"
@@ -4870,7 +4870,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4928,7 +4928,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-10T16:48:00+00:00"
         }
@@ -4979,7 +4979,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4988,7 +4988,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-07T15:36:00+00:00"
@@ -5108,7 +5108,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5181,7 +5181,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-31T00:00:00+00:00"
@@ -5259,7 +5259,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-15T00:00:00+00:00"
         },
@@ -5273,7 +5273,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-21T00:00:00+00:00"
         }
@@ -5318,7 +5318,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5374,7 +5374,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-25T07:12:00+00:00"
@@ -5410,7 +5410,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-15T21:36:00+00:00"
         },
@@ -5464,7 +5464,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5513,7 +5513,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-22T16:48:00+00:00"
@@ -5542,14 +5542,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-03T16:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-08T12:00:00+00:00"
         }
@@ -5587,7 +5587,7 @@
           "to_swimlane": "Security",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5669,7 +5669,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5688,7 +5688,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-02-13T21:36:00+00:00"
@@ -5745,7 +5745,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-18T16:48:00+00:00"
         }
@@ -5794,7 +5794,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5820,7 +5820,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-16T13:12:00+00:00"
@@ -5941,7 +5941,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5997,7 +5997,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-21T18:00:00+00:00"
@@ -6086,7 +6086,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6132,7 +6132,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-06T12:00:00+00:00"
@@ -6210,7 +6210,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6355,7 +6355,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6371,7 +6371,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-22T15:36:00+00:00"
@@ -6449,7 +6449,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2025-12-24T10:48:00+00:00"
         }
@@ -6496,7 +6496,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-28T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6512,7 +6512,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-28T15:36:00+00:00"
@@ -6621,7 +6621,7 @@
           "to_swimlane": "Security",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6630,7 +6630,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2025-12-28T15:36:00+00:00"
@@ -6694,7 +6694,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6703,7 +6703,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-20T15:36:00+00:00"
@@ -6725,7 +6725,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-22T10:48:00+00:00"
         }
@@ -6761,7 +6761,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6846,7 +6846,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6912,7 +6912,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-01T15:36:00+00:00"
@@ -6983,7 +6983,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T03:36:00+00:00"
         },
@@ -7004,7 +7004,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-17T18:00:00+00:00"
         }
@@ -7067,7 +7067,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7123,7 +7123,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-25T18:00:00+00:00"
@@ -7257,7 +7257,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2025-12-24T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7286,7 +7286,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-26T06:00:00+00:00"
@@ -7322,7 +7322,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-12T18:00:00+00:00"
         },
@@ -7336,7 +7336,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-19T18:00:00+00:00"
         }
@@ -7400,7 +7400,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7466,7 +7466,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-22T18:00:00+00:00"
@@ -7551,7 +7551,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-06T18:00:00+00:00"
         }
@@ -7621,7 +7621,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7748,7 +7748,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T14:24:00+00:00"
         },
@@ -7762,7 +7762,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-24T00:00:00+00:00"
         }
@@ -7823,7 +7823,7 @@
           "to_swimlane": "Security",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7849,7 +7849,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T07:12:00+00:00"
@@ -7934,7 +7934,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-21T21:36:00+00:00"
         }
@@ -7975,7 +7975,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7994,7 +7994,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-28T04:48:00+00:00"
@@ -8030,7 +8030,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-05T14:24:00+00:00"
         },
@@ -8074,7 +8074,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8100,7 +8100,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-02T03:36:00+00:00"
@@ -8186,7 +8186,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8215,7 +8215,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-16T02:24:00+00:00"
@@ -8244,14 +8244,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-01T02:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-07T12:00:00+00:00"
         }
@@ -8291,7 +8291,7 @@
           "to_swimlane": "API",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8437,7 +8437,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8493,7 +8493,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-01T14:24:00+00:00"
@@ -8522,7 +8522,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-14T19:12:00+00:00"
         }
@@ -8558,7 +8558,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8587,7 +8587,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-20T08:24:00+00:00"
@@ -8653,7 +8653,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8679,7 +8679,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-27T22:48:00+00:00"
@@ -8708,14 +8708,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-01T10:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-03T06:00:00+00:00"
         }
@@ -8752,7 +8752,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8818,7 +8818,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-02-09T12:00:00+00:00"
@@ -8891,7 +8891,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8949,7 +8949,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-17T18:00:00+00:00"
         }
@@ -8999,7 +8999,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9058,7 +9058,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-13T03:36:00+00:00"
@@ -9080,14 +9080,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-19T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-22T06:00:00+00:00"
         }
@@ -9125,7 +9125,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9154,7 +9154,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2025-12-23T18:00:00+00:00"
@@ -9234,7 +9234,7 @@
           "to_swimlane": "API",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9270,7 +9270,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-03T19:12:00+00:00"
@@ -9306,7 +9306,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-16T19:12:00+00:00"
         },
@@ -9320,7 +9320,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-22T00:00:00+00:00"
         }
@@ -9367,7 +9367,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9406,7 +9406,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-30T12:00:00+00:00"
@@ -9442,7 +9442,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-11T12:00:00+00:00"
         },
@@ -9503,7 +9503,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9599,7 +9599,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-05T22:48:00+00:00"
         }
@@ -9653,7 +9653,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9662,7 +9662,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2026-01-05T15:36:00+00:00"
@@ -9807,7 +9807,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9843,7 +9843,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-05T03:36:00+00:00"
@@ -9928,7 +9928,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Refactored to reduce complexity. Much cleaner.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T15:36:00+00:00"
         },
@@ -9942,7 +9942,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-14T06:00:00+00:00"
         }
@@ -9989,7 +9989,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10015,7 +10015,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-17T08:24:00+00:00"
@@ -10037,7 +10037,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-27T13:12:00+00:00"
         }
@@ -10080,7 +10080,7 @@
           "to_swimlane": "Web App",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10126,7 +10126,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-11T04:48:00+00:00"
@@ -10155,7 +10155,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "PR submitted. Waiting for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-19T14:24:00+00:00"
         }
@@ -10213,7 +10213,7 @@
           "to_swimlane": "Mobile",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10322,7 +10322,7 @@
           "to_swimlane": "API",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10351,7 +10351,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T20:24:00+00:00"
@@ -10436,7 +10436,7 @@
           "to_swimlane": "Platform",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10465,7 +10465,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-02T06:00:00+00:00"
@@ -10522,14 +10522,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-09T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-12T18:00:00+00:00"
         }
@@ -10599,7 +10599,7 @@
           "to_swimlane": "Infrastructure",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10648,7 +10648,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-08T15:36:00+00:00"
@@ -10740,7 +10740,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Tests are passing. Ready for staging deploy.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-20T03:36:00+00:00"
         },
@@ -10754,7 +10754,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Blocked on upstream API change. Following up.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-24T18:00:00+00:00"
         }
@@ -10805,7 +10805,7 @@
           "to_swimlane": "Quality",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10831,7 +10831,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-13T12:00:00+00:00"
@@ -10874,7 +10874,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Found an edge case during testing -- fixing now.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-23T12:00:00+00:00"
         },
@@ -10888,7 +10888,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Merged and deployed. Monitoring for regressions.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-27T12:00:00+00:00"
         }
@@ -10947,7 +10947,7 @@
           "to_swimlane": "Security",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11085,7 +11085,7 @@
           "to_swimlane": "Developer Docs",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11094,7 +11094,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2026-02-01T15:36:00+00:00"

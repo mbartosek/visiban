@@ -70,7 +70,11 @@ Usage:
         relations and, on Software Team, MR/PR links; #1363 also gives them a
         fresh/aging/stale and due-date mix and seeds the visitor's
         notification inbox) plus a site admin, the published visitor account
-        and two member accounts. Passwords come from the DEMO_LOGIN_PASSWORD
+        and two member accounts. Sales Territory (Overlay) is the shipped
+        sales_overlay sample board, imported through the board importer
+        (#1889). Every seeded card's history accounts for its state: each
+        label, assignee, priority, weight, due date, checklist item, comment
+        and archive has the movement or activity the API writes for it. Passwords come from the DEMO_LOGIN_PASSWORD
         (visitor, published), DEMO_ADMIN_PASSWORD (admin, never published) and
         DEMO_MEMBER_PASSWORD environment variables (never from source); the
         command refuses to run without all three. #1179: the visitor is a
@@ -89,23 +93,26 @@ Usage:
 """
 
 import datetime
+import json
 import os
 import random
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.management import call_command
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from accounts.credentials import lock_user_row, revoke_auth_token
 from accounts.models import SiteSetting, User
 from boards.notifications_email import suppress_notification_email
-from boards.serializers import _normalize_custom_field_value
-from boards.services.cards import delete_boards_locked
+from boards.serializers import SavedFilterSerializer, _normalize_custom_field_value
+from boards.services import sample_boards
 from boards.services.notifications import quoted_card_verb
 from boards.models import (
     Board,
@@ -131,10 +138,20 @@ from boards.models import (
 from groups.models import Group, GroupInviteLink, GroupLabel, GroupMembership
 from groups.serializers import GROUP_INVITE_LINK_MAX_EXPIRY_DAYS
 
+from ._seed_history import (
+    CREATED_NOTE,
+    delete_seed_boards,
+    history_window,
+    record_archive,
+    record_creation,
+    record_move,
+    write_activity_trail,
+)
 from ._demo_site_data import (
     BOARDS as DEMO_SITE_BOARDS,
     DEMO_SITE_USERS,
     RETIRED_BOARD_NAMES as RETIRED_DEMO_SITE_BOARD_NAMES,
+    SAVED_FILTERS as DEMO_SITE_SAVED_FILTERS,
     VISITOR_NOTIFICATIONS as DEMO_SITE_VISITOR_NOTIFICATIONS,
 )
 
@@ -752,7 +769,7 @@ class Command(BaseCommand):
                 wipe_qs = Board.objects.filter(
                     Q(name=board_name) | Q(name__startswith=LOAD_TEST_EXTRA_BOARD_PREFIX)
                 )
-            deleted, _ = delete_boards_locked(wipe_qs)
+            deleted, _ = delete_seed_boards(wipe_qs)
             if board_name == BOARD_NAME:
                 # Board.group uses on_delete=SET_NULL, so deleting the board does
                 # NOT cascade to the demo Group created by _create_demo_group()
@@ -815,6 +832,8 @@ class Command(BaseCommand):
             # the ownership-gated writes (DELETE card/comment/attachment) can
             # reach their success path instead of answering 403.
             self._create_member_fixture_card(board, users[1])
+            # Last, once every card and fixture row exists (#1889).
+            self._complete_demo_history(board, users)
 
         if options["with_notifications"]:
             n_notifications = len(self._create_notifications(board, cards, users))
@@ -872,9 +891,12 @@ class Command(BaseCommand):
         production guard already ran in ``_seed``.
         """
         if options["wipe"]:
-            Board.objects.filter(
+            # delete_seed_boards, not a bare delete (#1889, #1636): the feed
+            # records board.deleted for each board, so a re-seed without
+            # --reset-database leaves no board's change feed without an end.
+            delete_seed_boards(Board.objects.filter(
                 name__in=[b["name"] for b in DEMO_SITE_BOARDS] + list(RETIRED_DEMO_SITE_BOARD_NAMES)
-            ).delete()
+            ))
 
         users = self._ensure_demo_site_users()
         self._lock_down_site_settings()
@@ -894,9 +916,13 @@ class Command(BaseCommand):
                     self.style.WARNING(f"'{spec['name']}' already exists — skipping. Use --wipe to recreate.")
                 )
                 continue
-            board, cards = self._create_demo_site_board(spec, users)
+            if "sample" in spec:
+                board, cards = self._import_demo_site_sample(spec, users)
+            else:
+                board, cards = self._create_demo_site_board(spec, users)
             seeded[spec["name"]] = (board, cards)
             self.stdout.write(self.style.SUCCESS(f"Seeded '{spec['name']}': {len(cards)} cards."))
+        self._create_demo_site_saved_filters(seeded, users["visitor"])
         n = self._create_demo_site_notifications(seeded, users)
         if n:
             self.stdout.write(self.style.SUCCESS(f"Seeded {n} notifications for the published visitor."))
@@ -990,6 +1016,10 @@ class Command(BaseCommand):
         admin = users["admin"]
         board = Board.objects.create(
             name=spec["name"], description=spec["description"], owner=admin, staleness_threshold_days=7,
+            # One board shows the Dense layout (#1889), where every badge and
+            # the #1843 aging meter are on the card face; the rest keep the
+            # Comfortable default a new board gets.
+            card_density=spec.get("card_density", "comfortable"),
         )
         for user_key, user in users.items():
             BoardMembership.objects.create(
@@ -1044,6 +1074,92 @@ class Command(BaseCommand):
                 )
             cards[title] = card
         self._add_demo_site_extras(board, spec, cards, lanes, users)
+        # Last, once each card is in its final state (#1889): every label,
+        # weight, checklist item and comment it holds gets the activity the
+        # API would have written for it.
+        people = [u for key, u in users.items() if key != "visitor"]
+        # A card behind one of the visitor's "assigned" notifications was the
+        # visitor's first, assigned by the notification's actor, and has moved
+        # on since: the API only notifies the person it assigns.
+        assigned = {
+            title: users[by] for board_name, title, kind, by in DEMO_SITE_VISITOR_NOTIFICATIONS
+            if board_name == spec["name"] and kind == Notification.ActionType.ASSIGNED
+        }
+        for title, card in cards.items():
+            if title in assigned:
+                write_activity_trail(card, actors=people, earlier_assignee=users["visitor"],
+                                     earlier_assigned_by=assigned[title])
+            else:
+                write_activity_trail(card, actors=people)
+        return board, cards
+
+    def _import_demo_site_sample(self, spec, users):
+        """Create a demo board by importing a shipped sample board (#1889).
+
+        The overlay board used to be a second, hand-built copy of the
+        ``sales_overlay`` sample. It is now that sample, imported by the same
+        importer the in-app gallery's "Create from sample" uses, so the
+        generator (``seed_data/generate_seed_data.py``) is its one writer and
+        the board carries what any import carries: the file's full audit
+        trail, credited to the importer with the original names kept as
+        import provenance.
+
+        The action body is called directly, past DRF's dispatch: this is the
+        seed, not a request, so it must not spend the demo admin's import
+        throttle (a refused import would roll back the whole reset).
+
+        Dates are moved exactly as the gallery moves them: the manifest's
+        ``date_anchor`` becomes the reset day, so ages and due dates count
+        from the reset. Nothing lands in the future whatever the hour of the
+        reset, because every sample's newest event is at least a day before
+        its anchor (test_sample_boards pins that).
+
+        The board's place in ``DEMO_SITE_BOARDS`` is what keeps its URL: the
+        reset restarts the id sequences, and the import creates exactly one
+        board row.
+        """
+        from boards.views.boards import BoardViewSet
+
+        admin = users["admin"]
+        entry, body = sample_boards.get_sample(spec["sample"])
+        django_request = APIRequestFactory().post(
+            "/api/v1/boards/import/",
+            {
+                "file": SimpleUploadedFile(entry["file"], body, content_type="application/json"),
+                "name": spec["name"],
+                "options": json.dumps({"shift_dates_from": entry["date_anchor"]}),
+            },
+            format="multipart",
+        )
+        force_authenticate(django_request, user=admin)
+        view = BoardViewSet(action_map={"post": "import_board"}, format_kwarg=None, args=(), kwargs={})
+        request = view.initialize_request(django_request)
+        view.request = request
+        response = view.import_board(request)
+        if response.status_code != 201:
+            raise CommandError(f"Importing the {spec['sample']!r} sample failed: {response.data}")
+        board = Board.objects.get(pk=response.data["id"])
+
+        # The importer made the admin the board's admin. Everyone else the
+        # demo seats on a showcase board joins as a member, and so does the
+        # sample's own cast (its assignees), so the people on the cards are
+        # people on the board.
+        for key, user in users.items():
+            BoardMembership.objects.get_or_create(board=board, user=user, defaults=self._demo_site_membership(key))
+        cast = User.objects.filter(pk__in=board.cards.exclude(assignee=None).values("assignee"))
+        for user in cast:
+            BoardMembership.objects.get_or_create(
+                board=board, user=user, defaults={"role": BoardMembership.Role.MEMBER},
+            )
+
+        # The importer dates each card to the import; its history starts at
+        # the file's creation movement. Same rule as the hand-built boards.
+        cards = {}
+        for card in board.cards.order_by("id"):
+            first = card.movements.order_by("moved_at", "id").first()
+            Card.objects.filter(pk=card.pk).update(created_at=first.moved_at)
+            card.created_at = first.moved_at
+            cards[card.title] = card
         return board, cards
 
     @staticmethod
@@ -1058,14 +1174,14 @@ class Command(BaseCommand):
         return datetime.datetime(today.year, today.month, today.day, tzinfo=datetime.timezone.utc)
 
     def _add_demo_site_history(self, card, columns, col_i, anchor, idx, last_moved, users):
-        """Backdated created + one movement per stage the card has passed.
+        """Backdated creation + one movement per stage the card has passed.
 
-        Every card gets a created event so the History tab is never empty.
-        Mirrors _add_movement_history but with deterministic offsets. The most
-        recent movement lands exactly ``last_moved`` days before ``anchor`` —
-        that one value drives the staleness tint, so it is authored per card
-        (#1363); the earlier stages are spaced back from it by a 3-6 day dwell.
-        Returns the card's age in days (its created event).
+        Every card gets a creation movement so the History tab is never empty,
+        and the card is dated to it. Deterministic offsets: the most recent
+        movement lands exactly ``last_moved`` days before ``anchor`` — that one
+        value drives the staleness tint, so it is authored per card (#1363);
+        the earlier stages are spaced back from it by a 3-6 day dwell.
+        Returns the card's age in days (its creation).
         """
         # The visitor is excluded: it is every visitor at once, so seeded
         # history attributed to it would read as the current visitor's moves.
@@ -1073,29 +1189,16 @@ class Command(BaseCommand):
         mover = people[idx % len(people)]
         lane = card.swimlane
         dwell = 3 + idx % 4
-        # A card in a terminal column (Won / Lost) came from the last in-flight
-        # column, never through a sibling terminal column — so Lost's history
-        # skips Won rather than showing the card briefly "won" first.
-        path = [i for i in range(col_i) if not columns[i].is_done] + [col_i]
-        steps = len(path) - 1
+        steps = col_i
         created_age = last_moved + dwell * steps
-        created = CardMovement.objects.create(
-            card=card, from_column=None, to_column=columns[0], from_swimlane=None, to_swimlane=lane,
-            from_column_name="", to_column_name=columns[0].name, from_column_uid="",
-            to_column_uid=columns[0].uid, from_swimlane_name="", to_swimlane_name=lane.name,
-            from_swimlane_uid="", to_swimlane_uid=lane.uid, moved_by=mover, notes="",
-        )
-        CardMovement.objects.filter(pk=created.pk).update(moved_at=anchor - datetime.timedelta(days=created_age))
-        for step, (src_i, dst_i) in enumerate(zip(path, path[1:])):
-            src, dst = columns[src_i], columns[dst_i]
-            mv = CardMovement.objects.create(
-                card=card, from_column=src, to_column=dst, from_swimlane=lane, to_swimlane=lane,
-                from_column_name=src.name, to_column_name=dst.name, from_column_uid=src.uid,
-                to_column_uid=dst.uid, from_swimlane_name=lane.name, to_swimlane_name=lane.name,
-                from_swimlane_uid=lane.uid, to_swimlane_uid=lane.uid, moved_by=mover, notes="",
-            )
-            CardMovement.objects.filter(pk=mv.pk).update(
-                moved_at=anchor - datetime.timedelta(days=last_moved + dwell * (steps - 1 - step))
+        # Created by its creator (the admin, who owns every seeded card), then
+        # moved along by the card's mover.
+        record_creation(card, column=columns[0], swimlane=lane, actor=card.created_by,
+                        at=anchor - datetime.timedelta(days=created_age))
+        for step in range(steps):
+            record_move(
+                card, src=columns[step], dst=columns[step + 1], swimlane=lane, actor=mover,
+                at=anchor - datetime.timedelta(days=last_moved + dwell * (steps - 1 - step)),
             )
         return created_age
 
@@ -1187,6 +1290,34 @@ class Command(BaseCommand):
         except DRFValidationError as exc:
             raise CommandError(f"Demo field {definition.name!r} rejects {value!r}: {exc.detail}") from None
 
+    def _create_demo_site_saved_filters(self, seeded, visitor):
+        """Give the published visitor a few saved filters worth trying (#1889).
+
+        Saved filters are private to their owner, so a filter only the admin
+        owned would be invisible to every visitor. Creating one is a write the
+        demo fence refuses, so these are the visitor's whole list, and the
+        reset restores them. A filter is a view preference, not authored
+        content, so this does not break the rule that nothing seeded is
+        credited to the visitor.
+        """
+        for board_name, name, state in DEMO_SITE_SAVED_FILTERS:
+            if board_name not in seeded:
+                continue  # board skipped (already existed without --wipe)
+            board, _cards = seeded[board_name]
+            labels = dict(board.labels.values_list("name", "pk"))
+            state_json = {
+                "search": state.get("search", ""), "assigneeIds": [],
+                "labelIds": [labels[n] for n in state.get("labels", [])],
+                "priorities": state.get("priorities", []), "dueDate": state.get("dueDate"),
+            }
+            # Validated as the saved-filter endpoint validates it, so a shape
+            # the SPA cannot load fails the seed instead of reaching the demo.
+            try:
+                state_json = SavedFilterSerializer().validate_state_json(state_json)
+            except DRFValidationError as exc:
+                raise CommandError(f"Demo saved filter {name!r} is invalid: {exc.detail}") from None
+            SavedFilter.objects.create(user=visitor, board=board, name=name, state_json=state_json)
+
     def _create_demo_site_notifications(self, seeded, users):
         """Seed the published visitor's inbox (#1363); return the row count.
 
@@ -1218,7 +1349,11 @@ class Command(BaseCommand):
                 actor, at = last_move.moved_by, last_move.moved_at
                 verb = f"{actor.username} moved \"{card.title}\" to {last_move.to_column_name}"
             elif action_type == ActionType.ASSIGNED:
-                actor, at = users[assigned_by], last_move.moved_at
+                # The assignment the card's history records (#1889).
+                change = card.activities.get(
+                    event_type=CardActivity.EventType.ASSIGNEE_CHANGE, to_value=visitor.username,
+                )
+                actor, at = change.actor, change.created_at
                 verb = f"You were assigned to \"{card.title}\""
             elif action_type == ActionType.STALE:
                 actor, at = None, anchor
@@ -1506,9 +1641,14 @@ class Command(BaseCommand):
                 # Movement history for cards not in Backlog
                 self._add_movement_history(card, current_col, pipeline, users)
 
-                # Activity records: ~30% of cards
+                # Activity records: ~30% of cards. On the demo board the
+                # draws are still made, so the seeded corpus stays what it has
+                # always been, but nothing is written: _complete_demo_history
+                # writes the card's whole trail once the board is finished
+                # (#1889). The --scale load-test board keeps the old rows: its
+                # timeline budget was measured with them.
                 if random.random() < 0.30:
-                    self._add_activity(card, users)
+                    self._add_activity(card, users, write=board.name != BOARD_NAME)
 
                 cards.append(card)
 
@@ -1574,7 +1714,7 @@ class Command(BaseCommand):
             from_swimlane_uid="",
             to_swimlane_uid=card.swimlane.uid,
             moved_by=random.choice(users),
-            notes="",
+            notes=CREATED_NOTE,
         )
         CardMovement.objects.filter(pk=mv.pk).update(moved_at=created_at)
 
@@ -1603,11 +1743,15 @@ class Command(BaseCommand):
             # Back-fill moved_at; auto_now_add=True ignores values at create time.
             CardMovement.objects.filter(pk=mv.pk).update(moved_at=moved_at)
 
-    def _add_activity(self, card, users):
+    def _add_activity(self, card, users, write=True):
         """Add one field-change activity record.
 
         Covers priority, assignee, label, comment, and weight changes so that
         the history panel shows a realistic mix of event types. (#364)
+
+        Only the --scale load-test board still writes these (#1889): the
+        values are drawn at random and do not match the card. ``write=False``
+        makes exactly the same draws and writes nothing.
 
         created_at is back-filled because auto_now_add=True ignores explicit
         values, with filter().update() after creation, same pattern as movements.
@@ -1630,6 +1774,8 @@ class Command(BaseCommand):
 
         if event == CardActivity.EventType.PRIORITY_CHANGE:
             old_priority = random.choice(["low", "medium", "high"])
+            if not write:
+                return
             act = CardActivity.objects.create(
                 card=card,
                 event_type=event,
@@ -1639,6 +1785,8 @@ class Command(BaseCommand):
             )
         elif event == CardActivity.EventType.ASSIGNEE_CHANGE:
             old_user = random.choice(users)
+            if not write:
+                return
             act = CardActivity.objects.create(
                 card=card,
                 event_type=event,
@@ -1648,11 +1796,14 @@ class Command(BaseCommand):
             )
         elif event == CardActivity.EventType.LABEL_CHANGE:
             sample_labels = ["Bug", "Feature", "Urgent", "Review", "Blocked"]
+            label = random.choice(sample_labels)
+            if not write:
+                return
             act = CardActivity.objects.create(
                 card=card,
                 event_type=event,
                 from_value="",
-                to_value=random.choice(sample_labels),
+                to_value=label,
                 actor=actor,
             )
         elif event == CardActivity.EventType.COMMENT_ADDED:
@@ -1663,16 +1814,21 @@ class Command(BaseCommand):
                 "Updated per feedback.",
                 "Ready for QA.",
             ]
+            body = random.choice(sample_comments)
+            if not write:
+                return
             act = CardActivity.objects.create(
                 card=card,
                 event_type=event,
                 from_value="",
-                to_value=random.choice(sample_comments),
+                to_value=body,
                 actor=actor,
             )
         else:  # WEIGHT_CHANGE
             old_weight = random.randint(1, 8)
             new_weight = random.randint(1, 8)
+            if not write:
+                return
             act = CardActivity.objects.create(
                 card=card,
                 event_type=event,
@@ -1682,6 +1838,41 @@ class Command(BaseCommand):
             )
         # Back-fill created_at; auto_now_add=True ignores values at create time.
         CardActivity.objects.filter(pk=act.pk).update(created_at=activity_at)
+
+    def _complete_demo_history(self, board, users):
+        """Make every demo-board card's history match the card (#1889).
+
+        The generator above decides each card's state from the shared random
+        stream, which must not change, so the history is finished afterwards
+        from the state alone: the card is dated to its creation movement, its
+        comments are placed inside its lifetime (they were drawn independently
+        and could predate the card), an archived card gets the archive
+        movement the API writes and an archive time after its last move, and
+        every value the card holds gets its activity. A card the #1570 fixture
+        created without any history gets its creation movement now.
+        """
+        cards = Card.objects.filter(board=board).select_related("column", "swimlane", "assignee", "created_by")
+        for card in cards.order_by("id"):
+            first = card.movements.order_by("moved_at", "id").first()
+            if first is None:
+                record_creation(card, column=card.column, swimlane=card.swimlane,
+                                actor=card.created_by or users[0], at=card.created_at)
+            else:
+                # created_by and the creation movement's actor were drawn
+                # separately; the API writes them as one user (#1889). The
+                # draws stay, so the corpus does not change.
+                Card.objects.filter(pk=card.pk).update(created_at=first.moved_at)
+                CardMovement.objects.filter(pk=first.pk).update(moved_by=card.created_by)
+            start, end = history_window(card)
+            comments = list(card.comments.order_by("created_at", "id"))
+            for i, comment in enumerate(comments):
+                at = start + (end - start) * (0.35 + 0.6 * (i + 1) / (len(comments) + 1))
+                CardComment.objects.filter(pk=comment.pk).update(created_at=at)
+            if card.archived_at:
+                at = max(card.archived_at, end + datetime.timedelta(hours=1))
+                at = min(at, timezone.now() - datetime.timedelta(seconds=30))
+                record_archive(card, actor=card.created_by or users[0], at=at)
+            write_activity_trail(card, actors=users)
 
     def _archive_some_cards(self, cards):
         """
@@ -1845,6 +2036,11 @@ class Command(BaseCommand):
                 title="Schema-fuzz fixture card", created_by=member,
                 position=(last.position + 1) if last else 0,
             )
+        # The hook hands the fuzz user this card's first checklist item, and a
+        # member may only edit items it created. Items with no creator yet
+        # (the generator draws none) are the member's: _complete_demo_history
+        # would otherwise credit them to someone else (#1889).
+        card.checklist_items.filter(created_by__isnull=True).update(created_by=member)
         content = b"Member-owned attachment seeded by seed_demo_data (#1570).\n"
         CardAttachment.objects.create(
             card=card,
@@ -1857,7 +2053,7 @@ class Command(BaseCommand):
             card=card, author=member, body="Seeded member-owned comment (#1570).",
         )
         if not card.checklist_items.exists():
-            CardChecklist.objects.create(card=card, text="Seeded checklist item", position=0)
+            CardChecklist.objects.create(card=card, text="Seeded checklist item", position=0, created_by=member)
         other = next((c for c in candidates if c.pk != card.pk), None)
         if other is not None:
             # relates_to is symmetric: stored lower id first, as the API does.
