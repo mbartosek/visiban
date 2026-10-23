@@ -263,3 +263,22 @@ The feature doc's ["Upgrade path to enterprise"](../features/mcp-server.md#upgra
 | `post_notification_created` signal (`boards/signals.py`) | Enterprise channel delivery (enterprise #34) | ✅ Implemented — `boards/signals.py`, sent from `boards/services/notifications.py` (#356). **Opposite dispatch convention to the two custom-field signals above:** sent *after* the enclosing transaction commits (via `transaction.on_commit`) and with `send_robust`, so a receiver that raises is logged and dropped and cannot roll back the notification it is reporting or fail the request. When no transaction is open — both notification management commands, and the description-mention path — `on_commit` runs the callback immediately and synchronously, so a receiver doing network I/O owns its own timeout. Kwargs: `notification`, `recipient`, `actor`, `context` (a per-`action_type` dict carrying detail that is not reachable from the row, such as the comment body or the from/to column names). |
 | `BaseSnapshotStorage` / `SNAPSHOT_STORAGE_BACKEND` | Enterprise S3 snapshots (enterprise #37) | Not yet implemented |
 | `post_reminder_due` signal | Enterprise reminder delivery (enterprise #35) | Not yet implemented |
+
+### Overriding `REST_FRAMEWORK` from the enterprise settings include
+
+`enterprise.settings.*` is imported at the end of `visiban/settings.py`, so assigning a new `REST_FRAMEWORK` dict **replaces** the OSS one rather than merging into it. An enterprise override must start from a copy of the OSS dict (or update individual keys in place) and keep every key OSS relies on, including those added in 1.2:
+
+- `DEFAULT_FILTER_BACKENDS` must keep `visiban.filters.CodedDjangoFilterBackend` (#1832). It answers a malformed query parameter with `{detail, code: "invalid_query_param"}`. Falling back to the stock `DjangoFilterBackend` changes that 400 body, which is part of the API contract.
+- `DEFAULT_THROTTLE_RATES` must keep every scope OSS defines (`user_search`, `card_query`, `board_import`, `invite_email_*`, `password_change`, and the rest). A view that names a scope missing from this dict fails with `ImproperlyConfigured` on its first throttled request. Add enterprise scopes by updating the dict, not by replacing it.
+- `DEFAULT_THROTTLE_CLASSES` must stay in place, or the per-scope rates apply to no one.
+- `DEFAULT_AUTHENTICATION_CLASSES` must keep `accounts.authentication.PATAuthentication` first, and `DEFAULT_PERMISSION_CLASSES` must keep `MustNotHavePendingPasswordChange`, `MustNotHavePendingUsernameChange` and `accounts.permissions.TokenHasScope`. Dropping them silently removes the forced-change gate and personal access token scopes ([Security Invariants](../development/security-invariants.md)).
+- `DEFAULT_PAGINATION_CLASS` (`visiban.pagination.OffsetCountPagination`), `DEFAULT_VERSIONING_CLASS`, `DEFAULT_VERSION`, `ALLOWED_VERSIONS` and `DEFAULT_SCHEMA_CLASS` are part of the public API contract.
+
+OSS currently sets no `EXCEPTION_HANDLER`. If one is added, an override must copy it too.
+
+```python
+# enterprise/settings/...
+from visiban.settings import REST_FRAMEWORK  # noqa: F401
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["my_enterprise_scope"] = "60/min"
+```
