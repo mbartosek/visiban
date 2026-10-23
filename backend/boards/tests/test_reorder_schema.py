@@ -35,7 +35,7 @@ class ReorderActionsDocumentBareArrayTests(SimpleTestCase):
     def test_swimlanes_reorder(self):
         self._assert_bare_array(f"{BASE}/swimlanes/reorder/", ["post"], "Swimlane")
 
-    def test_custom_fields_reorder_put_and_post(self):
+    def test_custom_fields_reorder(self):
         self._assert_bare_array(
-            f"{BASE}/custom-fields/reorder/", ["put", "post"], "CustomFieldDefinition"
+            f"{BASE}/custom-fields/reorder/", ["post"], "CustomFieldDefinition"
         )

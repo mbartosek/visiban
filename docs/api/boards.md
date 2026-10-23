@@ -1960,9 +1960,10 @@ Update a definition. Requires board admin.
 Delete a definition. Requires board admin. **Every card's value for that field is deleted
 with it.**
 
-### `PUT /api/v1/boards/{id}/custom-fields/reorder/`
-Reorder definitions. Requires board admin. `POST` is accepted as well, matching the column
-and swimlane reorder actions.
+### `POST /api/v1/boards/{id}/custom-fields/reorder/`
+Reorder definitions. Requires board admin. `POST` only, matching the column and swimlane
+reorder actions; since 1.2 (#1868) `PUT` returns `405 Method Not Allowed`. (`PUT` was only
+briefly accepted during the 1.2 pre-releases and never shipped in a GA release.)
 
 Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 
@@ -2074,9 +2075,10 @@ Update a definition. Requires board admin.
 Delete a definition. Requires board admin. **Every swimlane's value for that field is
 deleted with it.**
 
-### `PUT /api/v1/boards/{id}/swimlane-custom-fields/reorder/`
-Reorder definitions. Requires board admin. `POST` is accepted as well, matching the column,
-swimlane, and card-custom-field reorder actions.
+### `POST /api/v1/boards/{id}/swimlane-custom-fields/reorder/`
+Reorder definitions. Requires board admin. `POST` only, matching the column, swimlane, and
+card-custom-field reorder actions; since 1.2 (#1868) `PUT` returns `405 Method Not Allowed`.
+(`PUT` was only briefly accepted during the 1.2 pre-releases and never shipped in a GA release.)
 
 Since 1.2, a request body that is not a JSON object returns `400 Bad Request` (it returned `500` before). Entries that are not integers were already a `400`; since 1.2 an entry beyond the 64-bit integer range is also a `400` (it returned `500` before).
 

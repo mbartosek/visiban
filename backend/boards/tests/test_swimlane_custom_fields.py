@@ -984,9 +984,10 @@ class SwimlaneCustomFieldReorderSchemaTests(SwimlaneCustomFieldTestBase):
 
     PATH = "/api/v1/boards/{board_pk}/swimlane-custom-fields/reorder/"
 
-    def test_documented_response_is_an_array_for_put_and_post(self):
+    def test_documented_response_is_an_array(self):
         paths = SchemaGenerator().get_schema(request=None, public=True)["paths"]
-        for method in ("put", "post"):
+        self.assertNotIn("put", paths[self.PATH])
+        for method in ("post",):
             schema = paths[self.PATH][method]["responses"]["200"]["content"][
                 "application/json"
             ]["schema"]
@@ -997,13 +998,17 @@ class SwimlaneCustomFieldReorderSchemaTests(SwimlaneCustomFieldTestBase):
                 method,
             )
 
-    def test_empty_body_returns_a_bare_array_over_both_methods(self):
+    def test_empty_body_returns_a_bare_array(self):
         _definition(self.board, name="A", position=0)
-        for method in (self.client.put, self.client.post):
-            r = method(f"{self.url}reorder/", {}, format="json")
-            self.assertEqual(r.status_code, status.HTTP_200_OK)
-            self.assertIsInstance(r.json(), list)
-            self.assertEqual([d["name"] for d in r.json()], ["A"])
+        r = self.client.post(f"{self.url}reorder/", {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(r.json(), list)
+        self.assertEqual([d["name"] for d in r.json()], ["A"])
+
+    def test_put_is_not_allowed(self):
+        """#1868: reorder is POST-only, like column/swimlane/checklist reorder."""
+        r = self.client.put(f"{self.url}reorder/", {"order": []}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 
