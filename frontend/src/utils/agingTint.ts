@@ -19,9 +19,11 @@
  * stage: color means "needs attention", never "good".
  *
  * Color is not the only signal (WCAG 1.4.1): the card's badge and its
- * hover/keyboard-focus tooltip state the idle days, and the 3x stage adds an
- * inset ring. The body-opacity step (100 → 90 → 85) is a weak supplementary
- * cue only; 1–2x vs 2–3x share opacity-85 and differ by hue and text.
+ * hover/keyboard-focus tooltip state the idle days, the `AgingCue` meter marks
+ * every tinted stage by shape where the badge is absent (#1843, #1863), and
+ * the 3x stage adds an inset ring. The body-opacity step (100 → 90 → 85) is
+ * a weak supplementary cue only; 1–2x vs 2–3x share opacity-85 and differ by
+ * hue and text.
  */
 
 export type AgingStage = "none" | "warning" | "stale" | "stale2x" | "stale3x";

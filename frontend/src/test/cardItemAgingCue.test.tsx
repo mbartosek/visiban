@@ -6,6 +6,8 @@ import type { Card, CardDensity } from '../types'
 
 // #1843 — non-color age cue (AgingCue stage glyph) wherever the `Stale · Nd`
 // badge is not on the card face, so a stale tint is never color-only.
+// #1863 — the yellow warning stage gets the same meter with a hollow
+// shortest bar, so it is not color-only either.
 
 vi.mock('@dnd-kit/core', () => ({
   useDraggable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, isDragging: false }),
@@ -51,7 +53,8 @@ function renderAged(idle: number, cardOverrides: Partial<Card> = {}, opts: Rende
 }
 
 const cue = (container: HTMLElement) => container.querySelector('svg[data-aging-cue]')
-const solidBars = (svg: Element) => svg.querySelectorAll('rect:not([opacity])').length
+const solidBars = (svg: Element) => svg.querySelectorAll('rect[fill="currentColor"]:not([opacity])').length
+const hollowBars = (svg: Element) => svg.querySelectorAll('rect[fill="none"][stroke="currentColor"]')
 
 describe('AgingCue on cards without a visible Stale badge (#1843)', () => {
   it.each([
@@ -101,11 +104,8 @@ describe('AgingCue on cards without a visible Stale badge (#1843)', () => {
     expect(screen.getByRole('img', { name: 'Idle 15 days, past the stale threshold' })).toBeInTheDocument()
   })
 
-  it.each([
-    ['fresh', 2],
-    ['warning stage', 8],
-  ])('%s card has no cue', (_name, idle) => {
-    const { container } = renderAged(idle)
+  it('fresh card (below the warning point) has no cue', () => {
+    const { container } = renderAged(3)
     expect(cue(container)).toBeNull()
   })
 
@@ -152,9 +152,68 @@ describe('AgingCue on cards without a visible Stale badge (#1843)', () => {
   })
 })
 
+describe('AgingCue on warning-stage cards (#1863)', () => {
+  it.each<[string, RenderOpts]>([
+    ['compact dense', { compact: true, density: 'dense' }],
+    ['compact comfortable', { compact: true, density: 'comfortable' }],
+    ['non-compact dense', { compact: false, density: 'dense' }],
+    ['non-compact comfortable', { compact: false, density: 'comfortable' }],
+    ['non-compact standard', { compact: false, density: 'standard' }],
+  ])('%s warning card shows the hollow-bar cue in the title', (_name, opts) => {
+    const { container } = renderAged(9, {}, opts)
+    const svg = screen.getByRole('img', { name: 'Idle 9 days, approaching the stale threshold' })
+    expect(svg).toHaveAttribute('data-aging-cue', 'warning')
+    expect(svg.getAttribute('class')).toContain('text-warning-on-tint')
+    expect(screen.getByText('Aging cue card').firstElementChild).toBe(svg)
+    expect(cue(container)).toBe(svg)
+    // The warning stage never shows the Stale badge.
+    expect(screen.queryByText(/^Stale/)).not.toBeInTheDocument()
+  })
+
+  it('a warning card in a done column has no cue', () => {
+    const { container } = renderAged(9, {}, { inDoneColumn: true })
+    expect(cue(container)).toBeNull()
+  })
+
+  it('no cue when the warning stage is turned off (stale_warning_pct 0)', () => {
+    const { container } = render(
+      <CardItem card={makeCard({ last_moved_at: daysAgo(9) })} compact density="dense" staleness_threshold_days={14} stale_warning_pct={0} />,
+    )
+    expect(cue(container)).toBeNull()
+  })
+})
+
 describe('AgingCue component', () => {
-  it.each(['none', 'warning'] as const)('renders nothing for stage %s', (stage) => {
-    const { container } = render(<AgingCue stage={stage} idleDays={9} />)
+  it('renders nothing for stage none', () => {
+    const { container } = render(<AgingCue stage="none" idleDays={9} />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('warning: hollow shortest bar at full opacity, no solid bars, two ghosts', () => {
+    render(<AgingCue stage="warning" idleDays={9} />)
+    const svg = screen.getByRole('img', { name: 'Idle 9 days, approaching the stale threshold' })
+    expect(svg.querySelectorAll('rect')).toHaveLength(3)
+    expect(solidBars(svg)).toBe(0)
+    const hollow = hollowBars(svg)
+    expect(hollow).toHaveLength(1)
+    // The only stage-bearing mark must not be ghosted (WCAG 1.4.11 needs 3:1).
+    expect(hollow[0]).not.toHaveAttribute('opacity')
+    expect(hollow[0]).toHaveAttribute('stroke-width', '1')
+    // Inset by half the stroke: the outline's outer edge is the filled bar's x 0–3, y 7–12.
+    expect(hollow[0]).toHaveAttribute('x', '0.5')
+    expect(hollow[0]).toHaveAttribute('y', '7.5')
+    expect(hollow[0]).toHaveAttribute('width', '2')
+    expect(hollow[0]).toHaveAttribute('height', '4')
+    expect(svg.querySelectorAll('rect[fill="currentColor"][opacity="0.3"]')).toHaveLength(2)
+  })
+
+  it('warning uses the singular for one idle day', () => {
+    render(<AgingCue stage="warning" idleDays={1} />)
+    expect(screen.getByRole('img', { name: 'Idle 1 day, approaching the stale threshold' })).toBeInTheDocument()
+  })
+
+  it.each(['stale', 'stale2x', 'stale3x'] as const)('%s draws no hollow bar', (stage) => {
+    render(<AgingCue stage={stage} idleDays={20} />)
+    expect(hollowBars(screen.getByRole('img'))).toHaveLength(0)
   })
 })

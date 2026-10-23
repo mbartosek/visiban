@@ -1,19 +1,25 @@
 import { staleBadgeToneClass, type AgingStage } from "../../utils/agingTint";
 
 /**
- * Non-color stage cue for a stale-tinted card (#1843, WCAG 1.4.1).
+ * Non-color stage cue for an aging-tinted card (#1843, #1863, WCAG 1.4.1).
  *
  * The `Stale · Nd` badge only renders on non-compact cards at comfortable or
  * standard density, and only when no higher-priority urgency (overdue,
  * due-soon) preempts it. Everywhere else — every compact card, dense cards,
- * preempted badges — the aging tint was the only at-a-glance signal, so
- * stale vs 2× vs 3× differed by hue alone. CardItem renders this glyph
- * exactly when the card has a stale-stage tint and the badge is not visible.
+ * preempted badges — the aging tint was the only at-a-glance signal, so the
+ * stages differed by hue alone. The yellow `warning` stage never gets the
+ * badge at all, so before #1863 it was told apart from a fresh card by hue and
+ * opacity only. CardItem renders this glyph exactly when the card has an aging
+ * tint and the badge is not visible.
  *
  * Shape, not text: a compact card is ~77px of content wide (two-column grid
  * in a 220px cell), so `41d` would eat half the title. Three ascending bars
  * with the solid count equal to the stage multiple (1×, 2×, 3×) tell the
- * stages apart by shape; the bars above the stage are ghosted. The day count
+ * stages apart by shape; the bars above the stage are ghosted. The warning
+ * stage has no solid bar: its shortest bar is drawn hollow (outline only), so
+ * it reads as "not yet one bar" — a hint, not an alarm. The hollow outline is
+ * at full opacity because it is the only stage-bearing mark; an all-ghost
+ * meter would fall below the 3:1 a non-text graphic needs. The day count
  * lives in the accessible name and in the card's own aging tooltip.
  *
  * It sits inline at the start of the title `<p>` so it shares the title's
@@ -29,7 +35,8 @@ import { staleBadgeToneClass, type AgingStage } from "../../utils/agingTint";
  * constraint (the bulk-select checkbox covers the trailing edge).
  */
 
-const SOLID_BARS: Partial<Record<AgingStage, number>> = { stale: 1, stale2x: 2, stale3x: 3 };
+// Solid bar count per stage; `warning` has none and draws its shortest bar hollow.
+const SOLID_BARS: Partial<Record<AgingStage, number>> = { warning: 0, stale: 1, stale2x: 2, stale3x: 3 };
 
 // x / y / height of each bar in a 12×12 viewBox, shortest first.
 const BARS = [
@@ -43,6 +50,7 @@ function cueLabel(stage: AgingStage, idleDays: number): string {
   // "times", not "×": screen readers read "×" as "multiplication sign".
   if (stage === "stale3x") return `Idle ${days}, at least 3 times the stale threshold`;
   if (stage === "stale2x") return `Idle ${days}, at least 2 times the stale threshold`;
+  if (stage === "warning") return `Idle ${days}, approaching the stale threshold`;
   return `Idle ${days}, past the stale threshold`;
 }
 
@@ -61,26 +69,45 @@ export default function AgingCue({ stage, idleDays }: AgingCueProps) {
       data-aging-cue={stage}
       viewBox="0 0 12 12"
       // Same on-tint tone as the badge (#1550): measured >= 4.55:1 on every
-      // stale stage in both themes, above the 3:1 a non-text graphic needs.
+      // stale stage and 6.25 / 5.53:1 (dark / light) on the warning stage,
+      // above the 3:1 a non-text graphic needs.
       // -0.125em, not align-baseline: a 12px glyph standing on the baseline
       // leaves under 1px of headroom in a text-xs leading-snug line, so a
       // different font stack could grow the line box. Dropping the feet
       // 0.125em keeps ~1.5px of headroom at text-xs and more at text-sm.
       className={`inline-block w-3 h-3 mr-1 align-[-0.125em] ${staleBadgeToneClass(stage)}`}
     >
-      {BARS.map((bar, i) => (
-        <rect
-          key={bar.x}
-          x={bar.x}
-          y={bar.y}
-          width={3}
-          height={bar.h}
-          rx={0.5}
-          fill="currentColor"
-          // Ghost bars are decorative; the count of solid bars carries the stage.
-          opacity={i < solid ? undefined : 0.3}
-        />
-      ))}
+      {BARS.map((bar, i) =>
+        i === 0 && stage === "warning" ? (
+          // Hollow shortest bar: the rect is inset by half the 1-unit stroke so
+          // the outline's outer edge matches the filled bar's footprint
+          // (x 0–3, y 7–12) and stays inside the viewBox.
+          <rect
+            key={bar.x}
+            x={bar.x + 0.5}
+            y={bar.y + 0.5}
+            width={2}
+            height={bar.h - 1}
+            rx={0.5}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1}
+          />
+        ) : (
+          <rect
+            key={bar.x}
+            x={bar.x}
+            y={bar.y}
+            width={3}
+            height={bar.h}
+            rx={0.5}
+            fill="currentColor"
+            // Ghost bars are decorative; the solid bars (or the warning stage's
+            // hollow bar) carry the stage.
+            opacity={i < solid ? undefined : 0.3}
+          />
+        ),
+      )}
     </svg>
   );
 }

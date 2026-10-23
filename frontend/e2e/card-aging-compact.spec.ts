@@ -6,6 +6,8 @@ import { BOARD_FULL, CARD, CARD_STALE } from './fixtures/board'
 // dense density), its title starts with the AgingCue stage glyph instead. It
 // must not change the card's height (the issue's constraint), so the title's
 // line box is measured, not just the glyph's presence.
+// #1863 — the yellow warning stage never shows the badge, so it gets the same
+// glyph with a hollow shortest bar, under the same height constraint.
 
 // Idle 10 days against BOARD_FULL's 7-day threshold: the 1–2x stage. Relative
 // to now so the stage cannot drift with the wall clock.
@@ -19,9 +21,23 @@ const CARD_STALE_1X = {
   last_moved_at: new Date(Date.now() - 10 * 86_400_000).toISOString(),
 }
 
-const CARDS = [CARD, CARD_STALE, CARD_STALE_1X]
+// Idle 5 days against the 7-day threshold at 50%: the warning stage (3.5 to
+// under 7 days). Not near either edge, so the relative fixture cannot drift out.
+const CARD_WARNING = {
+  ...CARD,
+  id: 4,
+  uid: 'card000004c',
+  title: 'Warning task',
+  position: 3,
+  is_stale: false,
+  last_moved_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+}
 
-async function openBoard(page: Page, { compact, density }: { compact: boolean; density: 'comfortable' | 'dense' }) {
+const WARNING_CUE_NAME = 'Idle 5 days, approaching the stale threshold'
+
+const CARDS = [CARD, CARD_STALE, CARD_STALE_1X, CARD_WARNING]
+
+async function openBoard(page: Page, { compact, density }: { compact: boolean; density: 'comfortable' | 'standard' | 'dense' }) {
   await routeAuth(page)
   if (compact) {
     await page.addInitScript(() => {
@@ -61,6 +77,7 @@ test.describe('card aging cue where no Stale badge is shown', () => {
     const fresh = titleOf(page, CARD.title)
     const severe = titleOf(page, CARD_STALE.title)
     const aging = titleOf(page, CARD_STALE_1X.title)
+    const warning = titleOf(page, CARD_WARNING.title)
     await expect(severe).toBeVisible({ timeout: 10_000 })
 
     // CARD_STALE last moved 2026-04-01 against a 7-day threshold: far past 3x.
@@ -70,19 +87,41 @@ test.describe('card aging cue where no Stale badge is shown', () => {
     await expect(page.getByText(/^Stale · \d+d$/)).toHaveCount(0)
     await expect(fresh.locator('svg[data-aging-cue]')).toHaveCount(0)
 
+    await expect(warning.getByRole('img', { name: WARNING_CUE_NAME })).toBeVisible()
+    await expect(warning.locator('svg[data-aging-cue="warning"] rect[fill="none"]')).toHaveCount(1)
+
     await expectNoHeightChange(severe, fresh)
     await expectNoHeightChange(aging, fresh)
+    await expectNoHeightChange(warning, fresh)
   })
 
   test('non-compact dense cards show the stage glyph without growing the title line', async ({ page }) => {
     await openBoard(page, { compact: false, density: 'dense' })
     const fresh = titleOf(page, CARD.title)
     const severe = titleOf(page, CARD_STALE.title)
+    const warning = titleOf(page, CARD_WARNING.title)
     await expect(severe).toBeVisible({ timeout: 10_000 })
 
     // Dense never renders the urgency badge, so the glyph carries the stage.
     await expect(severe.getByRole('img', { name: /at least 3 times the stale threshold$/ })).toBeVisible()
+    await expect(warning.getByRole('img', { name: WARNING_CUE_NAME })).toBeVisible()
     await expect(page.getByText(/^Stale · \d+d$/)).toHaveCount(0)
     await expectNoHeightChange(severe, fresh)
+    await expectNoHeightChange(warning, fresh)
   })
+
+  // #1863: a warning card never gets the Stale badge, so the glyph shows on
+  // non-compact comfortable and standard cards too, where stale cards show the badge.
+  for (const density of ['comfortable', 'standard'] as const) {
+    test(`non-compact ${density} warning cards show the hollow-bar glyph without growing the title line`, async ({ page }) => {
+      await openBoard(page, { compact: false, density })
+      const fresh = titleOf(page, CARD.title)
+      const warning = titleOf(page, CARD_WARNING.title)
+      await expect(warning).toBeVisible({ timeout: 10_000 })
+
+      await expect(warning.getByRole('img', { name: WARNING_CUE_NAME })).toBeVisible()
+      await expect(fresh.locator('svg[data-aging-cue]')).toHaveCount(0)
+      await expectNoHeightChange(warning, fresh)
+    })
+  }
 })
