@@ -6,9 +6,10 @@ every one is now a permanent field. These pins make the next such field a
 deliberate decision: new instance-level flags belong on ``SiteConfig``
 (``GET /auth/site-config/``) or a capabilities payload, not here.
 
-``demo_mode`` / ``demo_next_reset_at`` also live on SiteConfig. That duplication
-is intentional (the SPA bootstraps from ``/auth/user/`` post-login and from
-``site-config`` pre-login); the last test keeps the two shapes from drifting.
+All five non-upload flags also live on SiteConfig (``demo_*`` since #1179, the
+rest since #1872), computed by the same ``accounts.instance_flags`` helpers. The
+duplication is intentional; the last test keeps the ``demo_*`` shapes from
+drifting, and ``test_site_config_instance_flags_1872`` covers all five.
 """
 from __future__ import annotations
 

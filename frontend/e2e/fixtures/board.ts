@@ -203,6 +203,10 @@ export const SITE_CONFIG = {
   demo_login: null,
   demo_reset_schedule: null,
   demo_next_reset_at: null,
+  // #1872: instance flags mirrored from /auth/user/.
+  git_lens_enabled: false,
+  maintenance_mode: false,
+  maintenance_message: '',
 }
 
 export const AUTH_PROVIDERS = {

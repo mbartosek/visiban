@@ -481,6 +481,15 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     no longer what `/auth/user/` returns. Request component names for login, registration, and
     password reset are unchanged.
 
+!!! note "Instance flags: read them from `site-config`"
+    `GET /api/v1/auth/site-config/` now returns `git_lens_enabled`, `maintenance_mode` and
+    `maintenance_message`, alongside the `demo_mode` and `demo_next_reset_at` it already had.
+    The `/auth/user/` copies of `maintenance_mode`, `maintenance_message`, `demo_mode` and
+    `demo_next_reset_at` are still returned, but they are deprecated. A client built against a
+    1.2 beta should read them from `site-config`. `git_lens_enabled` stays on `/auth/user/` as a
+    normal field. See [Frozen instance flags](../api/authentication.md#frozen-instance-flags-on-authuser)
+    (#1872).
+
 !!! warning "Status codes changed on board-scoped and member routes"
     Requests from a caller with no access to a board now return `404 Not Found` on every
     board-scoped route, the same answer as for a board that does not exist; `403 Forbidden`
