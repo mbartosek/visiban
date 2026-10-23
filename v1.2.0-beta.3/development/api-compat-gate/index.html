@@ -4104,6 +4104,23 @@ once and recorded:</p>
   <code>POST /auth/choose-username/</code> returns, so one of the two would have needed a rename anyway.</li>
 </ul>
 <p>Decide before the baseline roll: the roll freezes whatever names the schema has that day.</p>
+<p>Decided in #1874, ahead of the first baseline roll that contains them (none of the names
+below exist in the v1.1.0 baseline, so nothing shipped was renamed):</p>
+<ul>
+<li><strong>No <code>*RequestRequest</code> components.</strong> <code>COMPONENT_SPLIT_REQUEST</code> already appends <code>Request</code>
+  to a request component, so an <code>inline_serializer(name="...")</code> on a <code>request=</code> must not end
+  in <code>Request</code>. Use <code>name="CardMove"</code> to get <code>CardMoveRequest</code>. This applied to the card
+  move, checklist/column/custom-field/swimlane/swimlane-custom-field reorder, board share,
+  add-or-update-member, and personal-access-token create bodies. The share body's expiry enum
+  is now <code>ShareBoardExpiresInDaysEnum</code>.</li>
+<li><strong>List endpoints get <code>_list</code> operationIds.</strong> <code>api_v1_admin_action_log_list</code>,
+  <code>api_v1_admin_board_invite_links_list</code> and <code>api_v1_boards_events_list</code> are set explicitly
+  with <code>operation_id=</code> because the generator names a non-<code>ViewSet</code> <code>APIView</code> GET, and the
+  <code>events</code> action, <code>_retrieve</code>.</li>
+<li>A 1.1 name that shipped keeps its name; only 1.2-new names were changed.</li>
+</ul>
+<p><code>backend/boards/tests/test_schema_generated_names_1874.py</code> fails if a <code>*RequestRequest</code>
+component or one of those <code>_retrieve</code> operationIds reappears.</p>
 <h2 id="allow-listing-a-deliberate-break">Allow-listing a deliberate break<a class="headerlink" href="#allow-listing-a-deliberate-break" title="Permanent link">&para;</a></h2>
 <p>A break that is intentional (a planned major bump, or a removal of an item already deprecated
 for a full release) goes in <code>scripts/compat-baseline/allowlist.json</code>. Every entry needs an
