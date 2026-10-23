@@ -16,9 +16,10 @@ Resolution order:
 1. Read `frontend/package.json` — the `version` field records the **last shipped** release (e.g. `1.0.0`).
 2. The **current working release** is the next open GitLab milestone strictly greater than the shipped version. Query:
    ```bash
-   glab api "projects/visiban%2Fvisiban/milestones?state=active" 2>/dev/null \
-     | python3 -c "import json,sys; ms=json.load(sys.stdin); print('\n'.join(m['title'] for m in sorted(ms, key=lambda m: [int(x) for x in m['title'].split('.')])))"
+   glab api "projects/visiban%2Fvisiban/milestones?state=active&per_page=100" \
+     | python3 -c "import json,re,sys; ms=[m for m in json.load(sys.stdin) if re.fullmatch(r'\d+(\.\d+)*', m['title'])]; print('\n'.join(m['title'] for m in sorted(ms, key=lambda m: [int(x) for x in m['title'].split('.')])))"
    ```
+   Non-numeric milestones (e.g. "Engineering health") are skipped on purpose; they are not releases and would crash a numeric sort. Do not hide stderr: if this call fails, stop and report it rather than guessing a release.
    Pick the smallest milestone title greater than the shipped version. That is `$WORKING_RELEASE` (e.g. `1.1`).
 3. Confirm with the user in one line: "Auditing against the **$WORKING_RELEASE** release (last shipped: $SHIPPED). Proceed?" — only if the audit type is `full`. For targeted audits, skip the confirmation and proceed silently.
 
@@ -54,19 +55,38 @@ Wait for the user's choice before proceeding.
 
 Before launching any agents, check whether a recent pre-release audit has already been run and its findings already filed as GitLab issues for the current working release.
 
+Use the issues API through `scripts/gl-issues.sh`, not `glab issue list`: `glab issue list` has no `--state` flag (open is the default; use `-A/--all` or `-c/--closed`), has no `--updated-after`, its `--milestone` is unreliable (the help says `<id>`; a title may work, but a non-matching one silently returns empty), and its text output omits state and milestone. The API accepts the milestone **title** and returns `state`, `milestone`, and `closed_at`.
+
+Do **not** add `2>/dev/null` to any of these calls. A failed call must be visible: an empty result has to mean "no issues", never "the command broke" (#1901). `scripts/gl-issues.sh key=value ...` takes one issues-API query parameter per argument (it URL-encodes the values, so `"search=prior audit"` and `a&b` work), prints `iid state milestone closed_at title` rows plus `checked N issue(s)`, and on any failure (glab error, non-JSON or non-array body, unknown milestone title) prints a `🔴 ... could not run` line and exits nonzero. Report that line as a 🔴 blocker, never as "no prior audit".
+
+Each Bash call is a fresh shell, so set `WORKING_RELEASE` in the same command (or substitute the literal title). An unset or empty value is rejected by the script, never treated as "all milestones":
+
 ```bash
-glab issue list --repo visiban/visiban --state opened --label "$WORKING_RELEASE" --search "audit" 2>/dev/null | head -20
-glab issue list --repo visiban/visiban --state opened --label "$WORKING_RELEASE" 2>/dev/null | head -30
+export WORKING_RELEASE=<resolved in Step 0, e.g. 1.2>
+SINCE=$(date -v-14d +%Y-%m-%dT00:00:00Z 2>/dev/null || date -d '14 days ago' +%Y-%m-%dT00:00:00Z)
+
+# Q1: open issues on the working milestone (context: what is still unresolved)
+scripts/gl-issues.sh milestone="$WORKING_RELEASE" state=opened
+# Q2: issues closed on the working milestone in the window (context: what a prior run already resolved)
+scripts/gl-issues.sh milestone="$WORKING_RELEASE" state=closed updated_after="$SINCE"
+# Q3: the audit-origin detector. Audit issues say "pre-release audit" in their description
+#     ("Found by the ... pre-release audit"), not their title, so this searches title and
+#     description, any state, any milestone: a prior audit's findings may sit on other milestones.
+scripts/gl-issues.sh "search=pre-release audit" state=all created_after="$SINCE" order_by=created_at
 ```
 
-Also check for recently closed audit issues (resolved since last run):
-```bash
-glab issue list --repo visiban/visiban --state closed --label "$WORKING_RELEASE" --updated-after "$(date -v-7d +%Y-%m-%d 2>/dev/null || date -d '7 days ago' +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d)" 2>/dev/null | head -20
-```
+**What Q3 does and does not find.** Measured 2026-10-23 over a 14-day window: 92 rows, containing 16 of 16 of #1745-#1760 and 37 of 39 of #1864-#1902 (the two misses, #1889 and #1901, are not audit findings). It finds issues whose title or description contains the phrase; it will miss audit findings filed without it, and it matches any unrelated issue that mentions a pre-release audit. Treat a hit as "probably audit-origin" and say so. `per_page` is capped at 100: if Q3 prints `checked 100 issue(s)`, re-run with `page=2` before concluding anything.
 
-**If open `$WORKING_RELEASE` issues exist from a prior audit:**
-1. List them for the user grouped by severity (🔴 blocking vs 🟡 should-fix).
-2. Say: "A prior audit has N open finding(s) against $WORKING_RELEASE still unresolved (see above). Re-running will re-discover the same issues. Options:
+Note for any issue write you do later: the API `milestone_id` field takes the **global** milestone id (from `projects/visiban%2Fvisiban/milestones`, field `id`, not `iid`), and `glab api --method POST --input <file>` needs `-H "Content-Type: application/json"` or it returns 415.
+
+**Decision rule.** Call an issue *audit-origin* if its iid appears in Q3's output. Q1 and Q2 are context, not detectors: most open milestone issues are ordinary backlog.
+
+- **Prompt** iff Q3 returned any audit-origin issue that is still open, or any Q1 issue is audit-origin (the same thing from the milestone side). Also mention audit-origin issues closed since (Q2 or Q3), as evidence of what the prior run already resolved.
+- **Otherwise** (Q3 empty, or every Q3 hit already closed): print Q1 and Q2 as informational and proceed to Step 1 with no prompt.
+
+When prompting:
+1. List the audit-origin issues for the user with state and milestone, open ones grouped by severity (🔴 blocking vs 🟡 should-fix).
+2. Say: "A prior audit filed N finding(s) in the last 14 days, M of them still open (see above). Re-running will re-discover the same issues. Options:
    - **resolve** — work through the open issues first, then re-run the audit
    - **continue** — re-run anyway (e.g. significant code has changed since the last run)
    - **targeted** — run only a specific sub-audit (e.g. `/pre-release security`) on the area you just fixed"
@@ -74,8 +94,6 @@ glab issue list --repo visiban/visiban --state closed --label "$WORKING_RELEASE"
    - If "resolve" → run Step 1.5 and show its result, then stop here. Do not launch any agents.
    - If "targeted" → jump to Step 0.1 to let the user pick a specific audit type.
    - If "continue" → proceed to Step 1.
-
-**If no open `$WORKING_RELEASE` issues exist** → proceed to Step 1 immediately with no prompt.
 
 ---
 
@@ -220,7 +238,7 @@ After all agents complete, before writing the report, **cross-reference every fi
 
 For each finding, run:
 ```bash
-glab issue list --repo visiban/visiban --state all --search "<keyword>" 2>/dev/null | head -20
+scripts/gl-issues.sh "search=<keyword>" state=all   # shows open vs closed, milestone, closed date
 ```
 
 Annotate every finding in the report with one of these tags:
@@ -264,7 +282,7 @@ After the report:
 1. Query GitLab for **both open and closed** issues related to each 🔴 and 🟡 finding. A closed match often represents a prior decision (fixed, won't-fix, or deferred) — re-filing without context turns the audit into a whack-a-mole loop and erases prior reasoning.
    ```bash
    # Open and closed, merged and ranked by recency — use per finding keyword
-   glab issue list --repo visiban/visiban --state all --search "<keyword>" 2>/dev/null | head -20
+   scripts/gl-issues.sh "search=<keyword>" state=all   # plain `glab issue list` output omits state
    ```
    Extract 2–3 keywords per finding (file path stem, endpoint, error class, security term) and run the search for each. For multi-faceted findings, run more than one query.
 
@@ -286,7 +304,7 @@ After the report:
    - All findings go under the current working milestone unless they genuinely require a major bump to fix — **do not use generic labels like `post-1.0`**; always name the specific target milestone
 
 4. Ask the user: "Create GitLab issues for the N untracked findings above? (y/n)"
-   - If yes, create them using `glab issue create` with heredoc descriptions and `--milestone "$WORKING_RELEASE"` (or the next-major milestone for already-shipped contracts). Cross-link any "new instance" findings to the closed issue they relate to.
+   - If yes, create them using `glab issue create` with heredoc descriptions and `--milestone "$WORKING_RELEASE"` (or the next-major milestone for already-shipped contracts; `glab issue create --milestone` accepts a title or a global id). Cross-link any "new instance" findings to the closed issue they relate to.
    - If no, list the findings as a checklist the user can act on manually
 
 ---

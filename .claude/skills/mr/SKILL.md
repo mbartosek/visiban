@@ -55,7 +55,7 @@ Spawn these sub-agents concurrently using the Agent tool with `model: "sonnet"`:
    existing fragments.
    (b) Branch naming: run `git branch --show-current` and verify it follows the
    `feat/`, `fix/`, `docs/`, `chore/` prefix convention from `CLAUDE.md`.
-   (c) Existing MR: run `glab mr list --source-branch $(git branch --show-current) 2>/dev/null`
+   (c) Existing MR: run `glab mr list --source-branch $(git branch --show-current)`
    and report any existing MRs with their titles and URLs."
 
 Wait for both agents to return. Then evaluate:
