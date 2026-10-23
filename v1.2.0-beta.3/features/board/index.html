@@ -4866,6 +4866,7 @@
 <p><strong>Added in 1.1</strong></p>
 </blockquote>
 <p>Hovering over a card for 600 ms opens a read-only <strong>peek popover</strong> showing the card's description (rendered as markdown), checklist progress (<code>done / total</code>), and the last-activity timestamp. The popover closes as soon as the pointer leaves the card or any movement begins. No interaction is possible inside the popover — click the card to open the full detail panel.</p>
+<p>The peek is not shown on any card while the card detail panel is open, so it never covers the fields you are editing. Closing the panel does not bring a peek back; hover a card again to see it.</p>
 <p>The 600 ms delay means casual scrolling and rapid drag-and-drop do not trigger the popover unintentionally.</p>
 <h2 id="drag-and-drop">Drag and drop<a class="headerlink" href="#drag-and-drop" title="Permanent link">&para;</a></h2>
 <p>Cards are dragged between cells using @dnd-kit. Updates are <strong>optimistic</strong> — the UI moves the card immediately and rolls back if the API call fails.</p>
