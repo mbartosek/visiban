@@ -39,6 +39,16 @@ Open the palette with an empty query and the default board list starts with your
 
 View-tab shortcuts only fire while you are on a board route (`/boards/<id>`). They write to the `?view=` URL param with replace-history semantics so the browser Back button skips tab transitions.
 
+## History view
+
+| Shortcut | Action |
+|---|---|
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move between rows (only while focus is on the table; they do nothing in the filter controls or the detail panel) |
+| <kbd>Enter</kbd> | Open the detail panel for the focused row |
+| <kbd>Esc</kbd> | Close an open filter menu, then the detail panel, then return to the board — one level per press |
+
+The rows are a single <kbd>Tab</kbd> stop. Closing the detail panel returns focus to the row that opened it, so <kbd>Enter</kbd> reopens it.
+
 ## Board actions
 
 | Shortcut | Action |

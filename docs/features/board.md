@@ -491,6 +491,8 @@ When no date range is specified, the full movement history is shown. There's no 
 
 Click any row to open a slide-in detail panel showing the full movement record: card title, from/to column, from/to swimlane, moved by, and any notes recorded at the time of the move.
 
+The table is keyboard-friendly. The rows form a single <kbd>Tab</kbd> stop; once focus is on the table (or nothing is focused), <kbd>↑</kbd> / <kbd>↓</kbd> move between rows, and <kbd>Enter</kbd> opens the detail panel for the focused row. Arrow keys leave the filter controls and the panel's buttons alone, and <kbd>Enter</kbd> only opens a row while that row has focus. <kbd>Esc</kbd> closes an open filter menu first, then the detail panel (focus returns to its row), and only then leaves the History view for the board.
+
 #### Archive and restore events
 
 Archive and restore events **are included** in the board History view by default, alongside column-to-column moves. The API supports narrowing this with `exclude_type=archived,unarchived`, but the board toolbar's History view doesn't expose a control for it — use the API directly, or check the individual card's **Activity** tab, if you want moves only.

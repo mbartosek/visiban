@@ -433,3 +433,59 @@ class NotifyStaleCardsRecipientMembershipTest(TestCase):
         self._run_collecting_signals()
 
         self.assertTrue(Notification.objects.filter(recipient=user, card=card).exists())
+
+
+class NotifyStaleCardsDoneColumnTest(TestCase):
+    """Cards in is_done columns are excluded from the digest (#1845)."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="owner_done1845", password="pass", notif_stale=True
+        )
+        self.assignee = User.objects.create_user(
+            username="assignee_done1845", password="pass", notif_stale=True
+        )
+        self.board = _make_board(self.owner)
+        BoardMembership.objects.create(board=self.board, user=self.assignee, role="member")
+        self.todo = Column.objects.create(board=self.board, name="Doing", position=0)
+        self.done = Column.objects.create(board=self.board, name="Done", position=1, is_done=True)
+        self.swim = Swimlane.objects.create(board=self.board, name="General", position=0)
+        self.days = self.board.staleness_threshold_days + 1
+
+    def _card(self, column, title, assignee=None):
+        card = Card.objects.create(
+            board=self.board, column=column, swimlane=self.swim,
+            title=title, created_by=self.owner, position=0, assignee=assignee,
+        )
+        _make_stale_movement(card, self.owner, column, self.swim, days_ago=self.days)
+        return card
+
+    def test_stale_done_card_sends_nothing(self):
+        card = self._card(self.done, "Shipped")
+        call_command("notify_stale_cards", verbosity=0)
+        self.assertFalse(Notification.objects.filter(card=card).exists())
+
+    def test_board_with_only_stale_done_cards_sends_nothing(self):
+        self._card(self.done, "Shipped A", assignee=self.assignee)
+        self._card(self.done, "Shipped B")
+        call_command("notify_stale_cards", verbosity=0)
+        self.assertEqual(Notification.objects.filter(action_type=Notification.ActionType.STALE).count(), 0)
+
+    def test_never_moved_done_card_sends_nothing(self):
+        card = Card.objects.create(
+            board=self.board, column=self.done, swimlane=self.swim,
+            title="Never moved", created_by=self.owner, position=0,
+        )
+        Card.objects.filter(pk=card.pk).update(
+            created_at=timezone.now() - datetime.timedelta(days=self.days)
+        )
+        call_command("notify_stale_cards", verbosity=0)
+        self.assertFalse(Notification.objects.filter(card=card).exists())
+
+    def test_mixed_board_notifies_only_for_non_done_card(self):
+        live = self._card(self.todo, "Still open", assignee=self.assignee)
+        done = self._card(self.done, "Finished", assignee=self.assignee)
+        call_command("notify_stale_cards", verbosity=0)
+        self.assertTrue(Notification.objects.filter(card=live, recipient=self.owner).exists())
+        self.assertTrue(Notification.objects.filter(card=live, recipient=self.assignee).exists())
+        self.assertFalse(Notification.objects.filter(card=done).exists())

@@ -5,6 +5,8 @@ import type { BoardFull, CardMovement, User } from "../../types";
 import { userDisplayName } from "../../types";
 import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { formatDateTimeUser } from "../../utils/date";
+import { shouldIgnoreShortcut } from "../../utils/keyboard";
+import { useEscapeStack } from "../../hooks/useEscapeStack";
 import { importedNote } from "../../utils/importedHistory";
 import type { UserDatePrefs } from "../../utils/date";
 
@@ -222,10 +224,33 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
     setSelectedMovement(null);
   }, []);
 
-  // Keyboard navigation.
+  // Escape closes the slide-in through the shared stack at priority 18: above
+  // BoardView's history-to-board handler (15), so one keypress closes only the
+  // slide-in, and below every open menu or dropdown (25) so a menu that is open
+  // at the same time (filter dropdown, user menu) takes Escape first. The panel
+  // has no backdrop or focus trap, which is why it must not outrank them.
+  // Returning false when nothing is open lets Escape fall through.
+  useEscapeStack(() => {
+    if (selectedMovement === null) return false;
+    setSelectedMovement(null);
+  }, 18);
+
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+
+  // The table owns the arrow/Enter keys only while focus is on body or inside
+  // the rows. Arrows from any other control (filter triggers, the slide-in's
+  // Close/Next buttons, an open menu) belong to that control.
+  const focusIsInTable = (target: EventTarget | null) =>
+    target === document.body || (target instanceof Node && !!tbodyRef.current?.contains(target));
+
+  // Keyboard navigation. shouldIgnoreShortcut stays as an explicit typing
+  // guard; Enter additionally requires a focused history row.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!data?.results.length) return;
+      if (shouldIgnoreShortcut(e.target)) return;
+      if (!focusIsInTable(e.target)) return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setFocusedIndex((i) => Math.min((i ?? -1) + 1, data.results.length - 1));
@@ -233,22 +258,45 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
         e.preventDefault();
         setFocusedIndex((i) => Math.max((i ?? 1) - 1, 0));
       } else if (e.key === "Enter" && focusedIndex !== null) {
+        if (!target?.closest('[data-testid="history-row"]')) return;
         setSelectedMovement(data.results[focusedIndex]);
-      } else if (e.key === "Escape" && selectedMovement !== null) {
-        setSelectedMovement(null);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [data, focusedIndex, selectedMovement]);
+  // focusIsInTable only reads refs and document.body
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, focusedIndex]);
 
-  // Scroll the focused row into view when focus moves.
-  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  // Scroll the focused row into view and give it real DOM focus when focus
+  // moves, so Enter (which only acts on a focused row) works after arrows.
+  // Skipped while a filter control owns focus so a pointer-set index never
+  // steals it.
   useEffect(() => {
     if (focusedIndex === null || !tbodyRef.current) return;
     const row = tbodyRef.current.children[focusedIndex] as HTMLElement | undefined;
     row?.scrollIntoView?.({ block: "nearest" });
+    if (row && document.activeElement !== row && focusIsInTable(document.activeElement)) {
+      row.focus?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedIndex]);
+
+  // The slide-in takes focus on open and unmounts on close, which drops focus
+  // to body. Give it back to the row that opened it, but only when focus was
+  // actually lost (a filter change that closes the panel leaves focus alone).
+  const openedIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (selectedMovement) {
+      openedIdRef.current = selectedMovement.id;
+      return;
+    }
+    const id = openedIdRef.current;
+    openedIdRef.current = null;
+    if (id === null || document.activeElement !== document.body) return;
+    const row = tbodyRef.current?.querySelector<HTMLElement>(`[data-movement-id="${id}"]`);
+    row?.focus();
+  }, [selectedMovement]);
 
   // Dropdown options derived from board metadata.
   const swimlaneOptions = board.swimlanes
@@ -369,7 +417,7 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
           <>
             {/* Scrollable table */}
             <div className="flex-1 overflow-y-auto">
-              <table className="w-full text-sm border-collapse" role="grid" aria-label="Movement history">
+              <table className="w-full text-sm border-collapse" aria-label="Movement history">
                 <thead className="sticky top-0 bg-sunken z-10">
                   <tr>
                     <th className="text-left px-4 py-2 text-xs text-fg-muted font-medium uppercase tracking-wide w-36">Time</th>
@@ -390,10 +438,10 @@ export default function MovementHistoryView({ board, currentUser }: Props) {
                           setFocusedIndex(idx);
                         }}
                         onFocus={() => setFocusedIndex(idx)}
-                        tabIndex={0}
-                        role="row"
-                        aria-selected={isSelected}
+                        tabIndex={isFocused || (focusedIndex === null && idx === 0) ? 0 : -1}
+                        aria-current={isSelected ? "true" : undefined}
                         data-testid="history-row"
+                        data-movement-id={m.id}
                         className={`border-b border-line-subtle cursor-pointer transition-colors focus:outline-none focus:ring-inset focus:ring-2 focus:ring-primary-emphasis ${
                           isSelected
                             ? "bg-info/10"

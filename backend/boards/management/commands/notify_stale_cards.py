@@ -55,7 +55,10 @@ class Command(BaseCommand):
             all_candidate_ids = set(admin_users)
             assignee_ids = set(
                 Card.objects.filter(
-                    board=board, archived_at__isnull=True, assignee_id__isnull=False
+                    board=board,
+                    archived_at__isnull=True,
+                    assignee_id__isnull=False,
+                    column__is_done=False,
                 ).values_list("assignee_id", flat=True).distinct()
             )
             all_candidate_ids |= assignee_ids
@@ -74,9 +77,16 @@ class Command(BaseCommand):
             if not opted_in_ids:
                 continue  # no one to notify for this board
 
+            # Finished work is never stale (#1845): the board UI shows no aging
+            # tint or badge for Done-column cards (#1841), so a digest entry
+            # would land on a card with no stale signal. The same filter is
+            # applied to the candidate-recipient query above so an assignee
+            # whose only stale cards are Done is not counted as a recipient.
             # Prefetch movements ordered by -moved_at so .all()[0] uses the cache
             cards = (
-                Card.objects.filter(board=board, archived_at__isnull=True)
+                Card.objects.filter(
+                    board=board, archived_at__isnull=True, column__is_done=False
+                )
                 .prefetch_related(
                     Prefetch(
                         "movements",

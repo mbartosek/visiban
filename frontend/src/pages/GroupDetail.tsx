@@ -652,7 +652,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
 
       {joinToast && (
         <JoinedNotice onDismiss={() => setJoinToast(null)}>
-          You've joined <strong className="text-success">{joinToast}</strong>. Welcome!
+          You've joined <strong className="text-success-on-tint">{joinToast}</strong>. Welcome!
         </JoinedNotice>
       )}
 
