@@ -201,11 +201,15 @@ def connected_accounts_status(user) -> list[dict]:
     rows = []
     for pid in order:
         account = by_provider.get(pid)
-        row = {"provider": pid, "connected": account is not None}
-        if account is not None:
-            row["email"] = social_account_email(account)
-            row["connected_at"] = account.date_joined
-        rows.append(row)
+        # Both keys are always present (null when disconnected): the response
+        # schema lists them as required, and absent-vs-null is a contract
+        # choice that freezes at the 1.2 baseline (#1871).
+        rows.append({
+            "provider": pid,
+            "connected": account is not None,
+            "email": social_account_email(account) if account is not None else None,
+            "connected_at": account.date_joined if account is not None else None,
+        })
     return rows
 
 

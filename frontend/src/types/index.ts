@@ -137,12 +137,13 @@ export interface User {
 export type ProviderId = "google" | "github" | "gitlab" | "oidc";
 
 /** One row of GET /auth/me/connected-accounts/ (#1314). Mirrors
- *  ConnectedAccountSerializer; `email`/`connected_at` only when connected. */
+ *  ConnectedAccountSerializer; `email`/`connected_at` are always present and
+ *  null on a disconnected row (#1871). */
 export interface ConnectedAccount {
   provider: string;
   connected: boolean;
-  email?: string | null;
-  connected_at?: string;
+  email: string | null;
+  connected_at: string | null;
 }
 
 /** A scope a personal access token can carry. Strictly non-hierarchical — no

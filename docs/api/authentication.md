@@ -843,7 +843,7 @@ List the sign-in providers the caller has connected. One row per provider config
 ```json
 [
   { "provider": "google", "connected": true, "email": "alice@gmail.com", "connected_at": "2026-09-30T12:00:00Z" },
-  { "provider": "github", "connected": false }
+  { "provider": "github", "connected": false, "email": null, "connected_at": null }
 ]
 ```
 
@@ -851,8 +851,8 @@ List the sign-in providers the caller has connected. One row per provider config
 |---|---|---|
 | `provider` | string | `google`, `github`, `gitlab`, or `oidc`. |
 | `connected` | boolean | Whether the caller has this provider connected. |
-| `email` | string or null | The email the provider reported, when connected and known. Omitted when not connected. |
-| `connected_at` | string (ISO 8601) | When the provider was connected. Omitted when not connected. |
+| `email` | string or null | The email the provider reported, when connected and known; `null` when not connected. Always present. |
+| `connected_at` | string (ISO 8601) or null | When the provider was connected; `null` when not connected. Always present. *Changed in 1.2 (#1871): previously omitted on a disconnected row.* |
 
 Connecting is not an API call: the browser POSTs (with the CSRF token) to `/accounts/<provider>/login/?process=connect` — `/accounts/oidc/oidc/login/?process=connect` for generic OIDC — and returns to `/settings` as described under [Auth error redirects](#auth-error-redirects).
 

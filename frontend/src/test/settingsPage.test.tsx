@@ -892,7 +892,7 @@ describe('SecurityTab — connected accounts', () => {
     mockGetAuthProviders.mockImplementation(() => Promise.resolve(PROVIDERS))
     mockListConnectedAccounts.mockImplementation(() => Promise.resolve([
       { provider: 'google', connected: true, email: 'jane@gmail.com', connected_at: '2026-09-30T00:00:00Z' },
-      { provider: 'github', connected: false },
+      { provider: 'github', connected: false, email: null, connected_at: null },
     ]))
   })
 
@@ -943,8 +943,8 @@ describe('SecurityTab — connected accounts', () => {
 
   it('Disconnect asks for inline confirmation, then disconnects', async () => {
     mockDisconnectAccount.mockResolvedValue([
-      { provider: 'google', connected: false },
-      { provider: 'github', connected: false },
+      { provider: 'google', connected: false, email: null, connected_at: null },
+      { provider: 'github', connected: false, email: null, connected_at: null },
     ])
     const ue = await open()
     await ue.click(screen.getByTestId('disconnect-google'))

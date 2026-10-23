@@ -148,7 +148,7 @@ describe('pending email change API (#1293)', () => {
   })
 
   it('listConnectedAccounts calls GET /api/v1/auth/me/connected-accounts/', async () => {
-    const rows = [{ provider: 'google', connected: false }]
+    const rows = [{ provider: 'google', connected: false, email: null, connected_at: null }]
     mockGet.mockResolvedValue({ data: rows })
     const result = await listConnectedAccounts()
     expect(mockGet).toHaveBeenCalledWith('/api/v1/auth/me/connected-accounts/')
@@ -156,7 +156,7 @@ describe('pending email change API (#1293)', () => {
   })
 
   it('disconnectAccount calls DELETE on the provider and returns the refreshed list', async () => {
-    const rows = [{ provider: 'github', connected: false }]
+    const rows = [{ provider: 'github', connected: false, email: null, connected_at: null }]
     mockDelete.mockResolvedValue({ data: rows })
     const result = await disconnectAccount('github')
     expect(mockDelete).toHaveBeenCalledWith('/api/v1/auth/me/connected-accounts/github/')

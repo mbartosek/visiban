@@ -567,9 +567,17 @@ class ConnectedAccountsEndpointTests(TestCase):
         rows = {r["provider"]: r for r in self.client.get(LIST_URL).json()}
         self.assertTrue(rows["github"]["connected"])
         self.assertEqual(rows["github"]["email"], "a@gh.example")
-        self.assertIn("connected_at", rows["github"])
+        self.assertIsNotNone(rows["github"]["connected_at"])
         self.assertNotIn("uid", rows["github"])
         self.assertNotIn("extra_data", rows["github"])
+
+    def test_disconnected_row_carries_null_email_and_date(self):
+        # #1871: the keys are always present so the schema's `required` is true.
+        for row in self.client.get(LIST_URL).json():
+            self.assertIn("email", row)
+            self.assertIn("connected_at", row)
+            self.assertIsNone(row["email"])
+            self.assertIsNone(row["connected_at"])
 
     def test_connected_but_unconfigured_provider_is_still_listed(self):
         SocialAccount.objects.create(user=self.user, provider="gitlab", uid="gl-1", extra_data={})
