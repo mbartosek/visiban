@@ -288,7 +288,7 @@ from rest_framework import serializers
 @extend_schema(
     summary="Move a card to a different column or swimlane",
     request=inline_serializer(
-        name="CardMoveRequest",
+        name="CardMove",  # spectacular appends "Request" -> CardMoveRequest
         fields={"column_id": serializers.IntegerField(), ...},
     ),
     responses={200: inline_serializer(name="CardMoveResponse", fields={...})},
