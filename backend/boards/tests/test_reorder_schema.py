@@ -35,7 +35,13 @@ class ReorderActionsDocumentBareArrayTests(SimpleTestCase):
     def test_swimlanes_reorder(self):
         self._assert_bare_array(f"{BASE}/swimlanes/reorder/", ["post"], "Swimlane")
 
-    def test_custom_fields_reorder_put_and_post(self):
+    def test_custom_fields_reorder(self):
         self._assert_bare_array(
-            f"{BASE}/custom-fields/reorder/", ["put", "post"], "CustomFieldDefinition"
+            f"{BASE}/custom-fields/reorder/", ["post"], "CustomFieldDefinition"
         )
+
+    def test_custom_field_reorders_are_post_only(self):
+        """#1868: PUT must be absent from both custom-field reorder paths."""
+        for path in ("custom-fields", "swimlane-custom-fields"):
+            with self.subTest(path=path):
+                self.assertEqual(list(self.paths[f"{BASE}/{path}/reorder/"]), ["post"])

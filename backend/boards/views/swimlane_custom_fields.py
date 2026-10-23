@@ -202,8 +202,7 @@ class SwimlaneCustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         description=(
             "Admin only. Accepts the full set of swimlane custom field IDs for "
             "this board in the desired order and returns the reordered list. "
-            "Accepts PUT or POST, matching the card-level custom field reorder "
-            "action."
+            "POST only, matching the card-level custom field reorder action."
         ),
         request=inline_serializer(
             name="SwimlaneCustomFieldReorder",
@@ -223,7 +222,7 @@ class SwimlaneCustomFieldDefinitionViewSet(viewsets.ModelViewSet):
     # drf-spectacular wraps the many=True response in the global paginator's
     # envelope, so the schema promises {count, results, ...} but the endpoint
     # sends a bare array — a client generated from the schema cannot parse it.
-    @action(detail=False, methods=["put", "post"], pagination_class=None)
+    @action(detail=False, methods=["post"], pagination_class=None)
     def reorder(self, request, board_pk=None):
         """Reorder swimlane custom fields by a list of IDs (admin only)."""
         board = self._require_admin()

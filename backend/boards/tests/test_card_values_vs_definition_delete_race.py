@@ -204,7 +204,7 @@ class CardValuesVsDefinitionDeleteTests(_Base):
             card_services,
             BOARD_LOCK,
             self._patch(),
-            lambda: self._client().put(
+            lambda: self._client().post(
                 f"{self.base}/custom-fields/reorder/",
                 {"order": [second.pk, self.definition.pk]},
                 format="json",
@@ -588,7 +588,7 @@ class CardWriteLockOrderTests(_Base):
         )
         table = CustomFieldDefinition._meta.db_table
         locking = self._locking(
-            lambda: self._client().put(
+            lambda: self._client().post(
                 f"{self.base}/custom-fields/reorder/",
                 {"order": [second.pk, self.definition.pk]},
                 format="json",
@@ -765,7 +765,7 @@ class SwimlaneDefinitionReorderTests(_Base):
         self.reorder_url = f"{self.base}/swimlane-custom-fields/reorder/"
 
     def _reorder(self):
-        return lambda: self._client().put(
+        return lambda: self._client().post(
             self.reorder_url,
             {"order": [self.second.pk, self.first.pk]},
             format="json",

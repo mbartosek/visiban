@@ -274,7 +274,7 @@ class CustomFieldDefinitionCrudTests(CustomFieldTestBase):
         a = _definition(self.board, name="A", position=0)
         b = _definition(self.board, name="B", position=1)
         c = _definition(self.board, name="C", position=2)
-        r = self.client.put(
+        r = self.client.post(
             f"{self._fields_url()}reorder/", {"order": [c.id, a.id, b.id]},
             format="json",
         )
@@ -284,7 +284,14 @@ class CustomFieldDefinitionCrudTests(CustomFieldTestBase):
             row.refresh_from_db()
         self.assertEqual((c.position, a.position, b.position), (0, 1, 2))
 
-    def test_reorder_also_accepts_post(self):
+    def test_reorder_put_is_not_allowed(self):
+        """#1868: reorder is POST-only, like column/swimlane/checklist reorder."""
+        r = self.client.put(
+            f"{self._fields_url()}reorder/", {"order": []}, format="json"
+        )
+        self.assertEqual(r.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_reorder_accepts_post(self):
         a = _definition(self.board, name="A", position=0)
         b = _definition(self.board, name="B", position=1)
         r = self.client.post(
@@ -293,7 +300,7 @@ class CustomFieldDefinitionCrudTests(CustomFieldTestBase):
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.data)
 
     def test_reorder_rejects_a_non_list_order(self):
-        r = self.client.put(
+        r = self.client.post(
             f"{self._fields_url()}reorder/", {"order": "nope"}, format="json"
         )
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
@@ -340,7 +347,7 @@ class CustomFieldDefinitionRbacTests(CustomFieldTestBase):
                     status.HTTP_403_FORBIDDEN,
                 )
                 self.assertEqual(
-                    client.put(
+                    client.post(
                         f"{self._fields_url()}reorder/", {"order": [definition.id]},
                         format="json",
                     ).status_code,
@@ -390,7 +397,7 @@ class CustomFieldDefinitionRbacTests(CustomFieldTestBase):
         theirs = _definition(other_board, name="Theirs", position=0)
         mine = _definition(self.board, name="Mine", position=0)
 
-        r = self.client.put(
+        r = self.client.post(
             f"{self._fields_url()}reorder/", {"order": [theirs.id, mine.id]},
             format="json",
         )
@@ -891,7 +898,7 @@ class CustomFieldBroadcastTests(CustomFieldTestBase):
         self.assertIn("custom_field.updated", self._events())
 
         with self.captureOnCommitCallbacks(execute=True):
-            self.client.put(
+            self.client.post(
                 f"{self._fields_url()}reorder/", {"order": [definition_id]},
                 format="json",
             )

@@ -181,9 +181,8 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         summary="Reorder custom field definitions",
         description=(
             "Admin only. Accepts the full set of custom field IDs for this board "
-            "in the desired order and returns the reordered list. Accepts PUT "
-            "(as specified for this endpoint) or POST (matching the column and "
-            "swimlane reorder actions)."
+            "in the desired order and returns the reordered list. POST only, "
+            "matching the column and swimlane reorder actions."
         ),
         request=inline_serializer(
             name="CustomFieldReorder",
@@ -196,7 +195,7 @@ class CustomFieldDefinitionViewSet(viewsets.ModelViewSet):
         ),
         responses=CustomFieldDefinitionSerializer(many=True),
     )
-    @action(detail=False, methods=["put", "post"], pagination_class=None)
+    @action(detail=False, methods=["post"], pagination_class=None)
     def reorder(self, request, board_pk=None):
         """Reorder custom fields by a list of IDs in the desired order (admin only)."""
         board = self._require_admin()
