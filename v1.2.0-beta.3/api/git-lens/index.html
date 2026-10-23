@@ -4162,6 +4162,7 @@
 </tbody>
 </table>
 <p>Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.</p>
+<p>The compatibility gate enforces this split: the REST endpoints are listed in <code>scripts/compat-baseline/experimental.json</code>, so they stay out of the frozen OpenAPI baseline. See <a href="../../development/api-compat-gate/#experimental-operations">Experimental operations</a>.</p>
 <p>The feature is flag-gated: all endpoints below return <code>404 Not Found</code> unless the server is started with <code>GIT_LENS_ENABLED=true</code>.</p>
 <p>All endpoints require authentication (<code>Authorization: Token &lt;value&gt;</code>). Unauthenticated requests receive <code>401 Unauthorized</code> (with a <code>WWW-Authenticate: Token</code> header).</p>
 <hr />

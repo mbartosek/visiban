@@ -2787,7 +2787,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Allow-listing a deliberate break">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experimental-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental operations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Experimental operations">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -4141,6 +4152,35 @@ only shrink toward the truth. Entries without an issue reference fail the job ou
 operation, so use it only when the whole operation is deliberately retired (the five
 <code>#1080</code> catch-all entries are an example). The self-test pins the opposite behavior for
 <code>key</code> entries: a <em>new</em> finding under an operation that already has entries still fails.</p>
+<h2 id="experimental-operations">Experimental operations<a class="headerlink" href="#experimental-operations" title="Permanent link">&para;</a></h2>
+<p>An operation documented as experimental (no stability promise until it graduates) must not
+freeze when the baseline is rolled. List it in <code>scripts/compat-baseline/experimental.json</code>
+(#1875), which is separate from the allow-list: the allow-list excuses one specific break,
+this keeps a whole operation out of the contract.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">"experimental"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"path_pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/api/v1/git-lens/*"</span><span class="p">,</span><span class="w"> </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1875"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"documented experimental in docs/api/git-lens.md"</span><span class="p">}</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">]}</span>
+</code></pre></div>
+<ul>
+<li><code>path_pattern</code> is an <code>fnmatch</code> pattern against the schema path (<code>*</code> is a wildcard).</li>
+<li>Every entry needs an <code>issue</code> and a <code>reason</code>; the gate fails without them.</li>
+<li>Matching operations are skipped on both sides of the diff, and the gate prints each skipped
+  <code>METHOD /path/</code> in the CI log so the exemption is visible.</li>
+<li>An entry that matches no operation in the baseline or at HEAD is <strong>dead and fails the job</strong>.
+  With <code>--schema FILE</code>, generate the schema with <code>GIT_LENS_ENABLED=True</code>, otherwise the Git Lens
+  entries report as dead (the default run sets it for you).</li>
+<li><code>--normalize</code> honors the list, so a baseline regenerated at a GA tag never contains these
+  operations (see "Regenerating the baseline"). Components are compared only through the
+  operations that reference them, so a component shared with a non-experimental operation is
+  still checked through that operation.</li>
+<li><strong>When to add an entry:</strong> only for a surface the public docs already call experimental, with
+  a tracking issue. Do not use it to get a pipeline green.</li>
+<li><strong>Leaving experimental:</strong> remove the entry <strong>before</strong> the baseline roll that should freeze the
+  operation, and update the API doc's experimental notice in the same MR. Removing it after the
+  roll leaves the operation permanently unfrozen.</li>
+</ul>
+<p>The only entries today are the Git Lens REST endpoints. The <code>lens_connection.*</code> WebSocket
+events and the <code>git_lens_enabled</code> user field are deliberately frozen (#1666) and are not listed.</p>
 <h3 id="frozen-snapshot-of-the-v110-baseline-drift">Frozen snapshot of the v1.1.0 baseline drift<a class="headerlink" href="#frozen-snapshot-of-the-v110-baseline-drift" title="Permanent link">&para;</a></h3>
 <p>The v1.1.0 schema was generated before the schema-hygiene work (#1135-#1138, #1209, #1080) and
 documented fallback or wrong serializers for a number of operations (for example a card
@@ -4223,33 +4263,34 @@ carries that error into the next baseline. #1783 corrected the cases its sweep c
 board import request bodies were corrected in #1792; hand-written <code>GET</code>s that
 publish no response body are tracked in #1793; any found later needs the same fix before the following roll.</p>
 <h2 id="running-it-locally">Running it locally<a class="headerlink" href="#running-it-locally" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>python3<span class="w"> </span>scripts/check-api-compat.py
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>bash<span class="w"> </span>scripts/tests/check-api-compat.test.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python3<span class="w"> </span>scripts/check-api-compat.py
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>bash<span class="w"> </span>scripts/tests/check-api-compat.test.sh
 </code></pre></div>
 <h2 id="regenerating-the-baseline-at-each-ga-tag">Regenerating the baseline (at each GA tag)<a class="headerlink" href="#regenerating-the-baseline-at-each-ga-tag" title="Permanent link">&para;</a></h2>
 <p>Do this once, when a new GA tag is cut, from a clean checkout of the tag. Run it in a
 temporary worktree outside the repo and delete it afterward.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">TAG</span><span class="o">=</span>v1.2.0
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">VENV_PY</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/backend/.venv/bin/python"</span><span class="w">   </span><span class="c1"># run from the repository root</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>--detach<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span><span class="w"> </span><span class="nv">$TAG</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span>postgres://u:p@localhost:5432/d<span class="w"> </span><span class="nv">REDIS_URL</span><span class="o">=</span>redis://localhost:6379/0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">     </span><span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span>x<span class="w"> </span><span class="nv">DEBUG</span><span class="o">=</span>True<span class="w"> </span><span class="nv">ALLOWED_HOSTS</span><span class="o">=</span>localhost<span class="w"> </span><span class="nv">GIT_LENS_ENABLED</span><span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">     </span><span class="s2">"</span><span class="nv">$VENV_PY</span><span class="s2">"</span><span class="w"> </span>manage.py<span class="w"> </span>spectacular<span class="w"> </span>--format<span class="w"> </span>openapi-json<span class="w"> </span>--file<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span><span class="o">)</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--normalize<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/openapi.json
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--dump-env<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend/visiban/settings.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span>&gt;<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/settings-env.txt
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>git<span class="w"> </span>worktree<span class="w"> </span>remove<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">TAG</span><span class="o">=</span>v1.2.0
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">VENV_PY</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/backend/.venv/bin/python"</span><span class="w">   </span><span class="c1"># run from the repository root</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>--detach<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span><span class="w"> </span><span class="nv">$TAG</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span>postgres://u:p@localhost:5432/d<span class="w"> </span><span class="nv">REDIS_URL</span><span class="o">=</span>redis://localhost:6379/0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">     </span><span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span>x<span class="w"> </span><span class="nv">DEBUG</span><span class="o">=</span>True<span class="w"> </span><span class="nv">ALLOWED_HOSTS</span><span class="o">=</span>localhost<span class="w"> </span><span class="nv">GIT_LENS_ENABLED</span><span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">     </span><span class="s2">"</span><span class="nv">$VENV_PY</span><span class="s2">"</span><span class="w"> </span>manage.py<span class="w"> </span>spectacular<span class="w"> </span>--format<span class="w"> </span>openapi-json<span class="w"> </span>--file<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span><span class="o">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--normalize<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/openapi.json
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--dump-env<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend/visiban/settings.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span>&gt;<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/settings-env.txt
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>git<span class="w"> </span>worktree<span class="w"> </span>remove<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>
 </code></pre></div>
 <p>Then, as a manual step on the
 release checklist, point <code>BASELINE_SCHEMA</code> / <code>BASELINE_ENV</code> in <code>scripts/check-api-compat.py</code>
 (lines 52-53) at the new
 directory, delete every allow-list entry the new baseline no longer needs, and delete the old
 baseline directory. <code>--normalize</code> strips prose, examples, and <code>x-</code> extensions so the fixture
-stays small and docs edits never read as contract changes.</p>
+stays small and docs edits never read as contract changes, and drops every operation listed in
+<code>experimental.json</code>. Before the roll, remove the entry of any operation that should now freeze.</p>
 <p>Every allow-list entry is a diff against the v1.1.0 baseline. Once the baseline is the v1.2.0
 schema and HEAD matches it, none of those findings fire, so all entries go stale, and a stale
 entry fails the job. After regenerating, run <code>python3 scripts/check-api-compat.py</code>, delete every
@@ -4257,7 +4298,7 @@ entry it reports as stale (expected: the whole list, leaving <code>{"allow": []}
 it prints OK with no stale entries. As a safety net for the temporary entries (those whose
 <code>reason</code> starts with <code>temporary:</code>, citing #1783, #1788, #1789 or #1792), this lists any left
 behind; after deleting, it must print nothing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"</span>
 </code></pre></div>
 <p>A temporary entry left behind fails the roll MR loudly. Then, in this file, delete every sentence
 or paragraph that describes temporary entries or counts exceptions to the "never added" rule
