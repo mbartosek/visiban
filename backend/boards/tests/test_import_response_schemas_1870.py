@@ -20,6 +20,22 @@ from boards.tests.test_import_options import _board_data, _csv_file, _json_file
 from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
 from boards.tests.test_trello_import import as_file, load_fixture
 
+def strict_schema(node):
+    """Set ``additionalProperties: false`` on every object schema, recursively.
+
+    Without it, jsonschema accepts a key the response carries but the component
+    does not declare, so a payload that grows a field would never fail here.
+    """
+    if isinstance(node, dict):
+        out = {k: strict_schema(v) for k, v in node.items()}
+        if out.get("type") == "object" and "properties" in out and "additionalProperties" not in out:
+            out["additionalProperties"] = False
+        return out
+    if isinstance(node, list):
+        return [strict_schema(v) for v in node]
+    return node
+
+
 _IMPORT = "/api/v1/boards/import/"
 _TRELLO = "/api/v1/boards/import/trello/"
 
@@ -43,7 +59,9 @@ class ImportResponseSchemaTests(TestCase):
 
     def _assert_valid(self, body, path, status_code):
         fragment = self._response_schema(path, status_code)
-        combined = _openapi3_nullable_to_jsonschema({**fragment, "components": self.schema["components"]})
+        combined = strict_schema(
+            _openapi3_nullable_to_jsonschema({**fragment, "components": self.schema["components"]})
+        )
         jsonschema.validate(instance=body, schema=combined)
 
     def test_components_are_named_not_inline(self):

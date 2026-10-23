@@ -5,8 +5,8 @@ plain dicts and these classes describe them so schema-generated clients get a
 typed component instead of ``{type: object, additionalProperties: {}}``. The
 payloads are documented exactly as they are today -- the JSON/CSV import returns
 the board at the top level plus ``import_summary``, the Trello import wraps it
-as ``{board, summary}`` -- and aligning the two envelopes is deliberately
-deferred to a major version. ``test_import_response_schemas_1870`` validates
+as ``{board, summary}`` -- and aligning the two envelopes (and adding
+error ``code``s) is tracked in #1903. ``test_import_response_schemas_1870`` validates
 live responses against these components so the declared shape cannot drift.
 """
 

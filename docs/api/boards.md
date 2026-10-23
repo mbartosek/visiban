@@ -1160,7 +1160,7 @@ In `mapping.columns`, `position` is `null` for a list that will not be imported 
 
 **Response** `201 Created` (`confirm=true`)
 
-Unlike [`POST /api/v1/boards/import/`](#post-apiv1boardsimport), which returns the board object at the top level (with an added `import_summary`), this endpoint wraps the board together with a summary. `board` has the same shape as `GET /api/v1/boards/{id}/`; `summary` repeats the preview's `counts`, `result`, `warnings`, and `unmappable`. The OpenAPI document names these `TrelloImportPreview` (the `dry_run=true` 200) and `TrelloImportConfirm` (this 201). The two import envelopes are different on purpose for now; aligning them is deferred to a major version. Error bodies on both carry `detail` only, with no `code`.
+Unlike [`POST /api/v1/boards/import/`](#post-apiv1boardsimport), which returns the board object at the top level (with an added `import_summary`), this endpoint wraps the board together with a summary. `board` has the same shape as `GET /api/v1/boards/{id}/`; `summary` repeats the preview's `counts`, `result`, `warnings`, and `unmappable`. The OpenAPI document names these `TrelloImportPreview` (the `dry_run=true` 200) and `TrelloImportConfirm` (this 201). The two import envelopes differ today; aligning them additively, and adding an error `code`, is tracked in #1903. Error bodies on both carry `detail` only, with no `code`.
 
 ```json
 {

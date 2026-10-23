@@ -25,6 +25,7 @@ from rest_framework.test import APIClient
 
 from accounts.admin_views import _ADMIN_PERMISSIONS
 from boards.tests.conftest import _make_board, _make_user
+from boards.tests.test_import_response_schemas_1870 import strict_schema
 from boards.tests.test_move_schema_contract import _openapi3_nullable_to_jsonschema
 from git_lens import metrics, providers, views
 from git_lens.models import LensConnection
@@ -224,6 +225,19 @@ class UsageSchemaTests(TestCase):
         client = APIClient()
         client.force_authenticate(_make_user("usage_schema_admin", is_site_admin=True))
         body = client.get(USAGE_URL).json()
-        combined = _openapi3_nullable_to_jsonschema({**fragment, "components": schema["components"]})
+        combined = strict_schema(
+            _openapi3_nullable_to_jsonschema({**fragment, "components": schema["components"]})
+        )
         jsonschema.validate(instance=body, schema=combined)
         self.assertEqual(len(body["hourly"]), body["window_hours"])
+
+    def test_serializer_fields_match_metrics_enums(self):
+        """The serializers hard-code the enums in ``git_lens.metrics``; pin them together."""
+        from git_lens import serializers as s
+
+        self.assertEqual(tuple(s.LensOutboundOutcomesSerializer().fields), metrics.OUTBOUND_OUTCOMES)
+        self.assertEqual(tuple(s.LensOutboundByKindSerializer().fields), metrics.KINDS)
+        self.assertEqual(tuple(s.LensBoardRequestOutcomesSerializer().fields), metrics.BOARD_OUTCOMES)
+        self.assertEqual(tuple(s.LensUsageByProviderSerializer().fields), metrics.PROVIDERS)
+        self.assertEqual(tuple(s.LensHourlyOutboundCallsSerializer().fields), metrics.PROVIDERS)
+        self.assertEqual(tuple(s.LensBoundsSerializer().fields), tuple(views.lens_bounds()))
