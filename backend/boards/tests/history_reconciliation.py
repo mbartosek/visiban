@@ -93,6 +93,12 @@ def history_problems(card, *, now=None, imported=False):
         problems.append(f"creation movement notes {first.notes!r}, the API writes {CREATED_NOTE!r}")
     if not imported and abs(card.created_at - first.moved_at) > _SAME_MOMENT:
         problems.append(f"card created_at {card.created_at} is not its creation movement {first.moved_at}")
+    # create_card writes created_by and the creation movement's moved_by as
+    # one user. The importer credits both to the importer, so this holds there too.
+    if card.created_by_id != first.moved_by_id:
+        problems.append(
+            f"created_by {card.created_by_id} is not the creation movement's actor {first.moved_by_id}"
+        )
     archived = False
     archived_at = None
     for prev, mv in zip(moves, moves[1:]):
@@ -188,9 +194,17 @@ def history_problems(card, *, now=None, imported=False):
                 problems.append(f"checklist item {act.to_value!r} toggled before it was added")
             checked[act.to_value] = act.event_type == ET.CHECKLIST_ITEM_CHECKED
     problems.extend(form)
+    added_by = {}
+    for act in acts:
+        if act.event_type == ET.CHECKLIST_ITEM_ADDED:
+            added_by.setdefault(act.to_value, set()).add(act.actor_id)
     for item in card.checklist_items.all():
         if added[item.text] < 1:
             problems.append(f"checklist item {item.text!r} has no checklist_item_added")
+        elif item.created_by_id is not None and item.created_by_id not in added_by[item.text]:
+            # The checklist endpoint credits the item and its "added" entry
+            # to the same user. (The importer leaves created_by empty.)
+            problems.append(f"checklist item {item.text!r} was created by someone its history does not credit")
         elif checked.get(item.text, False) != item.is_checked:
             problems.append(f"checklist item {item.text!r} is checked={item.is_checked}, history says otherwise")
 

@@ -68,15 +68,17 @@ def _movement(card, *, src, dst, src_lane, dst_lane, actor, at, notes="", moveme
 
 
 def record_creation(card, *, column, swimlane, actor, at):
-    """Write the creation movement at ``at`` and date the card itself to it.
+    """Write the creation movement at ``at``, and make the card agree with it.
 
-    ``Card.created_at`` would otherwise read as the moment of the seed, after
-    every event in its history.
+    The card is dated to the movement (``Card.created_at`` would otherwise
+    read as the moment of the seed, after every event in its history) and
+    credited to its actor: ``create_card`` writes ``created_by`` and the
+    creation movement's ``moved_by`` as the same user.
     """
     mv = _movement(card, src=None, dst=column, src_lane=None, dst_lane=swimlane,
                    actor=actor, at=at, notes=CREATED_NOTE)
-    _backdate(Card, card.pk, "created_at", at)
-    card.created_at = at
+    Card.objects.filter(pk=card.pk).update(created_at=at, created_by=actor)
+    card.created_at, card.created_by = at, actor
     return mv
 
 
@@ -110,15 +112,22 @@ def history_window(card):
     return start, max(start, end)
 
 
-def write_activity_trail(card, *, actors):
+def write_activity_trail(card, *, actors, earlier_assignee=None, earlier_assigned_by=None):
     """Write the activity a person would have left editing ``card`` into its current state.
 
     Call once the card is complete: moved, labeled, commented and with its
     checklist. Reads the state back from the database. ``actors`` are the
     users the edits are credited to (never an account that must not appear
     as an author, such as the hosted demo's published visitor). Comments keep
-    their own time and author; everything else is spread across
-    :func:`history_window`, in a fixed order.
+    their own time and author; a checklist item's "added" entry is credited
+    to its ``created_by`` (an item with none is given the credited actor, as
+    the checklist endpoint always records one); everything else is spread
+    across :func:`history_window`, in a fixed order.
+
+    ``earlier_assignee``: someone the card was assigned to first, by
+    ``earlier_assigned_by``, before it passed to its current assignee (or was
+    unassigned). It backs an "assigned" notification sent to that person:
+    the API only ever notifies the new assignee.
     """
     actors = list(actors)
     start, end = history_window(card)
@@ -133,8 +142,15 @@ def write_activity_trail(card, *, actors):
         )))
 
     ET = CardActivity.EventType
-    if card.assignee_id:
-        add(0.05, ET.ASSIGNEE_CHANGE, "Unassigned", card.assignee.username, 0)
+    current = card.assignee.username if card.assignee_id else "Unassigned"
+    if earlier_assignee is not None:
+        rows.append((start + span * 0.05, CardActivity(
+            card=card, event_type=ET.ASSIGNEE_CHANGE, from_value="Unassigned",
+            to_value=earlier_assignee.username, actor=earlier_assigned_by,
+        )))
+        add(0.5, ET.ASSIGNEE_CHANGE, earlier_assignee.username, current, 0)
+    elif card.assignee_id:
+        add(0.05, ET.ASSIGNEE_CHANGE, "Unassigned", current, 0)
     labels = sorted(card.labels.values_list("name", flat=True))
     if labels:
         add(0.08, ET.LABEL_CHANGE, "", f"+{', '.join(labels)}", 1)
@@ -148,6 +164,11 @@ def write_activity_trail(card, *, actors):
     for i, item in enumerate(items):
         # Added in order up front, ticked off later: a check never precedes its item.
         add(0.18 + 0.12 * i / len(items), ET.CHECKLIST_ITEM_ADDED, "", item.text, 2)
+        if item.created_by_id is None:
+            item.created_by = rows[-1][1].actor
+            item.save(update_fields=["created_by"])
+        else:
+            rows[-1][1].actor = item.created_by
         if item.is_checked:
             add(0.4 + 0.5 * i / len(items), ET.CHECKLIST_ITEM_CHECKED, "", item.text, i)
     for comment in card.comments.order_by("created_at", "id"):

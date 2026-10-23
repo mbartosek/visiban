@@ -1040,7 +1040,7 @@ class SeedDemoSiteShowcaseTests(TestCase):
 
     def test_each_board_has_relations_including_an_active_blocker(self):
         # Not the overlay board: the sample format carries no card relations,
-        # so the imported board has none (a known gap, listed on #1889).
+        # so the imported board has none (#1448).
         for name in SeedDemoSiteTests.HAND_BUILT:
             rels = CardRelation.objects.filter(from_card__board__name=name)
             self.assertGreaterEqual(rels.count(), 3, name)
@@ -1117,6 +1117,17 @@ class SeedDemoSiteShowcaseTests(TestCase):
             elif n.action_type == "stale":
                 self.assertFalse(n.card.column.is_done, n.verb)
                 self.assertLess(last.moved_at, timezone.now() - timezone.timedelta(days=7), n.verb)
+            elif n.action_type == "assigned":
+                # #1889: the card's history records the assignment the
+                # notification reports, by its actor, at its time; the card has
+                # moved on since, so the visitor is never its assignee.
+                self.assertTrue(
+                    n.card.activities.filter(
+                        event_type="assignee_change", to_value="visitor", actor=n.actor, created_at=n.created_at,
+                    ).exists(),
+                    n.verb,
+                )
+                self.assertNotEqual(n.card.assignee_id, n.recipient_id, n.verb)
             elif n.action_type == "due_soon":
                 self.assertIsNotNone(n.card.due_date, n.verb)
                 self.assertLessEqual(n.card.due_date, timezone.localdate() + timezone.timedelta(days=1), n.verb)
@@ -1669,11 +1680,11 @@ class DemoSiteOverlayBoardTests(TestCase):
             sum(1 for c in self.data["cards"] if c.get("archived_at")),
         )
         # Date values move with the rest of the board: the sample's anchor
-        # lands on yesterday (see _import_demo_site_sample).
+        # becomes the reset day (see _import_demo_site_sample).
         from boards.services import sample_boards
 
         anchor = datetime.date.fromisoformat(sample_boards.get_entry("sales_overlay")["date_anchor"])
-        shift = timezone.localdate() - anchor - datetime.timedelta(days=1)
+        shift = timezone.localdate() - anchor
         dates = {f["name"] for f in self.data["swimlane_custom_fields"] if f["field_type"] == "date"}
         for lane in self.data["swimlanes"]:
             stored = dict(
@@ -1720,8 +1731,9 @@ class DemoSiteOverlayBoardTests(TestCase):
         self.assertTrue(self.board.columns.filter(weight_limit__isnull=False).exists())
 
     def test_no_event_is_in_the_future_whatever_the_hour_of_the_reset(self):
-        """The import shifts the sample to yesterday's noon, not today's, so a
-        reset before noon UTC dates nothing after now."""
+        """The sample's newest event is a day before its anchor, and the
+        import puts the anchor at noon on the reset day, so a reset at any
+        hour dates nothing after now."""
         from boards.models import CardActivity
 
         latest = max(

@@ -910,7 +910,10 @@ SAVED_FILTERS = [
 #:                  at that comment's time
 #:   comment_added  actor = author of the card's most recent comment, at its time
 #:   card_moved     actor = whoever made the card's last move, at that move's time
-#:   assigned       actor = the key given below, at the card's last-move time
+#:   assigned       actor = the key given below, who assigned the card to the
+#:                  visitor at the time that assignee_change records; the card
+#:                  has since passed to its current assignee (or none), so the
+#:                  visitor is never its assignee (#1889)
 #:   stale/due_soon no actor (system alerts, as notify_stale_cards and
 #:                  notify_due_soon create them), at today's midnight
 #: The visitor can open these but cannot mark them read: the demo fence (#1179)

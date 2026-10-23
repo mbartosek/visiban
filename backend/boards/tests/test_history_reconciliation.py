@@ -15,7 +15,9 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from boards.models import Card, CardActivity, CardComment, CardMovement, Column, Label, Swimlane
+from boards.models import (
+    Card, CardActivity, CardChecklist, CardComment, CardMovement, Column, Label, Swimlane,
+)
 from boards.tests.conftest import _make_board
 from boards.tests.history_reconciliation import history_problems
 
@@ -98,6 +100,10 @@ class ApiMadeCardReconcilesTests(TestCase):
                 card=card, from_column__isnull=True).delete(),
             "is outside the card's life": lambda: CardComment.objects.filter(card=card).update(
                 created_at=card.created_at.replace(year=2000)),
+            "is not the creation movement's actor": lambda: Card.objects.filter(pk=card.pk).update(
+                created_by=self.other),
+            "was created by someone its history does not credit": lambda: CardChecklist.objects.filter(
+                card=card, text="Ship it").update(created_by=self.other),
         }
         for expected, breaker in cases.items():
             with self.subTest(expected):

@@ -7761,7 +7761,7 @@
       "priority": "urgent",
       "column": "Commit",
       "swimlane": "Keystone Logistics",
-      "due_date": "2026-03-16",
+      "due_date": "2026-03-15",
       "weight": 4,
       "labels": [
         "Renewal",
@@ -7922,7 +7922,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-03-16",
+          "to_value": "2026-03-15",
           "actor": "demo3",
           "created_at": "2026-02-16T13:12:00+00:00"
         },

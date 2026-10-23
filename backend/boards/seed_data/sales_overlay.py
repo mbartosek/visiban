@@ -300,7 +300,7 @@ _CARDS = [
      ["Competitive Displacement", "Coverage Gap"], None, 3, "110000", ["Data Platform"], "", "Regional reseller", "",
      [], [("demo1", "Closed lost to the reseller bundle. No overlay team was engaged on this one.")]),
     ("Contract renewal at risk", "Base platform renewal due in 19 days with no exec sponsor engaged.", "Commit", "Keystone Logistics", "urgent", "demo5",
-     ["Renewal", "Exec Escalation"], 1, 4, "530000", [], "VP Operations", "Hyperscaler native", "Exec-to-exec call",
+     ["Renewal", "Exec Escalation"], 0, 4, "530000", [], "VP Operations", "Hyperscaler native", "Exec-to-exec call",
      ["Exec-to-exec call", "Renewal proposal", "Signature"], [("demo5", "Asked our CRO to call their VP Operations directly.")]),
 
     # ── Summit Retail Holdings (Full) ───────────────────────────────────────
@@ -326,14 +326,14 @@ _CARDS = [
 # exists to tell. Finished deals moved recently, except the archived ones,
 # which were cleared out after they closed.
 #
-# Only 1, 2, 4, 5 and 8+ are used. The board is dated around ANCHOR at noon:
-# imported through the gallery it lands on the import day's noon, and the
-# hosted demo puts it on the previous day's noon so nothing is ever in the
-# future. Across both, 1-2 always reads fresh (under half the 7-day
-# threshold), 4-5 aging and 8+ stale; 3, 6 and 7 would straddle a boundary
-# depending on the hour. A card still in Identify has only its creation move,
-# and its generated activity runs up to three days past it, so those cards
-# are at least four days old.
+# Only 1, 2, 4, 5 and 8+ are used. An import (the gallery's, and the hosted
+# demo's, which imports the same way) moves ANCHOR, noon, to noon on the import
+# day, so a card's real age is its value here give or take twelve hours.
+# Within that spread 1-2 always read fresh (under half the 7-day threshold),
+# 4-5 aging and 8+ stale; 3 and 7 would land on a boundary at some hours.
+# Nothing is under a day, so the newest event is always in the past. A card
+# still in Identify has only its creation move, and its generated activity
+# runs up to three days past it, so those cards are at least four days old.
 _LAST_MOVED_DAYS_AGO = {
     "Core ledger modernization": 1, "Real-time fraud scoring pilot": 2, "Security analytics add-on": 1,
     "Branch analytics renewal": 1, "Open banking API gateway": 2, "Grid telemetry observability": 1,

@@ -1078,8 +1078,19 @@ class Command(BaseCommand):
         # weight, checklist item and comment it holds gets the activity the
         # API would have written for it.
         people = [u for key, u in users.items() if key != "visitor"]
-        for card in cards.values():
-            write_activity_trail(card, actors=people)
+        # A card behind one of the visitor's "assigned" notifications was the
+        # visitor's first, assigned by the notification's actor, and has moved
+        # on since: the API only notifies the person it assigns.
+        assigned = {
+            title: users[by] for board_name, title, kind, by in DEMO_SITE_VISITOR_NOTIFICATIONS
+            if board_name == spec["name"] and kind == Notification.ActionType.ASSIGNED
+        }
+        for title, card in cards.items():
+            if title in assigned:
+                write_activity_trail(card, actors=people, earlier_assignee=users["visitor"],
+                                     earlier_assigned_by=assigned[title])
+            else:
+                write_activity_trail(card, actors=people)
         return board, cards
 
     def _import_demo_site_sample(self, spec, users):
@@ -1097,11 +1108,11 @@ class Command(BaseCommand):
         seed, not a request, so it must not spend the demo admin's import
         throttle (a refused import would roll back the whole reset).
 
-        Dates: the gallery passes the manifest's ``date_anchor`` so the
-        sample's noon-anchored timeline lands on today's noon. The hourly
-        reset can run before noon, which would put the newest events in the
-        future, so the demo shifts one day less: the anchor lands on
-        yesterday's noon and every event is in the past.
+        Dates are moved exactly as the gallery moves them: the manifest's
+        ``date_anchor`` becomes the reset day, so ages and due dates count
+        from the reset. Nothing lands in the future whatever the hour of the
+        reset, because every sample's newest event is at least a day before
+        its anchor (test_sample_boards pins that).
 
         The board's place in ``DEMO_SITE_BOARDS`` is what keeps its URL: the
         reset restarts the id sequences, and the import creates exactly one
@@ -1111,13 +1122,12 @@ class Command(BaseCommand):
 
         admin = users["admin"]
         entry, body = sample_boards.get_sample(spec["sample"])
-        shift_from = datetime.date.fromisoformat(entry["date_anchor"]) + datetime.timedelta(days=1)
         django_request = APIRequestFactory().post(
             "/api/v1/boards/import/",
             {
                 "file": SimpleUploadedFile(entry["file"], body, content_type="application/json"),
                 "name": spec["name"],
-                "options": json.dumps({"shift_dates_from": shift_from.isoformat()}),
+                "options": json.dumps({"shift_dates_from": entry["date_anchor"]}),
             },
             format="multipart",
         )
@@ -1181,7 +1191,9 @@ class Command(BaseCommand):
         dwell = 3 + idx % 4
         steps = col_i
         created_age = last_moved + dwell * steps
-        record_creation(card, column=columns[0], swimlane=lane, actor=mover,
+        # Created by its creator (the admin, who owns every seeded card), then
+        # moved along by the card's mover.
+        record_creation(card, column=columns[0], swimlane=lane, actor=card.created_by,
                         at=anchor - datetime.timedelta(days=created_age))
         for step in range(steps):
             record_move(
@@ -1337,7 +1349,11 @@ class Command(BaseCommand):
                 actor, at = last_move.moved_by, last_move.moved_at
                 verb = f"{actor.username} moved \"{card.title}\" to {last_move.to_column_name}"
             elif action_type == ActionType.ASSIGNED:
-                actor, at = users[assigned_by], last_move.moved_at
+                # The assignment the card's history records (#1889).
+                change = card.activities.get(
+                    event_type=CardActivity.EventType.ASSIGNEE_CHANGE, to_value=visitor.username,
+                )
+                actor, at = change.actor, change.created_at
                 verb = f"You were assigned to \"{card.title}\""
             elif action_type == ActionType.STALE:
                 actor, at = None, anchor
@@ -1842,7 +1858,11 @@ class Command(BaseCommand):
                 record_creation(card, column=card.column, swimlane=card.swimlane,
                                 actor=card.created_by or users[0], at=card.created_at)
             else:
+                # created_by and the creation movement's actor were drawn
+                # separately; the API writes them as one user (#1889). The
+                # draws stay, so the corpus does not change.
                 Card.objects.filter(pk=card.pk).update(created_at=first.moved_at)
+                CardMovement.objects.filter(pk=first.pk).update(moved_by=card.created_by)
             start, end = history_window(card)
             comments = list(card.comments.order_by("created_at", "id"))
             for i, comment in enumerate(comments):
@@ -2028,7 +2048,7 @@ class Command(BaseCommand):
             card=card, author=member, body="Seeded member-owned comment (#1570).",
         )
         if not card.checklist_items.exists():
-            CardChecklist.objects.create(card=card, text="Seeded checklist item", position=0)
+            CardChecklist.objects.create(card=card, text="Seeded checklist item", position=0, created_by=member)
         other = next((c for c in candidates if c.pk != card.pk), None)
         if other is not None:
             # relates_to is symmetric: stored lower id first, as the API does.
