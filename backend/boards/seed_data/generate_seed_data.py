@@ -131,6 +131,50 @@ def _gen_movements(col_names: list[str], target_idx: int,
     return movements
 
 
+def _drop_crossed_outcomes(movements: list[dict], done_cols: set[str]) -> list[dict]:
+    """Remove stops a card could not really have made on its way (#1889).
+
+    ``_varied_path`` walks column indices, so a card bound for a lost outcome
+    passed through the win column next to it ("Won", then "Lost"), and a card
+    bound for a later done column passed through a lost one ("Denied", then
+    "Closed"). Neither is a history anyone could produce. Dropped here: any
+    non-final stop in a lost-outcome column, and any non-final stop in a done
+    column when the card ends in a lost outcome. The surviving moves are
+    re-stitched so each ``from_column`` is the previous ``to_column``, and a
+    stop that the drop made a no-op (same column twice) goes too.
+
+    Runs after ``_gen_movements`` has drawn every value it needs, so the
+    shared RNG stream, and with it every other card and template, is
+    unchanged.
+    """
+    target = movements[-1]["to_column"]
+    lost_target = target in done_cols and bool(_LOST_RX.search(target))
+    kept = [movements[0]]
+    for i, mv in enumerate(movements[1:], start=1):
+        to = mv["to_column"]
+        final = i == len(movements) - 1
+        if not final and to in done_cols and (lost_target or _LOST_RX.search(to)):
+            continue
+        if to == kept[-1]["to_column"]:
+            continue
+        mv["from_column"] = kept[-1]["to_column"]
+        kept.append(mv)
+    return kept
+
+
+def _age_movements(movements: list[dict], days_ago: int) -> None:
+    """Shift a card's movements so its last one lands ``days_ago`` days before ANCHOR.
+
+    For hand-written cards that author their age (the Sales Overlay sample,
+    #1889): the generated spacing between moves is kept, only the whole
+    timeline moves, so the card reads fresh, aging or stale exactly as
+    written instead of wherever the random walk ended.
+    """
+    delta = (ANCHOR - timedelta(days=days_ago)) - _parse(movements[-1]["moved_at"])
+    for mv in movements:
+        mv["moved_at"] = _iso(_parse(mv["moved_at"]) + delta)
+
+
 # ── Per-card RNG ──────────────────────────────────────────────────────────────
 def _card_rng(slug: str, title: str) -> random.Random:
     """A generator private to one card.
@@ -166,11 +210,16 @@ _FORWARD_NOTES = [
 
 def _annotate_movements(movements: list[dict], col_names: list[str],
                         rng: random.Random) -> None:
-    """Add ``movement_type`` to every move and ``notes`` to some (schema v2 keys)."""
+    """Add ``movement_type`` to every move and ``notes`` to some (schema v2 keys).
+
+    The first move is the card's creation, noted "Card created" as
+    ``services.cards.create_card`` writes it (#1889).
+    """
     for i, mv in enumerate(movements):
         mv["notes"] = ""
         mv["movement_type"] = "move"
         if i == 0:
+            mv["notes"] = "Card created"
             continue
         if col_names.index(mv["to_column"]) < col_names.index(mv["from_column"]):
             mv["notes"] = rng.choice(_BACKTRACK_NOTES)
@@ -223,12 +272,13 @@ def _gen_activities(card: dict, movements: list[dict], rng: random.Random,
 
     assignee = card.get("assignee")
     if assignee:
+        # "Unassigned" is what update_card writes for an empty side (#1889).
         if rng.random() < 0.25:
             first = rng.choice([u for u in DEMO_USERS if u != assignee])
-            add(0.05, "assignee_change", "", first)
+            add(0.05, "assignee_change", "Unassigned", first)
             add(0.5, "assignee_change", first, assignee, rng.choice(others))
         else:
-            add(0.05, "assignee_change", "", assignee)
+            add(0.05, "assignee_change", "Unassigned", assignee)
 
     labels = card.get("labels", [])
     if labels:
@@ -277,9 +327,10 @@ def _gen_activities(card: dict, movements: list[dict], rng: random.Random,
         frac = 0.35 + 0.6 * (i + 1) / (len(comments) + 1)
         ts = created + timedelta(seconds=span * frac)
         comment["created_at"] = _iso(ts)
+        # Both values empty, as the comment endpoint writes them (#1889).
         events.append((frac, {
             "event_type": "comment_added", "from_value": "",
-            "to_value": comment["body"][:120], "actor": comment.get("author") or actor,
+            "to_value": "", "actor": comment.get("author") or actor,
         }))
 
     events.sort(key=lambda e: e[0])
@@ -416,7 +467,11 @@ def _archive_some(cards: list[dict], done_cols: set[str], slug: str) -> None:
         if rng.random() >= 0.25:
             continue
         last = _parse(card["movements"][-1]["moved_at"])
-        at = min(last + timedelta(days=rng.randint(2, 9)), ANCHOR - timedelta(hours=3))
+        # Never at or before the last move (an archive after the fact), and a
+        # day clear of ANCHOR so an import shifted to the import day never
+        # dates it in the future (#1889).
+        at = min(last + timedelta(days=rng.randint(2, 9)), ANCHOR - timedelta(days=1))
+        at = max(at, last + timedelta(hours=1))
         card["archived_at"] = _iso(at)
         card["movements"].append({
             "from_column": card["column"], "to_column": card["column"],
@@ -429,7 +484,7 @@ def _archive_some(cards: list[dict], done_cols: set[str], slug: str) -> None:
 
 # ── Card enrichment ───────────────────────────────────────────────────────────
 def _enrich(card: dict, col_names: list[str], card_seed: int, slug: str,
-            label_pool: list[str], descriptions: list[str]) -> dict:
+            label_pool: list[str], descriptions: list[str], done_cols: set[str]) -> dict:
     """Attach movements, activities, and assignee to a card dict."""
     target_idx = col_names.index(card["column"])
     swimlane = card["swimlane"]
@@ -445,7 +500,10 @@ def _enrich(card: dict, col_names: list[str], card_seed: int, slug: str,
     if "assignee" not in card:
         card["assignee"] = _user(card_seed) if card_seed % 5 != 4 else None
 
-    movs = _gen_movements(col_names, target_idx, swimlane, card_seed)
+    movs = _drop_crossed_outcomes(_gen_movements(col_names, target_idx, swimlane, card_seed), done_cols)
+    days_ago = card.pop("last_moved_days_ago", None)
+    if days_ago is not None:
+        _age_movements(movs, days_ago)
     _annotate_movements(movs, col_names, rng)
     card["movements"] = movs
     card["created_by"] = movs[0]["moved_by"]
@@ -468,10 +526,11 @@ def _build(tpl: dict, features: dict | None = None) -> dict:
     all_cards = tpl.get("extra_cards", [])
 
     descriptions = (features or {}).get("descriptions", [])
+    done_cols = {c["name"] for c in tpl["columns"] if c.get("is_done")}
     enriched = []
     for i, card in enumerate(all_cards):
         enriched.append(_enrich(dict(card), col_names, i * 7 + zlib.crc32(slug.encode()) % 100,
-                                slug, label_pool, descriptions))
+                                slug, label_pool, descriptions, done_cols))
 
     data = {
         "schema_version": SCHEMA_VERSION,

@@ -414,7 +414,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -500,7 +500,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-09T08:24:00+00:00"
@@ -543,7 +543,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-31T13:12:00+00:00"
         }
@@ -587,7 +587,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -683,7 +683,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-23T04:48:00+00:00"
@@ -803,7 +803,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -869,7 +869,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-02-11T08:24:00+00:00"
@@ -940,14 +940,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-19T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-23T06:00:00+00:00"
         }
@@ -983,7 +983,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1029,7 +1029,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-24T02:24:00+00:00"
@@ -1123,7 +1123,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1281,7 +1281,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-22T14:24:00+00:00"
         }
@@ -1348,7 +1348,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1404,7 +1404,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-24T04:48:00+00:00"
@@ -1496,7 +1496,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-10T04:48:00+00:00"
         },
@@ -1510,7 +1510,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-17T00:00:00+00:00"
         }
@@ -1545,7 +1545,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1584,7 +1584,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-06T20:24:00+00:00"
@@ -1628,7 +1628,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1684,7 +1684,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-31T07:12:00+00:00"
@@ -1758,7 +1758,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-01-28T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1824,7 +1824,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-29T10:48:00+00:00"
@@ -1884,7 +1884,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1925,14 +1925,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-04T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-06T12:00:00+00:00"
         }
@@ -1974,7 +1974,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2000,7 +2000,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-07T18:00:00+00:00"
@@ -2015,7 +2015,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-22T18:00:00+00:00"
         }
@@ -2057,7 +2057,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2153,7 +2153,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-12T10:48:00+00:00"
@@ -2182,7 +2182,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-04T20:24:00+00:00"
         }
@@ -2219,7 +2219,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2238,7 +2238,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-09T20:24:00+00:00"
@@ -2321,7 +2321,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2347,7 +2347,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-19T21:36:00+00:00"
@@ -2390,7 +2390,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-23T21:36:00+00:00"
         },
@@ -2404,7 +2404,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-25T12:00:00+00:00"
         }
@@ -2465,7 +2465,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2585,14 +2585,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-18T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-22T06:00:00+00:00"
         }
@@ -2641,7 +2641,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2717,7 +2717,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-17T01:12:00+00:00"
@@ -2809,7 +2809,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2835,7 +2835,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-12T02:24:00+00:00"
@@ -2893,7 +2893,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2932,7 +2932,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2025-12-12T03:36:00+00:00"
@@ -2968,14 +2968,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-28T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-04T06:00:00+00:00"
         }
@@ -3033,7 +3033,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3069,7 +3069,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-15T03:36:00+00:00"
@@ -3147,7 +3147,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-03T22:48:00+00:00"
         }
@@ -3183,7 +3183,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3305,7 +3305,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3374,7 +3374,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2025-12-23T07:12:00+00:00"
@@ -3488,7 +3488,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3514,7 +3514,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-08T06:00:00+00:00"
@@ -3543,7 +3543,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-17T06:00:00+00:00"
         }
@@ -3610,7 +3610,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3659,7 +3659,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-20T04:48:00+00:00"
@@ -3737,7 +3737,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-06T04:48:00+00:00"
         },
@@ -3751,7 +3751,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-13T00:00:00+00:00"
         }
@@ -3799,7 +3799,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3848,7 +3848,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-21T12:00:00+00:00"
@@ -3870,14 +3870,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-31T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-04T12:00:00+00:00"
         }
@@ -3939,7 +3939,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4042,14 +4042,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-07T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-11T06:00:00+00:00"
         }
@@ -4109,7 +4109,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4175,7 +4175,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2026-01-25T00:00:00+00:00"
@@ -4274,7 +4274,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-12T00:00:00+00:00"
         }
@@ -4321,7 +4321,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4340,7 +4340,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-20T07:12:00+00:00"
@@ -4376,7 +4376,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-28T07:12:00+00:00"
         },
@@ -4390,7 +4390,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-31T12:00:00+00:00"
         }
@@ -4440,7 +4440,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4516,7 +4516,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2025-12-28T14:24:00+00:00"
@@ -4601,7 +4601,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-22T19:12:00+00:00"
         }
@@ -4643,7 +4643,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-02-04T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4742,7 +4742,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-05T16:48:00+00:00"
@@ -4799,7 +4799,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-20T02:24:00+00:00"
         }
@@ -4862,7 +4862,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5030,7 +5030,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T04:48:00+00:00"
         }
@@ -5078,7 +5078,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -5087,7 +5087,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-09T15:36:00+00:00"
@@ -5116,7 +5116,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-11T03:36:00+00:00"
         },
@@ -5130,7 +5130,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-11T18:00:00+00:00"
         }
@@ -5196,7 +5196,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5262,7 +5262,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-28T14:24:00+00:00"
@@ -5354,14 +5354,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-08T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T00:00:00+00:00"
         }
@@ -5421,7 +5421,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5477,7 +5477,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-11T01:12:00+00:00"
@@ -5569,7 +5569,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-29T15:36:00+00:00"
         },
@@ -5619,7 +5619,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5648,7 +5648,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-01T10:48:00+00:00"
@@ -5691,7 +5691,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-12T20:24:00+00:00"
         }
@@ -5731,7 +5731,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5805,7 +5805,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-24T01:12:00+00:00"
         }
@@ -5858,7 +5858,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5894,7 +5894,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-28T18:00:00+00:00"
@@ -5958,7 +5958,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-12T18:00:00+00:00"
         }
@@ -6010,7 +6010,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6056,7 +6056,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-23T00:00:00+00:00"
@@ -6113,7 +6113,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-10T00:00:00+00:00"
         }
@@ -6149,7 +6149,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6178,7 +6178,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-01T12:00:00+00:00"
@@ -6259,7 +6259,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6278,7 +6278,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-23T21:36:00+00:00"
@@ -6349,14 +6349,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-06T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-12T12:00:00+00:00"
         }
@@ -6389,7 +6389,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6467,7 +6467,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6533,7 +6533,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T04:48:00+00:00"
@@ -6609,7 +6609,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6652,7 +6652,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-14T14:24:00+00:00"
@@ -6688,7 +6688,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-25T14:24:00+00:00"
         },
@@ -6702,7 +6702,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-30T00:00:00+00:00"
         }
@@ -6761,7 +6761,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6817,7 +6817,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-11T21:36:00+00:00"
@@ -6929,7 +6929,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6975,7 +6975,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-02T08:24:00+00:00"
@@ -6997,7 +6997,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-12T13:12:00+00:00"
         }
@@ -7040,7 +7040,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7108,7 +7108,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-14T06:00:00+00:00"
         }
@@ -7151,7 +7151,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7187,7 +7187,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-21T01:12:00+00:00"
@@ -7223,7 +7223,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-08T15:36:00+00:00"
         }
@@ -7284,7 +7284,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7313,7 +7313,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-02-11T03:36:00+00:00"
@@ -7405,7 +7405,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-18T22:48:00+00:00"
         }
@@ -7440,7 +7440,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7506,7 +7506,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-02T15:36:00+00:00"
@@ -7572,7 +7572,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7628,7 +7628,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo3",
           "created_at": "2026-01-14T21:36:00+00:00"
@@ -7671,7 +7671,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-31T16:48:00+00:00"
         }
@@ -7706,7 +7706,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7789,7 +7789,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7832,7 +7832,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-14T09:36:00+00:00"
@@ -7916,7 +7916,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8012,7 +8012,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-01-17T03:36:00+00:00"
@@ -8069,14 +8069,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-02T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-09T06:00:00+00:00"
         }
@@ -8120,7 +8120,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8186,7 +8186,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2025-12-14T16:48:00+00:00"
@@ -8243,7 +8243,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-29T02:24:00+00:00"
         }
@@ -8288,7 +8288,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8367,7 +8367,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-22T06:00:00+00:00"
@@ -8389,14 +8389,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-08T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-15T18:00:00+00:00"
         }
@@ -8433,7 +8433,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-02-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8548,7 +8548,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8624,7 +8624,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-03T07:12:00+00:00"
@@ -8752,7 +8752,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8781,7 +8781,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T08:24:00+00:00"
@@ -8845,7 +8845,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8891,7 +8891,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-26T12:00:00+00:00"
@@ -8920,7 +8920,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-07T12:00:00+00:00"
         }
@@ -8975,7 +8975,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9024,7 +9024,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-17T14:24:00+00:00"
@@ -9131,7 +9131,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9263,7 +9263,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9322,7 +9322,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2026-01-22T04:48:00+00:00"
@@ -9365,7 +9365,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-11T14:24:00+00:00"
         }
@@ -9402,7 +9402,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9451,7 +9451,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2025-12-31T01:12:00+00:00"
@@ -9543,7 +9543,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9619,7 +9619,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-06T10:48:00+00:00"
@@ -9697,7 +9697,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-25T22:48:00+00:00"
         },
@@ -9711,7 +9711,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-02T18:00:00+00:00"
         }
@@ -9755,7 +9755,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9794,7 +9794,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-14T18:00:00+00:00"
@@ -9823,14 +9823,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-27T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-01T06:00:00+00:00"
         }
@@ -9889,7 +9889,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10109,7 +10109,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10185,7 +10185,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-18T04:48:00+00:00"
@@ -10263,7 +10263,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-04T04:48:00+00:00"
         },
@@ -10291,7 +10291,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T00:00:00+00:00"
         }
@@ -10328,7 +10328,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10381,7 +10381,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-02-06T07:12:00+00:00"
@@ -10450,7 +10450,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10516,7 +10516,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-07T12:00:00+00:00"
@@ -10545,7 +10545,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-19T12:00:00+00:00"
         }
@@ -10595,7 +10595,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10681,7 +10681,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-14T04:48:00+00:00"
@@ -10803,7 +10803,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10892,7 +10892,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10921,7 +10921,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T18:00:00+00:00"
@@ -10987,7 +10987,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11043,7 +11043,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-05T19:12:00+00:00"
@@ -11130,7 +11130,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11196,7 +11196,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-06T08:24:00+00:00"
@@ -11343,7 +11343,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11419,7 +11419,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-14T18:00:00+00:00"
@@ -11504,14 +11504,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-06T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-15T06:00:00+00:00"
         }
@@ -11558,7 +11558,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11646,14 +11646,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-13T00:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T00:00:00+00:00"
         }
@@ -11699,7 +11699,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11755,7 +11755,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-23T09:36:00+00:00"
@@ -11791,7 +11791,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-01T09:36:00+00:00"
         },
@@ -11805,7 +11805,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T00:00:00+00:00"
         }
@@ -11870,7 +11870,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2025-12-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11926,7 +11926,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-26T01:12:00+00:00"
@@ -12011,7 +12011,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-10T13:12:00+00:00"
         },
@@ -12025,7 +12025,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-16T18:00:00+00:00"
         }
@@ -12070,7 +12070,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12126,7 +12126,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-13T09:36:00+00:00"
@@ -12241,7 +12241,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12260,7 +12260,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-13T01:12:00+00:00"
@@ -12342,7 +12342,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12454,7 +12454,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12503,7 +12503,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-23T09:36:00+00:00"
@@ -12573,7 +12573,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12619,7 +12619,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-26T12:00:00+00:00"
@@ -12662,14 +12662,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-09T12:00:00+00:00"
         }
@@ -12707,7 +12707,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12753,7 +12753,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-20T22:48:00+00:00"
@@ -12846,7 +12846,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12875,7 +12875,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-01T18:00:00+00:00"
@@ -12953,7 +12953,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-14T06:00:00+00:00"
         },
@@ -12967,7 +12967,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T06:00:00+00:00"
         }
@@ -13003,7 +13003,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13138,7 +13138,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13191,7 +13191,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-31T03:36:00+00:00"
@@ -13248,14 +13248,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-06T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-09T06:00:00+00:00"
         }
@@ -13316,7 +13316,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13372,7 +13372,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-27T14:24:00+00:00"
@@ -13450,14 +13450,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-07T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-12T00:00:00+00:00"
         }
@@ -13505,7 +13505,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13544,7 +13544,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-07T18:00:00+00:00"
@@ -13580,7 +13580,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-20T06:00:00+00:00"
         },
@@ -13601,7 +13601,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-25T06:00:00+00:00"
         }
@@ -13648,7 +13648,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13704,7 +13704,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-02T19:12:00+00:00"
@@ -13791,7 +13791,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13905,7 +13905,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14011,7 +14011,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-21T12:00:00+00:00"
@@ -14091,7 +14091,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14117,7 +14117,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-15T13:12:00+00:00"
@@ -14245,7 +14245,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14264,7 +14264,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-09T12:00:00+00:00"
@@ -14321,7 +14321,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14377,7 +14377,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-09T06:00:00+00:00"
@@ -14443,7 +14443,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14574,7 +14574,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14623,7 +14623,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-22T18:00:00+00:00"
@@ -14729,7 +14729,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-18T18:00:00+00:00"
         }
@@ -14773,7 +14773,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14819,7 +14819,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-09T03:36:00+00:00"
@@ -14869,7 +14869,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-16T22:48:00+00:00"
         }
@@ -14918,7 +14918,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14954,7 +14954,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-05T06:00:00+00:00"
@@ -14997,7 +14997,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-12T18:00:00+00:00"
         },
@@ -15011,7 +15011,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-15T18:00:00+00:00"
         }
@@ -15051,7 +15051,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15094,7 +15094,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-09T02:24:00+00:00"
@@ -15109,7 +15109,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-16T07:12:00+00:00"
         }
@@ -15154,7 +15154,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15215,14 +15215,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T01:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-23T06:00:00+00:00"
         }
@@ -15272,7 +15272,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15321,7 +15321,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-29T19:12:00+00:00"
@@ -15392,7 +15392,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-14T09:36:00+00:00"
         }
@@ -15428,7 +15428,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15457,7 +15457,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-01-14T16:48:00+00:00"
@@ -15540,7 +15540,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15569,7 +15569,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-06T14:24:00+00:00"
@@ -15654,7 +15654,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15720,7 +15720,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2025-12-25T04:48:00+00:00"
@@ -15786,7 +15786,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15914,7 +15914,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15963,7 +15963,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-06T14:24:00+00:00"
@@ -15999,14 +15999,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-17T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-22T00:00:00+00:00"
         }
@@ -16042,7 +16042,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16101,7 +16101,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-10T00:00:00+00:00"
@@ -16171,7 +16171,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16207,7 +16207,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-20T08:24:00+00:00"
@@ -16250,7 +16250,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "SEO review done. Added 2 target keywords to headers.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-28T20:24:00+00:00"
         },
@@ -16264,7 +16264,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-01T06:00:00+00:00"
         }
@@ -16308,7 +16308,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16364,7 +16364,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-31T08:24:00+00:00"
@@ -16393,14 +16393,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-08T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-12T06:00:00+00:00"
         }
@@ -16435,7 +16435,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16545,7 +16545,7 @@
           "to_swimlane": "Blog & SEO",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16598,7 +16598,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-27T10:48:00+00:00"
@@ -16714,7 +16714,7 @@
           "to_swimlane": "Social Media",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16733,7 +16733,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-02-09T00:00:00+00:00"
@@ -16810,7 +16810,7 @@
           "to_swimlane": "Video Production",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16846,7 +16846,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-13T09:36:00+00:00"
@@ -16875,14 +16875,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-22T09:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Published and shared on social. Tracking engagement.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-26T00:00:00+00:00"
         }
@@ -16941,7 +16941,7 @@
           "to_swimlane": "Email Campaigns",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17047,7 +17047,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-02-07T18:00:00+00:00"
@@ -17203,7 +17203,7 @@
           "to_swimlane": "Product Documentation",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17322,7 +17322,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-31T16:48:00+00:00"
         },
@@ -17396,7 +17396,7 @@
           "to_swimlane": "Case Studies",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17452,7 +17452,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-31T18:00:00+00:00"
@@ -17530,14 +17530,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Repurposing as a LinkedIn carousel and email excerpt.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-13T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Outline approved by editor. Starting draft.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-18T06:00:00+00:00"
         }
@@ -17592,7 +17592,7 @@
           "to_swimlane": "Webinars & Events",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17658,7 +17658,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-24T14:24:00+00:00"
@@ -17778,7 +17778,7 @@
           "to_swimlane": "Press & PR",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -17794,7 +17794,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-15T15:36:00+00:00"
@@ -17856,7 +17856,7 @@
           "to_swimlane": "Partner Content",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -17865,7 +17865,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-13T15:36:00+00:00"
@@ -17963,7 +17963,7 @@
           "to_swimlane": "Internal Communications",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -18062,7 +18062,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong performance -- 3,500 views in first 48 hours.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-16T07:12:00+00:00"
         },
@@ -18076,7 +18076,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "First draft complete -- 2,100 words. Sending for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-23T12:00:00+00:00"
         }

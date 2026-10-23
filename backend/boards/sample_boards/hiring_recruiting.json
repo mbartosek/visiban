@@ -423,7 +423,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -449,7 +449,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-09T16:48:00+00:00"
@@ -478,14 +478,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T16:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-12T12:00:00+00:00"
         }
@@ -533,7 +533,7 @@
           "to_swimlane": "Product",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -572,7 +572,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-17T19:12:00+00:00"
@@ -601,7 +601,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-09T19:12:00+00:00"
         },
@@ -615,7 +615,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-19T00:00:00+00:00"
         }
@@ -651,7 +651,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -680,7 +680,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-15T15:36:00+00:00"
@@ -744,7 +744,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -793,7 +793,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-19T04:48:00+00:00"
@@ -815,7 +815,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-08T14:24:00+00:00"
         }
@@ -879,7 +879,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -959,7 +959,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-28T10:48:00+00:00"
         }
@@ -1024,7 +1024,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1060,7 +1060,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-01-09T08:24:00+00:00"
@@ -1152,14 +1152,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-17T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-21T06:00:00+00:00"
         }
@@ -1216,7 +1216,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1312,7 +1312,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-26T06:00:00+00:00"
@@ -1404,7 +1404,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-16T06:00:00+00:00"
         }
@@ -1449,7 +1449,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1475,7 +1475,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2025-12-31T12:00:00+00:00"
@@ -1573,7 +1573,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1619,7 +1619,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo3",
           "created_at": "2025-12-24T01:12:00+00:00"
@@ -1662,7 +1662,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-08T13:12:00+00:00"
         },
@@ -1683,7 +1683,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-14T18:00:00+00:00"
         }
@@ -1730,7 +1730,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1801,14 +1801,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-13T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-19T12:00:00+00:00"
         }
@@ -1846,7 +1846,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1855,7 +1855,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2026-01-20T15:36:00+00:00"
@@ -1946,7 +1946,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1992,7 +1992,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-22T01:12:00+00:00"
@@ -2035,14 +2035,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-06T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-12T18:00:00+00:00"
         }
@@ -2079,7 +2079,7 @@
           "to_swimlane": "Design",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2105,7 +2105,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-29T08:24:00+00:00"
@@ -2207,7 +2207,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2253,7 +2253,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo3",
           "created_at": "2026-01-27T13:12:00+00:00"
@@ -2331,7 +2331,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-09T03:36:00+00:00"
         }
@@ -2395,7 +2395,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2529,7 +2529,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-06T16:48:00+00:00"
         }
@@ -2591,7 +2591,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-18T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2660,7 +2660,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-20T08:24:00+00:00"
@@ -2773,7 +2773,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T13:12:00+00:00"
         }
@@ -2828,7 +2828,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2025-12-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2851,7 +2851,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2025-12-24T15:36:00+00:00"
@@ -2922,7 +2922,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-26T10:48:00+00:00"
         }
@@ -2982,7 +2982,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3008,7 +3008,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-20T12:00:00+00:00"
@@ -3107,7 +3107,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-01T12:00:00+00:00"
         }
@@ -3155,7 +3155,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3194,7 +3194,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-15T00:00:00+00:00"
@@ -3237,7 +3237,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-30T00:00:00+00:00"
         },
@@ -3251,7 +3251,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-05T00:00:00+00:00"
         }
@@ -3295,7 +3295,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3360,7 +3360,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T09:36:00+00:00"
         }
@@ -3421,7 +3421,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3480,7 +3480,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-02-13T06:00:00+00:00"
@@ -3579,7 +3579,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-22T06:00:00+00:00"
         }
@@ -3615,7 +3615,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3651,7 +3651,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-01-26T04:48:00+00:00"
@@ -3742,7 +3742,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3758,7 +3758,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-04T15:36:00+00:00"
@@ -3815,7 +3815,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-06T03:36:00+00:00"
         },
@@ -3829,7 +3829,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-06T18:00:00+00:00"
         }
@@ -3889,7 +3889,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3928,7 +3928,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-20T00:00:00+00:00"
@@ -3978,14 +3978,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-04T00:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-10T00:00:00+00:00"
         }
@@ -4033,7 +4033,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4091,14 +4091,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-01T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-04T18:00:00+00:00"
         }
@@ -4145,7 +4145,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4181,7 +4181,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-30T10:48:00+00:00"
@@ -4289,7 +4289,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4315,7 +4315,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-16T21:36:00+00:00"
@@ -4344,7 +4344,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-02T16:48:00+00:00"
         }
@@ -4402,7 +4402,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4441,7 +4441,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-14T08:24:00+00:00"
@@ -4576,7 +4576,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4632,7 +4632,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-28T12:00:00+00:00"
@@ -4779,7 +4779,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4803,7 +4803,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-31T10:48:00+00:00"
         }
@@ -4846,7 +4846,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4882,7 +4882,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2025-12-20T13:12:00+00:00"
@@ -4911,7 +4911,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-02T03:36:00+00:00"
         }
@@ -4979,7 +4979,7 @@
           "to_swimlane": "Product",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5005,7 +5005,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-15T04:48:00+00:00"
@@ -5111,7 +5111,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-01T04:48:00+00:00"
         },
@@ -5125,7 +5125,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-08T00:00:00+00:00"
         }
@@ -5184,7 +5184,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5220,7 +5220,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-02T06:00:00+00:00"
@@ -5319,7 +5319,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-11T06:00:00+00:00"
         }
@@ -5381,7 +5381,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5420,7 +5420,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-28T08:24:00+00:00"
@@ -5498,7 +5498,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T20:24:00+00:00"
         },
@@ -5519,7 +5519,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-09T06:00:00+00:00"
         }
@@ -5562,7 +5562,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5680,7 +5680,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-30T03:36:00+00:00"
         }
@@ -5748,7 +5748,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5784,7 +5784,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-13T09:36:00+00:00"
@@ -5855,14 +5855,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-22T09:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-26T00:00:00+00:00"
         }
@@ -5914,7 +5914,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5940,7 +5940,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-24T04:48:00+00:00"
@@ -5983,7 +5983,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-01T14:24:00+00:00"
         }
@@ -6032,7 +6032,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6071,7 +6071,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-12T12:00:00+00:00"
@@ -6107,14 +6107,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-22T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-26T12:00:00+00:00"
         }
@@ -6154,7 +6154,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6200,7 +6200,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2025-12-18T06:00:00+00:00"
@@ -6236,7 +6236,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-27T06:00:00+00:00"
         }
@@ -6278,7 +6278,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6376,7 +6376,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-27T02:24:00+00:00"
         }
@@ -6421,7 +6421,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -6437,7 +6437,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-27T15:36:00+00:00"
@@ -6473,7 +6473,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-29T03:36:00+00:00"
         },
@@ -6494,7 +6494,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2025-12-29T18:00:00+00:00"
         }
@@ -6557,7 +6557,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6576,7 +6576,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-03T12:00:00+00:00"
@@ -6668,7 +6668,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-15T12:00:00+00:00"
         }
@@ -6725,7 +6725,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6774,7 +6774,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-03T04:48:00+00:00"
@@ -6838,7 +6838,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-20T04:48:00+00:00"
         },
@@ -6852,7 +6852,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-27T00:00:00+00:00"
         }
@@ -6911,7 +6911,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6947,7 +6947,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-11T21:36:00+00:00"
@@ -7039,7 +7039,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-28T16:48:00+00:00"
         }
@@ -7081,7 +7081,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7142,7 +7142,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-18T19:12:00+00:00"
         }
@@ -7199,7 +7199,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7225,7 +7225,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-02-01T00:00:00+00:00"
@@ -7310,7 +7310,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-07T00:00:00+00:00"
         },
@@ -7366,7 +7366,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -7382,7 +7382,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-05T15:36:00+00:00"
@@ -7404,14 +7404,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-07T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-07T18:00:00+00:00"
         }
@@ -7469,7 +7469,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7508,7 +7508,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-26T01:12:00+00:00"
@@ -7558,14 +7558,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-31T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-02T18:00:00+00:00"
         }
@@ -7601,7 +7601,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7620,7 +7620,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-12T20:24:00+00:00"
@@ -7677,7 +7677,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7735,7 +7735,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-10T02:24:00+00:00"
         }
@@ -7772,7 +7772,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7811,7 +7811,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-02-01T06:00:00+00:00"
@@ -7889,7 +7889,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7938,7 +7938,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-04T06:00:00+00:00"
@@ -7967,14 +7967,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-11T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-14T18:00:00+00:00"
         }
@@ -8022,7 +8022,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8031,7 +8031,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-02-03T15:36:00+00:00"
@@ -8081,7 +8081,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-05T03:36:00+00:00"
         },
@@ -8095,7 +8095,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-05T18:00:00+00:00"
         }
@@ -8138,7 +8138,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8164,7 +8164,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-27T12:00:00+00:00"
@@ -8193,7 +8193,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-08T12:00:00+00:00"
         }
@@ -8262,7 +8262,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8372,7 +8372,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-04T10:48:00+00:00"
         },
@@ -8393,7 +8393,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-10T06:00:00+00:00"
         }
@@ -8433,7 +8433,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8489,7 +8489,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-09T20:24:00+00:00"
@@ -8511,7 +8511,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-26T01:12:00+00:00"
         }
@@ -8551,7 +8551,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8607,7 +8607,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-04T14:24:00+00:00"
@@ -8629,7 +8629,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-17T19:12:00+00:00"
         }
@@ -8691,7 +8691,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8770,7 +8770,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-30T15:36:00+00:00"
@@ -8848,14 +8848,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-11T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-15T18:00:00+00:00"
         }
@@ -8907,7 +8907,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8916,7 +8916,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-07T15:36:00+00:00"
@@ -9014,7 +9014,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9123,7 +9123,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2025-12-31T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9149,7 +9149,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-01T16:48:00+00:00"
@@ -9219,7 +9219,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9278,7 +9278,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-13T14:24:00+00:00"
@@ -9307,14 +9307,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-24T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-29T00:00:00+00:00"
         }
@@ -9361,7 +9361,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9400,7 +9400,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-07T13:12:00+00:00"
@@ -9436,14 +9436,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-18T01:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-22T06:00:00+00:00"
         }
@@ -9503,7 +9503,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9549,7 +9549,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-20T01:12:00+00:00"
@@ -9613,14 +9613,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-04T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-10T18:00:00+00:00"
         }
@@ -9662,7 +9662,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9686,7 +9686,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-13T10:48:00+00:00"
         }
@@ -9732,7 +9732,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9751,7 +9751,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo2",
           "created_at": "2026-01-05T09:36:00+00:00"
@@ -9787,7 +9787,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-14T09:36:00+00:00"
         },
@@ -9808,7 +9808,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-18T00:00:00+00:00"
         }
@@ -9843,7 +9843,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9909,7 +9909,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-14T21:36:00+00:00"
@@ -9972,7 +9972,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10001,7 +10001,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-24T15:36:00+00:00"
@@ -10030,14 +10030,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-05T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-09T18:00:00+00:00"
         }
@@ -10086,7 +10086,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10152,7 +10152,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-05T12:00:00+00:00"
@@ -10181,14 +10181,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-25T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-02T12:00:00+00:00"
         }
@@ -10256,7 +10256,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10364,14 +10364,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-28T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-28T18:00:00+00:00"
         }
@@ -10406,7 +10406,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10432,7 +10432,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-24T00:00:00+00:00"
@@ -10497,7 +10497,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10556,7 +10556,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-01-06T00:00:00+00:00"
@@ -10663,7 +10663,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10712,7 +10712,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-22T13:12:00+00:00"
@@ -10826,7 +10826,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10845,7 +10845,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-20T02:24:00+00:00"
@@ -10927,7 +10927,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11016,7 +11016,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T03:36:00+00:00"
         },
@@ -11030,7 +11030,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-23T18:00:00+00:00"
         }
@@ -11068,7 +11068,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11077,7 +11077,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T15:36:00+00:00"
@@ -11146,7 +11146,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11182,7 +11182,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2025-12-21T15:36:00+00:00"
@@ -11232,7 +11232,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-02T03:36:00+00:00"
         },
@@ -11246,7 +11246,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-06T18:00:00+00:00"
         }
@@ -11294,7 +11294,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11343,7 +11343,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-01T06:00:00+00:00"
@@ -11379,14 +11379,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-18T18:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-25T18:00:00+00:00"
         }
@@ -11450,7 +11450,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11476,7 +11476,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-01-27T10:48:00+00:00"
@@ -11561,7 +11561,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-07T20:24:00+00:00"
         }
@@ -11630,7 +11630,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11761,7 +11761,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-27T22:48:00+00:00"
         },
@@ -11789,7 +11789,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-31T18:00:00+00:00"
         }
@@ -11841,7 +11841,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11877,7 +11877,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-06T07:12:00+00:00"
@@ -11993,7 +11993,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -12002,7 +12002,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-08T15:36:00+00:00"
@@ -12088,7 +12088,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12174,7 +12174,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-03T12:00:00+00:00"
@@ -12242,7 +12242,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12287,16 +12287,6 @@
         },
         {
           "from_column": "Offer Extended",
-          "to_column": "Hired",
-          "from_swimlane": "Sales",
-          "to_swimlane": "Sales",
-          "moved_at": "2026-02-02T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Hired",
           "to_column": "Rejected",
           "from_swimlane": "Sales",
           "to_swimlane": "Sales",
@@ -12318,7 +12308,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-24T22:48:00+00:00"
@@ -12395,7 +12385,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12564,7 +12554,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12610,7 +12600,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-16T02:24:00+00:00"
@@ -12667,14 +12657,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-01T02:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-07T12:00:00+00:00"
         }
@@ -12714,7 +12704,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12790,7 +12780,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2026-02-12T15:36:00+00:00"
@@ -12812,7 +12802,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-26T10:48:00+00:00"
         }
@@ -12868,7 +12858,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -12884,7 +12874,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-16T15:36:00+00:00"
@@ -12976,7 +12966,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-18T10:48:00+00:00"
         },
@@ -13029,7 +13019,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13055,7 +13045,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-11T03:36:00+00:00"
@@ -13084,14 +13074,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-17T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-20T06:00:00+00:00"
         }
@@ -13128,7 +13118,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13260,7 +13250,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13289,7 +13279,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-17T14:24:00+00:00"
@@ -13415,7 +13405,7 @@
           "to_swimlane": "Product",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -13431,7 +13421,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-14T15:36:00+00:00"
@@ -13460,14 +13450,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Offer accepted. Start date confirmed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-16T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-16T18:00:00+00:00"
         }
@@ -13513,7 +13503,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-26T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13572,7 +13562,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-27T21:36:00+00:00"
@@ -13674,7 +13664,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13700,7 +13690,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2026-01-21T03:36:00+00:00"
@@ -13792,7 +13782,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13853,7 +13843,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-16T22:48:00+00:00"
         },
@@ -13867,7 +13857,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-20T18:00:00+00:00"
         }
@@ -13918,7 +13908,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13957,7 +13947,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-14T10:48:00+00:00"
@@ -14087,7 +14077,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-01-18T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14113,7 +14103,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-18T16:48:00+00:00"
@@ -14156,7 +14146,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-21T02:24:00+00:00"
         }
@@ -14206,7 +14196,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14242,7 +14232,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2025-12-24T03:36:00+00:00"
@@ -14365,7 +14355,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14414,7 +14404,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-01-25T10:48:00+00:00"
@@ -14511,7 +14501,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-01-19T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -14640,7 +14630,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-21T10:48:00+00:00"
         }
@@ -14685,7 +14675,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14711,7 +14701,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-18T06:00:00+00:00"
@@ -14826,7 +14816,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14862,7 +14852,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-12T02:24:00+00:00"
@@ -15031,7 +15021,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15067,7 +15057,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-05T14:24:00+00:00"
@@ -15138,7 +15128,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-16T14:24:00+00:00"
         },
@@ -15152,7 +15142,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-21T00:00:00+00:00"
         }
@@ -15206,7 +15196,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -15215,7 +15205,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2026-01-03T15:36:00+00:00"
@@ -15344,7 +15334,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15469,7 +15459,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15488,7 +15478,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-11T12:00:00+00:00"
@@ -15565,7 +15555,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15611,7 +15601,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-06T04:48:00+00:00"
@@ -15640,7 +15630,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-14T14:24:00+00:00"
         }
@@ -15677,7 +15667,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15732,35 +15722,18 @@
         },
         {
           "from_column": "Offer Extended",
-          "to_column": "Hired",
-          "from_swimlane": "Finance",
-          "to_swimlane": "Finance",
-          "moved_at": "2026-02-17T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "Approved by the owner.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Hired",
           "to_column": "Rejected",
           "from_swimlane": "Finance",
           "to_swimlane": "Finance",
           "moved_at": "2026-02-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Approved by the owner.",
           "movement_type": "move"
         }
       ],
       "created_by": "demo1",
       "created_at": "2026-01-24T12:00:00+00:00",
       "activities": [
-        {
-          "event_type": "title_change",
-          "from_value": "Debrief — Senior Corporate Counsel (Finley R.) (draft)",
-          "to_value": "Debrief — Senior Corporate Counsel (Finley R.)",
-          "actor": "demo1",
-          "created_at": "2026-01-25T01:26:24+00:00"
-        },
         {
           "event_type": "description_change",
           "from_value": "",
@@ -15770,8 +15743,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo5",
+          "from_value": "Unassigned",
+          "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-25T21:36:00+00:00"
         },
@@ -15790,25 +15763,11 @@
           "created_at": "2026-01-27T20:38:24+00:00"
         },
         {
-          "event_type": "label_change",
+          "event_type": "description_change",
           "from_value": "",
-          "to_value": "+Strong Yes",
+          "to_value": "",
           "actor": "demo3",
-          "created_at": "2026-01-30T02:24:00+00:00"
-        },
-        {
-          "event_type": "assignee_change",
-          "from_value": "demo5",
-          "to_value": "demo1",
-          "actor": "demo5",
-          "created_at": "2026-02-07T12:00:00+00:00"
-        },
-        {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "-Strong Yes",
-          "actor": "demo1",
-          "created_at": "2026-02-10T07:12:00+00:00"
+          "created_at": "2026-02-06T02:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -15844,7 +15803,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -15853,7 +15812,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-05T15:36:00+00:00"
@@ -15925,7 +15884,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16035,7 +15994,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-13T08:24:00+00:00"
         }
@@ -16089,7 +16048,7 @@
           "to_swimlane": "Engineering",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16128,7 +16087,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-26T12:00:00+00:00"
@@ -16278,7 +16237,7 @@
           "to_swimlane": "Product",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16334,7 +16293,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-31T10:48:00+00:00"
@@ -16463,7 +16422,7 @@
           "to_swimlane": "Design",
           "moved_at": "2026-02-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -16486,7 +16445,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-10T15:36:00+00:00"
@@ -16515,7 +16474,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-12T10:48:00+00:00"
         }
@@ -16550,7 +16509,7 @@
           "to_swimlane": "Sales",
           "moved_at": "2026-02-07T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16589,7 +16548,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-08T02:24:00+00:00"
@@ -16663,7 +16622,7 @@
           "to_swimlane": "Marketing",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16787,7 +16746,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Panel was unanimous. Moving to references.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-29T16:48:00+00:00"
         },
@@ -16801,7 +16760,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-03T12:00:00+00:00"
         }
@@ -16870,7 +16829,7 @@
           "to_swimlane": "Customer Success",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16956,7 +16915,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-05T12:00:00+00:00"
@@ -17048,7 +17007,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Strong resume. Moving to phone screen.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-25T12:00:00+00:00"
         },
@@ -17062,7 +17021,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "References came back positive. Preparing offer.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-02T12:00:00+00:00"
         }
@@ -17099,7 +17058,7 @@
           "to_swimlane": "Operations",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -17115,7 +17074,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-22T15:36:00+00:00"
@@ -17173,7 +17132,7 @@
           "to_swimlane": "Finance",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17209,7 +17168,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-06T08:24:00+00:00"
@@ -17274,7 +17233,7 @@
           "to_swimlane": "Legal",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17340,7 +17299,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo3",
           "created_at": "2026-02-14T08:24:00+00:00"
@@ -17397,7 +17356,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Phone screen went well -- scheduling technical round.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-24T13:12:00+00:00"
         },
@@ -17447,7 +17406,7 @@
           "to_swimlane": "Executive",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17522,7 +17481,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Take-home submission is solid. Panel interview next.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-25T04:48:00+00:00"
         }

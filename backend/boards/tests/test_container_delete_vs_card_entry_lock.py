@@ -1213,24 +1213,48 @@ class DeleteBoardsLockedTests(_EntryRaceBase, TransactionTestCase):
 
 
 class SeedWipeUsesLockedDeleteTests(TestCase):
-    """Both seed commands' --wipe go through delete_boards_locked (#1602)."""
+    """Both seed commands' --wipe go through delete_boards_locked (#1602).
+
+    Through ``_seed_history.delete_seed_boards`` since #1889, which also
+    records each board's board.deleted feed row (#1636). The demo-site boards
+    are covered too: before #1889 their --wipe was a bare QuerySet.delete().
+    """
+
+    TARGET = "boards.management.commands._seed_history.delete_boards_locked"
 
     def test_seed_template_boards_wipe(self):
         from boards.tests.test_seed_template_boards import _seed
 
         _seed("sales_pipeline", force=True)
-        target = "boards.management.commands.seed_template_boards.delete_boards_locked"
-        with patch(target, wraps=card_services.delete_boards_locked) as spy:
+        with patch(self.TARGET, wraps=card_services.delete_boards_locked) as spy:
             _seed("sales_pipeline", wipe=True, force=True)
         spy.assert_called()
 
     def test_seed_demo_data_wipe(self):
         from boards.tests.test_seed_demo_data import _seed
 
-        target = "boards.management.commands.seed_demo_data.delete_boards_locked"
-        with patch(target, wraps=card_services.delete_boards_locked) as spy:
+        _seed(force=True)
+        with patch(self.TARGET, wraps=card_services.delete_boards_locked) as spy:
             _seed(wipe=True, force=True)
         spy.assert_called()
+
+    def test_seed_demo_data_demo_site_wipe(self):
+        from django.test import override_settings
+
+        from boards.tests.test_seed_demo_data import _DEMO_SITE_SETTINGS, _seed
+
+        with override_settings(**_DEMO_SITE_SETTINGS):
+            _seed(demo_site=True)
+            deleted = set()
+
+            def record(boards):
+                deleted.update(boards.values_list("name", flat=True))
+                return card_services.delete_boards_locked(boards)
+
+            with patch(self.TARGET, side_effect=record):
+                _seed(demo_site=True, wipe=True)
+        self.assertIn("Sales Territory (Overlay)", deleted)
+        self.assertIn("Software Team", deleted)
 
 
 class UserAdminLocksContainersTests(TestCase):

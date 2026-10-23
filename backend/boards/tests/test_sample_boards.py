@@ -352,3 +352,51 @@ class SampleBoardImportTests(TestCase):
             ).select_related("field_definition")
         }
         self.assertEqual(stored, card["custom_field_values"])
+
+
+class SampleBoardHistoryTests(TestCase):
+    """#1889: every sample card's history accounts for its state once imported.
+
+    Imported the way the hosted demo imports the overlay sample: dates
+    shifted so the noon anchor lands on yesterday, which keeps every event in
+    the past whatever the hour the test runs (the gallery shifts to today's
+    noon, which dates the newest events up to 11:00 UTC today, in the future
+    before then: a gap reported on #1889, not this test's concern). By a user
+    who shares a board with the samples' cast, so each assignee resolves to an
+    account, as on the demo. History rows are credited to the importer with
+    the file's names kept as provenance, which the reconciler is told
+    (``imported=True``).
+    """
+
+    def setUp(self):
+        patcher = mock.patch.object(BoardImportThrottle, "allow_request", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.user = User.objects.create_user(username="importer", password="pass")
+        cast = Board.objects.create(name="Team", owner=self.user)
+        cast.memberships.create(user=self.user, role="admin")
+        for i in range(1, 6):
+            cast.memberships.create(user=User.objects.create_user(username=f"demo{i}", password="pass"), role="member")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_every_sample_card_is_fully_explained_by_its_history(self):
+        import datetime
+
+        from boards.tests.history_reconciliation import board_history_problems
+
+        def shift_from(entry):
+            return (datetime.date.fromisoformat(entry["date_anchor"]) + datetime.timedelta(days=1)).isoformat()
+
+        for entry in MANIFEST:
+            with self.subTest(entry["id"]):
+                f = io.BytesIO((SAMPLE_DIR / entry["file"]).read_bytes())
+                f.name = entry["file"]
+                resp = self.client.post(
+                    "/api/v1/boards/import/",
+                    {"file": f, "options": json.dumps({"shift_dates_from": shift_from(entry)})},
+                    format="multipart",
+                )
+                self.assertEqual(resp.status_code, 201, getattr(resp, "data", None))
+                board = Board.objects.get(pk=resp.data["id"])
+                self.assertEqual(board_history_problems(board, imported=True), {})

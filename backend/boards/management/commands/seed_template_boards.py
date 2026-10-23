@@ -34,24 +34,35 @@ Usage:
 
 import datetime
 import random
+import re
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from accounts.models import User
-from boards.services.cards import delete_boards_locked
 from boards.models import (
     Board,
     BoardMembership,
     Card,
-    CardActivity,
     CardChecklist,
     CardComment,
-    CardMovement,
     Column,
     Label,
     Swimlane,
 )
+
+from ._seed_history import (
+    delete_seed_boards,
+    history_window,
+    record_creation,
+    record_move,
+    write_activity_trail,
+)
+
+# Done columns that close work as lost (#1889): a card never passes through
+# one on its way somewhere else, and a card that ends in one never passed
+# through a winning outcome first.
+_LOST_RX = re.compile(r"lost|rejected|denied|churned", re.IGNORECASE)
 
 BOARD_NAME_PREFIX = "Template:"
 
@@ -3528,7 +3539,9 @@ class Command(BaseCommand):
         if options["wipe"]:
             # With the container-delete locks (#1602): the demo cronjob runs
             # --wipe against a live instance.
-            deleted, _ = delete_boards_locked(Board.objects.filter(name=board_name))
+            # delete_seed_boards also records board.deleted in the change
+            # feed (#1636), as deleting the board through the API does.
+            deleted, _ = delete_seed_boards(Board.objects.filter(name=board_name))
             if deleted:
                 self.stdout.write(f"Deleted existing '{board_name}'.")
 
@@ -3675,17 +3688,21 @@ class Command(BaseCommand):
                     position=pos,
                 )
 
-            # Comments (authored by demo users in round-robin order)
-            for i, body in enumerate(spec.get("comments", [])):
-                CardComment.objects.create(
-                    card=card,
-                    author=users[i % len(users)],
-                    body=body,
-                )
-
             # Back-fill movement history from col 0 → current col
             self._add_movement_history(card, col_idx, columns, users)
-            self._add_activity_history(card, users)
+
+            # Comments (authored by demo users in round-robin order), spread
+            # across the card's life rather than dated to the seed (#1889).
+            comments = spec.get("comments", [])
+            start, end = history_window(card)
+            for i, body in enumerate(comments):
+                comment = CardComment.objects.create(card=card, author=users[i % len(users)], body=body)
+                at = start + (end - start) * (0.35 + 0.6 * (i + 1) / (len(comments) + 1))
+                CardComment.objects.filter(pk=comment.pk).update(created_at=at)
+
+            # Every value the card holds gets the activity the API would
+            # have written for it (#1889).
+            write_activity_trail(card, actors=users)
 
             cards.append(card)
 
@@ -3695,10 +3712,12 @@ class Command(BaseCommand):
         """
         Simulate the card having progressed through pipeline stages to reach
         col_idx. Cards in column 0 get a creation record only. Each subsequent
-        stage transition gets a backdated CardMovement record.
+        stage transition gets a backdated CardMovement record, written in the
+        API's form by ``_seed_history`` (#1889).
 
-        auto_now_add=True ignores explicit values at create time, so moved_at is
-        back-filled via update() after creation — same pattern as seed_demo_data.
+        Done columns are outcomes, not stages: a card passes through none on
+        its way to a lost outcome ("Closed Lost" is never reached through
+        "Closed Won"), and through no lost outcome on its way anywhere.
 
         Date anchoring: movement timestamps are relative to today so that
         analytics windows (7d, 30d, 90d) always show recent data after a
@@ -3713,6 +3732,15 @@ class Command(BaseCommand):
             today.day,
             tzinfo=datetime.timezone.utc,
         )
+        target = columns[col_idx]
+        lost_target = target.is_done and bool(_LOST_RX.search(target.name))
+        path = [0] + [
+            i for i in range(1, col_idx)
+            if not (columns[i].is_done and (lost_target or _LOST_RX.search(columns[i].name)))
+        ]
+        if col_idx:
+            path.append(col_idx)
+        steps = len(path) - 1
 
         # Build stage offsets working backwards from the anchor.
         # Most-recent transition lands 2–8 days before anchor; each prior stage
@@ -3720,189 +3748,19 @@ class Command(BaseCommand):
         # reach back well beyond the 90-day analytics window.
         cumulative_days = random.randint(2, 8)
         stage_offsets = []
-        for _ in range(col_idx):
+        for _ in range(steps):
             stage_offsets.append(cumulative_days)
             cumulative_days += random.randint(7, 25)
         # Reverse so index 0 corresponds to the earliest (largest days_ago) move.
         stage_offsets.reverse()
 
-        # Creation record (from_column=None → col 0)
         created_days_ago = cumulative_days + random.randint(3, 10)
-        created_at = anchor - datetime.timedelta(days=created_days_ago)
-        mv = CardMovement.objects.create(
-            card=card,
-            from_column=None,
-            to_column=columns[0],
-            from_swimlane=None,
-            to_swimlane=card.swimlane,
-            from_column_name="",
-            to_column_name=columns[0].name,
-            from_column_uid="",
-            to_column_uid=columns[0].uid,
-            from_swimlane_name="",
-            to_swimlane_name=card.swimlane.name,
-            from_swimlane_uid="",
-            to_swimlane_uid=card.swimlane.uid,
-            moved_by=random.choice(users),
-            notes="",
+        record_creation(
+            card, column=columns[0], swimlane=card.swimlane, actor=random.choice(users),
+            at=anchor - datetime.timedelta(days=created_days_ago),
         )
-        CardMovement.objects.filter(pk=mv.pk).update(moved_at=created_at)
-
-        # Stage-to-stage transitions
-        for i in range(col_idx):
-            from_col = columns[i]
-            to_col = columns[i + 1]
-            moved_at = anchor - datetime.timedelta(days=stage_offsets[i])
-            mv = CardMovement.objects.create(
-                card=card,
-                from_column=from_col,
-                to_column=to_col,
-                from_swimlane=card.swimlane,
-                to_swimlane=card.swimlane,
-                from_column_name=from_col.name,
-                to_column_name=to_col.name,
-                from_column_uid=from_col.uid,
-                to_column_uid=to_col.uid,
-                from_swimlane_name=card.swimlane.name,
-                to_swimlane_name=card.swimlane.name,
-                from_swimlane_uid=card.swimlane.uid,
-                to_swimlane_uid=card.swimlane.uid,
-                moved_by=random.choice(users),
-                notes="",
+        for i, (src, dst) in enumerate(zip(path, path[1:])):
+            record_move(
+                card, src=columns[src], dst=columns[dst], swimlane=card.swimlane,
+                actor=random.choice(users), at=anchor - datetime.timedelta(days=stage_offsets[i]),
             )
-            CardMovement.objects.filter(pk=mv.pk).update(moved_at=moved_at)
-
-    def _add_activity_history(self, card, users):
-        """
-        Simulate field-change activity entries for a seeded card.
-
-        Creates CardActivity records for assignee set, labels applied, due date
-        set, priority escalations, checklist item additions/checks, and comment
-        events — all backdated via update() so they appear at realistic points
-        in the card's timeline.
-
-        auto_now_add=True blocks explicit values at create time, so created_at
-        is back-filled via update() after creation — same pattern as moved_at
-        on CardMovement.
-        """
-        creation_mv = CardMovement.objects.filter(
-            card=card, from_column__isnull=True
-        ).first()
-        if not creation_mv:
-            return
-
-        anchor_dt = creation_mv.moved_at
-        day_offset = 1
-
-        def _backdate(act, days):
-            ts = anchor_dt + datetime.timedelta(days=days)
-            CardActivity.objects.filter(pk=act.pk).update(created_at=ts)
-
-        # Assignee set when the card was picked up
-        if card.assignee:
-            assignee_name = card.assignee.get_full_name() or card.assignee.username
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.ASSIGNEE_CHANGE,
-                from_value="",
-                to_value=assignee_name,
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 2)
-
-        # Labels applied shortly after creation
-        label_names = list(card.labels.values_list("name", flat=True))
-        if label_names:
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.LABEL_CHANGE,
-                from_value="",
-                to_value=", ".join(label_names),
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 2)
-
-        # Due date set
-        if card.due_date:
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.DUE_DATE_CHANGE,
-                from_value="",
-                to_value=card.due_date.isoformat(),
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 3)
-
-        # Priority escalation for high/urgent cards (simulates triage bump)
-        if card.priority in ("high", "urgent"):
-            from_priority = "medium" if card.priority == "high" else "high"
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.PRIORITY_CHANGE,
-                from_value=from_priority,
-                to_value=card.priority,
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset + random.randint(2, 5))
-            day_offset += random.randint(3, 6)
-
-        # Weight change for cards with non-default weight
-        if card.weight and card.weight > 1:
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.WEIGHT_CHANGE,
-                from_value="1",
-                to_value=str(card.weight),
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 2)
-
-        # Description change for cards with a description
-        if card.description:
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.DESCRIPTION_CHANGE,
-                from_value="",
-                to_value="(updated)",
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 3)
-
-        # Checklist items added one by one, checked items get a checked event
-        for item in card.checklist_items.all().order_by("position"):
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.CHECKLIST_ITEM_ADDED,
-                from_value="",
-                to_value=item.text,
-                actor=random.choice(users),
-            )
-            _backdate(act, day_offset)
-            day_offset += 1
-
-            if item.is_checked:
-                act = CardActivity.objects.create(
-                    card=card,
-                    event_type=CardActivity.EventType.CHECKLIST_ITEM_CHECKED,
-                    from_value="",
-                    to_value=item.text,
-                    actor=random.choice(users),
-                )
-                _backdate(act, day_offset + random.randint(1, 4))
-
-        # Comment added event for each comment
-        for comment in card.comments.all():
-            act = CardActivity.objects.create(
-                card=card,
-                event_type=CardActivity.EventType.COMMENT_ADDED,
-                from_value="",
-                to_value="",
-                actor=comment.author,
-            )
-            _backdate(act, day_offset)
-            day_offset += random.randint(1, 3)

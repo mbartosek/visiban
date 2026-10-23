@@ -187,8 +187,9 @@ class SeedMovementHistoryTests(TestCase):
                 creation.exists(),
                 f"Backlog card '{card.title}' is missing its creation movement",
             )
+            # An archived card also has its archive movement (#1889).
             self.assertEqual(
-                CardMovement.objects.filter(card=card).count(),
+                CardMovement.objects.filter(card=card, movement_type=CardMovement.MovementType.MOVE).count(),
                 1,
                 f"Backlog card '{card.title}' should have exactly 1 movement (creation only)",
             )
@@ -677,11 +678,22 @@ class SeedDemoSiteTests(TestCase):
         "Sales Territory", "Sales Territory (Overlay)", "Content Moderation", "Logistics Exceptions",
     ]
 
+    #: The boards written out in _demo_site_data; the overlay board is the
+    #: imported sales_overlay sample instead (#1889) and is held to the
+    #: sample's own shape (DemoSiteOverlayBoardTests, test_sample_boards).
+    HAND_BUILT = [n for n in BOARD_NAMES if n != "Sales Territory (Overlay)"]
+
     @staticmethod
-    def spec_card_count(name):
+    def spec(name):
+        """The board's definition: its _demo_site_data spec, or the sample it imports."""
         from boards.management.commands._demo_site_data import BOARDS
 
-        return next(len(spec["cards"]) for spec in BOARDS if spec["name"] == name)
+        spec = next(spec for spec in BOARDS if spec["name"] == name)
+        return _sample(spec["sample"]) if "sample" in spec else spec
+
+    @classmethod
+    def spec_card_count(cls, name):
+        return len(cls.spec(name)["cards"])
 
     def test_demo_site_password_sets_are_not_in_the_admin_action_log(self):
         """#1699: documented exception to the admin action log.
@@ -699,13 +711,11 @@ class SeedDemoSiteTests(TestCase):
             ).exists()
         )
 
-    def test_overlay_pipeline_cards_move_through_every_stage_they_passed(self):
-        """#1416: the overlay board's nine-stage pipeline shows real movement.
-
-        Each card has one movement per stage it passed, in pipeline order, so
-        the History tab and the aging tint have something to show in every
-        column. A Lost card goes straight from Commit to Lost, never through Won.
-        """
+    def test_overlay_pipeline_shows_every_stage(self):
+        """#1416: the overlay board's nine-stage pipeline has cards in every
+        stage. Since #1889 the stages, cards and moves are the sales_overlay
+        sample's; a Lost card never passes through Won
+        (DemoSiteHistoryReconciliationTests checks every card's path)."""
         _seed(demo_site=True)
         board = Board.objects.get(name="Sales Territory (Overlay)")
         names = list(board.columns.order_by("position").values_list("name", flat=True))
@@ -713,19 +723,13 @@ class SeedDemoSiteTests(TestCase):
             names,
             ["Identify", "Discover", "Qualify", "Shape", "Validate", "Commercial", "Commit", "Won", "Lost"],
         )
-        in_flight = names[:7]
-        for card in board.cards.select_related("column"):
-            trail = [m.to_column_name for m in card.movements.order_by("moved_at", "id")]
-            current = card.column.name
-            self.assertEqual(trail[-1], current, card.title)
-            expected = in_flight[: in_flight.index(current) + 1] if current in in_flight else in_flight + [current]
-            self.assertEqual(trail, expected, card.title)
-        # Every column holds at least one card, so no stage reads as empty.
         for name in names:
             self.assertTrue(board.cards.filter(column__name=name).exists(), name)
 
-    def test_overlay_coverage_model_two_ads_one_sa_per_two_aes_one_svc_per_ad(self):
-        """#1416: the overlay board's coverage shape, read from the seeded rows."""
+    def test_overlay_coverage_model(self):
+        """#1416/#1447: AD, AE, SA, OAE, OSA and SVC lead the row; each AE has
+        one AD, each overlay AE one overlay SA, each AD one services lead, and
+        one account each is Partial and Gap."""
         _seed(demo_site=True)
         board = Board.objects.get(name="Sales Territory (Overlay)")
         defs = list(SwimlaneCustomFieldDefinition.objects.filter(board=board).order_by("position"))
@@ -734,21 +738,22 @@ class SeedDemoSiteTests(TestCase):
         by_name = {d.name: d for d in defs}
         for name in order[:6]:
             self.assertTrue(by_name[name].show_on_row and not by_name[name].is_admin_only, name)
-        rows = {}
-        for lane in board.swimlanes.all():
-            values = {
-                v.field_definition.name: v.value
-                for v in SwimlaneCustomFieldValue.objects.filter(swimlane=lane).select_related("field_definition")
-            }
-            rows[lane.name] = values
-        self.assertEqual(len({r["AD"] for r in rows.values()}), 2)
-        aes_by_sa = {}
-        svc_by_ad = {}
+        rows = {
+            lane.name: dict(
+                SwimlaneCustomFieldValue.objects.filter(swimlane=lane).values_list("field_definition__name", "value")
+            )
+            for lane in board.swimlanes.all()
+        }
+        ad_of, osa_of, svc_of = {}, {}, {}
         for r in rows.values():
-            aes_by_sa.setdefault(r["SA"], set()).add(r["AE"])
-            svc_by_ad.setdefault(r["AD"], set()).add(r["SVC"])
-        self.assertTrue(all(len(aes) == 2 for aes in aes_by_sa.values()), aes_by_sa)
-        self.assertTrue(all(len(svcs) == 1 for svcs in svc_by_ad.values()), svc_by_ad)
+            ad_of.setdefault(r["AE"], set()).add(r["AD"])
+            svc_of.setdefault(r["AD"], set()).add(r["SVC"])
+            if r["OAE"] != "Unassigned":
+                osa_of.setdefault(r["OAE"], set()).add(r["OSA"])
+        for mapping in (ad_of, osa_of, svc_of):
+            self.assertTrue(all(len(v) == 1 for v in mapping.values()), mapping)
+        self.assertEqual(sorted(r["Coverage"] for r in rows.values()).count("Full"), len(rows) - 2)
+        self.assertEqual({r["Coverage"] for r in rows.values()}, {"Full", "Partial", "Gap"})
 
     def test_seeds_exactly_seven_boards_with_at_least_fifteen_cards_each(self):
         _seed(demo_site=True)
@@ -758,9 +763,7 @@ class SeedDemoSiteTests(TestCase):
             board = Board.objects.get(name=name)
             self.assertEqual(board.cards.count(), self.spec_card_count(name), name)
             self.assertGreaterEqual(board.cards.count(), 15, name)
-            from boards.management.commands._demo_site_data import BOARDS
-
-            self.assertEqual(board.columns.count(), len(next(b for b in BOARDS if b["name"] == name)["columns"]), name)
+            self.assertEqual(board.columns.count(), len(self.spec(name)["columns"]), name)
             self.assertTrue(board.columns.filter(is_done=True).exists(), name)
             self.assertGreater(board.labels.count(), 0, name)
 
@@ -1004,7 +1007,9 @@ class SeedDemoSiteShowcaseTests(TestCase):
             self.assertTrue(items.filter(is_checked=False).exists(), name)
 
     def test_each_board_has_card_custom_fields_with_one_pinned_and_values_on_most_cards(self):
-        for name in self.BOARD_NAMES:
+        # The overlay board is the sales_overlay sample, with every field type
+        # (test_sample_boards holds it to that).
+        for name in SeedDemoSiteTests.HAND_BUILT:
             defs = CustomFieldDefinition.objects.filter(board__name=name)
             self.assertTrue(1 <= defs.count() <= 3, name)
             self.assertTrue(defs.filter(show_on_card=True).exists(), name)
@@ -1024,13 +1029,19 @@ class SeedDemoSiteShowcaseTests(TestCase):
             defs = SwimlaneCustomFieldDefinition.objects.filter(board=board)
             self.assertTrue(defs.filter(is_admin_only=False).exists(), name)
             self.assertTrue(defs.filter(is_admin_only=True).exists(), name)
+            if name not in SeedDemoSiteTests.HAND_BUILT:
+                # The sample leaves an optional row field empty where the
+                # account has nothing to record (e.g. no overlay products yet).
+                continue
             for lane in board.swimlanes.all():
                 self.assertEqual(
                     SwimlaneCustomFieldValue.objects.filter(swimlane=lane).count(), defs.count(), lane.name
                 )
 
     def test_each_board_has_relations_including_an_active_blocker(self):
-        for name in self.BOARD_NAMES:
+        # Not the overlay board: the sample format carries no card relations,
+        # so the imported board has none (a known gap, listed on #1889).
+        for name in SeedDemoSiteTests.HAND_BUILT:
             rels = CardRelation.objects.filter(from_card__board__name=name)
             self.assertGreaterEqual(rels.count(), 3, name)
             self.assertFalse(rels.exclude(to_card__board__name=name).exists(), name)
@@ -1124,8 +1135,10 @@ class SeedDemoSiteShowcaseTests(TestCase):
             threshold = board.staleness_threshold_days
             warn = threshold * board.stale_warning_pct / 100
             buckets = {"fresh": 0, "aging": 0, "stale": 0}
-            for card in self._cards(name).select_related("column"):
-                last = card.movements.order_by("-moved_at").first().moved_at
+            # Archived cards are off the board, so they show no tint (#1889:
+            # the overlay board archives some closed deals).
+            for card in self._cards(name).filter(archived_at__isnull=True).select_related("column"):
+                last = card.movements.filter(movement_type="move").order_by("-moved_at").first().moved_at
                 days = (now - last).total_seconds() / 86400
                 bucket = "stale" if days >= threshold else "aging" if days >= warn else "fresh"
                 buckets[bucket] += 1
@@ -1142,7 +1155,8 @@ class SeedDemoSiteShowcaseTests(TestCase):
         for name in self.BOARD_NAMES:
             board = Board.objects.get(name=name)
             cutoff = timezone.now() - timezone.timedelta(days=board.staleness_threshold_days)
-            stale = _annotate_is_stale(self._cards(name), cutoff).filter(_is_stale_annotated=True)
+            live = self._cards(name).filter(archived_at__isnull=True)
+            stale = _annotate_is_stale(live, cutoff).filter(_is_stale_annotated=True)
             self.assertTrue(2 <= stale.count() <= 5, (name, stale.count()))
             self.assertFalse(stale.filter(column__is_done=True).exists(), name)
 
@@ -1386,7 +1400,7 @@ class DemoSiteDataModuleTests(TestCase):
     def test_every_card_has_an_explicit_age_and_due_offset(self):
         from boards.management.commands._demo_site_data import BOARDS
 
-        for spec in BOARDS:
+        for spec in (b for b in BOARDS if "cards" in b):
             done = {i for i, (_n, _c, is_done) in enumerate(spec["columns"]) if is_done}
             for card in spec["cards"]:
                 title, col_i, last_moved, due = card[0], card[2], card[8], card[9]
@@ -1404,7 +1418,7 @@ class DemoSiteDataModuleTests(TestCase):
         column, and a column of only stale cards hides what "fresh" looks like."""
         from boards.management.commands._demo_site_data import BOARDS
 
-        for spec in BOARDS:
+        for spec in (b for b in BOARDS if "cards" in b):
             for col_i, (col_name, _color, is_done) in enumerate(spec["columns"]):
                 if is_done:
                     continue
@@ -1416,7 +1430,7 @@ class DemoSiteDataModuleTests(TestCase):
         """The seeder writes the models directly, past the serializer caps."""
         from boards.management.commands._demo_site_data import BOARDS
 
-        for spec in BOARDS:
+        for spec in (b for b in BOARDS if "cards" in b):
             card_pinned = sum(1 for f in spec["card_fields"] if f[3])
             row_pinned = sum(1 for f in spec["swimlane_fields"] if f[3])
             self.assertLessEqual(card_pinned, CustomFieldDefinition.MAX_PINNED_PER_BOARD, spec["name"])
@@ -1437,7 +1451,9 @@ class DemoSiteDataModuleTests(TestCase):
                 for item in obj:
                     yield from strings(item)
 
-        for text in strings(_demo_site_data.BOARDS):
+        # The imported overlay board's copy too (#1889): it is the sample's.
+        samples = [_sample(b["sample"]) for b in _demo_site_data.BOARDS if "sample" in b]
+        for text in strings([_demo_site_data.BOARDS, samples]):
             lowered = text.lower()
             for word in ("pric", "per seat", "seats", "plan tier", "subscription"):
                 self.assertNotIn(word, lowered, text)
@@ -1550,3 +1566,261 @@ class SeedResetDatabaseTests(TransactionTestCase):
         with self.assertRaises(CommandError):
             _seed(demo_site=True, reset_database=True)
         self.assertTrue(Board.objects.filter(name=BOARD_NAME).exists())
+
+
+# ── #1889: the overlay board is the sales_overlay sample; every card's history
+#    accounts for its state; the overlay board's URL never moves ────────────
+
+OVERLAY = "Sales Territory (Overlay)"
+
+
+def _sample(slug):
+    """The shipped sample file the demo imports, parsed."""
+    import json
+
+    from boards.services import sample_boards
+
+    _entry, body = sample_boards.get_sample(slug)
+    return json.loads(body)
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class DemoSiteHistoryReconciliationTests(TestCase):
+    """Every card on every board the hosted demo shows is explained by its history.
+
+    Walks the generic demo board, the six hand-built showcase boards and the
+    imported overlay board, and fails on any card holding a value (label,
+    assignee, priority, weight, due date, checklist state, comment, archive,
+    cell) with no movement or activity in the API's form behind it, or whose
+    history is not one coherent chain inside the card's life. See
+    ``boards/tests/history_reconciliation.py`` for the rules and
+    ``test_history_reconciliation.py`` for the proof they match the API.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed(demo_site=True)
+
+    def test_every_demo_card_is_fully_explained_by_its_history(self):
+        from boards.tests.history_reconciliation import board_history_problems
+
+        boards = Board.objects.order_by("id")
+        self.assertEqual(boards.count(), 8)
+        for board in boards:
+            with self.subTest(board.name):
+                self.assertEqual(board_history_problems(board, imported=board.name == OVERLAY), {})
+
+    def test_the_trail_is_not_vacuous(self):
+        """Each kind of state the reconciler checks is actually present, so a
+        clean result means the history was checked, not that nothing was there."""
+        from boards.models import CardActivity
+
+        for name in ("Software Team", OVERLAY, BOARD_NAME):
+            kinds = set(CardActivity.objects.filter(card__board__name=name).values_list("event_type", flat=True))
+            self.assertLessEqual(
+                {"assignee_change", "label_change", "priority_change", "weight_change", "due_date_change",
+                 "checklist_item_added", "checklist_item_checked", "comment_added"},
+                kinds, name,
+            )
+        self.assertTrue(CardMovement.objects.filter(card__board__name=BOARD_NAME, movement_type="archived").exists())
+
+    def test_the_visitor_is_never_credited_with_history(self):
+        from boards.models import CardActivity
+
+        visitor = User.objects.get(username="visitor")
+        self.assertFalse(CardActivity.objects.filter(actor=visitor).exists())
+        self.assertFalse(CardMovement.objects.filter(moved_by=visitor).exists())
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class DemoSiteOverlayBoardTests(TestCase):
+    """The overlay board is the shipped sales_overlay sample, imported (#1889)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed(demo_site=True)
+        cls.board = Board.objects.get(name=OVERLAY)
+        cls.data = _sample("sales_overlay")
+
+    def test_the_hand_built_overlay_spec_is_gone(self):
+        from boards.management.commands._demo_site_data import BOARDS
+
+        spec = next(b for b in BOARDS if b["name"] == OVERLAY)
+        self.assertEqual(spec, {"name": OVERLAY, "sample": "sales_overlay"})
+
+    def test_the_board_is_the_sample(self):
+        self.assertEqual(
+            sorted(self.board.cards.values_list("title", flat=True)), sorted(c["title"] for c in self.data["cards"]),
+        )
+        self.assertEqual(
+            list(self.board.columns.order_by("position").values_list("name", flat=True)),
+            [c["name"] for c in self.data["columns"]],
+        )
+        self.assertEqual(
+            list(self.board.swimlanes.order_by("position").values_list("name", flat=True)),
+            [s["name"] for s in self.data["swimlanes"]],
+        )
+        self.assertEqual(
+            list(CustomFieldDefinition.objects.filter(board=self.board).order_by("position").values_list("name", flat=True)),
+            [f["name"] for f in self.data["custom_fields"]],
+        )
+        self.assertEqual(
+            self.board.cards.filter(archived_at__isnull=False).count(),
+            sum(1 for c in self.data["cards"] if c.get("archived_at")),
+        )
+        # Date values move with the rest of the board: the sample's anchor
+        # lands on yesterday (see _import_demo_site_sample).
+        from boards.services import sample_boards
+
+        anchor = datetime.date.fromisoformat(sample_boards.get_entry("sales_overlay")["date_anchor"])
+        shift = timezone.localdate() - anchor - datetime.timedelta(days=1)
+        dates = {f["name"] for f in self.data["swimlane_custom_fields"] if f["field_type"] == "date"}
+        for lane in self.data["swimlanes"]:
+            stored = dict(
+                SwimlaneCustomFieldValue.objects.filter(swimlane__board=self.board, swimlane__name=lane["name"])
+                .values_list("field_definition__name", "value")
+            )
+            expected = {
+                k: (datetime.date.fromisoformat(v) + shift).isoformat() if k in dates else v
+                for k, v in lane["custom_field_values"].items()
+            }
+            self.assertEqual(stored, expected, lane["name"])
+
+    def test_history_is_the_files_with_import_provenance(self):
+        moves = CardMovement.objects.filter(card__board=self.board)
+        self.assertEqual(moves.count(), sum(len(c["movements"]) for c in self.data["cards"]))
+        self.assertFalse(moves.filter(imported_from_username__isnull=True).exists())
+        self.assertTrue(moves.exclude(notes="").exclude(notes="Card created").exists())  # trail notes
+
+    def test_the_import_starts_the_boards_change_feed(self):
+        from boards.models import BoardEvent
+
+        self.assertTrue(BoardEvent.objects.filter(board_id=self.board.pk, event="board.created").exists())
+
+    def test_the_demo_people_and_the_samples_cast_are_members(self):
+        members = dict(self.board.memberships.values_list("user__username", "role"))
+        self.assertEqual(members["admin"], BoardMembership.Role.ADMIN)
+        for name in ("visitor", "maya", "jordan"):
+            self.assertEqual(members[name], BoardMembership.Role.MEMBER, name)
+        assignees = {c["assignee"] for c in self.data["cards"] if c.get("assignee")}
+        self.assertLessEqual(assignees, set(members))
+        # Every assignee in the file resolved, so no card lost its owner.
+        self.assertEqual(
+            self.board.cards.filter(assignee__isnull=False).count(),
+            sum(1 for c in self.data["cards"] if c.get("assignee")),
+        )
+
+    def test_the_wip_limit_header_and_aging_cues_have_something_to_show(self):
+        live = self.board.cards.filter(archived_at__isnull=True)
+        over = [
+            col.name for col in self.board.columns.all()
+            if col.wip_limit and live.filter(column=col).count() > col.wip_limit
+        ]
+        self.assertEqual(over, ["Commercial"])
+        self.assertTrue(self.board.columns.filter(weight_limit__isnull=False).exists())
+
+    def test_no_event_is_in_the_future_whatever_the_hour_of_the_reset(self):
+        """The import shifts the sample to yesterday's noon, not today's, so a
+        reset before noon UTC dates nothing after now."""
+        from boards.models import CardActivity
+
+        latest = max(
+            CardMovement.objects.filter(card__board=self.board).latest("moved_at").moved_at,
+            CardActivity.objects.filter(card__board=self.board).latest("created_at").created_at,
+            CardComment.objects.filter(card__board=self.board).latest("created_at").created_at,
+        )
+        today_noon = timezone.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        self.assertLess(latest, today_noon - datetime.timedelta(hours=12))
+
+
+class DemoSiteBoardOrderTests(TestCase):
+    def test_the_overlay_board_is_the_fifth_showcase_board(self):
+        """Its id after a reset, and so its URL, comes from this position."""
+        from boards.management.commands._demo_site_data import BOARDS
+
+        self.assertEqual([b["name"] for b in BOARDS].index(OVERLAY), 4)
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class OverlayBoardUrlTests(TransactionTestCase):
+    """#1889: the overlay board's URL, /boards/6, survives every demo reset.
+
+    Recorded on unmodified main (254903166) against PostgreSQL before the
+    overlay board became the imported sample: after
+    ``seed_demo_data --force --wipe --demo-site --reset-database`` the boards
+    are ids 1-8 in this order and the overlay board is /boards/6, on every
+    reset. The SPA's board route is /boards/:id with the integer primary key.
+    The reset's flush restarts the id sequences (TRUNCATE ... RESTART IDENTITY
+    on PostgreSQL, sqlite_sequence on SQLite), so the ids depend only on the
+    order the boards are created in; this pins that order.
+    """
+
+    EXPECTED = [
+        (1, BOARD_NAME), (2, "Software Team"), (3, "Property Management"), (4, "Construction"),
+        (5, "Sales Territory"), (6, OVERLAY), (7, "Content Moderation"), (8, "Logistics Exceptions"),
+    ]
+
+    def test_overlay_board_keeps_its_url(self):
+        _seed(demo_site=True)  # an existing demo, so the sequences have moved on
+        for _ in range(2):
+            _seed(demo_site=True, wipe=True, force=True, reset_database=True)
+            self.assertEqual(list(Board.objects.order_by("pk").values_list("pk", "name")), self.EXPECTED)
+            self.assertEqual(f"/boards/{Board.objects.get(name=OVERLAY).pk}", "/boards/6")
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class SeedWipeChangeFeedTests(TestCase):
+    """#1889 (#1636): --wipe ends each deleted board's change feed."""
+
+    def test_wipe_reseed_leaves_no_board_without_board_deleted(self):
+        from boards.models import BoardEvent
+
+        _seed(demo_site=True)
+        before = set(Board.objects.values_list("pk", flat=True))
+        _seed(demo_site=True, wipe=True)
+        existing = set(Board.objects.values_list("pk", flat=True))
+        gone = before - existing
+        self.assertEqual(len(gone), 8)
+        for board_id in gone:
+            self.assertEqual(
+                BoardEvent.objects.filter(board_id=board_id, event="board.deleted").count(), 1, board_id,
+            )
+        for board_id in set(BoardEvent.objects.values_list("board_id", flat=True)) - existing:
+            self.assertTrue(BoardEvent.objects.filter(board_id=board_id, event="board.deleted").exists(), board_id)
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class DemoSiteFiltersAndDensityTests(TestCase):
+    """#1889: the demo shows saved filters and the Dense layout."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed(demo_site=True)
+
+    def test_the_visitor_has_saved_filters_that_match_cards(self):
+        from rest_framework.test import APIClient
+
+        visitor = User.objects.get(username="visitor")
+        filters = SavedFilter.objects.filter(user=visitor)
+        self.assertGreaterEqual(filters.values("board").distinct().count(), 3)
+        client = APIClient()
+        client.force_authenticate(visitor)
+        for f in filters.select_related("board"):
+            resp = client.get(f"/api/v1/boards/{f.board_id}/saved-filters/")
+            self.assertEqual(resp.status_code, 200, f.name)
+            rows = resp.json()
+            rows = rows["results"] if isinstance(rows, dict) else rows
+            self.assertIn(f.name, [r["name"] for r in rows])
+            # Each filter selects something on its board.
+            state = f.state_json
+            cards = f.board.cards.filter(archived_at__isnull=True)
+            if state["labelIds"]:
+                cards = cards.filter(labels__in=state["labelIds"])
+            if state["priorities"]:
+                cards = cards.filter(priority__in=state["priorities"])
+            if state["dueDate"] == "overdue":
+                cards = cards.filter(due_date__lt=timezone.localdate(), column__is_done=False)
+            self.assertTrue(cards.exists(), f.name)
+
+    def test_one_board_uses_the_dense_layout(self):
+        self.assertEqual(Board.objects.get(name="Software Team").card_density, "dense")

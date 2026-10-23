@@ -382,7 +382,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -417,16 +417,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Contracts & Procurement",
-          "to_swimlane": "Contracts & Procurement",
-          "moved_at": "2026-01-10T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Contracts & Procurement",
           "to_swimlane": "Contracts & Procurement",
@@ -470,7 +460,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-03T08:24:00+00:00"
         }
@@ -526,7 +516,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -535,7 +525,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-05T15:36:00+00:00"
@@ -688,7 +678,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -754,7 +744,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-02T15:36:00+00:00"
@@ -811,7 +801,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-14T03:36:00+00:00"
         },
@@ -832,7 +822,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-18T18:00:00+00:00"
         }
@@ -867,7 +857,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -892,22 +882,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Data Privacy (GDPR)",
-          "to_swimlane": "Data Privacy (GDPR)",
-          "moved_at": "2026-02-13T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "Reviewed in standup; moving ahead.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Data Privacy (GDPR)",
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-02-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Reviewed in standup; moving ahead.",
           "movement_type": "move"
         }
       ],
@@ -923,8 +903,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo1",
+          "from_value": "Unassigned",
+          "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-01-22T20:24:00+00:00"
         },
@@ -950,11 +930,11 @@
           "created_at": "2026-01-24T17:45:36+00:00"
         },
         {
-          "event_type": "description_change",
-          "from_value": "",
-          "to_value": "",
-          "actor": "demo4",
-          "created_at": "2026-02-02T15:36:00+00:00"
+          "event_type": "assignee_change",
+          "from_value": "demo4",
+          "to_value": "demo1",
+          "actor": "demo5",
+          "created_at": "2026-02-04T00:00:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -1007,7 +987,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1033,7 +1013,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-11T07:12:00+00:00"
@@ -1069,7 +1049,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-19T07:12:00+00:00"
         },
@@ -1083,7 +1063,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-22T12:00:00+00:00"
         }
@@ -1129,7 +1109,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1144,22 +1124,12 @@
         },
         {
           "from_column": "Under Review",
-          "to_column": "Approved",
-          "from_swimlane": "Corporate Governance",
-          "to_swimlane": "Corporate Governance",
-          "moved_at": "2026-02-08T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Corporate Governance",
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-02-15T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "Handed off with notes in the description.",
+          "notes": "",
           "movement_type": "move"
         },
         {
@@ -1176,6 +1146,13 @@
       "created_by": "demo5",
       "created_at": "2026-01-27T12:00:00+00:00",
       "activities": [
+        {
+          "event_type": "title_change",
+          "from_value": "Zapier developer partner agreement review (draft)",
+          "to_value": "Zapier developer partner agreement review",
+          "actor": "demo5",
+          "created_at": "2026-01-27T21:07:12+00:00"
+        },
         {
           "event_type": "description_change",
           "from_value": "",
@@ -1212,16 +1189,30 @@
           "created_at": "2026-01-30T08:24:00+00:00"
         },
         {
-          "event_type": "comment_added",
+          "event_type": "label_change",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
-          "actor": "demo4",
-          "created_at": "2026-02-06T22:48:00+00:00"
+          "to_value": "+OSS",
+          "actor": "demo2",
+          "created_at": "2026-01-31T07:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
+          "actor": "demo4",
+          "created_at": "2026-02-06T22:48:00+00:00"
+        },
+        {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "-OSS",
+          "actor": "demo5",
+          "created_at": "2026-02-07T21:36:00+00:00"
+        },
+        {
+          "event_type": "comment_added",
+          "from_value": "",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-10T18:00:00+00:00"
         }
@@ -1257,7 +1248,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1276,7 +1267,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-01-10T02:24:00+00:00"
@@ -1335,7 +1326,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1361,7 +1352,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-31T06:00:00+00:00"
@@ -1415,7 +1406,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1471,7 +1462,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-09T10:48:00+00:00"
@@ -1550,7 +1541,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1569,7 +1560,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-26T15:36:00+00:00"
@@ -1633,7 +1624,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-09T10:48:00+00:00"
         }
@@ -1681,7 +1672,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -1726,7 +1717,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-18T03:36:00+00:00"
         },
@@ -1740,7 +1731,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-18T18:00:00+00:00"
         }
@@ -1784,7 +1775,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1810,7 +1801,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-31T06:00:00+00:00"
@@ -1846,7 +1837,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-09T06:00:00+00:00"
         }
@@ -1904,7 +1895,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-23T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -1953,7 +1944,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2025-12-24T16:48:00+00:00"
@@ -2031,7 +2022,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-05T16:48:00+00:00"
         },
@@ -2052,7 +2043,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-10T12:00:00+00:00"
         }
@@ -2087,7 +2078,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2096,7 +2087,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-28T15:36:00+00:00"
@@ -2191,7 +2182,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -2200,7 +2191,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-06T15:36:00+00:00"
@@ -2354,7 +2345,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2389,16 +2380,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Corporate Governance",
-          "to_swimlane": "Corporate Governance",
-          "moved_at": "2026-02-22T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Corporate Governance",
           "to_swimlane": "Corporate Governance",
@@ -2459,14 +2440,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-13T06:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-18T06:00:00+00:00"
         }
@@ -2522,7 +2503,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-04T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2547,16 +2528,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Litigation Management",
-          "to_swimlane": "Litigation Management",
-          "moved_at": "2026-01-23T12:00:00+00:00",
-          "moved_by": "demo5",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Litigation Management",
           "to_swimlane": "Litigation Management",
@@ -2578,7 +2549,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-05T21:36:00+00:00"
@@ -2643,7 +2614,7 @@
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Check compliance requirements",
-          "actor": "demo3",
+          "actor": "demo1",
           "created_at": "2026-01-17T09:07:12+00:00"
         },
         {
@@ -2697,7 +2668,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2732,22 +2703,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Insurance & Risk",
-          "to_swimlane": "Insurance & Risk",
-          "moved_at": "2026-02-13T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "Reviewed in standup; moving ahead.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Insurance & Risk",
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-02-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Reviewed in standup; moving ahead.",
           "movement_type": "move"
         },
         {
@@ -2765,13 +2726,6 @@
       "created_at": "2026-01-27T12:00:00+00:00",
       "activities": [
         {
-          "event_type": "title_change",
-          "from_value": "Severance agreement — terminated employee (draft)",
-          "to_value": "Severance agreement — terminated employee",
-          "actor": "demo4",
-          "created_at": "2026-01-27T21:36:00+00:00"
-        },
-        {
           "event_type": "description_change",
           "from_value": "",
           "to_value": "",
@@ -2780,7 +2734,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-28T12:00:00+00:00"
@@ -2809,21 +2763,49 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-04-26",
+          "to_value": "2026-04-18",
           "actor": "demo4",
           "created_at": "2026-01-30T12:00:00+00:00"
         },
         {
-          "event_type": "comment_added",
+          "event_type": "label_change",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
-          "actor": "demo1",
-          "created_at": "2026-02-07T12:00:00+00:00"
+          "to_value": "+OSS",
+          "actor": "demo2",
+          "created_at": "2026-01-31T12:00:00+00:00"
+        },
+        {
+          "event_type": "description_change",
+          "from_value": "",
+          "to_value": "",
+          "actor": "demo3",
+          "created_at": "2026-02-05T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
+          "actor": "demo1",
+          "created_at": "2026-02-07T12:00:00+00:00"
+        },
+        {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "-OSS",
+          "actor": "demo4",
+          "created_at": "2026-02-08T12:00:00+00:00"
+        },
+        {
+          "event_type": "due_date_change",
+          "from_value": "2026-04-18",
+          "to_value": "2026-04-26",
+          "actor": "demo3",
+          "created_at": "2026-02-10T12:00:00+00:00"
+        },
+        {
+          "event_type": "comment_added",
+          "from_value": "",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T12:00:00+00:00"
         }
@@ -2867,7 +2849,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -2923,7 +2905,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-21T10:48:00+00:00"
@@ -2966,7 +2948,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-13T20:24:00+00:00"
         }
@@ -3001,7 +2983,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2025-12-16T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3026,16 +3008,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Tax & Finance",
-          "to_swimlane": "Tax & Finance",
-          "moved_at": "2026-01-07T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Tax & Finance",
           "to_swimlane": "Tax & Finance",
@@ -3057,8 +3029,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo4",
+          "from_value": "Unassigned",
+          "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2025-12-17T21:36:00+00:00"
         },
@@ -3077,17 +3049,10 @@
           "created_at": "2025-12-19T20:38:24+00:00"
         },
         {
-          "event_type": "description_change",
-          "from_value": "",
-          "to_value": "",
-          "actor": "demo2",
-          "created_at": "2025-12-29T02:24:00+00:00"
-        },
-        {
           "event_type": "assignee_change",
-          "from_value": "demo4",
+          "from_value": "demo2",
           "to_value": "demo3",
-          "actor": "demo1",
+          "actor": "demo2",
           "created_at": "2025-12-30T12:00:00+00:00"
         }
       ],
@@ -3128,7 +3093,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2025-12-28T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3192,7 +3157,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-22T20:24:00+00:00"
         },
@@ -3243,7 +3208,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3262,7 +3227,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-07T21:36:00+00:00"
@@ -3284,7 +3249,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-11T21:36:00+00:00"
         },
@@ -3298,7 +3263,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-13T12:00:00+00:00"
         }
@@ -3344,7 +3309,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3359,22 +3324,12 @@
         },
         {
           "from_column": "Under Review",
-          "to_column": "Approved",
-          "from_swimlane": "Intellectual Property",
-          "to_swimlane": "Intellectual Property",
-          "moved_at": "2026-01-15T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Intellectual Property",
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-22T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "Unblocked after the dependency landed.",
+          "notes": "",
           "movement_type": "move"
         }
       ],
@@ -3390,7 +3345,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-16T10:48:00+00:00"
@@ -3419,14 +3374,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-04T22:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-12T18:00:00+00:00"
         }
@@ -3471,7 +3426,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3514,7 +3469,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2026-02-13T08:24:00+00:00"
@@ -3557,7 +3512,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-21T20:24:00+00:00"
         },
@@ -3571,7 +3526,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-25T06:00:00+00:00"
         }
@@ -3608,7 +3563,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3664,7 +3619,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-12T00:00:00+00:00"
@@ -3749,7 +3704,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -3830,14 +3785,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-06T20:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-14T06:00:00+00:00"
         }
@@ -3907,7 +3862,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2025-12-19T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -3916,7 +3871,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-19T15:36:00+00:00"
@@ -4015,7 +3970,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2025-12-21T03:36:00+00:00"
         },
@@ -4029,7 +3984,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-21T18:00:00+00:00"
         }
@@ -4084,7 +4039,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4119,16 +4074,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Insurance & Risk",
-          "to_swimlane": "Insurance & Risk",
-          "moved_at": "2026-02-01T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Insurance & Risk",
           "to_swimlane": "Insurance & Risk",
@@ -4150,8 +4095,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo3",
+          "from_value": "Unassigned",
+          "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-16T13:12:00+00:00"
         },
@@ -4191,6 +4136,13 @@
           "created_at": "2025-12-25T16:48:00+00:00"
         },
         {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "+Urgent",
+          "actor": "demo5",
+          "created_at": "2025-12-25T16:48:00+00:00"
+        },
+        {
           "event_type": "checklist_item_added",
           "from_value": "",
           "to_value": "Incorporate feedback",
@@ -4208,36 +4160,36 @@
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "File in contract system",
-          "actor": "demo2",
+          "actor": "demo4",
           "created_at": "2025-12-31T19:12:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
-          "to_value": "Incorporate feedback",
-          "actor": "demo5",
-          "created_at": "2026-01-10T13:26:24+00:00"
-        },
-        {
-          "event_type": "assignee_change",
-          "from_value": "demo3",
-          "to_value": "demo4",
-          "actor": "demo5",
-          "created_at": "2026-01-13T00:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_checked",
-          "from_value": "",
-          "to_value": "Consult external counsel",
+          "to_value": "Draft response memo",
           "actor": "demo4",
-          "created_at": "2026-01-15T10:33:36+00:00"
+          "created_at": "2026-01-05T16:19:12+00:00"
         },
         {
           "event_type": "checklist_item_unchecked",
           "from_value": "",
-          "to_value": "Consult external counsel",
+          "to_value": "Draft response memo",
           "actor": "demo4",
-          "created_at": "2026-01-16T15:50:24+00:00"
+          "created_at": "2026-01-06T21:36:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Incorporate feedback",
+          "actor": "demo2",
+          "created_at": "2026-01-10T13:26:24+00:00"
+        },
+        {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "-Urgent",
+          "actor": "demo4",
+          "created_at": "2026-01-19T02:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -4278,7 +4230,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4297,7 +4249,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo1",
           "created_at": "2025-12-13T04:48:00+00:00"
@@ -4354,7 +4306,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-02T14:24:00+00:00"
         }
@@ -4397,7 +4349,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2025-12-27T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4446,7 +4398,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-28T12:00:00+00:00"
@@ -4468,7 +4420,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-09T12:00:00+00:00"
         }
@@ -4524,7 +4476,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4679,7 +4631,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4705,7 +4657,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-09T18:00:00+00:00"
@@ -4769,7 +4721,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-12T06:00:00+00:00"
         },
@@ -4783,7 +4735,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-13T06:00:00+00:00"
         }
@@ -4820,7 +4772,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -4845,16 +4797,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Intellectual Property",
-          "to_swimlane": "Intellectual Property",
-          "moved_at": "2026-02-02T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Intellectual Property",
           "to_swimlane": "Intellectual Property",
@@ -4876,8 +4818,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo4",
+          "from_value": "Unassigned",
+          "to_value": "demo1",
           "actor": "demo4",
           "created_at": "2026-01-08T06:00:00+00:00"
         },
@@ -4896,11 +4838,25 @@
           "created_at": "2026-01-10T16:48:00+00:00"
         },
         {
-          "event_type": "description_change",
+          "event_type": "label_change",
           "from_value": "",
-          "to_value": "",
-          "actor": "demo1",
-          "created_at": "2026-01-22T06:00:00+00:00"
+          "to_value": "+OSS",
+          "actor": "demo3",
+          "created_at": "2026-01-13T12:00:00+00:00"
+        },
+        {
+          "event_type": "assignee_change",
+          "from_value": "demo1",
+          "to_value": "demo4",
+          "actor": "demo3",
+          "created_at": "2026-01-24T00:00:00+00:00"
+        },
+        {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "-OSS",
+          "actor": "demo4",
+          "created_at": "2026-01-27T12:00:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -4936,7 +4892,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -4952,7 +4908,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-25T15:36:00+00:00"
@@ -5024,7 +4980,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2025-12-21T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5070,7 +5026,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-22T20:24:00+00:00"
@@ -5151,7 +5107,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5239,7 +5195,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5275,7 +5231,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-15T19:12:00+00:00"
@@ -5378,7 +5334,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5414,7 +5370,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2025-12-14T09:36:00+00:00"
@@ -5464,7 +5420,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-02T09:36:00+00:00"
         },
@@ -5492,7 +5448,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-10T00:00:00+00:00"
         }
@@ -5529,7 +5485,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -5538,7 +5494,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-15T15:36:00+00:00"
@@ -5611,7 +5567,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5646,22 +5602,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Tax & Finance",
-          "to_swimlane": "Tax & Finance",
-          "moved_at": "2026-02-06T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Tax & Finance",
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "Handed off with notes in the description.",
+          "notes": "",
           "movement_type": "move"
         },
         {
@@ -5679,8 +5625,15 @@
       "created_at": "2026-01-11T12:00:00+00:00",
       "activities": [
         {
+          "event_type": "title_change",
+          "from_value": "Cookie consent mechanism audit — ePrivacy compliance (draft)",
+          "to_value": "Cookie consent mechanism audit — ePrivacy compliance",
+          "actor": "demo3",
+          "created_at": "2026-01-12T02:52:48+00:00"
+        },
+        {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-13T01:12:00+00:00"
@@ -5721,11 +5674,25 @@
           "created_at": "2026-01-17T16:48:00+00:00"
         },
         {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "+Policy",
+          "actor": "demo1",
+          "created_at": "2026-01-17T16:48:00+00:00"
+        },
+        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Consult external counsel",
-          "actor": "demo1",
+          "actor": "demo4",
           "created_at": "2026-01-23T06:43:12+00:00"
+        },
+        {
+          "event_type": "label_change",
+          "from_value": "",
+          "to_value": "-Policy",
+          "actor": "demo3",
+          "created_at": "2026-01-30T02:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -5762,7 +5729,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-02-11T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5856,7 +5823,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-06T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -5891,16 +5858,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Employment Law",
-          "to_swimlane": "Employment Law",
-          "moved_at": "2026-01-28T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Employment Law",
           "to_swimlane": "Employment Law",
@@ -5932,8 +5889,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo5",
+          "from_value": "Unassigned",
+          "to_value": "demo4",
           "actor": "demo2",
           "created_at": "2026-01-07T19:12:00+00:00"
         },
@@ -5987,24 +5944,17 @@
           "created_at": "2026-01-16T09:07:12+00:00"
         },
         {
-          "event_type": "description_change",
-          "from_value": "",
-          "to_value": "",
-          "actor": "demo4",
-          "created_at": "2026-01-18T04:48:00+00:00"
-        },
-        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Consult external counsel",
-          "actor": "demo1",
+          "actor": "demo3",
           "created_at": "2026-01-18T11:02:24+00:00"
         },
         {
           "event_type": "assignee_change",
-          "from_value": "demo5",
+          "from_value": "demo4",
           "to_value": "demo2",
-          "actor": "demo5",
+          "actor": "demo1",
           "created_at": "2026-01-19T12:00:00+00:00"
         }
       ],
@@ -6066,7 +6016,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-16T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6095,7 +6045,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T08:24:00+00:00"
@@ -6152,7 +6102,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-25T20:24:00+00:00"
         },
@@ -6166,7 +6116,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-29T06:00:00+00:00"
         }
@@ -6210,7 +6160,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-25T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6253,7 +6203,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-26T12:00:00+00:00"
@@ -6296,7 +6246,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-07T12:00:00+00:00"
         }
@@ -6342,7 +6292,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6378,7 +6328,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-23T08:24:00+00:00"
@@ -6444,7 +6394,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6546,7 +6496,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2025-12-20T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6582,7 +6532,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-21T19:12:00+00:00"
@@ -6656,7 +6606,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6691,16 +6641,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Insurance & Risk",
-          "to_swimlane": "Insurance & Risk",
-          "moved_at": "2026-01-09T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Insurance & Risk",
           "to_swimlane": "Insurance & Risk",
@@ -6732,8 +6672,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo5",
+          "from_value": "Unassigned",
+          "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-17T04:48:00+00:00"
         },
@@ -6761,7 +6701,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-03-07",
+          "to_value": "2026-02-17",
           "actor": "demo4",
           "created_at": "2025-12-20T14:24:00+00:00"
         },
@@ -6769,15 +6709,8 @@
           "event_type": "label_change",
           "from_value": "",
           "to_value": "+OSS",
-          "actor": "demo2",
-          "created_at": "2025-12-22T07:12:00+00:00"
-        },
-        {
-          "event_type": "assignee_change",
-          "from_value": "demo5",
-          "to_value": "demo4",
           "actor": "demo5",
-          "created_at": "2026-01-01T12:00:00+00:00"
+          "created_at": "2025-12-22T07:12:00+00:00"
         },
         {
           "event_type": "label_change",
@@ -6785,6 +6718,13 @@
           "to_value": "-OSS",
           "actor": "demo4",
           "created_at": "2026-01-04T21:36:00+00:00"
+        },
+        {
+          "event_type": "due_date_change",
+          "from_value": "2026-02-17",
+          "to_value": "2026-03-07",
+          "actor": "demo2",
+          "created_at": "2026-01-08T07:12:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -6826,7 +6766,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -6882,7 +6822,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-15T14:24:00+00:00"
@@ -6946,7 +6886,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-09T19:12:00+00:00"
         }
@@ -7006,7 +6946,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7062,7 +7002,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-15T19:12:00+00:00"
@@ -7208,7 +7148,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7315,14 +7255,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-13T01:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-17T06:00:00+00:00"
         }
@@ -7375,7 +7315,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2025-12-12T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7404,7 +7344,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-12T21:36:00+00:00"
@@ -7553,7 +7493,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7609,7 +7549,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-18T00:00:00+00:00"
@@ -7638,7 +7578,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-17T00:00:00+00:00"
         }
@@ -7676,7 +7616,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7702,7 +7642,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo1",
           "created_at": "2025-12-30T18:00:00+00:00"
@@ -7765,7 +7705,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-23T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7821,7 +7761,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-24T02:24:00+00:00"
@@ -7864,7 +7804,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-31T07:12:00+00:00"
         }
@@ -7925,7 +7865,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-02-08T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -7950,16 +7890,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Corporate Governance",
-          "to_swimlane": "Corporate Governance",
-          "moved_at": "2026-02-24T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Corporate Governance",
           "to_swimlane": "Corporate Governance",
@@ -8003,7 +7933,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-02-26",
+          "to_value": "2026-03-04",
           "actor": "demo5",
           "created_at": "2026-02-11T04:48:00+00:00"
         },
@@ -8046,22 +7976,15 @@
           "event_type": "priority_change",
           "from_value": "high",
           "to_value": "urgent",
-          "actor": "demo3",
+          "actor": "demo1",
           "created_at": "2026-02-18T09:36:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Notify requestor of outcome",
-          "actor": "demo4",
+          "actor": "demo1",
           "created_at": "2026-02-19T15:50:24+00:00"
-        },
-        {
-          "event_type": "due_date_change",
-          "from_value": "2026-02-26",
-          "to_value": "2026-03-04",
-          "actor": "demo3",
-          "created_at": "2026-02-21T02:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -8108,7 +8031,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8144,7 +8067,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2026-01-11T21:36:00+00:00"
@@ -8267,7 +8190,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8303,7 +8226,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-09T12:00:00+00:00"
@@ -8423,7 +8346,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8462,7 +8385,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-11T13:12:00+00:00"
@@ -8555,7 +8478,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8571,7 +8494,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo3",
           "created_at": "2026-01-01T15:36:00+00:00"
@@ -8614,7 +8537,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-03T03:36:00+00:00"
         },
@@ -8628,7 +8551,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-03T18:00:00+00:00"
         }
@@ -8673,7 +8596,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -8725,7 +8648,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-26T10:48:00+00:00"
         }
@@ -8771,7 +8694,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2025-12-15T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8800,7 +8723,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-17T03:36:00+00:00"
@@ -8815,14 +8738,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-02T15:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-09T06:00:00+00:00"
         }
@@ -8864,7 +8787,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -8897,7 +8820,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-08T12:00:00+00:00"
@@ -8926,7 +8849,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-20T12:00:00+00:00"
         }
@@ -8990,7 +8913,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9006,7 +8929,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-01-14T15:36:00+00:00"
@@ -9112,7 +9035,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-16T10:48:00+00:00"
         }
@@ -9177,7 +9100,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9202,16 +9125,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Regulatory Compliance",
-          "to_swimlane": "Regulatory Compliance",
-          "moved_at": "2026-01-26T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Regulatory Compliance",
           "to_swimlane": "Regulatory Compliance",
@@ -9226,7 +9139,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-06T18:00:00+00:00"
@@ -9298,48 +9211,20 @@
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Consult external counsel",
-          "actor": "demo2",
+          "actor": "demo1",
           "created_at": "2026-01-15T00:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_checked",
-          "from_value": "",
-          "to_value": "Notify requestor of outcome",
-          "actor": "demo3",
-          "created_at": "2026-01-17T00:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_unchecked",
-          "from_value": "",
-          "to_value": "Notify requestor of outcome",
-          "actor": "demo3",
-          "created_at": "2026-01-17T12:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_checked",
-          "from_value": "",
-          "to_value": "File in contract system",
-          "actor": "demo3",
-          "created_at": "2026-01-19T00:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-19T06:00:00+00:00"
         },
         {
-          "event_type": "checklist_item_unchecked",
-          "from_value": "",
-          "to_value": "File in contract system",
-          "actor": "demo3",
-          "created_at": "2026-01-19T12:00:00+00:00"
-        },
-        {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-24T06:00:00+00:00"
         }
@@ -9392,7 +9277,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9465,7 +9350,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T10:48:00+00:00"
         },
@@ -9516,7 +9401,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -9532,7 +9417,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-03T15:36:00+00:00"
@@ -9561,7 +9446,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-05T10:48:00+00:00"
         }
@@ -9617,7 +9502,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-02-06T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9653,7 +9538,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-06T22:48:00+00:00"
@@ -9717,7 +9602,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-11T10:48:00+00:00"
         },
@@ -9731,7 +9616,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-13T06:00:00+00:00"
         }
@@ -9800,7 +9685,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-18T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -9849,7 +9734,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2025-12-20T18:00:00+00:00"
@@ -9927,7 +9812,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-12T06:00:00+00:00"
         },
@@ -9948,7 +9833,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-21T06:00:00+00:00"
         }
@@ -9983,7 +9868,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-01-14T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10009,7 +9894,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-15T12:00:00+00:00"
@@ -10107,7 +9992,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-01-29T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10132,22 +10017,12 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Contracts & Procurement",
-          "to_swimlane": "Contracts & Procurement",
-          "moved_at": "2026-02-17T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "Handed off with notes in the description.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Contracts & Procurement",
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-02-24T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Handed off with notes in the description.",
           "movement_type": "move"
         }
       ],
@@ -10190,13 +10065,6 @@
           "created_at": "2026-02-03T16:48:00+00:00"
         },
         {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "+Compliance",
-          "actor": "demo1",
-          "created_at": "2026-02-03T16:48:00+00:00"
-        },
-        {
           "event_type": "checklist_item_added",
           "from_value": "",
           "to_value": "Set review reminder",
@@ -10204,44 +10072,51 @@
           "created_at": "2026-02-04T05:16:48+00:00"
         },
         {
+          "event_type": "checklist_item_added",
+          "from_value": "",
+          "to_value": "Duplicate of an existing step",
+          "actor": "demo5",
+          "created_at": "2026-02-05T00:00:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_deleted",
+          "from_value": "Duplicate of an existing step",
+          "to_value": "",
+          "actor": "demo5",
+          "created_at": "2026-02-05T12:28:48+00:00"
+        },
+        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "File in contract system",
-          "actor": "demo4",
+          "actor": "demo2",
           "created_at": "2026-02-06T07:12:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Review submitted documents",
-          "actor": "demo1",
+          "actor": "demo4",
           "created_at": "2026-02-08T09:07:12+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Set review reminder",
-          "actor": "demo4",
+          "actor": "demo3",
           "created_at": "2026-02-10T11:02:24+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-12T19:12:00+00:00"
         },
         {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "-Compliance",
-          "actor": "demo5",
-          "created_at": "2026-02-14T02:24:00+00:00"
-        },
-        {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-18T00:00:00+00:00"
         }
@@ -10283,7 +10158,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10349,7 +10224,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-02-10T06:00:00+00:00"
@@ -10385,7 +10260,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-19T06:00:00+00:00"
         }
@@ -10428,7 +10303,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-26T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -10444,7 +10319,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-26T15:36:00+00:00"
@@ -10473,7 +10348,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2025-12-28T10:48:00+00:00"
         }
@@ -10538,7 +10413,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10574,7 +10449,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-22T18:00:00+00:00"
@@ -10659,7 +10534,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-06T18:00:00+00:00"
         }
@@ -10703,7 +10578,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10732,7 +10607,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo3",
           "created_at": "2026-01-05T01:12:00+00:00"
@@ -10768,7 +10643,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-23T15:36:00+00:00"
         }
@@ -10820,7 +10695,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-21T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -10916,7 +10791,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-31T06:00:00+00:00"
         }
@@ -10980,7 +10855,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2025-12-13T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11005,22 +10880,12 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Litigation Management",
-          "to_swimlane": "Litigation Management",
-          "moved_at": "2025-12-27T12:00:00+00:00",
-          "moved_by": "demo5",
-          "notes": "Reviewed in standup; moving ahead.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Litigation Management",
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "Unblocked after the dependency landed.",
+          "notes": "Reviewed in standup; moving ahead.",
           "movement_type": "move"
         }
       ],
@@ -11028,8 +10893,15 @@
       "created_at": "2025-12-13T12:00:00+00:00",
       "activities": [
         {
+          "event_type": "title_change",
+          "from_value": "Breach of contract claim — vendor non-performance (draft)",
+          "to_value": "Breach of contract claim — vendor non-performance",
+          "actor": "demo2",
+          "created_at": "2025-12-13T21:07:12+00:00"
+        },
+        {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2025-12-14T10:48:00+00:00"
@@ -11098,9 +10970,23 @@
           "created_at": "2025-12-18T10:33:36+00:00"
         },
         {
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Review submitted documents",
+          "actor": "demo2",
+          "created_at": "2025-12-25T06:43:12+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "Review submitted documents",
+          "actor": "demo2",
+          "created_at": "2025-12-25T15:50:24+00:00"
+        },
+        {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2025-12-25T20:24:00+00:00"
         }
@@ -11149,7 +11035,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2025-12-10T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11174,16 +11060,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Insurance & Risk",
-          "to_swimlane": "Insurance & Risk",
-          "moved_at": "2026-01-05T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Insurance & Risk",
           "to_swimlane": "Insurance & Risk",
@@ -11207,16 +11083,9 @@
       "created_at": "2025-12-10T12:00:00+00:00",
       "activities": [
         {
-          "event_type": "title_change",
-          "from_value": "Class action assessment — consumer data privacy suit (draft)",
-          "to_value": "Class action assessment — consumer data privacy suit",
-          "actor": "demo4",
-          "created_at": "2025-12-11T04:19:12+00:00"
-        },
-        {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo4",
+          "from_value": "Unassigned",
+          "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2025-12-12T04:48:00+00:00"
         },
@@ -11242,30 +11111,23 @@
           "created_at": "2025-12-15T14:24:00+00:00"
         },
         {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "+Compliance",
+          "event_type": "assignee_change",
+          "from_value": "demo5",
+          "to_value": "demo4",
           "actor": "demo2",
-          "created_at": "2025-12-17T07:12:00+00:00"
+          "created_at": "2025-12-27T12:00:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-29T04:48:00+00:00"
         },
         {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "-Compliance",
-          "actor": "demo4",
-          "created_at": "2025-12-30T21:36:00+00:00"
-        },
-        {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-05T00:00:00+00:00"
         }
@@ -11308,7 +11170,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -11324,7 +11186,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-09T15:36:00+00:00"
@@ -11374,7 +11236,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-11T10:48:00+00:00"
         }
@@ -11421,7 +11283,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-02-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11440,7 +11302,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-13T01:12:00+00:00"
@@ -11476,7 +11338,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-18T13:12:00+00:00"
         },
@@ -11497,7 +11359,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-20T18:00:00+00:00"
         }
@@ -11549,7 +11411,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11628,7 +11490,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-12T13:12:00+00:00"
         }
@@ -11677,7 +11539,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11703,7 +11565,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-03T14:24:00+00:00"
@@ -11739,14 +11601,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-14T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-19T00:00:00+00:00"
         }
@@ -11808,7 +11670,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-25T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -11843,16 +11705,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Intellectual Property",
-          "to_swimlane": "Intellectual Property",
-          "moved_at": "2026-01-27T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Intellectual Property",
           "to_swimlane": "Intellectual Property",
@@ -11877,7 +11729,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-27T15:36:00+00:00"
@@ -11906,7 +11758,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-04-02",
+          "to_value": "2026-03-23",
           "actor": "demo4",
           "created_at": "2025-12-31T22:48:00+00:00"
         },
@@ -11922,13 +11774,6 @@
           "from_value": "",
           "to_value": "Circulate for internal review",
           "actor": "demo4",
-          "created_at": "2026-01-03T02:24:00+00:00"
-        },
-        {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "+Contract",
-          "actor": "demo1",
           "created_at": "2026-01-03T02:24:00+00:00"
         },
         {
@@ -11948,23 +11793,9 @@
         {
           "event_type": "checklist_item_added",
           "from_value": "",
-          "to_value": "Duplicate of an existing step",
-          "actor": "demo4",
-          "created_at": "2026-01-05T06:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_added",
-          "from_value": "",
           "to_value": "Consult external counsel",
           "actor": "demo4",
           "created_at": "2026-01-05T16:19:12+00:00"
-        },
-        {
-          "event_type": "checklist_item_deleted",
-          "from_value": "Duplicate of an existing step",
-          "to_value": "",
-          "actor": "demo4",
-          "created_at": "2026-01-06T02:38:24+00:00"
         },
         {
           "event_type": "checklist_item_checked",
@@ -11972,6 +11803,20 @@
           "to_value": "Set review reminder",
           "actor": "demo2",
           "created_at": "2026-01-07T09:36:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Circulate for internal review",
+          "actor": "demo4",
+          "created_at": "2026-01-10T20:09:36+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "Circulate for internal review",
+          "actor": "demo4",
+          "created_at": "2026-01-11T16:48:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
@@ -11984,22 +11829,22 @@
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Review submitted documents",
-          "actor": "demo4",
+          "actor": "demo1",
           "created_at": "2026-01-17T17:16:48+00:00"
-        },
-        {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "-Contract",
-          "actor": "demo4",
-          "created_at": "2026-01-20T07:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-22T10:48:00+00:00"
+        },
+        {
+          "event_type": "due_date_change",
+          "from_value": "2026-03-23",
+          "to_value": "2026-04-02",
+          "actor": "demo1",
+          "created_at": "2026-01-24T14:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -12034,7 +11879,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-07T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12053,7 +11898,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-07T21:36:00+00:00"
@@ -12140,7 +11985,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -12149,7 +11994,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-08T15:36:00+00:00"
@@ -12199,7 +12044,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-10T10:48:00+00:00"
         }
@@ -12257,7 +12102,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12445,7 +12290,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12480,28 +12325,25 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Litigation Management",
-          "to_swimlane": "Litigation Management",
-          "moved_at": "2026-02-07T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Litigation Management",
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-02-15T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "Reviewed in standup; moving ahead.",
+          "notes": "",
           "movement_type": "move"
         }
       ],
       "created_by": "demo2",
       "created_at": "2026-01-15T12:00:00+00:00",
       "activities": [
+        {
+          "event_type": "title_change",
+          "from_value": "E&O policy review — professional services coverage (draft)",
+          "to_value": "E&O policy review — professional services coverage",
+          "actor": "demo2",
+          "created_at": "2026-01-16T02:52:48+00:00"
+        },
         {
           "event_type": "description_change",
           "from_value": "",
@@ -12511,7 +12353,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-17T01:12:00+00:00"
@@ -12543,20 +12385,6 @@
           "to_value": "Incorporate feedback",
           "actor": "demo2",
           "created_at": "2026-01-21T16:48:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_added",
-          "from_value": "",
-          "to_value": "Duplicate of an existing step",
-          "actor": "demo2",
-          "created_at": "2026-01-23T06:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_deleted",
-          "from_value": "Duplicate of an existing step",
-          "to_value": "",
-          "actor": "demo2",
-          "created_at": "2026-01-23T20:52:48+00:00"
         }
       ],
       "custom_field_values": {
@@ -12598,7 +12426,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12617,7 +12445,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-02-10T02:24:00+00:00"
@@ -12660,7 +12488,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-17T07:12:00+00:00"
         },
@@ -12719,7 +12547,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-01-11T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12744,22 +12572,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Real Estate & Leases",
-          "to_swimlane": "Real Estate & Leases",
-          "moved_at": "2026-02-01T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Real Estate & Leases",
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "Unblocked after the dependency landed.",
+          "notes": "",
           "movement_type": "move"
         }
       ],
@@ -12775,7 +12593,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-12T22:48:00+00:00"
@@ -12797,7 +12615,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-04-05",
+          "to_value": "2026-03-22",
           "actor": "demo1",
           "created_at": "2026-01-15T20:24:00+00:00"
         },
@@ -12818,7 +12636,7 @@
         {
           "event_type": "label_change",
           "from_value": "",
-          "to_value": "+Compliance",
+          "to_value": "+Policy",
           "actor": "demo3",
           "created_at": "2026-01-17T07:12:00+00:00"
         },
@@ -12839,9 +12657,16 @@
         {
           "event_type": "label_change",
           "from_value": "",
-          "to_value": "-Compliance",
+          "to_value": "-Policy",
           "actor": "demo1",
           "created_at": "2026-01-28T21:36:00+00:00"
+        },
+        {
+          "event_type": "due_date_change",
+          "from_value": "2026-03-22",
+          "to_value": "2026-04-05",
+          "actor": "demo3",
+          "created_at": "2026-01-31T19:12:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -12896,7 +12721,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-02-13T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -12931,22 +12756,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Tax & Finance",
-          "to_swimlane": "Tax & Finance",
-          "moved_at": "2026-03-01T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "Handed off with notes in the description.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Tax & Finance",
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-03-03T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Handed off with notes in the description.",
           "movement_type": "move"
         }
       ],
@@ -12962,8 +12777,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo2",
+          "from_value": "Unassigned",
+          "to_value": "demo5",
           "actor": "demo3",
           "created_at": "2026-02-14T09:36:00+00:00"
         },
@@ -12991,7 +12806,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-03-07",
+          "to_value": "2026-03-08",
           "actor": "demo3",
           "created_at": "2026-02-16T04:48:00+00:00"
         },
@@ -13007,13 +12822,6 @@
           "from_value": "",
           "to_value": "Set review reminder",
           "actor": "demo3",
-          "created_at": "2026-02-17T02:24:00+00:00"
-        },
-        {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "+Policy",
-          "actor": "demo4",
           "created_at": "2026-02-17T02:24:00+00:00"
         },
         {
@@ -13033,34 +12841,76 @@
         {
           "event_type": "checklist_item_added",
           "from_value": "",
+          "to_value": "Duplicate of an existing step",
+          "actor": "demo3",
+          "created_at": "2026-02-18T00:00:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_added",
+          "from_value": "",
           "to_value": "Draft response memo",
           "actor": "demo3",
           "created_at": "2026-02-18T04:19:12+00:00"
         },
         {
+          "event_type": "checklist_item_deleted",
+          "from_value": "Duplicate of an existing step",
+          "to_value": "",
+          "actor": "demo3",
+          "created_at": "2026-02-18T08:38:24+00:00"
+        },
+        {
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Circulate for internal review",
+          "actor": "demo3",
+          "created_at": "2026-02-18T21:36:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "Circulate for internal review",
+          "actor": "demo3",
+          "created_at": "2026-02-19T06:14:24+00:00"
+        },
+        {
+          "event_type": "description_change",
+          "from_value": "",
+          "to_value": "",
+          "actor": "demo5",
+          "created_at": "2026-02-21T14:24:00+00:00"
+        },
+        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Obtain final sign-off",
-          "actor": "demo1",
+          "actor": "demo2",
           "created_at": "2026-02-21T18:43:12+00:00"
         },
         {
           "event_type": "assignee_change",
-          "from_value": "demo2",
+          "from_value": "demo5",
           "to_value": "demo3",
-          "actor": "demo1",
+          "actor": "demo2",
           "created_at": "2026-02-22T12:00:00+00:00"
         },
         {
-          "event_type": "label_change",
+          "event_type": "checklist_item_checked",
           "from_value": "",
-          "to_value": "-Policy",
+          "to_value": "Draft response memo",
           "actor": "demo3",
-          "created_at": "2026-02-24T07:12:00+00:00"
+          "created_at": "2026-02-24T15:50:24+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "Draft response memo",
+          "actor": "demo3",
+          "created_at": "2026-02-25T00:28:48+00:00"
         },
         {
           "event_type": "due_date_change",
-          "from_value": "2026-03-07",
+          "from_value": "2026-03-08",
           "to_value": "2026-03-18",
           "actor": "demo4",
           "created_at": "2026-02-26T02:24:00+00:00"
@@ -13097,7 +12947,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2025-12-11T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -13186,7 +13036,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13205,7 +13055,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-06T10:48:00+00:00"
@@ -13234,14 +13084,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-15T22:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-19T18:00:00+00:00"
         }
@@ -13306,7 +13156,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-17T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -13315,7 +13165,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-17T15:36:00+00:00"
@@ -13379,14 +13229,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-19T03:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-19T18:00:00+00:00"
         }
@@ -13440,7 +13290,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-08T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13466,7 +13316,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo1",
           "created_at": "2026-01-09T08:24:00+00:00"
@@ -13523,7 +13373,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-19T13:12:00+00:00"
         }
@@ -13571,7 +13421,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13600,7 +13450,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo3",
           "created_at": "2026-01-03T13:12:00+00:00"
@@ -13643,14 +13493,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-14T01:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-01-18T06:00:00+00:00"
         }
@@ -13705,7 +13555,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-02T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13883,7 +13733,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -13932,7 +13782,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo2",
           "created_at": "2026-02-02T18:00:00+00:00"
@@ -14044,7 +13894,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2025-12-22T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14070,7 +13920,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2025-12-23T03:36:00+00:00"
@@ -14099,7 +13949,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2025-12-29T15:36:00+00:00"
         },
@@ -14113,7 +13963,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-01T06:00:00+00:00"
         }
@@ -14147,7 +13997,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -14163,7 +14013,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-24T15:36:00+00:00"
@@ -14245,7 +14095,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2025-12-29T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14264,7 +14114,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2025-12-30T06:00:00+00:00"
@@ -14353,7 +14203,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14368,16 +14218,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Contracts & Procurement",
-          "to_swimlane": "Contracts & Procurement",
-          "moved_at": "2026-02-12T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Contracts & Procurement",
           "to_swimlane": "Contracts & Procurement",
@@ -14407,14 +14247,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-10T10:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-12T06:00:00+00:00"
         }
@@ -14479,7 +14319,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-10T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14514,16 +14354,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Employment Law",
-          "to_swimlane": "Employment Law",
-          "moved_at": "2026-02-09T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Employment Law",
           "to_swimlane": "Employment Law",
@@ -14538,7 +14368,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-12T03:36:00+00:00"
@@ -14560,7 +14390,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-02-15",
+          "to_value": "2026-02-28",
           "actor": "demo2",
           "created_at": "2026-01-15T10:48:00+00:00"
         },
@@ -14595,30 +14425,30 @@
         {
           "event_type": "checklist_item_added",
           "from_value": "",
+          "to_value": "Duplicate of an existing step",
+          "actor": "demo2",
+          "created_at": "2026-01-18T18:00:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_added",
+          "from_value": "",
           "to_value": "File in contract system",
           "actor": "demo2",
           "created_at": "2026-01-19T01:55:12+00:00"
         },
         {
+          "event_type": "checklist_item_deleted",
+          "from_value": "Duplicate of an existing step",
+          "to_value": "",
+          "actor": "demo2",
+          "created_at": "2026-01-19T09:50:24+00:00"
+        },
+        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Circulate for internal review",
-          "actor": "demo1",
+          "actor": "demo2",
           "created_at": "2026-01-20T09:36:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_checked",
-          "from_value": "",
-          "to_value": "Notify requestor of outcome",
-          "actor": "demo2",
-          "created_at": "2026-01-23T00:57:36+00:00"
-        },
-        {
-          "event_type": "checklist_item_unchecked",
-          "from_value": "",
-          "to_value": "Notify requestor of outcome",
-          "actor": "demo2",
-          "created_at": "2026-01-23T16:48:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
@@ -14630,16 +14460,9 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-01-31T22:48:00+00:00"
-        },
-        {
-          "event_type": "due_date_change",
-          "from_value": "2026-02-15",
-          "to_value": "2026-02-28",
-          "actor": "demo5",
-          "created_at": "2026-02-02T14:24:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -14673,7 +14496,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2025-12-14T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14699,7 +14522,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo5",
           "actor": "demo4",
           "created_at": "2025-12-16T01:12:00+00:00"
@@ -14790,7 +14613,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14853,7 +14676,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-02-04T13:12:00+00:00"
@@ -14896,7 +14719,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-17T03:36:00+00:00"
         }
@@ -14954,7 +14777,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-01-12T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -14973,7 +14796,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-12T19:12:00+00:00"
@@ -15037,7 +14860,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-16T09:36:00+00:00"
         }
@@ -15080,7 +14903,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-24T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15095,16 +14918,6 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Corporate Governance",
-          "to_swimlane": "Corporate Governance",
-          "moved_at": "2026-02-12T12:00:00+00:00",
-          "moved_by": "demo2",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Corporate Governance",
           "to_swimlane": "Corporate Governance",
@@ -15148,7 +14961,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-07T03:36:00+00:00"
         }
@@ -15201,7 +15014,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-01T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15236,28 +15049,25 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Litigation Management",
-          "to_swimlane": "Litigation Management",
-          "moved_at": "2026-02-01T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "Handed off with notes in the description.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Litigation Management",
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-02-05T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "Approved by the owner.",
+          "notes": "Handed off with notes in the description.",
           "movement_type": "move"
         }
       ],
       "created_by": "demo2",
       "created_at": "2026-01-01T12:00:00+00:00",
       "activities": [
+        {
+          "event_type": "title_change",
+          "from_value": "Lease abstract preparation — portfolio summary (draft)",
+          "to_value": "Lease abstract preparation — portfolio summary",
+          "actor": "demo2",
+          "created_at": "2026-01-02T04:48:00+00:00"
+        },
         {
           "event_type": "description_change",
           "from_value": "",
@@ -15267,8 +15077,8 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo2",
+          "from_value": "Unassigned",
+          "to_value": "demo1",
           "actor": "demo2",
           "created_at": "2026-01-03T06:00:00+00:00"
         },
@@ -15289,7 +15099,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-03-11",
+          "to_value": "2026-03-31",
           "actor": "demo2",
           "created_at": "2026-01-06T18:00:00+00:00"
         },
@@ -15305,13 +15115,6 @@
           "from_value": "",
           "to_value": "File in contract system",
           "actor": "demo2",
-          "created_at": "2026-01-08T12:00:00+00:00"
-        },
-        {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "+Policy",
-          "actor": "demo3",
           "created_at": "2026-01-08T12:00:00+00:00"
         },
         {
@@ -15357,32 +15160,18 @@
           "created_at": "2026-01-12T16:48:00+00:00"
         },
         {
-          "event_type": "description_change",
-          "from_value": "",
-          "to_value": "",
-          "actor": "demo4",
-          "created_at": "2026-01-17T06:00:00+00:00"
-        },
-        {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Consult external counsel",
-          "actor": "demo3",
+          "actor": "demo2",
           "created_at": "2026-01-17T14:24:00+00:00"
         },
         {
-          "event_type": "label_change",
-          "from_value": "",
-          "to_value": "-Policy",
-          "actor": "demo2",
-          "created_at": "2026-01-22T12:00:00+00:00"
-        },
-        {
-          "event_type": "due_date_change",
-          "from_value": "2026-03-11",
-          "to_value": "2026-03-31",
-          "actor": "demo4",
-          "created_at": "2026-01-26T00:00:00+00:00"
+          "event_type": "assignee_change",
+          "from_value": "demo1",
+          "to_value": "demo2",
+          "actor": "demo5",
+          "created_at": "2026-01-19T00:00:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -15428,7 +15217,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-01-20T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15467,7 +15256,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-21T14:24:00+00:00"
@@ -15503,14 +15292,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-02-01T14:24:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-02-06T00:00:00+00:00"
         }
@@ -15563,7 +15352,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2025-12-17T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15588,42 +15377,12 @@
         },
         {
           "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Real Estate & Leases",
-          "to_swimlane": "Real Estate & Leases",
-          "moved_at": "2025-12-30T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "Handed off with notes in the description.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
-          "to_column": "Needs Clarification",
-          "from_swimlane": "Real Estate & Leases",
-          "to_swimlane": "Real Estate & Leases",
-          "moved_at": "2026-01-08T12:00:00+00:00",
-          "moved_by": "demo5",
-          "notes": "Reopened after review found a gap.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Needs Clarification",
-          "to_column": "Approved",
-          "from_swimlane": "Real Estate & Leases",
-          "to_swimlane": "Real Estate & Leases",
-          "moved_at": "2026-01-13T12:00:00+00:00",
-          "moved_by": "demo1",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Approved",
           "to_column": "Denied",
           "from_swimlane": "Real Estate & Leases",
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-01-15T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Handed off with notes in the description.",
           "movement_type": "move"
         }
       ],
@@ -15631,8 +15390,15 @@
       "created_at": "2025-12-17T12:00:00+00:00",
       "activities": [
         {
+          "event_type": "title_change",
+          "from_value": "R&D tax credit filing — federal and California (draft)",
+          "to_value": "R&D tax credit filing — federal and California",
+          "actor": "demo1",
+          "created_at": "2025-12-18T01:55:12+00:00"
+        },
+        {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2025-12-18T22:48:00+00:00"
@@ -15654,7 +15420,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-01-31",
+          "to_value": "2026-02-20",
           "actor": "demo1",
           "created_at": "2025-12-21T20:24:00+00:00"
         },
@@ -15682,8 +15448,22 @@
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
-          "to_value": "Circulate for internal review",
+          "to_value": "File in contract system",
           "actor": "demo1",
+          "created_at": "2025-12-26T04:48:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "File in contract system",
+          "actor": "demo1",
+          "created_at": "2025-12-26T18:43:12+00:00"
+        },
+        {
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Circulate for internal review",
+          "actor": "demo2",
           "created_at": "2025-12-30T20:09:36+00:00"
         },
         {
@@ -15697,22 +15477,15 @@
           "event_type": "priority_change",
           "from_value": "high",
           "to_value": "urgent",
-          "actor": "demo3",
+          "actor": "demo2",
           "created_at": "2026-01-02T10:48:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-05T08:24:00+00:00"
-        },
-        {
-          "event_type": "due_date_change",
-          "from_value": "2026-01-31",
-          "to_value": "2026-02-20",
-          "actor": "demo3",
-          "created_at": "2026-01-06T19:12:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -15753,7 +15526,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2025-12-30T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15802,7 +15575,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-01-01T00:00:00+00:00"
@@ -15824,7 +15597,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "All parties have signed. Filing in contract system.",
+          "to_value": "",
           "actor": "demo2",
           "created_at": "2026-01-19T00:00:00+00:00"
         }
@@ -15879,7 +15652,7 @@
           "to_swimlane": "Contracts & Procurement",
           "moved_at": "2026-02-03T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -15976,7 +15749,7 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Document received and assigned for review.",
+          "to_value": "",
           "actor": "demo1",
           "created_at": "2026-02-11T22:48:00+00:00"
         }
@@ -16023,7 +15796,7 @@
           "to_swimlane": "Employment Law",
           "moved_at": "2026-01-30T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -16039,7 +15812,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-30T15:36:00+00:00"
@@ -16138,7 +15911,7 @@
           "to_swimlane": "Intellectual Property",
           "moved_at": "2026-01-27T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16173,16 +15946,6 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Intellectual Property",
-          "to_swimlane": "Intellectual Property",
-          "moved_at": "2026-02-14T12:00:00+00:00",
-          "moved_by": "demo3",
-          "notes": "",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Intellectual Property",
           "to_swimlane": "Intellectual Property",
@@ -16196,16 +15959,9 @@
       "created_at": "2026-01-27T12:00:00+00:00",
       "activities": [
         {
-          "event_type": "title_change",
-          "from_value": "Tax provision review — ASC 740 compliance (draft)",
-          "to_value": "Tax provision review — ASC 740 compliance",
-          "actor": "demo4",
-          "created_at": "2026-01-27T22:04:48+00:00"
-        },
-        {
           "event_type": "assignee_change",
-          "from_value": "",
-          "to_value": "demo3",
+          "from_value": "Unassigned",
+          "to_value": "demo2",
           "actor": "demo4",
           "created_at": "2026-01-28T13:12:00+00:00"
         },
@@ -16233,7 +15989,7 @@
         {
           "event_type": "due_date_change",
           "from_value": "",
-          "to_value": "2026-03-22",
+          "to_value": "2026-04-03",
           "actor": "demo4",
           "created_at": "2026-01-30T15:36:00+00:00"
         },
@@ -16268,65 +16024,58 @@
         {
           "event_type": "checklist_item_added",
           "from_value": "",
-          "to_value": "Duplicate of an existing step",
-          "actor": "demo4",
-          "created_at": "2026-02-01T18:00:00+00:00"
-        },
-        {
-          "event_type": "checklist_item_added",
-          "from_value": "",
           "to_value": "Notify requestor of outcome",
           "actor": "demo4",
           "created_at": "2026-02-01T23:02:24+00:00"
         },
         {
-          "event_type": "checklist_item_deleted",
-          "from_value": "Duplicate of an existing step",
-          "to_value": "",
+          "event_type": "checklist_item_checked",
+          "from_value": "",
+          "to_value": "Check compliance requirements",
           "actor": "demo4",
-          "created_at": "2026-02-02T04:04:48+00:00"
+          "created_at": "2026-02-02T19:12:00+00:00"
+        },
+        {
+          "event_type": "checklist_item_unchecked",
+          "from_value": "",
+          "to_value": "Check compliance requirements",
+          "actor": "demo4",
+          "created_at": "2026-02-03T05:16:48+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Circulate for internal review",
-          "actor": "demo3",
+          "actor": "demo2",
           "created_at": "2026-02-04T11:31:12+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Review submitted documents",
-          "actor": "demo2",
+          "actor": "demo3",
           "created_at": "2026-02-06T03:50:24+00:00"
         },
         {
           "event_type": "assignee_change",
-          "from_value": "demo3",
+          "from_value": "demo2",
           "to_value": "demo4",
-          "actor": "demo2",
+          "actor": "demo3",
           "created_at": "2026-02-07T00:00:00+00:00"
         },
         {
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Incorporate feedback",
-          "actor": "demo1",
+          "actor": "demo5",
           "created_at": "2026-02-07T20:09:36+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-02-10T03:36:00+00:00"
-        },
-        {
-          "event_type": "due_date_change",
-          "from_value": "2026-03-22",
-          "to_value": "2026-04-03",
-          "actor": "demo3",
-          "created_at": "2026-02-11T04:48:00+00:00"
         }
       ],
       "custom_field_values": {
@@ -16363,7 +16112,7 @@
           "to_swimlane": "Data Privacy (GDPR)",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16389,7 +16138,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo1",
           "created_at": "2026-01-06T07:12:00+00:00"
@@ -16480,7 +16229,7 @@
           "to_swimlane": "Regulatory Compliance",
           "moved_at": "2026-02-09T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         }
       ],
@@ -16496,7 +16245,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-09T15:36:00+00:00"
@@ -16606,7 +16355,7 @@
           "to_swimlane": "Corporate Governance",
           "moved_at": "2026-01-31T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16781,7 +16530,7 @@
           "to_swimlane": "Litigation Management",
           "moved_at": "2026-01-09T12:00:00+00:00",
           "moved_by": "demo2",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -16830,7 +16579,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo2",
           "actor": "demo2",
           "created_at": "2026-01-11T01:12:00+00:00"
@@ -16901,14 +16650,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Initial review complete. Two clauses need clarification.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-26T13:12:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Revised version received. Reviewing changes.",
+          "to_value": "",
           "actor": "demo4",
           "created_at": "2026-02-01T18:00:00+00:00"
         }
@@ -16961,7 +16710,7 @@
           "to_swimlane": "Insurance & Risk",
           "moved_at": "2026-01-05T12:00:00+00:00",
           "moved_by": "demo4",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17007,7 +16756,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo4",
           "actor": "demo4",
           "created_at": "2026-01-06T06:00:00+00:00"
@@ -17194,7 +16943,7 @@
           "to_swimlane": "Real Estate & Leases",
           "moved_at": "2026-01-03T12:00:00+00:00",
           "moved_by": "demo1",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17220,7 +16969,7 @@
         },
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo1",
           "actor": "demo1",
           "created_at": "2026-01-03T21:36:00+00:00"
@@ -17291,14 +17040,14 @@
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "External counsel agrees with our interpretation.",
+          "to_value": "",
           "actor": "demo5",
           "created_at": "2026-01-07T21:36:00+00:00"
         },
         {
           "event_type": "comment_added",
           "from_value": "",
-          "to_value": "Compliance deadline met. No further action needed.",
+          "to_value": "",
           "actor": "demo3",
           "created_at": "2026-01-09T12:00:00+00:00"
         }
@@ -17347,7 +17096,7 @@
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-02-01T12:00:00+00:00",
           "moved_by": "demo3",
-          "notes": "",
+          "notes": "Card created",
           "movement_type": "move"
         },
         {
@@ -17402,22 +17151,12 @@
         },
         {
           "from_column": "Approved",
-          "to_column": "Denied",
-          "from_swimlane": "Tax & Finance",
-          "to_swimlane": "Tax & Finance",
-          "moved_at": "2026-02-21T12:00:00+00:00",
-          "moved_by": "demo4",
-          "notes": "Handed off with notes in the description.",
-          "movement_type": "move"
-        },
-        {
-          "from_column": "Denied",
           "to_column": "Closed",
           "from_swimlane": "Tax & Finance",
           "to_swimlane": "Tax & Finance",
           "moved_at": "2026-02-25T12:00:00+00:00",
           "moved_by": "demo5",
-          "notes": "",
+          "notes": "Handed off with notes in the description.",
           "movement_type": "move"
         }
       ],
@@ -17426,7 +17165,7 @@
       "activities": [
         {
           "event_type": "assignee_change",
-          "from_value": "",
+          "from_value": "Unassigned",
           "to_value": "demo3",
           "actor": "demo3",
           "created_at": "2026-02-02T16:48:00+00:00"
@@ -17484,7 +17223,7 @@
           "event_type": "checklist_item_checked",
           "from_value": "",
           "to_value": "Check compliance requirements",
-          "actor": "demo3",
+          "actor": "demo4",
           "created_at": "2026-02-08T16:48:00+00:00"
         }
       ],

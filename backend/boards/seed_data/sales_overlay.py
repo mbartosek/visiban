@@ -3,14 +3,15 @@ Sales Overlay sample board for generate_seed_data.py.
 
 Loaded via importlib from generate_seed_data.py — do not run directly.
 
-A fuller version of the hosted demo's "Sales Territory (Overlay)" board
-(``management/commands/_demo_site_data.py``, #1412): one row per account
-under an enterprise overlay coverage model. Every account has a primary
-account team (AD, AE, SA, services lead) and, on top of it, an overlay pod
-(overlay AE + overlay SA) that brings specialist products into the deal.
+One row per account under an enterprise overlay coverage model. Every account
+has a primary account team (AD, AE, SA, services lead) and, on top of it, an
+overlay pod (overlay AE + overlay SA) that brings specialist products into the
+deal. This is also the hosted demo's "Sales Territory (Overlay)" board: since
+#1889 ``seed_demo_data --demo-site`` imports the generated
+``sample_boards/sales_overlay.json`` through the board importer instead of
+keeping a second, hand-built copy (#1412).
 
-Where the demo board has six accounts and 22 cards, this one has ten
-accounts and every 1.2 board feature in use: every custom field type on
+It has ten accounts and every 1.2 board feature in use: every custom field type on
 cards, fifteen swimlane fields (the per-board maximum, eight of them
 pinned to the row header, one admin-only), WIP and weight limits
 (Commercial deliberately one card over, as on every template), CRM links, archived wins and a full audit trail on every card.
@@ -162,10 +163,10 @@ _CARDS = [
      [("demo3", "Their data science team built a prototype in-house; overlay AE is positioning time-to-value.")]),
     ("Security analytics add-on", "Extend the security product to the bank's SOC.", "Commit", "Harborview Bank", "medium", "demo1",
      ["Cross-Sell"], 6, 3, "210000", ["Security"], "CISO", "Hyperscaler native", "Order form to procurement",
-     ["+Technical win", "+Pricing approved", "Order form signed"], [("demo4", "Procurement has the order form; signature expected this week.")]),
+     ["+Technical win", "+Commercial terms approved", "Order form signed"], [("demo4", "Procurement has the order form; signature expected this week.")]),
     ("Branch analytics renewal", "Annual renewal of the branch analytics workspace.", "Won", "Harborview Bank", "low", "demo5",
      ["Renewal"], None, 2, "240000", ["Data Platform"], "VP Retail Banking", "None identified", "",
-     ["+Usage review", "+Renewal paperwork", "+Signed"], [("demo5", "Signed at flat price with a two-year term.")]),
+     ["+Usage review", "+Renewal paperwork", "+Signed"], [("demo5", "Signed on unchanged terms for two more years.")]),
     ("Open banking API gateway", "Partner-facing API layer for the open banking mandate.", "Discover", "Harborview Bank", "medium", "demo2",
      ["New Workload"], 45, 3, "160000", ["Integration"], "", "Regional reseller", "Map the partner onboarding flow",
      [], [("demo2", "Early days. Their API team is still writing requirements.")]),
@@ -173,8 +174,8 @@ _CARDS = [
     # ── Granite Peak Energy (Full) ──────────────────────────────────────────
     ("Grid telemetry observability", "Unified monitoring for substation telemetry across two regions.", "Commercial", "Granite Peak Energy", "high", "demo4",
      ["Expansion"], 12, 6, "540000", ["Observability"], "VP Grid Operations", "Incumbent", "Redlines back from legal",
-     ["+Technical win", "+Business case", "Legal review", "Final pricing"],
-     [("demo4", "Overlay AE is coordinating the multi-region pricing with their infrastructure team."),
+     ["+Technical win", "+Business case", "Legal review", "Final commercial terms"],
+     [("demo4", "Overlay AE is coordinating the multi-region commercial terms with their infrastructure team."),
       ("demo1", "Legal returned redlines on data residency; counsel is turning them now.")]),
     ("Outage prediction model", "Forecast feeder outages from weather and load data.", "Qualify", "Granite Peak Energy", "medium", "demo2",
      ["New Workload", "Cross-Sell"], 40, 5, "290000", ["AI Services", "Data Platform"], "Director of Reliability", "Build in-house", "Data access request",
@@ -199,8 +200,8 @@ _CARDS = [
      ["Threat model template shared", "Scope workshop"], []),
     ("Billing integration refresh", "Replace point-to-point billing integrations.", "Commit", "Copperline Telecom", "medium", "demo5",
      ["Expansion"], 4, 3, "180000", ["Integration"], "Director of IT", "None identified", "Signature",
-     ["+Technical win", "+Pricing", "Signature"], []),
-    ("Network analytics renewal", "Renewal of the network analytics subscription.", "Won", "Copperline Telecom", "low", "demo2",
+     ["+Technical win", "+Commercial terms", "Signature"], []),
+    ("Network analytics renewal", "Renewal of the network analytics workspace.", "Won", "Copperline Telecom", "low", "demo2",
      ["Renewal"], None, 2, "260000", ["Observability"], "Director of IT", "None identified", "", [], []),
     ("Customer churn model", "Predict subscriber churn from usage and support data.", "Discover", "Copperline Telecom", "medium", "demo4",
      ["New Workload"], 50, 3, "150000", ["AI Services"], "", "Hyperscaler native", "Intro call with the marketing analytics team", [], []),
@@ -220,7 +221,7 @@ _CARDS = [
 
     # ── Evergreen Health System (Full) ──────────────────────────────────────
     ("Clinical data platform expansion", "Bring four more hospitals onto the clinical data platform.", "Commercial", "Evergreen Health System", "high", "demo2",
-     ["Expansion"], 10, 7, "780000", ["Data Platform"], "CMIO", "Incumbent", "Final pricing with procurement",
+     ["Expansion"], 10, 7, "780000", ["Data Platform"], "CMIO", "Incumbent", "Final terms with procurement",
      ["+Business case", "+Clinical sign-off", "Procurement review", "Signature"],
      [("demo2", "Procurement asked for a three-year ramp. Deal desk approved the structure."),
       ("demo4", "Services scoping done; Dana has the plan.")]),
@@ -258,7 +259,7 @@ _CARDS = [
       ("demo2", "Requesting an OAE from the overlay manager.")]),
     ("Underwriting workflow expansion", "Extend automated underwriting to two more policy lines.", "Commercial", "Bluefin Insurance", "urgent", "demo2",
      ["Expansion", "Exec Escalation"], -2, 6, "420000", ["AI Services", "Integration"], "Chief Underwriting Officer", "Incumbent", "Exec alignment call",
-     ["+Technical win", "Pricing", "Exec alignment"],
+     ["+Technical win", "Commercial terms", "Exec alignment"],
      [("demo2", "Underwriting leadership wants a reference before expanding. Escalated to our VP.")]),
     ("Policy admin integration", "Connect the policy admin system to the claims platform.", "Qualify", "Bluefin Insurance", "medium", None,
      ["Coverage Gap"], 20, 3, "160000", ["Integration"], "", "Regional reseller", "Find an owner on our side", [], []),
@@ -292,8 +293,8 @@ _CARDS = [
     ("Fleet telematics expansion", "Extend telematics to the refrigerated trailer fleet.", "Discover", "Keystone Logistics", "medium", None,
      ["Expansion", "Coverage Gap"], -10, 3, "210000", ["Data Platform"], "", "Incumbent", "Discovery call (rescheduled twice)", [], []),
     ("Cross-dock pilot proposal", "Pilot proposal for the cross-dock facility opening next quarter.", "Commercial", "Keystone Logistics", "high", "demo2",
-     ["Competitive Displacement"], -1, 5, "175000", ["Integration"], "Director of Operations", "Regional reseller", "Pricing (owner needed)",
-     ["+Proposal sent", "Pricing", "Pilot agreement"],
+     ["Competitive Displacement"], -1, 5, "175000", ["Integration"], "Director of Operations", "Regional reseller", "Commercial terms (owner needed)",
+     ["+Proposal sent", "Commercial terms", "Pilot agreement"],
      [("demo2", "Champion is asking what the overlay engagement costs and nobody is driving it.")]),
     ("Cold chain telematics", "Telematics for the cold chain fleet.", "Lost", "Keystone Logistics", "low", "demo1",
      ["Competitive Displacement", "Coverage Gap"], None, 3, "110000", ["Data Platform"], "", "Regional reseller", "",
@@ -315,6 +316,43 @@ _CARDS = [
      ["Expansion"], None, 3, "190000", ["Observability"], "VP E-commerce", "Incumbent", "",
      [], [("demo1", "Won after a peak-weekend proof of value.")]),
 ]
+
+
+# Days before ANCHOR of each card's last move (#1889). Authored per card, like
+# the demo's hand-built boards (#1363), so the board shows the aging cues with
+# a believable mix instead of reading all-stale: most work moved in the last
+# couple of days, a handful is aging, and the stale minority sits on the two
+# under-covered accounts (Bluefin, Keystone) — the coverage story the board
+# exists to tell. Finished deals moved recently, except the archived ones,
+# which were cleared out after they closed.
+#
+# Only 1, 2, 4, 5 and 8+ are used. The board is dated around ANCHOR at noon:
+# imported through the gallery it lands on the import day's noon, and the
+# hosted demo puts it on the previous day's noon so nothing is ever in the
+# future. Across both, 1-2 always reads fresh (under half the 7-day
+# threshold), 4-5 aging and 8+ stale; 3, 6 and 7 would straddle a boundary
+# depending on the hour. A card still in Identify has only its creation move,
+# and its generated activity runs up to three days past it, so those cards
+# are at least four days old.
+_LAST_MOVED_DAYS_AGO = {
+    "Core ledger modernization": 1, "Real-time fraud scoring pilot": 2, "Security analytics add-on": 1,
+    "Branch analytics renewal": 1, "Open banking API gateway": 2, "Grid telemetry observability": 1,
+    "Outage prediction model": 4, "Field crew mobile integration": 5, "SCADA support renewal": 12,
+    "Grant-funded data lake": 10, "NOC consolidation observability": 1, "5G core security assessment": 2,
+    "Billing integration refresh": 1, "Network analytics renewal": 2, "Customer churn model": 1,
+    "Fare system data platform": 2, "Rider app incident monitoring": 5, "Board presentation on modernization": 4,
+    "Accessibility compliance integration": 1, "Clinical data platform expansion": 2,
+    "Sepsis early-warning model": 1, "HIPAA security review": 2, "Imaging archive integration": 2,
+    "Population health dashboards": 2, "Fab yield analytics": 1, "Supply chain security assessment": 2,
+    "Design tool observability": 4, "Edge analytics pilot": 1, "Claims automation proof of concept": 9,
+    "Underwriting workflow expansion": 8, "Policy admin integration": 10, "Claims platform renewal": 1,
+    "Pharmacovigilance data lake": 2, "Lab notebook AI assistant": 5, "Compliance reporting add-on": 2,
+    "Research workspace renewal": 1, "Clinical trial integration hub": 14,
+    "Warehouse automation competitive eval": 12, "Fleet telematics expansion": 15,
+    "Cross-dock pilot proposal": 5, "Cold chain telematics": 2, "Contract renewal at risk": 4,
+    "Store inventory integration": 1, "Demand forecasting model": 2, "Payment security review": 5,
+    "E-commerce observability": 11,
+}
 
 
 def _card(row):
@@ -346,6 +384,8 @@ def _card(row):
         ],
         "comments": [{"body": body, "author": author} for author, body in comments],
         "custom_field_values": {k: v for k, v in values.items() if v},
+        # Consumed by the generator (popped before the card is written).
+        "last_moved_days_ago": _LAST_MOVED_DAYS_AGO[title],
     }
 
 
