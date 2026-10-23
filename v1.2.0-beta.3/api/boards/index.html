@@ -6621,7 +6621,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">}</span>
 </code></pre></div>
 <p><strong>Response</strong> <code>201 Created</code></p>
-<p>Returns the newly created board object, using the same shape as <code>GET /api/v1/boards/{id}/</code>, plus an <code>import_summary</code> object.</p>
+<p>Returns the newly created board object, using the same shape as <code>GET /api/v1/boards/{id}/</code>, plus an <code>import_summary</code> object. In the OpenAPI document this is the named <code>BoardImportResponse</code> component.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bd_1a2b3c4d5e6f7890"</span><span class="p">,</span>
@@ -7076,7 +7076,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 </tbody>
 </table>
 <p><strong>Response</strong> <code>201 Created</code> (<code>confirm=true</code>)</p>
-<p>Unlike <a href="#post-apiv1boardsimport"><code>POST /api/v1/boards/import/</code></a>, which returns the board object at the top level (with an added <code>import_summary</code>), this endpoint wraps the board together with a summary. <code>board</code> has the same shape as <code>GET /api/v1/boards/{id}/</code>; <code>summary</code> repeats the preview's <code>counts</code>, <code>result</code>, <code>warnings</code>, and <code>unmappable</code>.</p>
+<p>Unlike <a href="#post-apiv1boardsimport"><code>POST /api/v1/boards/import/</code></a>, which returns the board object at the top level (with an added <code>import_summary</code>), this endpoint wraps the board together with a summary. <code>board</code> has the same shape as <code>GET /api/v1/boards/{id}/</code>; <code>summary</code> repeats the preview's <code>counts</code>, <code>result</code>, <code>warnings</code>, and <code>unmappable</code>. The OpenAPI document names these <code>TrelloImportPreview</code> (the <code>dry_run=true</code> 200) and <code>TrelloImportConfirm</code> (this 201). The two import envelopes differ today; aligning them additively, and adding an error <code>code</code>, is tracked in #1903. Error bodies on both carry <code>detail</code> only, with no <code>code</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">"board"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">513</span><span class="p">,</span>
