@@ -2879,10 +2879,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#put-apiv1boardsidcustom-fieldsreorder" class="md-nav__link">
+  <a href="#post-apiv1boardsidcustom-fieldsreorder" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PUT /api/v1/boards/{id}/custom-fields/reorder/
+        POST /api/v1/boards/{id}/custom-fields/reorder/
       
     </span>
   </a>
@@ -2962,10 +2962,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#put-apiv1boardsidswimlane-custom-fieldsreorder" class="md-nav__link">
+  <a href="#post-apiv1boardsidswimlane-custom-fieldsreorder" class="md-nav__link">
     <span class="md-ellipsis">
       
-        PUT /api/v1/boards/{id}/swimlane-custom-fields/reorder/
+        POST /api/v1/boards/{id}/swimlane-custom-fields/reorder/
       
     </span>
   </a>
@@ -8241,9 +8241,10 @@ release.</p>
 <h3 id="delete-apiv1boardsidcustom-fieldsfield_id"><code>DELETE /api/v1/boards/{id}/custom-fields/{field_id}/</code><a class="headerlink" href="#delete-apiv1boardsidcustom-fieldsfield_id" title="Permanent link">&para;</a></h3>
 <p>Delete a definition. Requires board admin. <strong>Every card's value for that field is deleted
 with it.</strong></p>
-<h3 id="put-apiv1boardsidcustom-fieldsreorder"><code>PUT /api/v1/boards/{id}/custom-fields/reorder/</code><a class="headerlink" href="#put-apiv1boardsidcustom-fieldsreorder" title="Permanent link">&para;</a></h3>
-<p>Reorder definitions. Requires board admin. <code>POST</code> is accepted as well, matching the column
-and swimlane reorder actions.</p>
+<h3 id="post-apiv1boardsidcustom-fieldsreorder"><code>POST /api/v1/boards/{id}/custom-fields/reorder/</code><a class="headerlink" href="#post-apiv1boardsidcustom-fieldsreorder" title="Permanent link">&para;</a></h3>
+<p>Reorder definitions. Requires board admin. <code>POST</code> only, matching the column and swimlane
+reorder actions; since 1.2 (#1868) <code>PUT</code> returns <code>405 Method Not Allowed</code>. (<code>PUT</code> was only
+briefly accepted during the 1.2 pre-releases and never shipped in a GA release.)</p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). Entries that are not integers were already a <code>400</code>; since 1.2 an entry beyond the 64-bit integer range is also a <code>400</code> (it returned <code>500</code> before).</p>
 <p><strong>Request</strong> <code>{ "order": [3, 1, 2] }</code> — custom field IDs in the new order. IDs belonging to
 another board are ignored.</p>
@@ -8418,9 +8419,10 @@ choice may be re-written on the same swimlane but not added anywhere else — se
 <h3 id="delete-apiv1boardsidswimlane-custom-fieldsfield_id"><code>DELETE /api/v1/boards/{id}/swimlane-custom-fields/{field_id}/</code><a class="headerlink" href="#delete-apiv1boardsidswimlane-custom-fieldsfield_id" title="Permanent link">&para;</a></h3>
 <p>Delete a definition. Requires board admin. <strong>Every swimlane's value for that field is
 deleted with it.</strong></p>
-<h3 id="put-apiv1boardsidswimlane-custom-fieldsreorder"><code>PUT /api/v1/boards/{id}/swimlane-custom-fields/reorder/</code><a class="headerlink" href="#put-apiv1boardsidswimlane-custom-fieldsreorder" title="Permanent link">&para;</a></h3>
-<p>Reorder definitions. Requires board admin. <code>POST</code> is accepted as well, matching the column,
-swimlane, and card-custom-field reorder actions.</p>
+<h3 id="post-apiv1boardsidswimlane-custom-fieldsreorder"><code>POST /api/v1/boards/{id}/swimlane-custom-fields/reorder/</code><a class="headerlink" href="#post-apiv1boardsidswimlane-custom-fieldsreorder" title="Permanent link">&para;</a></h3>
+<p>Reorder definitions. Requires board admin. <code>POST</code> only, matching the column, swimlane, and
+card-custom-field reorder actions; since 1.2 (#1868) <code>PUT</code> returns <code>405 Method Not Allowed</code>.
+(<code>PUT</code> was only briefly accepted during the 1.2 pre-releases and never shipped in a GA release.)</p>
 <p>Since 1.2, a request body that is not a JSON object returns <code>400 Bad Request</code> (it returned <code>500</code> before). Entries that are not integers were already a <code>400</code>; since 1.2 an entry beyond the 64-bit integer range is also a <code>400</code> (it returned <code>500</code> before).</p>
 <p><strong>Request</strong> <code>{ "order": [5, 3, 4] }</code> — swimlane custom field IDs in the new order. IDs
 belonging to another board are silently ignored rather than reordered or exposed.</p>
