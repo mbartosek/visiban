@@ -32,6 +32,30 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  // #1319: a timer whose id is thrown away cannot be cleared on unmount, so it
+  // can fire after the component is gone. That is how a ProfileTab save
+  // navigated during a later test (`setTimeout(() => navigate(...), 1500)`),
+  // a flake vitest's CI retry could not absorb. Flag any bare setTimeout /
+  // setInterval with a non-zero delay. Zero-delay hops (focus after render,
+  // resetting a ref) are allowed: they fire before anything can unmount.
+  // Limit: this only catches a discarded id. A timer held in a ref that is
+  // never cleared on unmount (the #1304/#1305 shape) passes; review still
+  // has to check the cleanup effect exists.
+  {
+    files: ['src/components/**/*.{ts,tsx}', 'src/pages/**/*.{ts,tsx}', 'src/hooks/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error',
+        {
+          selector: 'ExpressionStatement > CallExpression[callee.name=/^(setTimeout|setInterval)$/][arguments.length>1]:not([arguments.1.value=0])',
+          message: 'Bare timer with a delay: it can fire after unmount. Hold the id in a ref and clear it on unmount (#1319).',
+        },
+        {
+          selector: "ExpressionStatement > CallExpression[callee.object.name='window'][callee.property.name=/^(setTimeout|setInterval)$/][arguments.length>1]:not([arguments.1.value=0])",
+          message: 'Bare timer with a delay: it can fire after unmount. Hold the id in a ref and clear it on unmount (#1319).',
+        },
+      ],
+    },
+  },
   // Security SAST rules — scoped to src/ to keep the scan focused and avoid
   // OOM in memory-constrained CI runners scanning config/test infrastructure.
   // detect-object-injection is off: TypeScript types already constrain property

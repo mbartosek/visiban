@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import AdminPage from '../pages/AdminPage'
 import type { User, AdminUser, SiteSettings, SiteEmailSettings } from '../types'
+import { stallEventLoopAfterWaitFor } from './eventLoopStall'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -201,23 +202,6 @@ async function renderAdminPageSettled(user: User = adminUser) {
   const view = renderAdminPage(user)
   await screen.findByLabelText('Host')
   return view
-}
-
-// Burns `ms` of CPU a few microtask hops later, i.e. after waitFor has queued
-// its trailing setTimeout(0) drain. Node then runs that ripe timer before the
-// setImmediate task in which React flushes passive effects, so the test
-// resumes in the window between a commit and its effects. This is the event
-// loop ordering a loaded CI runner produces by accident (#1319).
-function stallEventLoopAfterWaitFor(ms = 5, hops = 20) {
-  let step = () => {
-    const end = performance.now() + ms
-    while (performance.now() < end) { /* deliberately busy */ }
-  }
-  for (let i = 0; i < hops; i++) {
-    const next = step
-    step = () => queueMicrotask(next)
-  }
-  step()
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,6 +1152,32 @@ describe('AdminPage — maintenance mode', () => {
     fireEvent.change(field, { target: { value: 'x'.repeat(1200) } })
     expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toHaveLength(1000)
     await screen.findByLabelText('Host')
+  })
+
+  it('keeps an in-progress notice edit when an unrelated setting is saved', async () => {
+    // The re-seed is keyed on the server's notice, not the whole settings
+    // object, so a registration mode save (which returns a new object with the
+    // same notice) must not discard what the admin is typing.
+    mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, registration_mode: 'closed' })
+    await renderAdminPageSettled()
+    fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'Draft notice' } })
+    fireEvent.click(screen.getByText('Closed'))
+    await waitFor(() => screen.getByText('Settings saved.'))
+    expect(mockPatchAdminSettings).toHaveBeenCalledWith({ registration_mode: 'closed' })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Draft notice')
+  })
+
+  it('rolls the notice back to the saved value when its save fails', async () => {
+    mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    mockPatchAdminSettings.mockRejectedValue(new Error('boom'))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText<HTMLTextAreaElement>(/Message/)
+    expect(field.value).toBe('Back by 5.')
+    fireEvent.change(field, { target: { value: 'Back by 6.' } })
+    fireEvent.blur(field)
+    await waitFor(() => screen.getByText('Failed to save settings.'))
+    expect(mockPatchAdminSettings).toHaveBeenCalledWith({ maintenance_message: 'Back by 6.' })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Back by 5.')
   })
 
   it('re-seeds the field from the canonical value a save returns', async () => {

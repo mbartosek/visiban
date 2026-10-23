@@ -73,12 +73,17 @@ export default function CustomFieldValueInput({ definition, value, onCommit, dis
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Re-sync local state if the value changes from outside (e.g. a WS update
-  // replaced the whole card) while this input isn't mid-edit.
-  useEffect(() => {
+  // replaced the whole card) while this input isn't mid-edit. Done during
+  // render, not in a useEffect: an effect also runs once after mount, and an
+  // edit landing between the mount commit and that effect was overwritten by
+  // it (#1319).
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (value !== syncedValue) {
+    setSyncedValue(value);
     setLocal(value ?? "");
     setUrlError(null);
     setLastCommitted(value ?? "");
-  }, [value]);
+  }
 
   useEffect(() => () => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
