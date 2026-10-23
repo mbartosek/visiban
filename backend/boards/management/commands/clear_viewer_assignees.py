@@ -1,9 +1,10 @@
 """
-Find and clear card assignees whose role on the board is viewer.
+Find and clear card assignees who are not in the board's assignable set.
 
 Before the _get_assignable_member_ids() fix, the CardSerializer accepted any
 board member as an assignee — including viewers.  This command finds cards
-that are still assigned to viewer-role users and either reports them (dry-run)
+that are still assigned to users outside the assignable set (viewers, and
+users whose explicit board row overrides a group-inherited role) and either reports them (dry-run)
 or clears the assignee field.
 
 Usage:
@@ -18,7 +19,8 @@ Usage:
 """
 from django.core.management.base import BaseCommand
 
-from boards.models import Board, BoardMembership, Card
+from boards.models import Board, Card
+from boards.utils import _get_assignable_member_ids
 
 
 class Command(BaseCommand):
@@ -48,20 +50,17 @@ class Command(BaseCommand):
         total_cleared = 0
 
         for board in boards_qs.prefetch_related("memberships"):
-            # Collect user IDs that have at least one non-viewer membership on
-            # this board.  A user with both a direct viewer membership AND an
-            # inherited non-viewer membership is fine — we only want pure viewers.
-            non_viewer_ids = set(
-                board.memberships.exclude(role=BoardMembership.Role.VIEWER)
-                .values_list("user_id", flat=True)
-            )
-            # Also treat the board owner and site admins as non-viewers.
-            non_viewer_ids.add(board.owner_id)
-
+            # Use the same assignable set as the card serializer, so the
+            # backfill agrees with the role-resolution ladder (explicit board
+            # rows override group inheritance) rather than carrying its own copy.
+            assignable_ids = _get_assignable_member_ids(board)
             viewer_only_ids = set(
-                board.memberships.filter(role=BoardMembership.Role.VIEWER)
-                .values_list("user_id", flat=True)
-            ) - non_viewer_ids
+                Card.objects.filter(
+                    board=board, assignee_id__isnull=False, archived_at__isnull=True
+                )
+                .values_list("assignee_id", flat=True)
+                .distinct()
+            ) - assignable_ids
 
             if not viewer_only_ids:
                 continue

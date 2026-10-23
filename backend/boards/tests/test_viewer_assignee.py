@@ -425,3 +425,44 @@ class MemberSetLadderTests(TestCase):
         with CaptureQueriesContext(connection) as ctx:
             _get_assignable_member_ids(board)
         self.assertLessEqual(len(ctx), 3)
+
+
+class ClearAssigneesLadderTests(TestCase):
+    def test_clears_assignee_whose_explicit_viewer_row_overrides_group_role(self):
+        from groups.models import Group, GroupMembership
+
+        owner = User.objects.create_user(username="clr_owner", password="pass")
+        u = User.objects.create_user(username="clr_user", password="pass")
+        group = Group.objects.create(name="Clr group", owner=owner)
+        GroupMembership.objects.create(group=group, user=u, role=GroupMembership.Role.MEMBER)
+        board, col, swim = _make_board(owner)
+        board.group = group
+        board.save()
+        BoardMembership.objects.create(board=board, user=u, role=BoardMembership.Role.VIEWER)
+        card = _make_card(board, col, swim, owner)
+        card.assignee = u
+        card.save()
+        call_command("clear_viewer_assignees", stdout=io.StringIO())
+        card.refresh_from_db()
+        self.assertIsNone(card.assignee_id)
+
+
+class MemberSetImplicitAccessTests(TestCase):
+    """Owner and instance-wide content access outrank any explicit row."""
+
+    def test_owner_and_all_content_user_stay_in_both_sets_despite_odd_rows(self):
+        from boards.utils import _get_assignable_member_ids, _get_effective_member_ids
+
+        owner = User.objects.create_user(username="imp_owner", password="pass")
+        admin = User.objects.create_user(
+            username="imp_all", password="pass", can_access_all_content=True
+        )
+        board, _c, _s = _make_board(owner)
+        BoardMembership.objects.filter(board=board, user=owner).update(role="viewer")
+        BoardMembership.objects.create(board=board, user=admin, role="bogus")
+        board = Board.objects.get(pk=board.pk)
+        for fn in (_get_assignable_member_ids, _get_effective_member_ids):
+            ids = fn(board)
+            self.assertIn(owner.id, ids)
+            self.assertIn(admin.id, ids)
+            self.assertIn(admin.id, fn(board, site_admin_ids={admin.id}))
