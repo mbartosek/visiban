@@ -803,34 +803,16 @@ Revoke any board's invite, emailed or shareable. Sets `revoked_at` and `revoked_
 
 **Permission:** `IsSiteAdmin`.
 
-**Response** `200 OK` — the updated row (a single object, same shape as a list row), with `status: "revoked"`.
-
-```json
-{
-  "id": 51,
-  "board_id": 12,
-  "board_name": "Launch Plan",
-  "role": "viewer",
-  "delivery": "link",
-  "status": "revoked",
-  "prefix": "vbnb_8a2",
-  "expires_at": "2026-10-14T09:30:00.101Z",
-  "created_at": "2026-10-07T09:30:00.120Z",
-  "created_by_username": "alice",
-  "single_use": false,
-  "use_count": 3,
-  "can_register": false
-}
-```
+**Response** `204 No Content` — no body, like the [board-scoped revoke](boards.md#delete-apiv1boardsidinvite-linkslink_id). Re-fetch the list (or set the row's `status` to `revoked`) to show the new state.
 
 **Errors**
 
 | Status | Body | When |
 |---|---|---|
-| `400 Bad Request` | `{"detail": "This invite is already used or revoked and cannot be revoked."}` | The invite was consumed (its "used" record is kept) or is already revoked. |
+| `400 Bad Request` | `{"detail": "This invite has already been used and cannot be revoked."}` | The invite was consumed; its "used" record is kept. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | No credentials. |
 | `403 Forbidden` | `{"detail": "You must be a site administrator to perform this action."}` | Not a site admin. Checked before the lookup, so a non-admin gets `403` even for an id that does not exist. |
-| `404 Not Found` | `{"detail": "Invite not found."}` | No invite with that id. |
+| `404 Not Found` | `{"detail": "Invite not found."}` | No invite with that id, or it is already revoked (a revoked row is hidden, so a repeat revoke is `404`). |
 
-An already-revoked invite is `400` here, matching the site invite-link revoke; the [board-scoped revoke](boards.md#delete-apiv1boardsidinvite-linkslink_id) answers it with `404`.
+This endpoint behaves exactly like the [board-scoped revoke](boards.md#delete-apiv1boardsidinvite-linkslink_id): `204` on success, `400` for a used invite, `404` for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered `200` with the row and `400` for a repeat revoke. The separate site invite-link revoke (`DELETE /api/v1/admin/invite-links/{id}/`) keeps its 1.1 behavior (`200` with a body, `400` on a repeat revoke), which differs from this family; that is tracked in #1912.
 

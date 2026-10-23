@@ -105,7 +105,7 @@ export default function BoardInvitesTab() {
     setRevokingId(row.id);
     setRevokeError(null);
     try {
-      const updated = await revokeAdminBoardInviteLink(row.id);
+      await revokeAdminBoardInviteLink(row.id);
       setConfirmId(null);
       if (statusFilter === "pending") {
         // No longer pending: it leaves this view.
@@ -119,13 +119,13 @@ export default function BoardInvitesTab() {
           setRows(remaining);
         }
       } else {
-        setRows((prev) => prev.map((r) => (r.id === row.id ? updated : r)));
+        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "revoked", can_register: false } : r)));
       }
       setFocusHeading(true);
     } catch (err: unknown) {
       const httpStatus = (err as { response?: { status?: number } }).response?.status;
-      if (httpStatus === 400) {
-        // Redeemed or revoked elsewhere while the prompt was open: say so and
+      if (httpStatus === 400 || httpStatus === 404) {
+        // 400: redeemed; 404: already revoked (#1867). Redeemed or revoked elsewhere while the prompt was open: say so and
         // show the row's real state.
         setConfirmId(null);
         await fetchRows(statusFilter, offset);

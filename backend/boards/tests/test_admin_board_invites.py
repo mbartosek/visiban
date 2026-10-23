@@ -237,17 +237,16 @@ class AdminBoardInviteListTests(_Fixture, TestCase):
 
 class AdminBoardInviteRevokeTests(_Fixture, TestCase):
 
-    def test_revoke_any_board_invite_returns_row_and_broadcasts(self):
+    def test_revoke_any_board_invite_returns_204_and_broadcasts(self):
         link = self.make(self.other_board)
         with mock.patch("boards.broadcast.broadcast_board_event") as bcast:
             with self.captureOnCommitCallbacks(execute=True):
                 r = self.client.delete(detail_url(link))
-        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
-        body = r.json()
-        self.assertEqual((body["id"], body["status"], body["board_name"]), (link.pk, "revoked", "Roadmap"))
-        self.assertIs(body["can_register"], False)
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT, r.content)
+        self.assertEqual(r.content, b"")
         link.refresh_from_db()
         self.assertIsNotNone(link.revoked_at)
+        self.assertEqual(link.status, "revoked")
         self.assertEqual(link.revoked_by, self.site_admin)
         bcast.assert_called_once()
         self.assertEqual(
@@ -258,31 +257,44 @@ class AdminBoardInviteRevokeTests(_Fixture, TestCase):
 
     def test_revoke_expired_invite_is_allowed(self):
         link = self.make(expires_at=timezone.now() - timedelta(days=1))
-        self.assertEqual(self.client.delete(detail_url(link)).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.delete(detail_url(link)).status_code, status.HTTP_204_NO_CONTENT)
 
-    def test_revoke_used_or_already_revoked_is_400(self):
+    def test_revoke_used_is_400(self):
         used = self.make(single_use=True, used_at=timezone.now())
-        revoked = self.make(revoked_at=timezone.now())
         with mock.patch("boards.broadcast.broadcast_board_event") as bcast:
             with self.captureOnCommitCallbacks(execute=True):
-                for link in (used, revoked):
-                    with self.subTest(link=link.pk):
-                        r = self.client.delete(detail_url(link))
-                        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
-                        self.assertIn("detail", r.json())
+                r = self.client.delete(detail_url(used))
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", r.json())
         bcast.assert_not_called()
         used.refresh_from_db()
         self.assertEqual(used.status, "used")
         self.assertIsNone(used.revoked_at)
+
+    def test_repeat_revoke_is_404_like_the_board_scoped_revoke(self):
+        link = self.make(self.other_board)
+        self.assertEqual(self.client.delete(detail_url(link)).status_code, status.HTTP_204_NO_CONTENT)
+        link.refresh_from_db()
+        first_revoked_at = link.revoked_at
+        with mock.patch("boards.broadcast.broadcast_board_event") as bcast:
+            with self.captureOnCommitCallbacks(execute=True):
+                r = self.client.delete(detail_url(link))
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+        bcast.assert_not_called()
+        link.refresh_from_db()
+        self.assertEqual(link.revoked_at, first_revoked_at)
+
+    def test_revoke_pre_revoked_row_is_404(self):
+        revoked = self.make(revoked_at=timezone.now())
+        self.assertEqual(self.client.delete(detail_url(revoked)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_revoke_query_count_is_bounded(self):
         link = self.make(self.other_board)
         cache.clear()
         with CaptureQueriesContext(connection) as ctx:
             r = self.client.delete(detail_url(link))
-        self.assertEqual(r.status_code, status.HTTP_200_OK)
-        # 7 today: lock, update, event row, savepoint pair, reload, registration
-        # mode. A per-board role walk or an N+1 would break the bound.
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+        # ~5 today: lock, update, event row, savepoint pair. A per-board role walk or an N+1 would break the bound.
         self.assertLessEqual(len(ctx.captured_queries), 8, [q["sql"] for q in ctx.captured_queries])
 
     def test_unknown_invite_is_404(self):
