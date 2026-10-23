@@ -122,7 +122,7 @@ In-pod callers (probes, helm tests) send an explicit Host instead; see the
   */}}
   value: {{ $ctx.Values.backend.settings.maxUploadSizeBytes | int64 | quote }}
 - name: IMPORT_MAX_SIZE_BYTES
-  {{- /* Canonical name since #1873; the backend still reads the 1.2-beta VISIBAN_IMPORT_MAX_SIZE as a deprecated alias. */}}
+  {{- /* Canonical name since #1873; the backend still reads the 1.2 pre-release VISIBAN_IMPORT_MAX_SIZE as a deprecated alias. */}}
   {{- /* int64 before quote for the same float64-coercion reason as above. */}}
   {{- /* default: `helm upgrade --reuse-values` from a pre-1.2 release has no importMaxSizeBytes key, which would otherwise render "0". */}}
   value: {{ $ctx.Values.backend.settings.importMaxSizeBytes | default 26214400 | int64 | quote }}

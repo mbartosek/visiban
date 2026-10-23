@@ -403,9 +403,9 @@ initContainers:
     command: ["python", "manage.py", "migrate_with_lock"]
     env:
       {{- include "visiban.backendEnv" . | nindent 6 }}
-      - name: VISIBAN_MIGRATE_CONNECT_TIMEOUT
+      - name: MIGRATE_CONNECT_TIMEOUT_SECONDS
         value: {{ .Values.backend.migrate.connectTimeout | int | quote }}
-      - name: VISIBAN_MIGRATE_LOCK_TIMEOUT
+      - name: MIGRATE_LOCK_TIMEOUT_SECONDS
         value: {{ .Values.backend.migrate.lockTimeout | int | quote }}
     securityContext:
       allowPrivilegeEscalation: false

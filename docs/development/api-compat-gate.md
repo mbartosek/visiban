@@ -91,32 +91,70 @@ in #1873 for every name added from 1.2 on:
 - **Feature on/off switches end in `_ENABLED`** (`MCP_SERVER_ENABLED`, `GIT_LENS_ENABLED`). A
   boolean that picks a mode of a feature that is already on says what the mode is
   (`NOTIFICATION_EMAIL_ASYNC`).
+- **A switch that turns the whole instance into a named mode ends in `_MODE`** (`DEMO_MODE`).
+  It is not a feature toggle: it changes what the instance is (a public, write-fenced demo).
+  The name states the mode, so it has no `_ENABLED`.
 - **Throttle rates are `<FEATURE>_THROTTLE_<SCOPE>_RATE`**, like `MCP_THROTTLE_READ_RATE` and
   `DEMO_THROTTLE_USER_RATE`, so a feature's limits sort together.
 - **The `VISIBAN_` prefix is reserved** for security-sensitive keys
   (`VISIBAN_SECRET_ENCRYPTION_KEY`) and for test- or CI-only switches that a production install
   must never set (`VISIBAN_DISABLE_THROTTLING`, `VISIBAN_GIT_LENS_STUB_PROVIDERS`). The prefix
   marks them as not ordinary tuning knobs.
-- **Fixing a name that has shipped** (in any release, betas included) means adding the new
-  name and keeping the old one as a working, deprecated alias. In `settings.py`,
-  `_env_alias_name("NEW", "OLD")` picks which one to read (the new name wins when it is
-  non-empty), and `_warn_deprecated_env_alias("OLD", "NEW")` logs the startup warning. Pass the
-  names as string literals, because that is how this gate and the chart's reader check find
-  them. List the alias in the deprecated-names table in
+- **Fixing a name that has shipped** (in any release, pre-releases included) means adding the
+  new name and keeping the old one as a working, deprecated alias. Use the helpers in
+  `backend/visiban/env_aliases.py`. They are pure stdlib, so `settings.py` and code outside it,
+  such as a management command, can both import them without a cycle.
+  `env_alias_name("NEW", "OLD")` picks which name to read: the new name wins when it is
+  non-empty. `warn_deprecated_env_alias("OLD", "NEW")` logs the startup warning. Pass
+  `removed=True` for an old name that is no longer read at all, so the warning says it has no
+  effect. Pass the names as string literals, because that is how this gate and the chart's
+  reader check find them. List the alias in the deprecated-names table in
   `docs/administration/configuration.md`.
 
-Applied in #1873, before the first baseline roll that contains them (neither old name is in
-the v1.1.0 baseline, but both shipped in the 1.2 betas, so both remain read):
+Applied in #1873, before the first baseline roll that contains them. None of the old names is
+in the v1.1.0 baseline, but all of them shipped in 1.2 pre-releases (from `v1.2.0-alpha.1`
+on), so all of them are still read:
 
-| Beta name (deprecated alias) | Canonical name |
+| Pre-release name (deprecated alias) | Canonical name | Read in |
+|---|---|---|
+| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` | `visiban/settings.py` |
+| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` | `visiban/settings.py` |
+| `VISIBAN_MIGRATE_CONNECT_TIMEOUT` | `MIGRATE_CONNECT_TIMEOUT_SECONDS` | `boards/management/commands/migrate_with_lock.py` |
+| `VISIBAN_MIGRATE_LOCK_TIMEOUT` | `MIGRATE_LOCK_TIMEOUT_SECONDS` | `boards/management/commands/migrate_with_lock.py` |
+
+The Django setting `settings.VISIBAN_IMPORT_MAX_SIZE` keeps its name. Settings attributes are
+internal, and renaming it would only churn callers.
+`backend/accounts/tests/test_deprecated_env_aliases.py` and
+`backend/boards/tests/test_migrate_with_lock.py` cover the resolution order.
+
+### Inventory of the names new in 1.2
+
+How the list was derived, so it can be re-checked:
+
+- **`settings.py`:** run this gate's `env_names()` on `git show v1.1.0:backend/visiban/settings.py`
+  and on HEAD, then take the difference.
+- **Everything else under `backend/`:** grep the non-test files for literal
+  `os.environ`/`os.getenv`/`env(...)` reads at `v1.1.0` and at HEAD, then take the difference.
+
+Every name in that difference, apart from the four renamed pairs above:
+
+| Name | Rule it follows |
 |---|---|
-| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` |
-| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` |
+| `BOARD_EVENT_RETENTION_DAYS`, `NOTIFICATION_RETENTION_DAYS` | `<FEATURE>_<NOUN>_<UNIT>` |
+| `NOTIFICATION_EMAIL_ENABLED`, `INVITE_EMAIL_ENABLED`, `GIT_LENS_ENABLED`, `MCP_SERVER_ENABLED` | on/off switch ends in `_ENABLED` |
+| `NOTIFICATION_EMAIL_ASYNC` | mode of a feature that is already on |
+| `NOTIFICATION_EMAIL_TIMEOUT` | mirrors Django's `EMAIL_TIMEOUT` (seconds) |
+| `EMAIL_TIMEOUT`, `EMAIL_USE_SSL`, `NUM_PROXIES` | upstream Django/DRF names |
+| `GIT_LENS_OUTBOUND_LOG_LEVEL`, `MCP_ALLOWED_HOSTS`, `REDIS_URL_PASSWORD` | `<FEATURE>_<NOUN>` |
+| `MCP_THROTTLE_READ_RATE`, `MCP_THROTTLE_COMPUTE_RATE`, `MCP_THROTTLE_PREAUTH_RATE` | `<FEATURE>_THROTTLE_<SCOPE>_RATE` |
+| `DEMO_MODE` | named instance mode, ends in `_MODE` |
+| `DEMO_LOGIN_USERNAME`, `DEMO_LOGIN_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `DEMO_MEMBER_PASSWORD`, `DEMO_RESET_SCHEDULE` | `<FEATURE>_<NOUN>` |
+| `VISIBAN_SECRET_ENCRYPTION_KEY` | reserved prefix: security-sensitive |
+| `VISIBAN_DISABLE_THROTTLING`, `VISIBAN_GIT_LENS_STUB_PROVIDERS` | reserved prefix: test/CI-only |
 
-Every other 1.2 name already fits the rules above and is unchanged. The Django setting
-`settings.VISIBAN_IMPORT_MAX_SIZE` keeps its name: settings attributes are internal, and
-renaming it would only churn callers. `backend/accounts/tests/test_deprecated_env_aliases.py`
-covers the resolution order for both aliases.
+Out of scope: `MUTATION_SHARD`, `MUTATION_SHARDS`, `MUTATION_TARGET`, `CI_NODE_INDEX` and
+`CI_NODE_TOTAL` are read only by `backend/mutmut_config.py`, the mutation-testing harness (see
+[Mutation testing](mutation-testing.md)). They are CI inputs, not operator settings.
 
 ## Allow-listing a deliberate break
 
@@ -328,3 +366,7 @@ revise the prose that describes the v1.1.0 baseline drift and allow-list burn-do
   `serializer-ts-parity` covers frontend interfaces).
 - WebSocket events: see [WebSocket event contract](websocket-event-contract.md).
 - Settings *values* and defaults; only names are compared.
+- Env vars read outside `backend/visiban/settings.py`, such as the `MIGRATE_*_TIMEOUT_SECONDS`
+  pair in `migrate_with_lock`. `scripts/helm-structure-check.sh` section 3 proves that every
+  name the chart injects has a reader under `backend/`, but nothing diffs these names against
+  a release.

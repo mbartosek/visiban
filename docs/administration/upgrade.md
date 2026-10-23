@@ -357,21 +357,39 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
-!!! note "Two environment variables from the 1.2 betas were renamed (old names still work)"
-    If you ran a 1.2 beta, two names it introduced changed before GA to follow the naming
-    convention of the variables around them. The beta names are **still read** as
-    deprecated aliases, so nothing breaks, but each one now logs a startup warning. Rename
+!!! note "Four environment variables from the 1.2 pre-releases were renamed (old names still work)"
+    If you ran a 1.2 alpha or beta, four names it introduced changed before GA to follow the
+    naming convention of the variables around them. The pre-release names are **still read**
+    as deprecated aliases, so nothing breaks, but each one now logs a startup warning. Rename
     them when convenient:
 
-    | Beta name (deprecated) | Use instead |
+    | Pre-release name (deprecated) | Use instead |
     |---|---|
     | `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` |
     | `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` |
+    | `VISIBAN_MIGRATE_CONNECT_TIMEOUT` | `MIGRATE_CONNECT_TIMEOUT_SECONDS` |
+    | `VISIBAN_MIGRATE_LOCK_TIMEOUT` | `MIGRATE_LOCK_TIMEOUT_SECONDS` |
 
-    If both names are set, the new one wins. The Helm chart already sets the new names, and
-    its values keys (`backend.settings.importMaxSizeBytes`, `demo.throttle.userRate`) are
-    unchanged. If you are upgrading from 1.1, neither name existed, so no action is needed.
-    See [Deprecated environment variable names](configuration.md#deprecated-environment-variable-names).
+    If both names are set, the new one wins. The Helm chart already sets the new names. Its
+    values keys (`backend.settings.importMaxSizeBytes`, `demo.throttle.userRate`,
+    `backend.migrate.connectTimeout`, `backend.migrate.lockTimeout`) are unchanged. If you
+    are upgrading from 1.1, none of these names existed, so no action is needed. See
+    [Deprecated environment variable names](configuration.md#deprecated-environment-variable-names).
+
+!!! warning "Helm: use this chart with a backend image from the same release"
+    From this release the chart sets only the new names above. An older backend image
+    (for example a 1.2 pre-release pinned through `backend.image.tag`) does not read them and
+    **silently** uses its defaults:
+
+    - a custom `backend.settings.importMaxSizeBytes` is lost, and the Trello import cap goes
+      back to 25 MB;
+    - `demo.throttle.userRate` stops applying, so demo visitors share the normal `user`
+      throttle limit again;
+    - a custom `backend.migrate.connectTimeout` or `backend.migrate.lockTimeout` reverts to
+      300 s or 900 s.
+
+    Upgrade the chart and the image together. The chart's default `backend.image.tag` is
+    already the matching release, so this only affects installs that override the tag.
 
 !!! note "Clear stale card assignees after upgrading"
     Assignable and notification member sets now follow the same role-resolution ladder as board

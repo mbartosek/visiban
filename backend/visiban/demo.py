@@ -140,7 +140,7 @@ def parse_demo_user_throttle_rate(raw: str | None, name: str = "DEMO_THROTTLE_US
 
     ``name`` is the variable the value came from, so the boot error names the
     one the operator actually set: ``DEMO_USER_THROTTLE_RATE`` is its
-    deprecated alias from the 1.2 betas (#1873).
+    deprecated alias from the 1.2 pre-releases (#1873).
 
     DRF's ``user`` scope counts per ACCOUNT, and on a public demo every visitor
     signs in as the one published account, so the normal 5000/hour becomes a

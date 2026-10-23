@@ -271,7 +271,9 @@ class DeploySettingsTests(SimpleTestCase):
     def test_demo_user_throttle_rate_typo_refuses_to_boot(self):
         values, err = self._eval({"DEMO_MODE": "true", "DEMO_USER_THROTTLE_RATE": "lots"})
         self.assertIsNone(values)
-        self.assertIn("DEMO_USER_THROTTLE_RATE", err)
+        # The boot error itself, not just the name: the deprecation line for
+        # this alias (#1873) also names DEMO_USER_THROTTLE_RATE.
+        self.assertIn("DEMO_USER_THROTTLE_RATE='lots' is not a throttle rate", err)
 
 
 class ParseDemoUserThrottleRateTests(SimpleTestCase):

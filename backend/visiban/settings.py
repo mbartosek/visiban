@@ -8,57 +8,11 @@ from pathlib import Path
 
 from visiban.utils import normalize_app_version
 
-
-def _warn_deprecated_env_alias(old_name: str, new_name: str) -> None:
-    """Emit a one-shot DeprecationWarning when a legacy env var is set.
-
-    Only fires when the operator has actually set the old name in the
-    environment — checking ``env()`` with defaults would warn on every
-    worker start regardless of whether the alias is in use (#819).
-    """
-    if os.environ.get(old_name):
-        message = (
-            f"{old_name} is deprecated; rename it to {new_name}. "
-            f"The {old_name} alias will be removed in a future release."
-        )
-        warnings.warn(message, DeprecationWarning, stacklevel=2)
-        # Python ignores a DeprecationWarning raised outside __main__ by
-        # default, so the warning above never reached an operator's container
-        # log (#1873). Logging is not configured yet while settings import, so
-        # this lands on stderr via logging's last-resort handler — the same
-        # route the dev CORS notice below uses.
-        import logging as _logging
-
-        _logging.getLogger("visiban.settings").warning(message)
-
-
-def _env_alias_name(new_name: str, old_name: str) -> str:
-    """Return which of a canonical env var and its deprecated alias to read (#1873).
-
-    For a rename whose old name must KEEP WORKING, unlike OIDC_SECRET below,
-    which is no longer read at all. 1.2 betas shipped the old names, so an
-    install that sets only the old name must behave exactly as before:
-
-    - canonical name set to a non-empty value: it wins, even if the alias is
-      also set (the operator has already migrated);
-    - otherwise the alias, whenever it is present at all (an empty alias
-      reads as empty, as it did before the rename);
-    - otherwise the canonical name, so the caller's default applies.
-
-    An empty canonical value is ignored rather than winning, so a compose-style
-    ``${NEW:-}`` passthrough can never shadow an operator's legacy value.
-
-    Pair every call with ``_warn_deprecated_env_alias(old, new)`` for the
-    startup warning. Pass both names as string literals: the compat gate
-    (scripts/check-api-compat.py) and the chart's reader check
-    (scripts/helm-structure-check.sh section 3) recognize this call as a
-    lookup of both names only when they are literals.
-    """
-    if os.environ.get(new_name):
-        return new_name
-    if old_name in os.environ:
-        return old_name
-    return new_name
+# Env var rename helpers (#1873). Kept under their historical private names:
+# scripts/check-api-compat.py recognizes calls to `_warn_deprecated_env_alias`
+# and `_env_alias_name` in this file, and tests import them from here.
+from visiban.env_aliases import env_alias_name as _env_alias_name
+from visiban.env_aliases import warn_deprecated_env_alias as _warn_deprecated_env_alias
 
 
 def _validate_redis_url(name: str, url: str) -> None:
@@ -237,7 +191,7 @@ _OIDC_CLIENT_ID = _secret_env("OIDC_CLIENT_ID", default="")
 _OIDC_CLIENT_SECRET = _secret_env("OIDC_CLIENT_SECRET", default="")
 # Warn operators still setting the pre-1.1 alias: the old name is no longer
 # read, so an unrenamed OIDC_SECRET silently deactivates SSO (#894, #1047).
-_warn_deprecated_env_alias("OIDC_SECRET", "OIDC_CLIENT_SECRET")
+_warn_deprecated_env_alias("OIDC_SECRET", "OIDC_CLIENT_SECRET", removed=True)
 _OIDC_SERVER_URL = env("OIDC_SERVER_URL", default="")
 # True when all three OIDC env vars are present. The provider app is only
 # registered in INSTALLED_APPS and SOCIALACCOUNT_PROVIDERS when this is True
@@ -488,7 +442,7 @@ MAX_UPLOAD_SIZE = env.int("MAX_UPLOAD_SIZE_BYTES", default=10 * 1024 * 1024)
 # per-import count caps in boards/services/trello_import.py bound the work, not
 # this value alone. Reverse proxies must allow bodies at least this large.
 # The env var is IMPORT_MAX_SIZE_BYTES, named like its MAX_UPLOAD_SIZE_BYTES
-# sibling (#1873). VISIBAN_IMPORT_MAX_SIZE shipped in the 1.2 betas and stays
+# sibling (#1873). VISIBAN_IMPORT_MAX_SIZE shipped in 1.2 pre-releases and stays
 # a working deprecated alias. The Django setting keeps its original name so
 # code and override_settings() callers are unaffected.
 _warn_deprecated_env_alias("VISIBAN_IMPORT_MAX_SIZE", "IMPORT_MAX_SIZE_BYTES")
@@ -866,7 +820,7 @@ ACCOUNT_PASSWORD_RESET_TOKEN_GENERATOR = "accounts.tokens.VisibanPasswordResetTo
 # EMAIL_VERIFICATION is the canonical env var name (added in 1.0).
 # Warn operators still setting the pre-1.1 ACCOUNT_EMAIL_VERIFICATION alias —
 # it is no longer read, so it silently has no effect (#894, #1047).
-_warn_deprecated_env_alias("ACCOUNT_EMAIL_VERIFICATION", "EMAIL_VERIFICATION")
+_warn_deprecated_env_alias("ACCOUNT_EMAIL_VERIFICATION", "EMAIL_VERIFICATION", removed=True)
 ACCOUNT_EMAIL_VERIFICATION = env("EMAIL_VERIFICATION", default="optional")
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 # Password login accepts a username or an email address (#1206) — the SPA form
@@ -1116,7 +1070,7 @@ from visiban.demo import parse_demo_user_throttle_rate as _parse_demo_user_throt
 
 # DEMO_THROTTLE_USER_RATE follows the <FEATURE>_THROTTLE_<SCOPE>_RATE form of
 # the MCP_THROTTLE_*_RATE family and mirrors the chart's demo.throttle.userRate
-# key (#1873). DEMO_USER_THROTTLE_RATE shipped in the 1.2 betas and stays a
+# key (#1873). DEMO_USER_THROTTLE_RATE shipped in 1.2 pre-releases and stays a
 # working deprecated alias.
 _warn_deprecated_env_alias("DEMO_USER_THROTTLE_RATE", "DEMO_THROTTLE_USER_RATE")
 _DEMO_USER_THROTTLE_RATE_VAR = _env_alias_name("DEMO_THROTTLE_USER_RATE", "DEMO_USER_THROTTLE_RATE")

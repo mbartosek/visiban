@@ -6,6 +6,8 @@ The helper must:
   log a spurious warning on every restart).
 - Also log the warning, because Python hides a DeprecationWarning raised
   outside __main__ (#1873).
+- Say "no longer read" for an alias that was removed (``removed=True``) and
+  "deprecated; rename it" for one that still works.
 
 ``_env_alias_name`` resolves a renamed variable whose old name must keep
 working (#1873): the new name wins when non-empty, else the old one is read.
@@ -56,13 +58,38 @@ class WarnDeprecatedEnvAliasTests(TestCase):
     def test_warning_is_also_logged_for_operators(self):
         # Python hides a DeprecationWarning raised outside __main__, so the
         # warnings.warn() call alone never reached a container log (#1873).
-        with patch.dict(os.environ, {"OIDC_SECRET": "legacy-secret"}, clear=False):
+        with patch.dict(os.environ, {"VISIBAN_IMPORT_MAX_SIZE": "1024"}, clear=False):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                with self.assertLogs("visiban.settings", level="WARNING") as logs:
-                    _warn_deprecated_env_alias("OIDC_SECRET", "OIDC_CLIENT_SECRET")
+                with self.assertLogs("visiban.env_aliases", level="WARNING") as logs:
+                    _warn_deprecated_env_alias("VISIBAN_IMPORT_MAX_SIZE", "IMPORT_MAX_SIZE_BYTES")
         self.assertEqual(len(logs.output), 1)
-        self.assertIn("OIDC_SECRET is deprecated; rename it to OIDC_CLIENT_SECRET", logs.output[0])
+
+    def _logged(self, old, new, **kwargs):
+        with patch.dict(os.environ, {old: "legacy-value"}, clear=False):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with self.assertLogs("visiban.env_aliases", level="WARNING") as logs:
+                    _warn_deprecated_env_alias(old, new, **kwargs)
+        return logs.output[0]
+
+    def test_working_alias_wording_says_rename(self):
+        message = self._logged("VISIBAN_IMPORT_MAX_SIZE", "IMPORT_MAX_SIZE_BYTES")
+        self.assertIn("VISIBAN_IMPORT_MAX_SIZE is deprecated; rename it to IMPORT_MAX_SIZE_BYTES", message)
+        self.assertNotIn("no longer read", message)
+
+    def test_removed_alias_wording_says_it_has_no_effect_oidc_secret(self):
+        message = self._logged("OIDC_SECRET", "OIDC_CLIENT_SECRET", removed=True)
+        self.assertIn("OIDC_SECRET is no longer read and has no effect; replace it with OIDC_CLIENT_SECRET", message)
+        self.assertNotIn("is deprecated", message)
+
+    def test_removed_alias_wording_says_it_has_no_effect_account_email_verification(self):
+        message = self._logged("ACCOUNT_EMAIL_VERIFICATION", "EMAIL_VERIFICATION", removed=True)
+        self.assertIn(
+            "ACCOUNT_EMAIL_VERIFICATION is no longer read and has no effect; replace it with EMAIL_VERIFICATION",
+            message,
+        )
+        self.assertNotIn("is deprecated", message)
 
 
 class EnvAliasNameTests(SimpleTestCase):
@@ -122,7 +149,7 @@ print(json.dumps({
 
 
 class RenamedEnvVarSettingsTests(SimpleTestCase):
-    """The 1.2-beta names stay working aliases of their canonical names (#1873)."""
+    """The 1.2 pre-release names stay working aliases of their canonical names (#1873)."""
 
     databases = []
 
@@ -190,6 +217,21 @@ class RenamedEnvVarSettingsTests(SimpleTestCase):
         values, stderr = self._eval({"DEMO_THROTTLE_USER_RATE": "50000/hour"})
         self.assertIsNotNone(values, stderr)
         self.assertNotEqual(values["USER_RATE"], "50000/hour")
+
+    # Removed aliases (1.1): the settings call sites use the "no effect" wording.
+
+    def test_oidc_secret_boot_warning_says_it_is_no_longer_read(self):
+        values, stderr = self._eval({"OIDC_SECRET": "legacy-secret"})
+        self.assertIsNotNone(values, stderr)
+        self.assertIn("OIDC_SECRET is no longer read and has no effect; replace it with OIDC_CLIENT_SECRET", stderr)
+
+    def test_account_email_verification_boot_warning_says_it_is_no_longer_read(self):
+        values, stderr = self._eval({"ACCOUNT_EMAIL_VERIFICATION": "none"})
+        self.assertIsNotNone(values, stderr)
+        self.assertIn(
+            "ACCOUNT_EMAIL_VERIFICATION is no longer read and has no effect; replace it with EMAIL_VERIFICATION",
+            stderr,
+        )
 
     def test_demo_throttle_typo_names_the_variable_that_was_set(self):
         values, stderr = self._eval({"DEMO_MODE": "true", "DEMO_THROTTLE_USER_RATE": "lots"})

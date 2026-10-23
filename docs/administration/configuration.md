@@ -363,10 +363,15 @@ minor release after its deprecation, and its removal is announced in the
 If both names are set, the new name wins whenever it has a non-empty value. An install that
 sets only the old name behaves exactly as before.
 
+The Helm chart sets the new names, so it needs a backend image from the same release. See the
+[1.2 upgrade notes](upgrade.md#upgrading-to-12x).
+
 | Deprecated name | Use instead | Deprecated in | Notes |
 |---|---|---|---|
-| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` | 1.2 | Shipped in the 1.2 betas. Renamed to match `MAX_UPLOAD_SIZE_BYTES`. The Helm key `backend.settings.importMaxSizeBytes` is unchanged. |
-| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` | 1.2 | Shipped in the 1.2 betas. Renamed to match `MCP_THROTTLE_*_RATE` and the Helm key `demo.throttle.userRate`, which is unchanged. |
+| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` | 1.2 | Shipped in 1.2 pre-releases. Renamed to match `MAX_UPLOAD_SIZE_BYTES`. The Helm key `backend.settings.importMaxSizeBytes` is unchanged. |
+| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` | 1.2 | Shipped in 1.2 pre-releases. Renamed to match `MCP_THROTTLE_*_RATE` and the Helm key `demo.throttle.userRate`, which is unchanged. |
+| `VISIBAN_MIGRATE_CONNECT_TIMEOUT` | `MIGRATE_CONNECT_TIMEOUT_SECONDS` | 1.2 | Shipped in 1.2 pre-releases. Read by `manage.py migrate_with_lock`, the Helm chart's `migrate` init container. The Helm key `backend.migrate.connectTimeout` is unchanged. |
+| `VISIBAN_MIGRATE_LOCK_TIMEOUT` | `MIGRATE_LOCK_TIMEOUT_SECONDS` | 1.2 | Shipped in 1.2 pre-releases. Read by `manage.py migrate_with_lock`. The Helm key `backend.migrate.lockTimeout` is unchanged. |
 
 Names removed in earlier releases (`OIDC_SECRET` and `ACCOUNT_EMAIL_VERIFICATION`, both
 removed in 1.1) are listed in the [1.1 upgrade notes](upgrade.md#upgrading-to-11x).
