@@ -4,6 +4,8 @@ Same MCP_SERVER_ENABLED skip-guard as test_mcp.py, and the harness classes
 below (McpTestCase/McpRequest/_parse_sse) are imported from there rather than
 duplicated, so the two files cannot drift apart on how a request is driven.
 """
+import json
+
 import pytest
 from django.conf import settings
 
@@ -14,6 +16,7 @@ if not settings.MCP_SERVER_ENABLED:  # pragma: no cover - exercised only in the 
     )
 
 from django.utils import timezone
+from rest_framework.utils.encoders import JSONEncoder
 
 from accounts.models import (
     SCOPE_MCP_READ,
@@ -29,6 +32,7 @@ from boards.tests.conftest import (
     _make_board, _make_card, _make_column, _make_membership, _make_swimlane,
     _make_user,
 )
+from boards.views._helpers import render_card_payloads
 
 from .test_mcp import McpTestCase, _parse_sse
 
@@ -909,6 +913,116 @@ class UpdateCardTests(CrudToolsTestCase):
             result = self._call("update_card", self.write_token, card_id=card.id, title="Back?")
         self.assertEqual(result["error"]["code"], "card_not_found")
         self.assertFalse(Card.objects.filter(pk=card.pk).exists())
+
+
+class BroadcastPayloadShapeTests(CrudToolsTestCase):
+    """create/move/update broadcast a CardSerializer card, as REST does (#1926).
+
+    The tools passed a render that built their own return shape, and the
+    service broadcasts and records whatever render returns: column/swimlane
+    as {id, name} objects, label names, no uid/version/blocker_count. A web
+    client matches card frames on ``id`` against CardSerializer cards and
+    could not apply them. Each test checks the stored BoardEvent row (which
+    is exactly what the socket frame carries) against the REST rendering of
+    the same card, and that the tool's own return shape is unchanged.
+    """
+
+    def _events(self, event):
+        return list(
+            BoardEvent.objects.filter(board_id=self.board.id, event=event)
+            .order_by("id").values_list("data", flat=True)
+        )
+
+    def _rest_card(self, card_id):
+        (payload,) = render_card_payloads(self.board, [card_id])
+        # A plain dict with JSON-native values, as the stored row holds.
+        return json.loads(json.dumps(payload, cls=JSONEncoder))
+
+    def _assert_rest_card(self, data, card_id):
+        card = Card.objects.get(pk=card_id)
+        self.assertEqual(data["id"], card.id)
+        self.assertEqual(data["uid"], card.uid)
+        self.assertEqual(data["version"], card.version)
+        self.assertEqual(data["blocker_count"], 0)
+        # Foreign keys are plain ids in the REST shape, not {id, name}.
+        self.assertEqual(data["column"], card.column_id)
+        self.assertEqual(data["swimlane"], card.swimlane_id)
+        self.assertEqual(data, self._rest_card(card_id))
+
+    def test_create_card_broadcasts_a_rest_card(self):
+        from boards.models import Label
+
+        Label.objects.create(board=self.board, name="urgent")
+        result = self._call(
+            "create_card", self.write_token, board_id=self.board.id,
+            column_id=self.column.id, swimlane_id=self.swimlane.id, title="Wired",
+            labels=["urgent"],
+        )
+        (data,) = self._events("card.created")
+        self._assert_rest_card(data, result["id"])
+        # The tool's own return is the documented MCP shape, unchanged.
+        self.assertEqual(result["column"], {"id": self.column.id, "name": "Backlog"})
+        self.assertEqual(result["labels"], ["urgent"])
+        self.assertNotIn("uid", result)
+
+    def test_create_card_with_position_broadcasts_rest_create_and_move(self):
+        _make_card(self.column, self.swimlane, title="Sibling", position=0)
+        result = self._call(
+            "create_card", self.write_token, board_id=self.board.id,
+            column_id=self.column.id, swimlane_id=self.swimlane.id, title="First",
+            position=0,
+        )
+        self.assertEqual(result["position"], 0)
+        self.assertEqual(result["swimlane"], {"id": self.swimlane.id, "name": "General"})
+        (created,) = self._events("card.created")
+        self.assertEqual(created["id"], result["id"])
+        self.assertIn("uid", created)
+        # The follow-up same-cell reorder: {card} with no movement, as the
+        # same reorder over REST broadcasts it.
+        (moved,) = self._events("card.moved")
+        self.assertEqual(set(moved), {"card"})
+        self._assert_rest_card(moved["card"], result["id"])
+        self.assertEqual(moved["card"]["position"], 0)
+
+    def test_move_card_broadcasts_rest_card_and_movement(self):
+        card = _make_card(self.column, self.swimlane, title="Movable")
+        result = self._call(
+            "move_card", self.write_token, card_id=card.id, to_column_id=self.other_column.id,
+        )
+        (data,) = self._events("card.moved")
+        self.assertEqual(set(data), {"card", "movement"})
+        self._assert_rest_card(data["card"], card.id)
+        movement = CardMovement.objects.get(card=card, to_column=self.other_column)
+        self.assertEqual(data["movement"]["id"], movement.id)
+        self.assertEqual(data["movement"]["card_uid"], card.uid)
+        self.assertEqual(data["movement"]["to_column"], self.other_column.id)
+        self.assertEqual(data["movement"]["to_column_name"], "Doing")
+        # The tool returns its own shapes for both.
+        self.assertEqual(result["card"]["column"], {"id": self.other_column.id, "name": "Doing"})
+        self.assertEqual(result["movement"]["to_column"], "Doing")
+        self.assertNotIn("card_uid", result["movement"])
+
+    def test_same_cell_reorder_broadcasts_card_without_movement(self):
+        card = _make_card(self.column, self.swimlane, title="A", position=0)
+        _make_card(self.column, self.swimlane, title="B", position=1)
+        result = self._call(
+            "move_card", self.write_token, card_id=card.id,
+            to_column_id=self.column.id, position=1,
+        )
+        self.assertIsNone(result["movement"])
+        (data,) = self._events("card.moved")
+        self.assertEqual(set(data), {"card"})
+        self._assert_rest_card(data["card"], card.id)
+
+    def test_update_card_broadcasts_a_rest_card(self):
+        card = _make_card(self.column, self.swimlane, title="Old")
+        result = self._call("update_card", self.write_token, card_id=card.id, title="New")
+        (data,) = self._events("card.updated")
+        self._assert_rest_card(data, card.id)
+        self.assertEqual(data["title"], "New")
+        self.assertEqual(result["title"], "New")
+        self.assertEqual(result["column"], {"id": self.column.id, "name": "Backlog"})
+        self.assertNotIn("version", result)
 
 
 class ArchiveCardTests(CrudToolsTestCase):

@@ -207,9 +207,14 @@ arrives as `swimlane.updated`, whose payload carries the swimlane's
 | `card.created` | New card created | Full `CardSerializer` object |
 | `card.updated` | Card fields edited, comment added/deleted, attachment added/deleted, checklist changed, [relation](cards.md#relations-since-12) added/removed | Full `CardSerializer` object |
 | `card.deleted` | Card deleted | `{ "card_uid": <string> }` |
-| `card.moved` | Card moved to a different column or swimlane | `{ "card": <CardSerializer>, "movement": <CardMovementSerializer> }` — the `movement` object also carries `card_uid` and `card_title` so board-level consumers can identify the card without a second fetch |
+| `card.moved` | Card moved to a different column or swimlane | `{ "card": <CardSerializer>, "movement": <CardMovementSerializer> }` — the `movement` object also carries `card_uid` and `card_title` so board-level consumers can identify the card without a second fetch. A reorder within the same column and swimlane sends `{ "card": <CardSerializer> }` with no `movement` key |
 | `card.archived` | Card archived | `{ "card_uid": <string> }` |
 | `card.unarchived` | Card restored from archive | Full `CardSerializer` object |
+
+These shapes are the same whichever writer made the change: the REST API or the
+[MCP](mcp.md) write tools. *Fixed in 1.2 (#1926): a card created, moved or updated
+through MCP sent the MCP tool's own return shape in `card.created`, `card.moved`
+and `card.updated`, which clients could not apply.*
 
 !!! note "One change can publish several card frames (since 1.2)"
 

@@ -44,7 +44,12 @@ response. Three consequences worth knowing before you call it:
    WebSocket payload are deliberately the same dict (#999/#1050): re-serializing
    in the adapter after commit would cost a second multi-query fetch and would
    let a concurrent writer land between the write and the read. The service
-   stays serializer-agnostic; the adapter decides what a payload looks like.
+   stays serializer-agnostic, but ``render``'s return value *is* the
+   ``card.*`` WebSocket frame and change-feed row, whose shape is a public
+   contract (a ``CardSerializer`` card; ``{card[, movement]}`` for a move —
+   see ``docs/api/websockets.md``). An adapter that needs a different return
+   shape must render that contract and keep its own shape on the side, as the
+   MCP tools do with ``_BroadcastRender.tool_card`` (#1926).
 
 Errors are the typed classes in :mod:`boards.services.errors`, each carrying the
 exact HTTP status and body the endpoint returned before the extraction.

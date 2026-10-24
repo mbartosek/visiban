@@ -510,6 +510,23 @@ def blocked_peers_of(cards, *, active_blockers_only=True):
     )
 
 
+def card_payload_context(board, request=None):
+    """The ``CardSerializer`` context for rendering cards of ``board`` outside a
+    ``CardViewSet``: the board-level lookups precomputed once, so a serializer
+    over a ``_card_queryset`` instance issues no per-card query for them.
+
+    Shared by ``render_card_payloads`` and the MCP create/move/update tools,
+    which render a single card for their broadcast (#1926).
+    """
+    return {
+        "request": request,
+        "board": board,
+        "_member_ids": _get_effective_member_ids(board),
+        "_assignable_member_ids": _get_assignable_member_ids(board),
+        "_board_labels_qs": board.labels.all(),
+    }
+
+
 def render_card_payloads(board, card_ids, request=None):
     """Render the cards ``card_ids`` on ``board`` in one prefetch pass (#1634).
 
@@ -524,13 +541,7 @@ def render_card_payloads(board, card_ids, request=None):
     rendered for this one. ``request`` is optional: nothing in this payload
     depends on it.
     """
-    ctx = {
-        "request": request,
-        "board": board,
-        "_member_ids": _get_effective_member_ids(board),
-        "_assignable_member_ids": _get_assignable_member_ids(board),
-        "_board_labels_qs": board.labels.all(),
-    }
+    ctx = card_payload_context(board, request)
     return [
         CardSerializer(c, context=ctx).data
         for c in _card_queryset(Card.objects.filter(pk__in=list(card_ids), board_id=board.pk))

@@ -347,7 +347,7 @@ Creates a card, appended to the end of its column/swimlane cell (or inserted at 
 
 **Arguments:** `board_id`, `column_id`, `swimlane_id`, `title` (required); `description`, `priority` (default `"medium"`), `assignee` (username of any board member whose role is not `viewer`), `labels` (array of names), `due_date` (`YYYY-MM-DD`), `position` — all optional.
 
-**Returns:** the created card, same shape as one row of `list_cards`. Writes a `CardMovement` record with no "from" column (matching how the REST API records card creation) and broadcasts `card.created` on the board's WebSocket channel.
+**Returns:** the created card, same shape as one row of `list_cards`. Writes a `CardMovement` record with no "from" column (matching how the REST API records card creation) and broadcasts `card.created` on the board's WebSocket channel. The broadcast frame (and its [change-feed](events.md) row) carries the full card exactly as a REST create sends it, not the tool's return shape above; when `position` is given and differs from the position the card was appended at, the follow-up reorder also sends a `card.moved` frame (`{card}`, with no `movement`). *Fixed in 1.2 (#1926): the frame carried the tool's return shape, which web clients could not apply.*
 
 Enforces the column's WIP and weight limits exactly as `move_card` does, with no override: a create into a full column returns `wip_limit_exceeded`/`wip_hard_blocked`/`weight_limit_exceeded` and writes nothing. *Changed in 1.2 (#1428): creates were not checked before.*
 
@@ -359,13 +359,15 @@ Moves a card to a new column and/or swimlane and/or position. Requires `admin` o
 
 **Returns:** `{"card": <card>, "movement": <movement-or-null>}`. `movement` is `null` for a pure position reorder within the same cell (no column/swimlane change); otherwise it carries `{id, from_column, to_column, from_swimlane, to_swimlane, moved_at, moved_by, imported_from_username}`. `imported_from_username` is `null` except on a row created by a board import with history (since 1.2), where it holds the username the import file named and `moved_by` is the user who imported it. Enforces the board's WIP/weight limits exactly as the REST move endpoint does, with no override — a blocked move returns `wip_limit_exceeded`/`wip_hard_blocked`/`weight_limit_exceeded` rather than moving the card.
 
+Broadcasts `card.moved` with the same payload as the REST move endpoint (`{card, movement}`, full card and movement objects, `movement` omitted for a same-cell reorder), not the tool's return shape. *Fixed in 1.2 (#1926).*
+
 ### `update_card`
 
 Updates one or more fields on a card. Requires `admin` or `member` board role and the `mcp:write` scope.
 
 **Arguments:** `card_id` (required); any of `title`, `description`, `priority`, `assignee` (username), `labels`, `due_date` — omitted fields are left unchanged. `labels: []` clears every label; `assignee: ""` unassigns the card. Cannot change a card's column or swimlane — use `move_card`.
 
-**Returns:** the updated card, same shape as `create_card`. Records a `CardActivity` audit entry per field that actually changed.
+**Returns:** the updated card, same shape as `create_card`. Records a `CardActivity` audit entry per field that actually changed. Broadcasts `card.updated` with the full card, as a REST update does, not the tool's return shape. *Fixed in 1.2 (#1926).*
 
 ### `archive_card`
 

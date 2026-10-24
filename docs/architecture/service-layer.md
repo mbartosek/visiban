@@ -85,7 +85,7 @@ Nothing under `boards/services/` imports `rest_framework`, reads a request, or b
 - **Field validation.** Per the project rule that input is validated at the serializer boundary, `create_card` and `update_card` take a callable that performs the already-validated write — `serializer.save()` for the HTTP adapter. `CardSerializer`'s querysets are board-scoped, so a cross-board column, swimlane, label, or assignee id is already a `400` before the service is reached.
 - **Serialization.** Each function takes a `render` callable and invokes it *inside* the transaction, because the REST response body and the WebSocket payload are deliberately the same dict. Re-serializing in the adapter after commit would cost a second multi-query fetch and would let a concurrent writer land between the write and the read.
 
-That last point is the one place the boundary is a compromise rather than a clean cut, and it is deliberate: the service stays serializer-agnostic, and the adapter decides what a payload looks like.
+That last point is the one place the boundary is a compromise rather than a clean cut, and it is deliberate: the service stays serializer-agnostic. The adapter does not choose the broadcast shape, though: whatever `render` returns *is* the `card.*` WebSocket frame and change-feed row, which [the WebSocket contract](../api/websockets.md#card-events) fixes as a `CardSerializer` card (`{card[, movement]}` for a move). An adapter that needs a different return shape renders the contract and keeps its own shape on the side, as the MCP tools do with `_BroadcastRender.tool_card` (*1.2, #1926*: they returned their own shape from `render`, and it reached the wire).
 
 ## Errors
 
@@ -158,7 +158,8 @@ Swimlane and column reorder and the other structural mutations are slated to fol
 2. Add a class to `errors.py` for each new failure mode — never build a response body in a view.
 3. Reach `broadcast` and `hooks` through the **module object** (`from .. import broadcast as _broadcast`). The test suite patches `boards.broadcast.broadcast_board_event` at its source module, and a direct-name import binds a reference the patch cannot reach — so tests that patch only to suppress the channel layer would silently start broadcasting for real.
 4. Register hook callbacks by reading `hooks.CARD_MUTATION_HOOKS` inside the `on_commit` callback. Enterprise code appends to that list in place; a copy taken at import time would miss late registrations, and rebinding the attribute would drop every enterprise handler. Each handler runs in isolation (`_run_hooks`): an exception is logged (handler name, ids, event type, exception class only) and swallowed, because the write is already committed and a 500 would invite a duplicate-creating retry. Handlers must therefore handle their own failures; they cannot veto or roll back the write.
-5. Add a query budget to `CardMutationQueryCountTests`. Mutation budgets are `measured + 3`, tighter than the 2× used for read endpoints, because they have to catch a constant regression rather than a row-scaling one.
+5. When adding a writer (an adapter), make its `render` return the payload the REST adapter broadcasts for the same event, never its own response shape: the return value is the WebSocket frame and the change-feed row. Keep any different response shape on the side, as `mcp_server.tools._BroadcastRender` does, and test the stored `BoardEvent` row against `render_card_payloads` (see `BroadcastPayloadShapeTests`).
+6. Add a query budget to `CardMutationQueryCountTests`. Mutation budgets are `measured + 3`, tighter than the 2× used for read endpoints, because they have to catch a constant regression rather than a row-scaling one.
 
 ## Frozen asymmetries
 
