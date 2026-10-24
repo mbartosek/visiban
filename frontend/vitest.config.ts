@@ -7,11 +7,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    // CI runners are resource-constrained enough that a genuine one-off flake
-    // (e.g. a waitFor timing out under GC pressure) shouldn't fail the whole
-    // pipeline — a real regression still fails on every retry attempt. Local
-    // runs stay strict (no retry) so a flake surfaces immediately for the dev
-    // who introduced it, instead of quietly passing on attempt 2. (#1304)
+    // One CI retry absorbs a one-off scheduler hiccup and nothing more. Every
+    // root-caused occurrence of #1319 (3: a leaked post-save timer; 4: an
+    // effect-seeded input buffer racing the first edit; 1 most likely the
+    // same race) was a component defect that failed on both attempts. A red
+    // job with "(retry x1)" therefore means a real bug: investigate, don't
+    // re-run. Do not raise this to 2, which would have saved none of them and
+    // would hide the next one. Local runs stay strict (no retry) so a flake
+    // surfaces for the dev who introduced it. (#1304, #1319)
     retry: process.env.CI ? 1 : 0,
     // Restrict test discovery to this project's src/ so agent worktrees in
     // .claude/worktrees/ are not picked up when Vitest is run from the repo root.

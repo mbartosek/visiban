@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
+import { useEffect, useState } from 'react'
+import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LensFilterBar from '../components/Board/Lens/LensFilterBar'
+import { stallEventLoopAfterWaitFor } from './eventLoopStall'
 
 function setup(overrides: Partial<React.ComponentProps<typeof LensFilterBar>> = {}) {
   const props: React.ComponentProps<typeof LensFilterBar> = {
@@ -201,5 +203,63 @@ describe('LensFilterBar', () => {
   it('hides Clear when no filters are active', () => {
     setup({ activeCount: 0 })
     expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+  })
+
+  it('syncs external milestone and assignee changes (Clear, a shared URL) back into the inputs', () => {
+    const props: React.ComponentProps<typeof LensFilterBar> = {
+      state: 'all', milestone: '1.2', labels: [], assignee: 'alice', q: '',
+      availableMilestones: [], availableLabels: [], availableAssignees: [], activeCount: 2,
+      onStateChange: vi.fn(), onMilestoneChange: vi.fn(), onLabelsChange: vi.fn(),
+      onAssigneeChange: vi.fn(), onQChange: vi.fn(), onClear: vi.fn(),
+    }
+    const { rerender } = render(<LensFilterBar {...props} />)
+    rerender(<LensFilterBar {...props} milestone="__none__" assignee="bob" />)
+    expect(screen.getByLabelText('Filter by milestone')).toHaveValue('(no milestone)')
+    expect(screen.getByLabelText('Filter by assignee')).toHaveValue('bob')
+    rerender(<LensFilterBar {...props} milestone="" assignee="" />)
+    expect(screen.getByLabelText('Filter by milestone')).toHaveValue('')
+    expect(screen.getByLabelText('Filter by assignee')).toHaveValue('')
+  })
+
+  // #1319: the milestone and assignee buffers used to be synced from their
+  // props by a useEffect, which also runs on mount. Mounted after a fetch
+  // (outside act()), an edit landing between the commit and that effect was
+  // overwritten by it. See ./eventLoopStall for the window.
+  it.each([
+    ['Filter by milestone', '1.2', '0.3'],
+    ['Filter by assignee', 'alice', 'bob'],
+  ])('keeps a %s edit typed before the mount effects run (#1319)', async (label, initial, typed) => {
+    let mountEffectsRan = false
+    function Probe() {
+      useEffect(() => { mountEffectsRan = true }, [])
+      return null
+    }
+    function MountAfterFetch() {
+      const [ready, setReady] = useState(false)
+      useEffect(() => { void Promise.resolve().then(() => setReady(true)) }, [])
+      if (!ready) return null
+      return (
+        <>
+          <LensFilterBar
+            state="all" milestone="1.2" labels={[]} assignee="alice" q=""
+            availableMilestones={[]} availableLabels={[]} availableAssignees={[]} activeCount={0}
+            onStateChange={vi.fn()} onMilestoneChange={vi.fn()} onLabelsChange={vi.fn()}
+            onAssigneeChange={vi.fn()} onQChange={vi.fn()} onClear={vi.fn()}
+          />
+          <Probe />
+        </>
+      )
+    }
+    render(<MountAfterFetch />)
+    const input = await waitFor(() => {
+      const el = screen.getByLabelText(label)
+      stallEventLoopAfterWaitFor()
+      return el
+    })
+    expect(input).toHaveValue(initial)
+    // Proves the test is inside the window: effects from that commit are still pending.
+    expect(mountEffectsRan).toBe(false)
+    fireEvent.change(input, { target: { value: typed } })
+    expect(screen.getByLabelText(label)).toHaveValue(typed)
   })
 })

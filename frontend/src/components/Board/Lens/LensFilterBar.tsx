@@ -81,10 +81,15 @@ export default function LensFilterBar({
   // typed value — committing per keystroke would fire a fetch (and mint a distinct
   // cache key) for every partial value. Selecting a datalist suggestion or typing
   // both flow through here; external changes (Clear, a shared URL) sync back in.
+  // The sync happens during render, not in a useEffect: an effect also runs
+  // once after mount, and an edit landing between the mount commit and that
+  // effect was overwritten by it (#1319).
   const [mInput, setMInput] = useState(() => milestoneToInput(milestone));
-  useEffect(() => {
+  const [syncedMilestone, setSyncedMilestone] = useState(milestone);
+  if (milestone !== syncedMilestone) {
+    setSyncedMilestone(milestone);
     setMInput(milestoneToInput(milestone));
-  }, [milestone]);
+  }
   useEffect(() => {
     const next = milestoneFromInput(mInput);
     if (next === milestone) return;
@@ -93,9 +98,11 @@ export default function LensFilterBar({
   }, [mInput, milestone, onMilestoneChange]);
 
   const [aInput, setAInput] = useState(assignee);
-  useEffect(() => {
+  const [syncedAssignee, setSyncedAssignee] = useState(assignee);
+  if (assignee !== syncedAssignee) {
+    setSyncedAssignee(assignee);
     setAInput(assignee);
-  }, [assignee]);
+  }
   useEffect(() => {
     if (aInput === assignee) return;
     const t = setTimeout(() => onAssigneeChange(aInput), 400);

@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import AdminPage from '../pages/AdminPage'
 import type { User, AdminUser, SiteSettings, SiteEmailSettings } from '../types'
+import { stallEventLoopAfterWaitFor } from './eventLoopStall'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -190,6 +191,24 @@ function renderAdminPage(user: User = adminUser) {
   )
 }
 
+// The Settings tab renders in stages: the instance settings load first, then
+// EmailSettingsSection mounts and loads its own settings. Finding an element
+// from the first stage does not mean the page is idle: the commit that shows
+// it can still have mount effects queued, and on a slow CI runner the test can
+// act before they run (#1319, occurrence 4). Waiting for the last stage (an
+// SMTP field) means every load and mount effect has already run, so the test
+// starts from a page with no work in flight.
+//
+// Use it for every test that acts on the page. Plain renderAdminPage() is left
+// only where the page never reaches that state or the test needs the unsettled
+// window: the non-admin redirect (renders nothing), a failed settings or email
+// settings load (no SMTP field ever appears), and the #1319 race regressions.
+async function renderAdminPageSettled(user: User = adminUser) {
+  const view = renderAdminPage(user)
+  await screen.findByLabelText('Host')
+  return view
+}
+
 // ---------------------------------------------------------------------------
 // Tests: access control
 // ---------------------------------------------------------------------------
@@ -209,7 +228,7 @@ describe('AdminPage — access control', () => {
   })
 
   it('renders the page for site admins', async () => {
-    renderAdminPage(adminUser)
+    await renderAdminPageSettled(adminUser)
     await waitFor(() => {
       expect(screen.getByText('Site Administration')).toBeInTheDocument()
     })
@@ -230,7 +249,7 @@ describe('AdminPage — Settings tab', () => {
   })
 
   it('shows registration mode options', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => {
       expect(screen.getByText('Open')).toBeInTheDocument()
       expect(screen.getByText('Invite-only')).toBeInTheDocument()
@@ -243,7 +262,7 @@ describe('AdminPage — Settings tab', () => {
     // object here silently sets every other setting to undefined once
     // SettingsTab does setSettings(updated).
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, registration_mode: 'closed' })
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Closed'))
     fireEvent.click(screen.getByText('Closed'))
     await waitFor(() => {
@@ -260,7 +279,7 @@ describe('AdminPage — Settings tab', () => {
   })
 
   it('renders native radio inputs for registration mode', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Open'))
     const radios = screen.getAllByRole('radio')
     const openRadio = radios.find((r) => (r as HTMLInputElement).value === 'open')
@@ -287,7 +306,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows users table after switching to Users tab', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => {
       // username rendered as "@alice" in the table row
@@ -296,7 +315,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows Add User button', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => {
       expect(screen.getByText('+ Add User')).toBeInTheDocument()
@@ -304,7 +323,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('opens add user modal on Add User click', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -330,7 +349,7 @@ describe('AdminPage — Users tab', () => {
       owned_boards: [],
     }
     mockCreateAdminUser.mockResolvedValue(newUser)
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -351,7 +370,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('shows error for short password in add modal', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('+ Add User'))
     fireEvent.click(screen.getByText('+ Add User'))
@@ -377,7 +396,7 @@ describe('AdminPage — Users tab', () => {
 
   it('calls patchAdminUser on force reset click', async () => {
     mockPatchAdminUser.mockResolvedValue({ ...fakeAdminUsers[1], must_change_password: true })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -402,7 +421,7 @@ describe('AdminPage — Users tab', () => {
     mockPatchAdminUser.mockReturnValue(
       new Promise<AdminUser>((resolve) => { resolvePatch = resolve })
     )
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -455,7 +474,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], toured],
     })
     mockPatchAdminUser.mockReturnValue(new Promise<AdminUser>(() => { /* never resolves */ }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -484,7 +503,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], toured],
     })
     mockPatchAdminUser.mockResolvedValue({ ...toured, has_completed_tour: false })
-    const { unmount } = renderAdminPage()
+    const { unmount } = await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu(toured.display_name)
@@ -505,7 +524,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('confirm dialog starts on Cancel, traps Tab, and returns focus to the row kebab (#1732)', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -527,7 +546,7 @@ describe('AdminPage — Users tab', () => {
 
   it('calls clearAdminUserLockout after confirming the clear-lockout action (#1203)', async () => {
     mockClearAdminUserLockout.mockResolvedValue(fakeAdminUsers[1])
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -544,7 +563,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('does not call clearAdminUserLockout if the confirm dialog is canceled', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -560,7 +579,7 @@ describe('AdminPage — Users tab', () => {
     mockClearAdminUserLockout.mockRejectedValue({
       response: { data: { detail: 'Account is not currently locked out.' } },
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -581,7 +600,7 @@ describe('AdminPage — Users tab', () => {
       count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], holder],
     })
     mockPatchAdminUser.mockRejectedValue({ response: { data: { detail: message } } })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Alice')
@@ -616,7 +635,7 @@ describe('AdminPage — Users tab', () => {
     mockGetAdminUsers.mockResolvedValue({
       count: 3, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser, holder],
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -641,7 +660,7 @@ describe('AdminPage — Users tab', () => {
     mockGetAdminUsers.mockResolvedValue({
       count: 2, offset: 0, page_size: 50, results: [fakeAdminUsers[0], superuser],
     })
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Alice')
@@ -650,7 +669,7 @@ describe('AdminPage — Users tab', () => {
 
   it('falls back to a generic error message when clearAdminUserLockout fails without detail (#1203)', async () => {
     mockClearAdminUserLockout.mockRejectedValue(new Error('network error'))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
     await openRowMenu('Admin User')
@@ -669,7 +688,7 @@ describe('AdminPage — Users tab', () => {
     // must_change_password, tour not completed) exercises the full inline
     // set (Deactivate, Make admin) plus the overflow trigger — three
     // controls total — with the remaining actions folded into its menu.
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -694,7 +713,7 @@ describe('AdminPage — Users tab', () => {
   })
 
   it('clears the pending search debounce timer on unmount (#1304)', async () => {
-    const { unmount } = renderAdminPage()
+    const { unmount } = await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     const search = await waitFor(() =>
       screen.getByPlaceholderText('Search by name, email, or username…')
@@ -729,7 +748,7 @@ describe('AdminPage — Users tab', () => {
       results: [fakeAdminUsers[0], owner],
     })
     mockClientGet.mockReturnValue(new Promise(() => { /* never resolves */ }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => screen.getByText('@alice'))
 
@@ -759,6 +778,7 @@ describe('AdminPage — Invite Links tab', () => {
     mockGetAdminSettings.mockResolvedValue(fakeSettings)
     mockGetAdminUsers.mockResolvedValue({ count: 0, offset: 0, page_size: 50, results: [] })
     mockGetAdminInviteLinks.mockResolvedValue([])
+    mockGetAdminEmailSettings.mockResolvedValue(fakeEmailSettings)
 
     Object.defineProperty(window, 'location', {
       value: { ...window.location, origin: 'https://visiban.example.com' },
@@ -783,7 +803,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: rawToken,
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -808,7 +828,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: rawToken,
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -839,7 +859,7 @@ describe('AdminPage — Invite Links tab', () => {
       raw_token: 'vbnl_abc123def456',
     })
 
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     await waitFor(() => screen.getByText('Create link'))
@@ -870,7 +890,7 @@ describe('AdminPage — Escape key', () => {
   })
 
   it('Escape navigates back from the admin page', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => expect(screen.getByText('Site Administration')).toBeInTheDocument())
     fireEvent.keyDown(document, { key: 'Escape' })
     // JSDOM has no real history, so history.length === 1 → navigate("/")
@@ -881,7 +901,7 @@ describe('AdminPage — Escape key', () => {
     mockGetAdminInviteLinks.mockResolvedValue([
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -896,7 +916,7 @@ describe('AdminPage — Escape key', () => {
     mockGetAdminInviteLinks.mockResolvedValue([
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -911,7 +931,7 @@ describe('AdminPage — Escape key', () => {
     ])
     let resolveRevoke: (v: unknown) => void = () => {}
     mockRevokeAdminInviteLink.mockReturnValue(new Promise((r) => { resolveRevoke = r }))
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -929,7 +949,7 @@ describe('AdminPage — Escape key', () => {
       { id: 7, prefix: 'vbnl_zz', status: 'pending', single_use: false, expires_at: null, use_count: 0, created_by_username: 'admin' },
     ])
     mockRevokeAdminInviteLink.mockRejectedValue(new Error('boom'))
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke invite link vbnl_zz' }))
@@ -939,7 +959,7 @@ describe('AdminPage — Escape key', () => {
   })
 
   it('Escape closes the Add User modal without navigating', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => expect(screen.getByText('Site Administration')).toBeInTheDocument())
     fireEvent.click(screen.getByText('Users'))
     await waitFor(() => expect(screen.getByText('+ Add User')).toBeInTheDocument())
@@ -984,15 +1004,13 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('renders the toggle and the message field', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     expect(screen.getByLabelText('Maintenance mode')).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByLabelText(/Message/)).toBeInTheDocument()
   })
 
   it('tells the admin they are exempt', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     expect(
       screen.getByText(/Site admins are exempt and keep full read\/write access/)
     ).toBeInTheDocument()
@@ -1008,8 +1026,7 @@ describe('AdminPage — maintenance mode', () => {
 
   it('prompts for confirmation before enabling, and does not save yet', async () => {
     // Enabling is instance-wide and takes effect immediately for every user.
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => screen.getByText(/All non-admin users will immediately lose write access/))
@@ -1020,8 +1037,7 @@ describe('AdminPage — maintenance mode', () => {
     // The confirm strip appears below the toggle rather than replacing it,
     // matching the two existing inline-confirm instances in BoardSettingsModal.
     // The toggle is never optimistically flipped, so Cancel has nothing to revert.
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => screen.getByText('Confirm'))
@@ -1031,8 +1047,7 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('Cancel on the enable confirm returns focus to the Maintenance mode toggle (#1367)', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     const prompt = screen.getByText(/Enable maintenance mode\?/).parentElement as HTMLElement
@@ -1044,8 +1059,7 @@ describe('AdminPage — maintenance mode', () => {
 
   it('saves when the confirmation is accepted', async () => {
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: true })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Confirm'))
@@ -1056,8 +1070,7 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('cancelling leaves the toggle off and saves nothing', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     // Scoped to the maintenance confirm row: the Email (SMTP) section's
     // Save/Cancel footer also renders a "Cancel", so a bare getByText would
@@ -1076,8 +1089,7 @@ describe('AdminPage — maintenance mode', () => {
     // Disabling only restores normal service — there is nothing to warn about.
     mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: true })
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_mode: false })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
 
     await waitFor(() => {
@@ -1087,8 +1099,8 @@ describe('AdminPage — maintenance mode', () => {
 
   it('saves the notice on blur, not on every keystroke', async () => {
     mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
 
     fireEvent.change(field, { target: { value: 'Back by 5.' } })
     expect(mockPatchAdminSettings).not.toHaveBeenCalled()
@@ -1100,8 +1112,8 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('does not save on blur when the notice is unchanged', async () => {
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
     fireEvent.blur(field)
     await waitFor(() => screen.getByLabelText('Maintenance mode'))
     expect(mockPatchAdminSettings).not.toHaveBeenCalled()
@@ -1109,14 +1121,13 @@ describe('AdminPage — maintenance mode', () => {
 
   it('prompts for an ETA in the placeholder', async () => {
     // A notice with no end time is the top persona complaint.
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText(/Message/)
     expect(field).toHaveAttribute('placeholder', expect.stringContaining('expect service back by'))
   })
 
   it('shows a live character count against the 1000-character cap', async () => {
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText(/Message/))
+    await renderAdminPageSettled()
     expect(screen.getByText('0/1000')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'abc' } })
@@ -1124,17 +1135,84 @@ describe('AdminPage — maintenance mode', () => {
   })
 
   it('clamps the notice at the cap the serializer enforces', async () => {
-    renderAdminPage()
-    const field = await waitFor(() => screen.getByLabelText(/Message/))
-    fireEvent.change(field, { target: { value: 'x'.repeat(1200) } })
-    expect((field as HTMLTextAreaElement).value).toHaveLength(1000)
+    await renderAdminPageSettled()
+    fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'x'.repeat(1200) } })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toHaveLength(1000)
     expect(screen.getByText('1000/1000')).toBeInTheDocument()
+  })
+
+  it('keeps an edit made before the mount effects run (#1319)', async () => {
+    // The CI failure in #1319 (occurrence 4): the notice buffer used to be
+    // seeded from the server value by a useEffect, which runs after the commit
+    // that first shows the field. An edit landing in between was queued ahead
+    // of the late seed, so the seed overwrote it and the field read ''.
+    renderAdminPage()
+    const field = await waitFor(() => {
+      const f = screen.getByLabelText(/Message/)
+      stallEventLoopAfterWaitFor()
+      return f
+    })
+    // Proves the test really is inside the window: EmailSettingsSection's
+    // mount effect, which fetches its settings, has not run yet.
+    expect(mockGetAdminEmailSettings).not.toHaveBeenCalled()
+    fireEvent.change(field, { target: { value: 'x'.repeat(1200) } })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toHaveLength(1000)
+    await screen.findByLabelText('Host')
+  })
+
+  it('keeps an in-progress notice edit when an unrelated setting is saved', async () => {
+    // The re-seed is keyed on the server's notice, not the whole settings
+    // object, so a registration mode save (which returns a new object with the
+    // same notice) must not discard what the admin is typing.
+    mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, registration_mode: 'closed' })
+    await renderAdminPageSettled()
+    fireEvent.change(screen.getByLabelText(/Message/), { target: { value: 'Draft notice' } })
+    fireEvent.click(screen.getByText('Closed'))
+    await waitFor(() => screen.getByText('Settings saved.'))
+    expect(mockPatchAdminSettings).toHaveBeenCalledWith({ registration_mode: 'closed' })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Draft notice')
+  })
+
+  it('rolls the notice back to the saved value when its save fails', async () => {
+    mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    mockPatchAdminSettings.mockRejectedValue(new Error('boom'))
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText<HTMLTextAreaElement>(/Message/)
+    expect(field.value).toBe('Back by 5.')
+    fireEvent.change(field, { target: { value: 'Back by 6.' } })
+    fireEvent.blur(field)
+    await waitFor(() => screen.getByText('Failed to save settings.'))
+    expect(mockPatchAdminSettings).toHaveBeenCalledWith({ maintenance_message: 'Back by 6.' })
+    expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Back by 5.')
+  })
+
+  it('re-seeds the field from the canonical value a save returns', async () => {
+    mockPatchAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    await renderAdminPageSettled()
+    const field = screen.getByLabelText<HTMLTextAreaElement>(/Message/)
+    fireEvent.change(field, { target: { value: '  Back by 5.  ' } })
+    fireEvent.blur(field)
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLTextAreaElement>(/Message/).value).toBe('Back by 5.')
+    })
+  })
+
+  it('shows the saved notice in the very first render of the field (#1319)', async () => {
+    mockGetAdminSettings.mockResolvedValue({ ...fakeSettings, maintenance_message: 'Back by 5.' })
+    renderAdminPage()
+    // Record the value the first time the field is seen, before any effect
+    // could patch it up; waitFor would otherwise just retry until it matches.
+    let firstSeen: string | undefined
+    await waitFor(() => {
+      firstSeen ??= screen.getByLabelText<HTMLTextAreaElement>(/Message/).value
+    })
+    expect(firstSeen).toBe('Back by 5.')
+    await screen.findByLabelText('Host')
   })
 
   it('rolls the toggle back when the save fails', async () => {
     mockPatchAdminSettings.mockRejectedValue(new Error('boom'))
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    await renderAdminPageSettled()
     fireEvent.click(screen.getByLabelText('Maintenance mode'))
     await waitFor(() => screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Confirm'))
@@ -1159,8 +1237,7 @@ describe('AdminPage — Email (SMTP) settings', () => {
 
   async function renderEmailSection(overrides: Partial<SiteEmailSettings> = {}) {
     mockGetAdminEmailSettings.mockResolvedValue({ ...fakeEmailSettings, ...overrides })
-    renderAdminPage()
-    await waitFor(() => screen.getByLabelText('Host'))
+    await renderAdminPageSettled()
   }
 
   it('shows which source is actually sending mail', async () => {
@@ -1524,7 +1601,7 @@ describe('AdminPage — Invite by email', () => {
   })
 
   async function openInviteLinksTab() {
-    renderAdminPage()
+    await renderAdminPageSettled()
     await waitFor(() => screen.getByText('Invite Links'))
     fireEvent.click(screen.getByText('Invite Links'))
   }
@@ -1576,7 +1653,7 @@ describe('AdminPage — Board Invites tab (#439)', () => {
   })
 
   it('sits after Invite Links and loads pending board invites', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     const nav = await screen.findByRole('navigation')
     const labels = within(nav).getAllByRole('button').map((b) => b.textContent)
     expect(labels.indexOf('Board Invites')).toBe(labels.indexOf('Invite Links') + 1)
@@ -1587,7 +1664,7 @@ describe('AdminPage — Board Invites tab (#439)', () => {
   })
 
   it('sidebar tabs carry a focus ring and mark the active tab with aria-current', async () => {
-    renderAdminPage()
+    await renderAdminPageSettled()
     const nav = await screen.findByRole('navigation')
     const settings = within(nav).getByRole('button', { name: 'Settings' })
     const boardInvites = within(nav).getByRole('button', { name: 'Board Invites' })

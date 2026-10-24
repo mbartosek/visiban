@@ -226,6 +226,30 @@ Before committing a new spec:
 - [ ] Assertions are keyed on role + name, not class names
 - [ ] Fixtures are imported from `fixtures/board.ts`, not inlined per-test
 
+### Flake-resistance checklist (Vitest unit tests)
+
+The Playwright list above has a unit-test counterpart. Every root-caused `frontend-test` flake so
+far (#1304, #1305, #1319) was a component defect that a loaded CI runner exposed, not test noise:
+
+- [ ] **Act only on a settled page.** Finding the first element a fetch renders does not mean the
+  page is idle: the commit that shows it can still have mount effects and further fetches queued,
+  and on a slow runner `waitFor` returns inside that window. Before firing events, wait for the
+  last thing the page loads. `renderAdminPageSettled()` in `src/test/adminPage.test.tsx` is the
+  pattern: it waits for `EmailSettingsSection`'s `Host` field, the last section to load.
+- [ ] **Re-query after an event** (`screen.getByLabelText(...)`) instead of asserting on a node
+  captured before it, so a remount cannot leave the assertion reading a detached element.
+- [ ] **Test the commit-to-effect window when a component holds a local input buffer.** Mount it
+  from a resolved promise (outside `act()`), call `stallEventLoopAfterWaitFor()` from
+  `src/test/eventLoopStall.ts` inside the `waitFor` that finds the input, assert the mount effects
+  have not run yet, then type. `customFieldValueInput.test.tsx` and `lensFilterBar.test.tsx` show
+  it. The component rule this protects is in `frontend/CLAUDE.md` § Local input buffers and timers.
+- [ ] **No timer that can outlive its component.** Hold a delayed timer's id in a ref, clear it
+  on unmount, and add a test that unmounts with the timer pending. ESLint `no-restricted-syntax`
+  catches only a call whose id is visibly discarded (a whole statement, an arrow's expression
+  body such as `.then(() => setTimeout(...))`, or `void setTimeout(...)`) with a delay other
+  than a literal `0`. It does not catch a stored id that is never cleared, so review still has
+  to look for the cleanup.
+
 ## Writing tests that catch mutations
 
 A test that only checks `status_code == 200` or `assertTrue(result)` passes when the code under it is wrong. The [mutation baseline](mutation-testing.md) shows what kills mutants instead. Four patterns account for nearly all of it. The examples are real excerpts from `backend/boards/tests/`.
@@ -334,9 +358,13 @@ SQLite has no row locks, so a `select_for_update()` can be deleted without faili
   [perf-bench.md section 6](https://gitlab.com/visiban/visiban/-/blob/main/.claude/agents/perf-bench.md).
 - Frontend unit tests run in `frontend-test`. Unlike `backend-schema-fuzz` below, a single
   failed test retries once automatically under CI (`vitest.config.ts`'s `test.retry`, gated
-  on `process.env.CI` so local runs stay strict) before failing the job — a mitigation for
-  known intermittent flakes (#1304), not a signal that a red `frontend-test` run should be
-  assumed innocent. A test that still fails after its retry is a real failure.
+  on `process.env.CI` so local runs stay strict) before failing the job. The retry only
+  absorbs a one-off scheduler hiccup. Every occurrence that has been root-caused was a
+  component defect that failed on both attempts: a leaked post-save timer (#1319 occurrence 3)
+  and an effect-seeded input buffer racing the first edit (occurrence 4; occurrence 1 was
+  most likely the same race). So a red job whose test shows `(retry x1)` means a real bug:
+  investigate it, do not re-run the job until it passes. Do not raise the retry to 2 either.
+  A second retry would not have saved any of these, and it would hide the next one.
 - Playwright E2E runs in `playwright-e2e` — starts its own Vite dev server, no separate build step needed. It's `allow_failure: true` during rollout; promotion to blocking is tracked separately.
 - `backend-schema-validate` checks the generated OpenAPI document is well-formed;
   `backend-schema-fuzz` goes further and fuzzes a real, running instance with

@@ -32,6 +32,41 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  // #1319: a timer whose id is thrown away cannot be cleared on unmount, so it
+  // can fire after the component is gone. That is how a ProfileTab save
+  // navigated during a later test (`setTimeout(() => navigate(...), 1500)`),
+  // a flake vitest's CI retry could not absorb. This flags a setTimeout /
+  // setInterval call (bare, `window.` or `globalThis.`) with a delay other than
+  // a literal 0 when its return value is visibly discarded: the call is a
+  // whole statement, the expression body of an arrow (`() => setTimeout(...)`,
+  // `.then(() => setTimeout(...))`), or the operand of `void`. Zero-delay hops
+  // (focus after render, resetting a ref) are allowed: they fire before
+  // anything can unmount.
+  // Not caught, so review still has to check: an id that is stored but never
+  // cleared (`const t = setTimeout(...)` with no clearTimeout(t), or a ref
+  // whose unmount cleanup is missing, the #1304/#1305 shape), and a call
+  // discarded some other way (`cond && setTimeout(...)`, a comma expression).
+  {
+    files: [
+      'src/components/**/*.{ts,tsx}',
+      'src/pages/**/*.{ts,tsx}',
+      'src/hooks/**/*.{ts,tsx}',
+      'src/context/**/*.{ts,tsx}',
+      'src/contexts/**/*.{ts,tsx}',
+      'src/App.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error',
+        ...[
+          'CallExpression[callee.name=/^(setTimeout|setInterval)$/]',
+          'CallExpression[callee.object.name=/^(window|globalThis)$/][callee.property.name=/^(setTimeout|setInterval)$/]',
+        ].map((call) => ({
+          selector: `:matches(ExpressionStatement, ArrowFunctionExpression, UnaryExpression[operator="void"]) > ${call}[arguments.length>1]:not([arguments.1.value=0])`,
+          message: 'Discarded timer with a delay: it can fire after unmount. Hold the id in a ref and clear it on unmount (#1319).',
+        })),
+      ],
+    },
+  },
   // Security SAST rules — scoped to src/ to keep the scan focused and avoid
   // OOM in memory-constrained CI runners scanning config/test infrastructure.
   // detect-object-injection is off: TypeScript types already constrain property

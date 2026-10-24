@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, cleanup } from '@testing-library/react'
+import { useEffect, useState } from 'react'
+import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react'
 import CustomFieldValueInput from '../components/Card/CustomFieldValueInput'
 import type { FieldDefinitionShape } from '../types'
+import { stallEventLoopAfterWaitFor } from './eventLoopStall'
 
 /**
  * #1236 — CustomFieldValueInput owns real, documented state logic (per-type
@@ -232,6 +234,38 @@ describe('CustomFieldValueInput', () => {
       expect(screen.getByRole('button', { name: /Red/ })).toBeInTheDocument()
       rerender(<CustomFieldValueInput definition={dropdownDef()} value="Blue" onCommit={onCommit} />)
       expect(screen.getByRole('button', { name: /Blue/ })).toBeInTheDocument()
+    })
+    it('keeps an edit typed before the mount effects run (#1319)', async () => {
+      // Mounted by a resolved promise, outside act(), the way a card panel
+      // mounts after its fetch. The external-value sync used to be a useEffect,
+      // which also runs on mount: an edit landing between the commit and that
+      // effect was overwritten by it. See ./eventLoopStall for the window.
+      let mountEffectsRan = false
+      function Probe() {
+        useEffect(() => { mountEffectsRan = true }, [])
+        return null
+      }
+      function MountAfterFetch() {
+        const [ready, setReady] = useState(false)
+        useEffect(() => { void Promise.resolve().then(() => setReady(true)) }, [])
+        if (!ready) return null
+        return (
+          <>
+            <CustomFieldValueInput definition={textDef()} value="from server" onCommit={vi.fn()} debounceMs={60_000} />
+            <Probe />
+          </>
+        )
+      }
+      render(<MountAfterFetch />)
+      const input = await waitFor(() => {
+        const el = screen.getByRole('textbox')
+        stallEventLoopAfterWaitFor()
+        return el
+      })
+      // Proves the test is inside the window: effects from that commit are still pending.
+      expect(mountEffectsRan).toBe(false)
+      fireEvent.change(input, { target: { value: 'typed' } })
+      expect(screen.getByRole('textbox')).toHaveValue('typed')
     })
   })
 
