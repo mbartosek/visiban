@@ -211,7 +211,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
   // is shown as the admin-only setting the server applies (#1725).
   const [exportMinRole, setExportMinRole] = useState<BoardExportMinRole>(() => {
     const stored = board.export_min_role || "viewer";
-    return (stored in { viewer: 0, collaborator: 0, member: 0, admin: 0 } ? stored : "admin") as BoardExportMinRole;
+    return (["viewer", "collaborator", "member", "admin"].includes(stored) ? stored : "admin") as BoardExportMinRole;
   });
   const [exportRoleError, setExportRoleError] = useState<string | null>(null);
 
