@@ -2421,6 +2421,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#an-address-that-is-already-in-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An address that is already in use
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#invite-only-mode" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5949,6 +5960,17 @@ actually bootstraps from) returns the identical shape — both are served by
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
 <p>The returned <code>key</code> is an API token that can be used immediately in the <code>Authorization: Token &lt;key&gt;</code> header.</p>
+<p>With <code>EMAIL_VERIFICATION=mandatory</code> the new account is not signed in, and the response is instead <code>201 Created</code> with <code>{"detail": "Verification e-mail sent."}</code>; the account can log in once its address is confirmed.</p>
+<h4 id="an-address-that-is-already-in-use">An address that is already in use<a class="headerlink" href="#an-address-that-is-already-in-use" title="Permanent link">&para;</a></h4>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1877)</p>
+</blockquote>
+<p>What a registration for an address that another account already uses gets depends on <code>EMAIL_VERIFICATION</code>:</p>
+<ul>
+<li><strong><code>mandatory</code></strong> — the same response as any other registration: <code>201 Created</code> with <code>{"detail": "Verification e-mail sent."}</code>, after the same form checks (password rules, matching passwords, a <code>403</code> when registration is closed). No account is created and the existing account is left unchanged. Instead of a confirmation link, the address receives an email saying an account already exists, with a link to reset its password. The same applies in invite-only mode, where the invite stays unused, and to the server-rendered <code>/accounts/signup/</code> form. Earlier releases answered <code>400</code> here.</li>
+<li><strong><code>optional</code></strong> or <strong><code>none</code></strong> (the default is <code>optional</code>) — <code>400 Bad Request</code> with <code>{"email": ["User is already registered with this e-mail address."]}</code>, as before. In these modes a new registration is signed in immediately and receives a token, which a registration that creates no account cannot match, so the existing response is kept.</li>
+</ul>
+<p>"In use" means an address another active account has as its email, an address another account has verified, or another account's username, compared ignoring case. Registration is rate-limited per IP address (<code>register</code> scope, 10 requests per minute) in every mode. Operators who want registration to answer every address the same way should set <code>EMAIL_VERIFICATION=mandatory</code> (see <a href="../../administration/configuration/">Configuration</a>).</p>
 <h4 id="invite-only-mode">Invite-only mode<a class="headerlink" href="#invite-only-mode" title="Permanent link">&para;</a></h4>
 <p>When <code>registration_mode</code> is <code>"invite_only"</code>, an additional <code>invite_token</code> field is required. Invite tokens are created by site admins via <code>POST /api/v1/admin/invite-links/</code> and distributed out-of-band, or emailed by a site admin from a group's invite panel (see below).</p>
 <blockquote>
@@ -6007,7 +6029,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">  </span><span class="nt">"invite_token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"kT2vNa8f3b1c9e2d7f4a0b5c6d8e1f2a3b4c5d6e7"</span>
 <a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Response</strong> <code>201 Created</code> — same shape as open mode: <code>{ "key": "&lt;token&gt;" }</code>.</p>
+<p><strong>Response</strong> <code>201 Created</code> — same shape as open mode: <code>{ "key": "&lt;token&gt;" }</code>, or <code>{"detail": "Verification e-mail sent."}</code> with <code>EMAIL_VERIFICATION=mandatory</code>, including for an address that is already in use (see <a href="#an-address-that-is-already-in-use">above</a>).</p>
 <p><strong>Errors</strong></p>
 <table>
 <thead>
@@ -6035,7 +6057,7 @@ actually bootstraps from) returns the identical shape — both are served by
 </tr>
 <tr>
 <td><code>400 Bad Request</code></td>
-<td>Email already registered, passwords do not match, or password too short</td>
+<td>Email already registered (only with <code>EMAIL_VERIFICATION</code> <code>optional</code> or <code>none</code>, see <a href="#an-address-that-is-already-in-use">above</a>), passwords do not match, or password too short</td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>

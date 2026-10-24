@@ -4711,6 +4711,7 @@ mail.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The default value of <code>EMAIL_VERIFICATION</code> is <code>optional</code>, which sends a verification email on signup but allows login without verifying. SMTP should be configured so that verification emails are delivered. Set <code>EMAIL_VERIFICATION=none</code> to disable verification emails entirely (no SMTP needed). The old alias <code>ACCOUNT_EMAIL_VERIFICATION</code> was removed in 1.1 — only <code>EMAIL_VERIFICATION</code> is read.</p>
+<p><em>(Changed in 1.2)</em> With <code>EMAIL_VERIFICATION=mandatory</code>, a registration for an address that is already in use gets the same response as any other registration, and the address is emailed a notice instead of a confirmation link. With <code>optional</code> or <code>none</code> it is refused with an error, because a new registration is signed in straight away in those modes. See <a href="../../api/authentication/#an-address-that-is-already-in-use">Registration</a>.</p>
 </div>
 <h3 id="configuring-smtp-from-the-admin-ui">Configuring SMTP from the admin UI<a class="headerlink" href="#configuring-smtp-from-the-admin-ui" title="Permanent link">&para;</a></h3>
 <blockquote>
