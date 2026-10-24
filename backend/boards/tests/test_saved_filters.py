@@ -255,6 +255,24 @@ class SavedFilterStateVersionTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         self.assertEqual(r.data["state_version"], 99)
 
+    def test_state_version_above_smallint_rejected(self):
+        """The column is a smallint; an oversized value must be a 400, not a 500 (#1919)."""
+        for bad in (32768, 2**31):
+            r = self.client.post(
+                self.url,
+                {"name": f"Huge {bad}", "state_json": SIMPLE_STATE, "state_version": bad},
+                format="json",
+            )
+            self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_state_version_max_smallint_accepted(self):
+        r = self.client.post(
+            self.url,
+            {"name": "Max", "state_json": SIMPLE_STATE, "state_version": 32767},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+
     def test_state_version_zero_rejected(self):
         r = self.client.post(
             self.url,
