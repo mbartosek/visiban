@@ -79,6 +79,10 @@ older pip, so:
   than 26.2.2; `backend-lock-check` also runs its `--self-test`.
 - uv in `scripts/uv-requirements.txt` is 0.13.4 or newer.
 
+The first fetch of the fixed pip is still made by the older pip, so it relies on
+`--require-hashes` rather than TLS: a wrong certificate cannot substitute a file
+whose sha256 is not in the lock.
+
 All of this is removable once the base image ships pip 26.2.2 or newer. Each
 location carries a comment saying so. Bump the floor in three places together:
 `requirements-build.in` (then re-lock), `scripts/pip-requirements.txt`, and
