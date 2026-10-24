@@ -187,7 +187,7 @@ The board's filter bar shows one filter control per **pinned** custom field by d
 | Number | Exact value match |
 | Date | Exact value match |
 | Dropdown | Multi-select of choices |
-| Checkbox | Multi-select of Yes / No |
+| Checkbox | Multi-select of Yes / No; a card that was never checked counts as **No** |
 | URL | Substring match on the full address |
 | Multi-select | Checklist of choices; matches a card holding **any** of the checked choices |
 

@@ -101,6 +101,31 @@ describe("filterCards — custom field filters (#371)", () => {
       const filters = { ...EMPTY_FILTER, customFields: { 5: { kind: "choice" as const, values: ["true"] } } };
       expect(filterCards(cards, filters)).toEqual([1]);
     });
+
+    // #1848 — a checkbox row only exists when set; clearing deletes it.
+    describe("checkbox with no stored row", () => {
+      const defs = [{ id: 5, field_type: "checkbox" }];
+      const cards = [
+        makeCard({ id: 1, custom_field_values: [] }),
+        makeCard({ id: 2, custom_field_values: [{ field_definition: 5, value: "true" }] }),
+        makeCard({ id: 3, custom_field_values: [{ field_definition: 5, value: "false" }] }),
+      ];
+      const f = (values: string[]) => ({ ...EMPTY_FILTER, customFields: { 5: { kind: "choice" as const, values } } });
+
+      it("No matches unchecked and never-set cards, not checked ones", () => {
+        expect(filterCards(cards, f(["false"]), null, "2026-01-01", defs)).toEqual([1, 3]);
+      });
+      it("Yes matches only checked cards", () => {
+        expect(filterCards(cards, f(["true"]), null, "2026-01-01", defs)).toEqual([2]);
+      });
+      it("both selected matches every card", () => {
+        expect(filterCards(cards, f(["true", "false"]), null, "2026-01-01", defs)).toEqual([1, 2, 3]);
+      });
+      it("a dropdown with no row still matches nothing", () => {
+        const dd = [{ id: 5, field_type: "dropdown" }];
+        expect(filterCards(cards, f(["false"]), null, "2026-01-01", dd)).toEqual([3]);
+      });
+    });
   });
 
   it("AND-combines multiple custom field filters with each other and with built-in dimensions", () => {

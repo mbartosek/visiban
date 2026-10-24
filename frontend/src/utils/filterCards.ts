@@ -47,10 +47,17 @@ export function filterCards(
   cards: Card[],
   filters: FilterState,
   searchResults?: number[] | null, // card IDs from server-side search, null means no search active
-  todayOverride?: string // YYYY-MM-DD; when provided overrides the local clock (timezone-aware callers pass this)
+  todayOverride?: string, // YYYY-MM-DD; when provided overrides the local clock (timezone-aware callers pass this)
+  // #1848 — board field definitions, so a checkbox filter can treat a card with
+  // no stored row as "false". Optional: omitted means no field is a checkbox.
+  customFieldDefs?: ReadonlyArray<{ id: number; field_type: string }>
 ): number[] {
   const todayStr = todayOverride ?? getTodayStr();
   const nextWeekStr = getNextWeekStr(todayStr);
+
+  const checkboxFieldIds = new Set(
+    (customFieldDefs ?? []).filter((d) => d.field_type === "checkbox").map((d) => d.id)
+  );
 
   const searchResultSet = searchResults != null ? new Set(searchResults) : null;
 
@@ -111,7 +118,13 @@ export function filterCards(
         if ((cf.kind === "choice" || cf.kind === "multi_choice") && cf.values.length === 0) continue;
 
         const fieldId = Number(idStr);
-        const cardValue = card.custom_field_values.find((v) => v.field_definition === fieldId)?.value;
+        let cardValue = card.custom_field_values.find((v) => v.field_definition === fieldId)?.value;
+        // #1848 — a checkbox row is only stored when set and clearing deletes it
+        // (CustomFieldValue docstring), so a missing row means unchecked: it must
+        // match a "No" ("false") filter rather than nothing.
+        if (cardValue === undefined && cf.kind === "choice" && checkboxFieldIds.has(fieldId)) {
+          cardValue = "false";
+        }
 
         if (cf.kind === "text") {
           if (!cardValue || !cardValue.toLowerCase().includes(cf.query.toLowerCase())) return false;
