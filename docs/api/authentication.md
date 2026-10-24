@@ -682,7 +682,14 @@ session (see above), so a token client reports the condition to the account owne
 
 **The rule:** new instance-level flags go on [`GET /api/v1/auth/site-config/`](#get-apiv1authsite-config) (or a capabilities payload), never on this object. Only per-user state belongs here.
 
-`demo_mode` and `demo_next_reset_at` also appear on `site-config`. That duplication is intentional: the SPA reads `site-config` before login and `/auth/user/` after, and both must report the same values and types. A test pins both field sets (`backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py`) and a type assertion keeps the TypeScript `User` and `SiteConfig` in step.
+All of them except `uploads_enabled` also appear on `site-config`: `git_lens_enabled`, `maintenance_mode`, `maintenance_message`, `demo_mode`, and `demo_next_reset_at`. The server computes both copies with the same code, so they always report the same values and types. Tests pin both field sets (`backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py` and `test_site_config_instance_flags_1872.py`), and a type assertion keeps the TypeScript `User` and `SiteConfig` in step.
+
+!!! warning "Deprecated in 1.2: read instance flags from `site-config`"
+    `maintenance_mode`, `maintenance_message`, `demo_mode`, and `demo_next_reset_at` on `/auth/user/` and `/auth/me/` are **deprecated** (#1872). Read them from [`GET /api/v1/auth/site-config/`](#get-apiv1authsite-config). The OpenAPI schema marks the `/auth/user/` copies `deprecated: true`. They are still returned, with unchanged values, for the whole 1.x line. Removal needs a major version.
+
+    `git_lens_enabled` is **not** deprecated on `/auth/user/`. It is a frozen 1.x field there (#1666), and `site-config` carries the same value.
+
+    The bundled web app still reads the `/auth/user/` copies. Moving it to `site-config` is tracked in [#1913](https://gitlab.com/visiban/visiban/-/issues/1913).
 
 ### `GET /api/v1/auth/me/`
 Returns the authenticated user's profile.
@@ -701,11 +708,11 @@ Returns the authenticated user's profile.
 | `is_site_admin` | boolean | Whether the user can access the `/admin` admin panel and admin API. |
 | `can_access_all_content` | boolean | Whether the user has read/write access to every board and group regardless of membership. Independent of `is_site_admin` for non-superusers; a superuser always has it — see [Site Admins](../administration/site-admins.md). |
 | `uploads_enabled` | boolean | Instance-wide setting reflecting whether file attachment uploads are currently permitted. When `false`, the attachment UI is hidden and upload attempts return `403`. |
-| `git_lens_enabled` | boolean | Instance-wide setting reflecting whether the [Issue Board Lens](../features/issue-board-lens.md) is enabled (`GIT_LENS_ENABLED`). When `false`, the SPA hides the Lens tab, board settings, and related API surface entirely. Read-only. Added in 1.2. |
-| `maintenance_mode` | boolean | Instance-wide setting reflecting whether the instance is in read-only maintenance mode. When `true`, non-admin writes return `503` — see [Maintenance mode](admin.md#maintenance-mode). Read-only. Added in 1.2. |
-| `maintenance_message` | string | The notice to show while `maintenance_mode` is `true`. Always non-empty in that case (the server substitutes a built-in default for a blank operator message), and `""` otherwise. Plain text — render it as text, never as HTML. Read-only. Added in 1.2. |
-| `demo_mode` | boolean | Whether the instance is a public hosted demo (`DEMO_MODE`). When `true`, unsafe requests outside a small allowlist return `403` with `code: "demo_read_only"` — see [Hosted demo instance](../administration/demo-data.md#hosted-demo-instance). Read-only. Added in 1.2. |
-| `demo_next_reset_at` | string (ISO 8601 UTC) or null | The next scheduled demo reset, computed server-side from `DEMO_RESET_SCHEDULE`. `null` unless `demo_mode` is `true`. Read-only. Added in 1.2. |
+| `git_lens_enabled` | boolean | Instance-wide setting reflecting whether the [Issue Board Lens](../features/issue-board-lens.md) is enabled (`GIT_LENS_ENABLED`). When `false`, the SPA hides the Lens tab, board settings, and related API surface entirely. Read-only. Added in 1.2. Also on [`site-config`](#get-apiv1authsite-config); not deprecated here. |
+| `maintenance_mode` | boolean | Instance-wide setting reflecting whether the instance is in read-only maintenance mode. When `true`, non-admin writes return `503` — see [Maintenance mode](admin.md#maintenance-mode). Read-only. Added in 1.2. **Deprecated:** read it from [`site-config`](#get-apiv1authsite-config). |
+| `maintenance_message` | string | The notice to show while `maintenance_mode` is `true`. Always non-empty in that case (the server substitutes a built-in default for a blank operator message), and `""` otherwise. Plain text — render it as text, never as HTML. Read-only. Added in 1.2. **Deprecated:** read it from [`site-config`](#get-apiv1authsite-config). |
+| `demo_mode` | boolean | Whether the instance is a public hosted demo (`DEMO_MODE`). When `true`, unsafe requests outside a small allowlist return `403` with `code: "demo_read_only"` — see [Hosted demo instance](../administration/demo-data.md#hosted-demo-instance). Read-only. Added in 1.2. **Deprecated:** read it from [`site-config`](#get-apiv1authsite-config). |
+| `demo_next_reset_at` | string (ISO 8601 UTC) or null | The next scheduled demo reset, computed server-side from `DEMO_RESET_SCHEDULE`. `null` unless `demo_mode` is `true`. Read-only. Added in 1.2. **Deprecated:** read it from [`site-config`](#get-apiv1authsite-config). |
 | `pending_email` | string or null | An email change that is waiting for confirmation, or `null`. Only set on instances with `EMAIL_VERIFICATION=mandatory` — see [`PATCH /api/v1/auth/me/`](#patch-apiv1authme). While it is set, `email` still holds the current address. Read-only. Added in 1.2. |
 | `pending_connect_provider` | string or null | A provider this session tried to sign in with whose email matched this account (see `account_exists` under [Auth error redirects](#auth-error-redirects)), or `null`. While set, the SPA offers once to connect it. Expires after 10 minutes, and is cleared by [`DELETE /api/v1/auth/me/pending-connect/`](#delete-apiv1authmepending-connect), by any connect attempt for that provider, or once the provider is connected. Only reported to the account(s) the attempt matched: a sign-in by any other account in the same browser, or a sign-out, discards it. Read-only. Added in 1.2 (#1314). |
 | `pending_connect_identity` | string or null | How the provider names the account that tried — its username where it has one, else its email — so the SPA's prompt can show which account it would connect. `null` whenever `pending_connect_provider` is. Read-only. Added in 1.2 (#1314). |
@@ -914,7 +921,10 @@ Returns site-level configuration. This endpoint is public — no authentication 
   "demo_login": null,
   "demo_reset_schedule": null,
   "demo_next_reset_at": null,
-  "invite_email_available": true
+  "invite_email_available": true,
+  "git_lens_enabled": false,
+  "maintenance_mode": false,
+  "maintenance_message": ""
 }
 ```
 
@@ -927,6 +937,14 @@ Returns site-level configuration. This endpoint is public — no authentication 
 | `demo_reset_schedule` | string or null | e.g. `"0 * * * *"` / `null` | Cron expression of the demo reset (`DEMO_RESET_SCHEDULE`). Non-null only when `demo_mode` is `true`. Added in 1.2. |
 | `demo_next_reset_at` | string or null | ISO 8601 UTC / `null` | The next reset instant, computed server-side from the schedule so clients need no cron parser. Non-null only when `demo_mode` is `true`. Added in 1.2. |
 | `invite_email_available` | boolean | `true` / `false` | Whether admins can email invite links. `true` only when `INVITE_EMAIL_ENABLED` is on, demo mode is off, and outbound mail looks configured (`EMAIL_BACKEND` is set explicitly, or the effective sender address is not the `example.com` placeholder). A UI hint, not a delivery guarantee. Added in 1.2. |
+| `git_lens_enabled` | boolean | `true` / `false` | Whether the [Issue Board Lens](../features/issue-board-lens.md) is enabled (`GIT_LENS_ENABLED`). Same value as on `/auth/user/`. Added in 1.2 (#1872). |
+| `maintenance_mode` | boolean | `true` / `false` | Whether the instance is in read-only [maintenance mode](admin.md#maintenance-mode). Added in 1.2 (#1872). |
+| `maintenance_message` | string | text / `""` | The maintenance notice. Always non-empty while `maintenance_mode` is `true` (a blank operator message is replaced by the built-in default), and `""` otherwise. Plain text: render it as text, never as HTML. Added in 1.2 (#1872). |
+
+Every field describes the instance, not the caller, so an anonymous request and a signed-in one get the same body. Clients should read `git_lens_enabled`, `maintenance_mode`, `maintenance_message`, `demo_mode`, and `demo_next_reset_at` here rather than from `/auth/user/` (see [Frozen instance flags](#frozen-instance-flags-on-authuser)).
+
+!!! note "The maintenance notice is public"
+    Anyone can read this endpoint, so `maintenance_message` is visible without signing in. An anonymous write during maintenance also gets the same notice in its `503` body. Do not put internal detail in the notice.
 
 Site admins can change the registration mode in **Admin → Site Settings**. See [Site Admins](../administration/site-admins.md).
 

@@ -31,6 +31,21 @@ export interface SiteConfig {
   /** True when admins can email invite links (#731): INVITE_EMAIL_ENABLED on,
    * DEMO_MODE off, and outbound mail configured. A UI hint, not a guarantee. */
   invite_email_available: boolean;
+  /**
+   * Whether the Issue Board Lens is enabled instance-wide (GIT_LENS_ENABLED).
+   * Same value as `User.git_lens_enabled` (#1872).
+   */
+  git_lens_enabled: boolean;
+  /**
+   * Whether the instance is in read-only maintenance mode (#1872). Same value
+   * as the deprecated `User.maintenance_mode`.
+   */
+  maintenance_mode: boolean;
+  /**
+   * The maintenance notice (#1872). Non-empty whenever maintenance_mode is
+   * true, "" otherwise. Plain text: render as a text node, never as HTML.
+   */
+  maintenance_message: string;
 }
 
 export interface User {
@@ -90,6 +105,10 @@ export interface User {
    * Whether the instance is in maintenance mode. Reflects
    * SiteSetting.maintenance_mode. While true, every non-admin write is
    * rejected with 503; site admins are exempt but still see the notice.
+   *
+   * @deprecated read from site-config (`SiteConfig.maintenance_mode`, GET /api/v1/auth/site-config/).
+   * Still sent for the 1.x contract (#1872); removal needs a major version.
+   * The bundled UI still reads it until #1913.
    */
   maintenance_mode?: boolean;
   /**
@@ -97,18 +116,30 @@ export interface User {
    * the server whenever maintenance_mode is true — it substitutes a built-in
    * default for a blank operator message — so the client needs no fallback
    * string of its own. Plain text: render as a text node, never as HTML.
+   *
+   * @deprecated read from site-config (`SiteConfig.maintenance_message`, GET /api/v1/auth/site-config/).
+   * Still sent for the 1.x contract (#1872); removal needs a major version.
+   * The bundled UI still reads it until #1913.
    */
   maintenance_message?: string;
   /**
    * Whether the instance is a public hosted demo (#1179). While true, the
    * server's demo fence refuses every write except card create/edit/move,
    * archive and checklist changes, answering 403 `demo_read_only`.
+   *
+   * @deprecated read from site-config (`SiteConfig.demo_mode`, GET /api/v1/auth/site-config/).
+   * Still sent for the 1.x contract (#1872); removal needs a major version.
+   * The bundled UI still reads it until #1913.
    */
   demo_mode?: boolean;
   /**
    * Next scheduled demo reset, ISO 8601 UTC, computed server-side from the
    * reset cron. Null unless demo_mode. A fixed instant for the session's life:
    * the reset that would change it also ends the session.
+   *
+   * @deprecated read from site-config (`SiteConfig.demo_next_reset_at`, GET /api/v1/auth/site-config/).
+   * Still sent for the 1.x contract (#1872); removal needs a major version.
+   * The bundled UI still reads it until #1913.
    */
   demo_next_reset_at?: string | null;
   /**

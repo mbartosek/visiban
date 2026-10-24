@@ -6,9 +6,10 @@ every one is now a permanent field. These pins make the next such field a
 deliberate decision: new instance-level flags belong on ``SiteConfig``
 (``GET /auth/site-config/``) or a capabilities payload, not here.
 
-``demo_mode`` / ``demo_next_reset_at`` also live on SiteConfig. That duplication
-is intentional (the SPA bootstraps from ``/auth/user/`` post-login and from
-``site-config`` pre-login); the last test keeps the two shapes from drifting.
+All five non-upload flags also live on SiteConfig (``demo_*`` since #1179, the
+rest since #1872), computed by the same ``accounts.instance_flags`` helpers. The
+duplication is intentional; the last test keeps the ``demo_*`` shapes from
+drifting, and ``test_site_config_instance_flags_1872`` covers all five.
 """
 from __future__ import annotations
 
@@ -26,7 +27,9 @@ GUIDANCE = (
 
 # Instance-wide (not per-user) flags already on the identity object. Frozen:
 # never remove or rename (1.0 contract), never add to this list.
-# uploads_enabled predates 1.2; git_lens_enabled's freeze status is tracked in #1666.
+# uploads_enabled predates 1.2. git_lens_enabled is frozen here as a normal,
+# non-deprecated field (#1666, decided: accept the freeze); the other four are
+# deprecated in favor of /auth/site-config/ (#1872) but still never removed in 1.x.
 FROZEN_INSTANCE_FLAGS = {
     "uploads_enabled",
     "git_lens_enabled",

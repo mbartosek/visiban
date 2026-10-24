@@ -998,6 +998,14 @@ describe('AdminPage — maintenance mode', () => {
     ).toBeInTheDocument()
   })
 
+  it('warns that the notice is public (#1872)', async () => {
+    renderAdminPage()
+    await waitFor(() => screen.getByLabelText('Maintenance mode'))
+    expect(
+      screen.getByText(/Anyone can read it without signing in, so keep internal detail out of it\./)
+    ).toBeInTheDocument()
+  })
+
   it('prompts for confirmation before enabling, and does not save yet', async () => {
     // Enabling is instance-wide and takes effect immediately for every user.
     renderAdminPage()

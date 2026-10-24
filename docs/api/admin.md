@@ -321,10 +321,14 @@ While it is active:
   `detail` is the operator's message, or the built-in default when that message is blank.
 - **Site admins are exempt** and keep full read/write access, whether they authenticate with a
   session cookie or a personal access token.
-- **`GET /api/v1/auth/user/`** reports `maintenance_mode` and `maintenance_message` so a client
-  can show the notice. When `maintenance_mode` is `true`, `maintenance_message` is always
-  non-empty. Same shape as [`GET /api/v1/auth/me/`](authentication.md#get-apiv1authme) — both
-  are served by `CurrentUserSerializer`.
+- **[`GET /api/v1/auth/site-config/`](authentication.md#get-apiv1authsite-config)** reports
+  `maintenance_mode` and `maintenance_message` so a client can show the notice, signed in or
+  not. When `maintenance_mode` is `true`, `maintenance_message` is always non-empty.
+  `GET /api/v1/auth/user/` and `/auth/me/` still report both, with the same values, but those
+  copies are deprecated (#1872).
+- **The notice is public.** `site-config` needs no authentication, and an anonymous write gets
+  the notice in its `503` body, so anyone who can reach the instance can read it. Keep internal
+  detail out of `maintenance_message`.
 
 !!! warning "Endpoints that stay writable"
     `/api/v1/admin/`, `/api/v1/auth/login/`, `/api/v1/auth/logout/`, the password reset and

@@ -18,10 +18,9 @@ from .models import (
     PAT_SCOPES,
     PersonalAccessToken,
     User,
-    get_maintenance_message,
-    get_maintenance_state,
     get_uploads_enabled,
 )
+from . import instance_flags
 from .forms import VisibanPasswordResetForm
 from .validators import (
     EMAIL_TAKEN_MESSAGE,
@@ -867,6 +866,24 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "is_site_admin", "can_access_all_content", "must_change_password", "must_change_username", "has_usable_password"]
 
 
+# #1872: these four instance flags also live on /auth/site-config/, which is where
+# instance-level state belongs. They stay here for the 1.x contract (never removed
+# before a major bump), but the schema marks them deprecated so a generated client
+# reads them from site-config. git_lens_enabled is NOT deprecated: #1666 froze it here
+# as a normal field, so it is mirrored on site-config without a deprecation.
+CURRENT_USER_DEPRECATED_INSTANCE_FLAGS = (
+    "maintenance_mode",
+    "maintenance_message",
+    "demo_mode",
+    "demo_next_reset_at",
+)
+_DEPRECATED_FOR_SITE_CONFIG = (
+    "Deprecated (#1872): read this from GET /api/v1/auth/site-config/, which returns the "
+    "same value. Kept on this object for the 1.x contract; removal needs a major version."
+)
+
+
+@extend_schema_serializer(deprecate_fields=list(CURRENT_USER_DEPRECATED_INSTANCE_FLAGS))
 class CurrentUserSerializer(UserSerializer):
     """Extends UserSerializer with site-wide settings for the /api/auth/me/ endpoint.
 
@@ -894,14 +911,14 @@ class CurrentUserSerializer(UserSerializer):
     # the built-in default is substituted server-side for a blank operator
     # message — so the client never has to carry a fallback string of its own
     # and the banner can never render empty.
-    maintenance_mode = serializers.SerializerMethodField()
-    maintenance_message = serializers.SerializerMethodField()
+    maintenance_mode = serializers.SerializerMethodField(help_text=_DEPRECATED_FOR_SITE_CONFIG)
+    maintenance_message = serializers.SerializerMethodField(help_text=_DEPRECATED_FOR_SITE_CONFIG)
     # Hosted demo (#1179). Here for the same reason as maintenance_mode: the
     # SPA bootstraps from GET /auth/user/, so this is where the in-app demo bar
     # learns the mode and the next reset instant. Settings-only reads — no DB.
     # demo_next_reset_at is null unless DEMO_MODE is on.
-    demo_mode = serializers.SerializerMethodField()
-    demo_next_reset_at = serializers.SerializerMethodField()
+    demo_mode = serializers.SerializerMethodField(help_text=_DEPRECATED_FOR_SITE_CONFIG)
+    demo_next_reset_at = serializers.SerializerMethodField(help_text=_DEPRECATED_FOR_SITE_CONFIG)
     # #1273: an email change awaiting confirmation (EMAIL_VERIFICATION=mandatory),
     # or null. ``email`` keeps the current, verified value until the link is
     # followed, so this is how a client learns the PATCH was accepted but is not
@@ -921,10 +938,10 @@ class CurrentUserSerializer(UserSerializer):
     def get_uploads_enabled(self, obj) -> bool:
         return get_uploads_enabled()
 
+    # The five instance flags read from accounts.instance_flags, the same helpers
+    # SiteConfigView uses (#1872), so /auth/user/ and /auth/site-config/ cannot drift.
     def get_git_lens_enabled(self, obj) -> bool:
-        from django.conf import settings
-
-        return getattr(settings, "GIT_LENS_ENABLED", False)
+        return instance_flags.git_lens_enabled()
 
     def _maintenance_state(self):
         """Read the cached state once per serialization, not once per field.
@@ -933,27 +950,21 @@ class CurrentUserSerializer(UserSerializer):
         each issue their own cache round trip for an identical answer.
         """
         if not hasattr(self, "_cached_maintenance_state"):
-            self._cached_maintenance_state = get_maintenance_state()
+            self._cached_maintenance_state = instance_flags.maintenance_notice()
         return self._cached_maintenance_state
 
     def get_maintenance_mode(self, obj) -> bool:
-        active, _ = self._maintenance_state()
-        return active
+        return self._maintenance_state()[0]
 
     def get_maintenance_message(self, obj) -> str:
-        active, message = self._maintenance_state()
-        return get_maintenance_message(message) if active else ""
+        return self._maintenance_state()[1]
 
     def get_demo_mode(self, obj) -> bool:
-        from django.conf import settings
-
-        return bool(getattr(settings, "DEMO_MODE", False))
+        return instance_flags.demo_mode()
 
     @extend_schema_field(serializers.DateTimeField(allow_null=True, read_only=True))
     def get_demo_next_reset_at(self, obj) -> str | None:
-        from visiban.demo import demo_next_reset_at_iso
-
-        return demo_next_reset_at_iso()
+        return instance_flags.demo_next_reset_at()
 
     @extend_schema_field(serializers.EmailField(allow_null=True, read_only=True))
     def get_pending_email(self, obj) -> str | None:

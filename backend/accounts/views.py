@@ -33,7 +33,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from visiban.demo import demo_next_reset_at_iso, demo_reset_schedule
+from visiban.demo import demo_reset_schedule
 from visiban.permissions import (
     MustNotHavePendingPasswordChange,
     MustNotHavePendingUsernameChange,
@@ -49,6 +49,7 @@ from .models import (
     SiteSetting,
     get_registration_mode,
 )
+from .instance_flags import instance_flags
 from .invite_utils import InviteTokenError
 # Defined in accounts.credentials (#1551) so the allauth signal receivers, the
 # REST reset serializer and the Django admin can share it without importing
@@ -991,15 +992,27 @@ class SiteConfigView(APIView):
                 "demo_reset_schedule": drf_serializers.CharField(required=False, allow_null=True),
                 "demo_next_reset_at": drf_serializers.DateTimeField(required=False, allow_null=True),
                 "invite_email_available": drf_serializers.BooleanField(),
+                # #1872: instance flags that /auth/user/ also carries (frozen there,
+                # #1664). Same values, computed by accounts.instance_flags.
+                "git_lens_enabled": drf_serializers.BooleanField(),
+                "maintenance_mode": drf_serializers.BooleanField(),
+                "maintenance_message": drf_serializers.CharField(),
             },
         ),
     )
     def get(self, request):
         setting = SiteSetting.get()
+        # #1872: git_lens_enabled, maintenance_mode, maintenance_message, demo_mode
+        # and demo_next_reset_at come from the helper CurrentUserSerializer uses, so
+        # the two endpoints cannot disagree. All five describe the instance, not the
+        # caller, and each is already observable anonymously. This endpoint is
+        # AllowAny, so that matters: see accounts/instance_flags.py for the
+        # per-field reasoning. A caller-dependent value must never be added here.
+        flags = instance_flags()
         return Response({
             "registration_open": setting.registration_mode == "open",
             "registration_mode": setting.registration_mode,
-            "demo_mode": settings.DEMO_MODE,
+            "demo_mode": flags["demo_mode"],
             "demo_login": self._demo_login(),
             # #1179: the reset cadence and the next reset instant, both null
             # unless DEMO_MODE is on (same gating shape as _demo_login). The
@@ -1008,11 +1021,14 @@ class SiteConfigView(APIView):
             # from the real reset and the SPA needs no cron parser.
             # #1180: also null when the reset is disabled (empty schedule).
             "demo_reset_schedule": demo_reset_schedule(),
-            "demo_next_reset_at": demo_next_reset_at_iso(),
+            "demo_next_reset_at": flags["demo_next_reset_at"],
             # #731: whether the SPA should offer "send invite by email". A UI
             # hint only — it reveals no configuration detail beyond "mail looks
             # configured", and the send endpoints still report real failures.
             "invite_email_available": invite_email_available(),
+            "git_lens_enabled": flags["git_lens_enabled"],
+            "maintenance_mode": flags["maintenance_mode"],
+            "maintenance_message": flags["maintenance_message"],
         })
 
     @staticmethod

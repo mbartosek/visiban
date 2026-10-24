@@ -16,6 +16,9 @@ const baseConfig: SiteConfig = {
   demo_mode: false,
   demo_login: null,
   invite_email_available: true,
+  git_lens_enabled: false,
+  maintenance_mode: false,
+  maintenance_message: '',
 }
 
 const HELPER = 'Sends a single-use link that expires in 7 days.'

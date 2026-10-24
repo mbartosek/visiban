@@ -7,13 +7,14 @@ Issue Board Lens surfaces GitHub or GitLab issues directly inside a Visiban boar
 
 ### Stable contract surfaces
 
-Three Git Lens surfaces are part of the frozen 1.x API contract and are **not** covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.
+Four Git Lens surfaces are part of the frozen 1.x API contract and are **not** covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.
 
 | Surface | Where it is documented |
 |---|---|
 | `lens_connection.configured` and `lens_connection.removed` WebSocket events (board channel) | [WebSocket events](websockets.md#git-lens-events-since-12) |
 | The `LensConnection` object as carried in the `lens_connection.configured` payload | [LensConnection](#lensconnection) |
 | The `git_lens_enabled` field on the current user (`/auth/user/`) | [User profile](authentication.md#user-profile) |
+| The `git_lens_enabled` field on `GET /api/v1/auth/site-config/` (same value, public) | [Site configuration](authentication.md#get-apiv1authsite-config) |
 
 Everything else on this page (the REST endpoints, query parameters, and the issue grid response) remains experimental.
 
