@@ -23,7 +23,7 @@ from accounts.models import (
     invalidate_maintenance_mode_cache,
 )
 from boards.models import (
-    BoardMembership, Card, CardActivity, CardMovement,
+    BoardEvent, BoardMembership, Card, CardActivity, CardMovement, CardRelation,
 )
 from boards.tests.conftest import (
     _make_board, _make_card, _make_column, _make_membership, _make_swimlane,
@@ -919,6 +919,32 @@ class ArchiveCardTests(CrudToolsTestCase):
         self.assertIsNotNone(result["archived_at"])
         card.refresh_from_db()
         self.assertIsNotNone(card.archived_at)
+
+    def test_archiving_a_blocker_sends_its_peer_a_full_card_update(self):
+        """The blocked card's card.updated is a full card with the new count (#1634).
+
+        The tool's own `render` returns {card_id, archived_at}; the service
+        used it for the peers too, so the feed and the socket got a
+        card.updated that no client could apply.
+        """
+        blocker = _make_card(self.column, self.swimlane, title="Blocker")
+        peer = _make_card(self.other_column, self.swimlane, title="Blocked", position=1)
+        CardRelation.objects.create(
+            from_card=blocker, to_card=peer, relation_type=CardRelation.Type.BLOCKS,
+        )
+        result = self._call("archive_card", self.write_token, card_id=blocker.id)
+        self.assertIsNotNone(result["archived_at"])
+        rows = list(
+            BoardEvent.objects.filter(board_id=self.board.id, event="card.updated")
+            .values_list("data", flat=True)
+        )
+        self.assertEqual(len(rows), 1, rows)
+        data = rows[0]
+        self.assertEqual(data["id"], peer.id)
+        self.assertEqual(data["uid"], peer.uid)
+        self.assertEqual(data["column"], self.other_column.id)
+        self.assertEqual(data["blocker_count"], 0)
+        self.assertNotIn("card_id", data)
 
     def test_idempotent_on_already_archived_card(self):
         card = _make_card(self.column, self.swimlane, title="Already gone", archived_at=timezone.now())

@@ -502,10 +502,39 @@ def _refetched_card_data(card, request, board, *, member_ids=None, assignable_id
     ).data
 
 
-def blocked_peers_of(cards):
+def blocked_peers_of(cards, *, active_blockers_only=True):
     """Collect, before a cascading delete of ``cards``, the surviving cards
     they block (#1634). See ``services.cards.blocked_peer_ids_by_board``."""
-    return _card_services.blocked_peer_ids_by_board(cards)
+    return _card_services.blocked_peer_ids_by_board(
+        cards, active_blockers_only=active_blockers_only,
+    )
+
+
+def render_card_payloads(board, card_ids, request=None):
+    """Render the cards ``card_ids`` on ``board`` in one prefetch pass (#1634).
+
+    The full ``CardSerializer`` payload every ``card.updated`` frame carries,
+    built the way ``CardViewSet._batch_card_payloads`` builds it for
+    ``delete_card``'s and ``archive_card``'s peers: one ``_card_queryset``
+    pass for all of them rather than one per card. For callers outside a
+    ``CardViewSet`` — the container deletes, the Django admin and the MCP
+    archive tool — which have no per-request board-context cache.
+
+    Filtered to ``board``, so a card that moved to another board is never
+    rendered for this one. ``request`` is optional: without it, attachment
+    URLs come out relative, as on every other request-less render.
+    """
+    ctx = {
+        "request": request,
+        "board": board,
+        "_member_ids": _get_effective_member_ids(board),
+        "_assignable_member_ids": _get_assignable_member_ids(board),
+        "_board_labels_qs": board.labels.all(),
+    }
+    return [
+        CardSerializer(c, context=ctx).data
+        for c in _card_queryset(Card.objects.filter(pk__in=list(card_ids), board_id=board.pk))
+    ]
 
 
 def publish_blocked_peers(peers_by_board, request, *, boards=()):
@@ -516,7 +545,9 @@ def publish_blocked_peers(peers_by_board, request, *, boards=()):
     one of them blocked keeps its row but its ``blocker_count`` drops, and
     without a frame every connected client keeps rendering a blocked indicator
     for a blocker that is gone — the container-delete twin of what
-    ``delete_card`` already publishes for a single card (#449).
+    ``delete_card`` already publishes for a single card (#449). The Django
+    admin card form uses it too when an edit archives or restores the card,
+    the twin of ``archive_card`` / ``unarchive_card``.
 
     ``peers_by_board`` comes from ``blocked_peers_of`` (called before the
     delete); this is called after it, inside the same transaction, so each
@@ -543,19 +574,7 @@ def publish_blocked_peers(peers_by_board, request, *, boards=()):
         board = known.get(board_id)
         if board is None:
             return []
-        ctx = {
-            "request": request,
-            "board": board,
-            "_member_ids": _get_effective_member_ids(board),
-            "_assignable_member_ids": _get_assignable_member_ids(board),
-            "_board_labels_qs": board.labels.all(),
-        }
-        return [
-            CardSerializer(c, context=ctx).data
-            for c in _card_queryset(
-                Card.objects.filter(pk__in=list(card_ids), board_id=board_id)
-            )
-        ]
+        return render_card_payloads(board, card_ids, request)
 
     _card_services.broadcast_blocked_peers_by_board(peers_by_board, request.user, render_many)
 

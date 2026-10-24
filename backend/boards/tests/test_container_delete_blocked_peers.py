@@ -349,3 +349,70 @@ class AdminContainerDeletePeerTests(_PeerFixture):
             lambda: CardAdmin(Card, AdminSite()).delete_model(self.request, self.a1)
         )
         self.assertEqual(self._updates(mock_broadcast), {})
+
+
+class AdminCardArchiveFlipPeerTests(_PeerFixture):
+    """The admin card form edits ``archived_at``, so a save can archive or
+    restore a card; its peers move as they do on the REST archive/restore."""
+
+    def setUp(self):
+        super().setUp()
+        self.request = _request(self.owner)
+        self.card_admin = CardAdmin(Card, AdminSite())
+
+    def _save(self, card):
+        return self._run(
+            lambda: self.card_admin.save_model(self.request, card, None, True)
+        )
+
+    def test_archiving_in_the_admin_tells_the_blocked_cards(self):
+        self.a1.archived_at = timezone.now()
+        mock_broadcast = self._save(self.a1)
+        updates = self._updates(mock_broadcast)
+        # The card's own frame, then one per peer with the lowered count.
+        self.assertEqual(
+            [c.args[2]["id"] for c in mock_broadcast.call_args_list][0], self.a1.pk,
+        )
+        self.assertEqual(
+            {k: v for k, v in updates.items() if k != self.a1.pk},
+            {
+                self.a2.pk: (self.board.pk, 0),
+                self.b1.pk: (self.board.pk, 0),
+                self.b2.pk: (self.board.pk, 1),
+                self.x.pk: (self.other.pk, 0),
+            },
+        )
+
+    def test_restoring_in_the_admin_tells_the_blocked_cards(self):
+        Card.objects.filter(pk=self.a1.pk).update(archived_at=timezone.now())
+        self.a1.refresh_from_db()
+        self.a1.archived_at = None
+        mock_broadcast = self._save(self.a1)
+        updates = self._updates(mock_broadcast)
+        self.assertEqual(
+            {k: v for k, v in updates.items() if k != self.a1.pk},
+            {
+                self.a2.pk: (self.board.pk, 1),
+                self.b1.pk: (self.board.pk, 1),
+                self.b2.pk: (self.board.pk, 2),
+                self.x.pk: (self.other.pk, 1),
+            },
+        )
+
+    def test_an_edit_that_keeps_the_archived_state_sends_no_peer_frame(self):
+        self.a1.title = "renamed"
+        mock_broadcast = self._save(self.a1)
+        self.assertEqual(
+            [(c.args[1], c.args[2]["id"]) for c in mock_broadcast.call_args_list],
+            [("card.updated", self.a1.pk)],
+        )
+
+    def test_an_edit_of_an_archived_card_that_keeps_it_archived_sends_no_peer_frame(self):
+        Card.objects.filter(pk=self.a1.pk).update(archived_at=timezone.now())
+        self.a1.refresh_from_db()
+        self.a1.title = "still archived"
+        mock_broadcast = self._save(self.a1)
+        self.assertEqual(
+            [(c.args[1], c.args[2]["id"]) for c in mock_broadcast.call_args_list],
+            [("card.updated", self.a1.pk)],
+        )

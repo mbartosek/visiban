@@ -320,8 +320,20 @@ class CardAdmin(admin.ModelAdmin):
     form = CardAdminForm
 
     def save_model(self, request, obj, form, change):
+        peers = {}
         with transaction.atomic():
-            self._lock_cell_entry(obj, change)
+            stored = self._lock_cell_entry(obj, change)
+            # The form edits archived_at (fields="__all__"), so a save can
+            # archive or restore the card. That moves the blocker_count of
+            # every card it blocks, as archive_card / unarchive_card do, so
+            # those cards need their own card.updated (#1634). Decided from
+            # the row read under the lock; collected before the save, with
+            # archived blockers included because this card's archived state
+            # is exactly what changes.
+            if stored is not None and (stored.archived_at is None) != (obj.archived_at is None):
+                peers = blocked_peers_of(
+                    Card.objects.filter(pk=obj.pk), active_blockers_only=False,
+                )
             super().save_model(request, obj, form, change)
             if change:
                 # This form can move a card to another board (the API cannot).
@@ -342,9 +354,14 @@ class CardAdmin(admin.ModelAdmin):
         event = _broadcast.EVT_CARD_UPDATED if change else _broadcast.EVT_CARD_CREATED
         card_data = _refetched_card_data_or_none(obj, request, board)
         if card_data is None:
+            # Deleted meanwhile: its delete already told the peers.
             return
-        board_id = board.id
-        _broadcast.record_board_event(board_id, event, card_data, actor_id=request.user.pk)
+        _broadcast.record_board_event(board.id, event, card_data, actor_id=request.user.pk)
+        # After the card's own frame, rendered from the saved state so each
+        # peer carries its new count. changeform_view's transaction is still
+        # open here, so the feed rows commit with the save and the publish
+        # waits for the commit, like the card's own frame above.
+        publish_blocked_peers(peers, request)
 
     @staticmethod
     def _lock_cell_entry(obj, change):
@@ -359,15 +376,20 @@ class CardAdmin(admin.ModelAdmin):
         column rows are held from before the card UPDATE until this
         transaction commits — which is what ``move_card``'s membership
         re-check (#1567) relies on. It does not re-run the limit check.
+
+        Returns the stored row read under the lock (``None`` on add, or when
+        the card is gone), so ``save_model`` can tell whether the save
+        archives or restores it (#1634).
         """
         if not change:
             lock_card_cell_entry(card_id=None, column_ids={obj.column_id})
-            return
+            return None
         stored = lock_card_row(obj.pk)
         if stored is not None and (stored.column_id, stored.swimlane_id) != (
             obj.column_id, obj.swimlane_id,
         ):
             lock_card_cell_entry(card_id=None, column_ids={stored.column_id, obj.column_id})
+        return stored
 
     def delete_model(self, request, obj):
         board_id = obj.board_id

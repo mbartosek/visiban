@@ -222,7 +222,10 @@ arrives as `swimlane.updated`, whose payload carries the swimlane's
     that card's own `card.archived` / `card.unarchived` / `card.deleted` frame:
     an archived blocker stops counting toward its targets' `blocker_count`, and
     without those frames a client would keep rendering a blocked indicator for
-    a blocker that is no longer on the board. Deleting a column, swimlane or
+    a blocker that is no longer on the board. This holds whichever way the
+    card is archived or restored: through the REST API, the MCP
+    `archive_card` tool, or by editing its archived date in the Django admin.
+    Deleting a column, swimlane or
     board does the same for the cards its deleted cards were blocking (see
     [Deleting a container deletes its cards](#deleting-a-container-deletes-its-cards)).
 

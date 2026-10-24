@@ -309,8 +309,8 @@ def _broadcast_blocked_peers(board_id, peer_ids, actor, render, render_many=None
         _broadcast_after_commit(board_id, _broadcast.EVT_CARD_UPDATED, payload, actor.id)
 
 
-def blocked_peer_ids_by_board(cards):
-    """Surviving cards an active card in ``cards`` blocks, grouped by board (#1634).
+def blocked_peer_ids_by_board(cards, *, active_blockers_only=True):
+    """Cards outside ``cards`` that an active card in ``cards`` blocks, grouped by board (#1634).
 
     The container-delete counterpart of ``_blocked_peer_ids``: a column,
     swimlane or board delete — and a bulk card delete in the Django admin —
@@ -320,14 +320,17 @@ def blocked_peer_ids_by_board(cards):
 
     Three choices, each deliberate:
 
-    * **Peers inside ``cards`` are excluded.** They are deleted by the same
-      cascade, so a ``card.updated`` for them would describe a card that no
-      longer exists.
+    * **Peers inside ``cards`` are left out.** On a delete they go with the
+      same cascade. This only saves work: the render after the delete reads
+      the surviving rows, so a deleted peer would produce no frame anyway.
     * **Archived blockers are skipped.** ``blocker_count`` only counts active
       blockers (``_active_blockers_prefetch``), so deleting an archived one
       moves nothing and is worth no frame. A container cascade includes its
       archived cards; ``delete_card`` never deletes one, which is why
-      ``_blocked_peer_ids`` needs no such filter.
+      ``_blocked_peer_ids`` needs no such filter. A caller about to flip a
+      card's archived state (the Django admin card form) passes
+      ``active_blockers_only=False``: there the card's archived state is what
+      changes, so its peers move whichever way it goes.
     * **Grouped by the peer's own board.** The API only creates same-board
       relations, but the Django admin card form can move a card to another
       board, and its relations go with it. A peer on another board must hear
@@ -340,12 +343,13 @@ def blocked_peer_ids_by_board(cards):
     added concurrently has either committed (and counts) or queues behind the
     delete, since adding a relation locks both of its cards ``FOR UPDATE``.
     """
+    relations = CardRelation.objects.filter(
+        relation_type=CardRelation.Type.BLOCKS, from_card__in=cards,
+    )
+    if active_blockers_only:
+        relations = relations.filter(from_card__archived_at__isnull=True)
     rows = (
-        CardRelation.objects.filter(
-            relation_type=CardRelation.Type.BLOCKS,
-            from_card__in=cards,
-            from_card__archived_at__isnull=True,
-        )
+        relations
         .exclude(to_card__in=cards)
         .order_by("to_card__board_id", "to_card_id")
         .values_list("to_card__board_id", "to_card_id")
