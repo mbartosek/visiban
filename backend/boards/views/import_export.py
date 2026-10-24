@@ -1047,6 +1047,51 @@ def _timestamp_error(value, parser):
     return False
 
 
+def _aware_timestamp(value):
+    """An aware datetime for a timestamp string, or None when it is absent or unusable.
+
+    Uses the parser the validation pass uses (``_timestamp_error``), so a value
+    that passed validation parses here too; anything else is None.
+    """
+    from django.utils.dateparse import parse_datetime
+
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = parse_datetime(value)
+        if parsed is None:
+            return None
+        if django_timezone.is_naive(parsed):
+            parsed = django_timezone.make_aware(parsed)
+        parsed.astimezone(datetime.timezone.utc)
+    except (ValueError, OverflowError):
+        return None
+    return parsed
+
+
+def _imported_card_created_at(card_data, history_on, now):
+    """The exported ``created_at`` to give an imported card, or None for "now" (#1906).
+
+    A card is dated by its file only when that date is one the card could have
+    had: not in the future, and not after the first entry of the history the
+    import keeps for it (movement, activity or comment). Otherwise the card
+    keeps the import time, as before, rather than carrying a date that
+    contradicts its own history. Files without the field import as they
+    always did.
+    """
+    created = _aware_timestamp(card_data.get("created_at"))
+    if created is None or created > now:
+        return None
+    if history_on:
+        for child, key in (("movements", "moved_at"), ("activities", "created_at"), ("comments", "created_at")):
+            entries = card_data.get(child)
+            for entry in entries if isinstance(entries, list) else []:
+                at = _aware_timestamp(entry.get(key)) if isinstance(entry, dict) else None
+                if at is not None and at < created:
+                    return None
+    return created
+
+
 def _resolve_import_users(usernames, importer, group=None):
     """Map imported usernames to users the importer can see, keyed by lowered username.
 
@@ -1558,6 +1603,8 @@ class BoardImportExportMixin:
             # Parallel list: the raw card_data dict for each Card instance so we
             # can correlate after bulk_create assigns PKs.
             cards_raw = []
+            card_created_at = []          # exported created_at to restore, or None (#1906)
+            import_now = django_timezone.now()
 
             # ``cards`` off imports structure (and labels) only; everything
             # below hangs off a card, so it is skipped with it (#119).
@@ -1600,10 +1647,24 @@ class BoardImportExportMixin:
 
                 cards_to_create.append(card_obj)
                 cards_raw.append(card_data)
+                card_created_at.append(
+                    _imported_card_created_at(card_data, options["history"], import_now)
+                )
 
             # Single INSERT for all cards.  PostgreSQL returns PKs in insertion
             # order, so cards_to_create[i].pk aligns with cards_raw[i] after this.
             Card.objects.bulk_create(cards_to_create)
+
+            # created_at is auto_now_add, which overwrites any value set before
+            # the INSERT, so the file's date is written in a second pass
+            # (#1906) — the same way history timestamps are below.
+            dated_cards = []
+            for card_obj, ts in zip(cards_to_create, card_created_at):
+                if ts:
+                    card_obj.created_at = ts
+                    dated_cards.append(card_obj)
+            if dated_cards:
+                Card.objects.bulk_update(dated_cards, ["created_at"], batch_size=_IMPORT_BACKFILL_BATCH)
 
             # ---------- Phase 2: build related objects using the assigned PKs ----------
             label_through = Card.labels.through

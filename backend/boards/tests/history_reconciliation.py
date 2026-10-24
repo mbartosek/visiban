@@ -28,8 +28,10 @@ form to hold them to.
 
 ``imported=True`` relaxes exactly what the importer is documented to change:
 history rows are credited to the importer with the source name kept in
-``imported_from_username`` (#1675, #1702), and the card row itself is dated
-to the import.
+``imported_from_username`` (#1675, #1702). The card row is not relaxed: the
+importer restores the exported ``created_at`` (#1906), so an imported card is
+dated no later than its own history like any other. A file that gives no
+usable ``created_at`` imports at the import time and fails that check, by design.
 """
 
 import datetime
@@ -91,7 +93,7 @@ def history_problems(card, *, now=None, imported=False):
         problems.append("first movement is not a creation (it has a from column or swimlane)")
     if first.notes != CREATED_NOTE:
         problems.append(f"creation movement notes {first.notes!r}, the API writes {CREATED_NOTE!r}")
-    if not imported and abs(card.created_at - first.moved_at) > _SAME_MOMENT:
+    if abs(card.created_at - first.moved_at) > _SAME_MOMENT:
         problems.append(f"card created_at {card.created_at} is not its creation movement {first.moved_at}")
     # create_card writes created_by and the creation movement's moved_by as
     # one user. The importer credits both to the importer, so this holds there too.
