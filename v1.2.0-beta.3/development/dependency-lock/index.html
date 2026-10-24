@@ -2695,6 +2695,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pip-floor-emudhra-emsign-ca-incident-1927" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pip floor (eMudhra emSign CA incident, #1927)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ci-test-jobs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4007,7 +4018,7 @@ hash-pinned file, not from <code>backend/requirements.txt</code>.</p>
 </code></pre></div>
 <p>The script runs <code>uv pip compile --universal --python-version 3.12
 --generate-hashes</code>, so one lock covers every platform for the images' Python
-(<code>python:3.12-slim</code>). uv (Apache-2.0 / MIT, 0.12.22) is pinned in the script so output is
+(<code>python:3.12-slim</code>). uv (Apache-2.0 / MIT, 0.13.4) is pinned in the script so output is
 identical locally and in CI. Existing pins are kept unless <code>requirements.txt</code>
 forces a change; to pick up newer transitive versions, delete
 <code>backend/requirements.lock</code> and rerun the script.</p>
@@ -4039,6 +4050,29 @@ not verified:</p>
 appears, <code>uv pip compile --only-binary :all:</code> fails loudly; add it to the same
 <code>--no-binary</code> list with a note here and make sure its build requirements are in
 <code>requirements-build.in</code>.</p>
+<h2 id="pip-floor-emudhra-emsign-ca-incident-1927">pip floor (eMudhra emSign CA incident, #1927)<a class="headerlink" href="#pip-floor-emudhra-emsign-ca-incident-1927" title="Permanent link">&para;</a></h2>
+<p>pip older than 26.2.2 always uses its own vendored <code>certifi</code>, so the runtime
+<code>certifi</code> floor does not protect pip's TLS to PyPI against the compromised
+eMudhra emSign intermediates (2026-10-20). <code>python:3.12-slim</code> still ships an
+older pip, so:</p>
+<ul>
+<li>Both Dockerfile builder stages get pip from <code>backend/requirements-build.lock</code>
+  (hash-pinned, <code>pip&gt;=26.2.2</code> in <code>requirements-build.in</code>) in the same step that
+  installs the build backend, and assert the installed version before
+  <code>pip wheel</code>.</li>
+<li>CI jobs on <code>python:3.12-slim</code> run the <code>.pip-floor</code> step
+  (<code>scripts/ensure-pip.sh</code>, hash-pinned in <code>scripts/pip-requirements.txt</code>)
+  before their first <code>pip install</code>. The script fails the job if pip is older
+  than 26.2.2; <code>backend-lock-check</code> also runs its <code>--self-test</code>.</li>
+<li>uv in <code>scripts/uv-requirements.txt</code> is 0.13.4 or newer.</li>
+</ul>
+<p>The first fetch of the fixed pip is still made by the older pip, so it relies on
+<code>--require-hashes</code> rather than TLS: a wrong certificate cannot substitute a file
+whose sha256 is not in the lock.</p>
+<p>All of this is removable once the base image ships pip 26.2.2 or newer. Each
+location carries a comment saying so. Bump the floor in three places together:
+<code>requirements-build.in</code> (then re-lock), <code>scripts/pip-requirements.txt</code>, and
+<code>PIP_MIN</code> in <code>scripts/ensure-pip.sh</code>.</p>
 <h2 id="ci-test-jobs">CI test jobs<a class="headerlink" href="#ci-test-jobs" title="Permanent link">&para;</a></h2>
 <p>Test jobs still <code>pip install -r backend/requirements.txt</code>. They do not build
 images, so by design they track the latest compatible releases and catch
