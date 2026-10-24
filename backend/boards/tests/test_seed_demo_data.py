@@ -1718,9 +1718,9 @@ class DemoSiteOverlayBoardTests(TestCase):
             self.assertEqual(stored, expected, lane["name"])
 
     def test_imported_cards_are_dated_to_their_creation(self):
-        """The importer dates each card to the import; the demo moves it back
-        to the card's creation movement, so nothing in its history predates
-        it (the reconciler skips this check for imported boards)."""
+        """The importer restores each card's exported created_at (#1906), which
+        the sample file sets to the card's creation movement, so nothing in its
+        history predates it."""
         cards = self.board.cards.all()
         self.assertEqual(cards.count(), len(self.data["cards"]))
         for card in cards:
