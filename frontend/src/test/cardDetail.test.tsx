@@ -282,6 +282,75 @@ describe('CardDetail', () => {
     expect(highBtn).not.toBeDisabled()
   })
 
+  it('drops a label from an open detail when it is deleted, keeping other edits (#1888)', async () => {
+    const bug = { id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 101, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} board={makeBoard({ labels: [bug, keep] })} card={makeCard({ labels: [bug, keep] })} />)
+    expect(screen.getByText('Bug')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('Test Card'), { target: { value: 'Edited title' } })
+
+    // label.deleted: board.labels and the live card lose the label, version unchanged
+    rerender(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep] })} />)
+    await waitFor(() => expect(screen.queryByText('Bug')).not.toBeInTheDocument())
+    expect(screen.getByDisplayValue('Edited title')).toBeInTheDocument()
+
+    // toggling the remaining label must not send the deleted id
+    await userEvent.click(screen.getByText('Keep'))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    const patch = mockUpdateCard.mock.calls[0][2] as { label_ids: number[] }
+    expect(patch.label_ids).toEqual([])
+  })
+
+  describe('stale-label guards (#1888)', () => {
+    const bug = { id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 101, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const fresh = { id: 102, uid: 'lbluid000003', name: 'Fresh', color: '#3B82F6' }
+
+    it('keeps a label that is on the live card but not yet in board.labels (just created)', async () => {
+      const props = defaultProps()
+      const { rerender } = render(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep, fresh] })} />)
+      rerender(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep, fresh] })} />)
+      await userEvent.click(screen.getByText('Keep'))
+      await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+      expect((mockUpdateCard.mock.calls[0][2] as { label_ids: number[] }).label_ids).toEqual([102])
+    })
+
+    it('keeps a label that left the live card but still exists on the board (only gone-from-both is dropped)', async () => {
+      const props = defaultProps()
+      const board = makeBoard({ labels: [bug, keep] })
+      const { rerender } = render(<CardDetail {...props} board={board} card={makeCard({ labels: [bug, keep] })} />)
+      rerender(<CardDetail {...props} board={board} card={makeCard({ labels: [keep] })} />)
+      await userEvent.click(screen.getByText('Bug'))
+      await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+      // local copy still held Bug (version did not change), so the click removed it
+      expect((mockUpdateCard.mock.calls[0][2] as { label_ids: number[] }).label_ids).toEqual([101])
+    })
+
+    it('a save response carrying a label deleted mid-flight does not bring it back', async () => {
+      const props = defaultProps()
+      mockUpdateCard.mockResolvedValue({ ...makeCard(), priority: 'high', version: 2, labels: [bug, keep] })
+      render(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep] })} />)
+      await userEvent.click(screen.getByRole('button', { name: 'High' }))
+      await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+      await waitFor(() => expect(props.onUpdated).toHaveBeenCalled())
+      expect(screen.queryByText('Bug')).not.toBeInTheDocument()
+    })
+
+    it('a failed save does not roll back to a snapshot holding a label deleted mid-flight', async () => {
+      const props = defaultProps()
+      let reject!: (e: Error) => void
+      mockUpdateCard.mockReturnValue(new Promise((_, rej) => { reject = rej }))
+      const { rerender } = render(<CardDetail {...props} board={makeBoard({ labels: [bug, keep] })} card={makeCard({ labels: [bug, keep] })} />)
+      await userEvent.click(screen.getByRole('button', { name: 'High' }))
+      await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+      rerender(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep] })} />)
+      await waitFor(() => expect(screen.queryByText('Bug')).not.toBeInTheDocument())
+      await act(async () => { reject(new Error('boom')) })
+      expect(screen.queryByText('Bug')).not.toBeInTheDocument()
+    })
+  })
+
   it('renders existing labels from board', () => {
     render(<CardDetail {...defaultProps()} />)
     expect(screen.getByText('Bug')).toBeInTheDocument()

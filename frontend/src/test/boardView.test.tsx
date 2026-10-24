@@ -161,9 +161,9 @@ vi.mock('../components/Board/BoardSettingsModal', () => ({
 // Capture props passed into FilterBar so tests can assert on `scope` and `onScopeChange`
 // without rendering the real component (kept mocked to avoid touching dropdown/avatar
 // dependencies here — FilterBar has its own dedicated suite).
-let capturedFilterBarProps: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void } = {}
+let capturedFilterBarProps: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[] } } = {}
 vi.mock('../components/Board/FilterBar', () => ({
-  default: (props: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void }) => {
+  default: (props: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[] } }) => {
     capturedFilterBarProps = props
     return <div data-testid="filter-bar" data-scope={props.scope}>FilterBar</div>
   },
@@ -718,6 +718,48 @@ describe('BoardView', () => {
       fireEvent.keyDown(input, { key: 's' })
       expect(screen.queryByTestId('summary-view')).not.toBeInTheDocument()
       document.body.removeChild(input)
+    })
+  })
+
+  describe('#1888 — label filter naming a deleted label', () => {
+    const card = {
+      id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Card One',
+      description: '', priority: 'medium' as const, assignee: null,
+      labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: 'user1', display_name: 'User 1', avatar_url: '' },
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      last_moved_at: null, attachment_count: 0, checklist_total: 0,
+      checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+      custom_field_values: [],
+      blocker_count: 0, external_ref: null,
+    }
+
+    it('ignores a deleted label id from ?f_labels: cards still show and FilterBar sees it pruned', () => {
+      mockSearchParams = new URLSearchParams('f_labels=999')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      capturedFilterBarProps = {}
+      render(<BoardView {...defaultProps()} />)
+      fireEvent.keyDown(document, { key: 'f' })
+      expect(screen.queryByText('No cards match the active filters.')).not.toBeInTheDocument()
+      expect(capturedFilterBarProps.filters?.labelIds).toEqual([])
+      // derived only: never written back to persisted state
+      expect(localStorage.getItem('board:1:filters')).toBeNull()
+    })
+
+    it('still filters by a label id that exists on the board', () => {
+      mockSearchParams = new URLSearchParams('f_labels=100')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      render(<BoardView {...defaultProps()} />)
+      expect(screen.getByText('No cards match the active filters.')).toBeInTheDocument()
+    })
+
+    it('does not persist the previous board\'s filters under the new board on a board switch', () => {
+      mockSearchParams = new URLSearchParams('f_assignees=5&f_labels=100')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ id: 1 }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      mockBoardContextValue = defaultContext({ board: makeBoard({ id: 2, uid: 'boarduid0002', labels: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+      expect(localStorage.getItem('board:2:filters')).toBeNull()
+      expect(localStorage.getItem('board:1:filters')).toBeNull()
     })
   })
 

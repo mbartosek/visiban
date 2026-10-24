@@ -844,6 +844,82 @@ describe('useBoard', () => {
     expect(result.current.board!.labels).toHaveLength(0)
   })
 
+  it('removeLabel strips the label from cards, leaving other cards and labels untouched (#1888)', async () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [bug, keep] })
+    const tmpl = base.cards[0] ?? ({} as never)
+    const cards = [
+      { ...tmpl, id: 101, uid: 'carduid00101', labels: [bug, keep] },
+      { ...tmpl, id: 102, uid: 'carduid00102', labels: [keep] },
+    ]
+    mockGetBoardFull.mockResolvedValue({ ...base, cards })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    const untouched = result.current.board!.cards[1]
+
+    act(() => { result.current.removeLabel('lbluid000001') })
+    const b = result.current.board!
+    expect(b.labels.map((l) => l.uid)).toEqual(['lbluid000002'])
+    expect(b.cards[0].labels.map((l) => l.uid)).toEqual(['lbluid000002'])
+    expect(b.cards[1]).toBe(untouched)
+  })
+
+  it('removeLabel with an unknown uid is a no-op on cards (#1888)', async () => {
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [keep] })
+    const tmpl = base.cards[0] ?? ({} as never)
+    mockGetBoardFull.mockResolvedValue({ ...base, cards: [{ ...tmpl, id: 101, uid: 'carduid00101', labels: [keep] }] })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    const before = result.current.board!.cards[0]
+
+    act(() => { result.current.removeLabel('nope') })
+    expect(result.current.board!.cards[0]).toBe(before)
+    expect(result.current.board!.labels).toHaveLength(1)
+  })
+
+  it('updateLabel propagates name/color onto cards holding it, preserving other cards (#1888)', async () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [bug, keep] })
+    const tmpl = base.cards[0]
+    mockGetBoardFull.mockResolvedValue({ ...base, cards: [
+      { ...tmpl, id: 101, uid: 'carduid00101', labels: [bug, keep] },
+      { ...tmpl, id: 102, uid: 'carduid00102', labels: [keep] },
+    ] })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    const untouched = result.current.board!.cards[1]
+
+    act(() => { result.current.updateLabel({ ...bug, name: 'Defect', color: '#000000' }) })
+    const b = result.current.board!
+    expect(b.cards[0].labels[0]).toMatchObject({ id: 1, name: 'Defect', color: '#000000' })
+    expect(b.cards[0].labels[1]).toBe(keep)
+    expect(b.cards[1]).toBe(untouched)
+  })
+
+  it('updateCard drops a label that is no longer on the board (#1888)', async () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [keep] })
+    const tmpl = base.cards[0]
+    mockGetBoardFull.mockResolvedValue({ ...base, cards: [{ ...tmpl, id: 101, uid: 'carduid00101', labels: [keep] }] })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+
+    // a response/echo built before label.deleted still carries the deleted label
+    act(() => { result.current.updateCard({ ...tmpl, id: 101, uid: 'carduid00101', labels: [bug, keep], version: 9 } as never) })
+    const c = result.current.board!.cards[0]
+    expect(c.labels).toEqual([keep])
+    expect(c.version).toBe(9)
+
+    // a clean card is stored as given (identity preserved)
+    const clean = { ...tmpl, id: 101, uid: 'carduid00101', labels: [keep], version: 10 } as never
+    act(() => { result.current.updateCard(clean) })
+    expect(result.current.board!.cards[0]).toBe(clean)
+  })
+
   // #1290 — a member.* frame can arrive without is_site_admin (sent to admin
   // subscribers only); the known value must survive the row replacement.
   it('updateMember / addMember keep the known is_site_admin when a frame omits it', async () => {

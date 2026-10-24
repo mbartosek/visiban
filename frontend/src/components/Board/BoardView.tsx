@@ -80,7 +80,7 @@ import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { MENU_ITEM_FOCUS_RING } from "../Common/menuItemFocusRing";
 import { buildGridOverlayState } from "../../gridOverlays/slot";
 import GridOverlayLegend from "./GridOverlay/GridOverlayLegend";
-import { filterCards, hasActiveClientFilters } from "../../utils/filterCards";
+import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../../utils/filterCards";
 import ModalWrapper from "../shared/ModalWrapper";
 
 interface Props {
@@ -1403,7 +1403,16 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // Memoized (#1147): this used to be a bare IIFE that allocated a fresh Set on every
   // render whenever a filter was active, which silently defeated any downstream useMemo
   // keyed on it — including the grid overlay's per-cell map.
+  // A label filter naming a label that no longer exists on the board (deleted
+  // here or by another session; saved/persisted/URL filters can carry one)
+  // would match no card and show no chip to dismiss (#1888). Ignore such ids
+  // as a derived value only; they are never written back to the URL or
+  // persisted state (BoardView stays mounted across a board switch with the
+  // previous board's filters, so a write-back would copy them to the new board).
+  const effectiveFilters = useMemo(() => pruneStaleLabelIds(filters, board.labels), [filters, board.labels]);
+
   const filteredCardIds: Set<number> | null = useMemo(() => {
+    const filters = effectiveFilters;
     const clientFiltersActive = hasActiveClientFilters(filters);
 
     if (!clientFiltersActive && searchMatchIds === null) return null;
@@ -1415,7 +1424,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
     // filterCards handles the server search intersection via its searchResults param.
     return new Set(filterCards(board.cards, filters, searchMatchIds ? [...searchMatchIds] : null, todayStr, board.custom_field_definitions));
-  }, [filters, searchMatchIds, board.cards, todayStr, board.custom_field_definitions]);
+  }, [effectiveFilters, searchMatchIds, board.cards, todayStr, board.custom_field_definitions]);
 
   /**
    * #1147 — the active overlay's per-cell values for the whole grid, built once per
@@ -1724,7 +1733,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     });
   };
 
-  const activeCount = countActiveFilters(filters);
+  const activeCount = countActiveFilters(effectiveFilters);
 
   const hiddenCount = filteredCardIds !== null
     ? board.cards.filter((c) => !c.archived_at).length - filteredCardIds.size
@@ -2247,21 +2256,21 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           <div role="search" aria-label="Card filters" className="px-3 py-1.5 bg-surface border-b border-line shrink-0 flex items-center gap-2 flex-wrap">
             <SavedFiltersDropdown
               boardId={board.id}
-              filters={filters}
+              filters={effectiveFilters}
               savedFilters={savedFilters}
               loading={savedFiltersLoading}
               onLoad={(sf) => {
                 setFilters(hydrateFilter(sf));
                 setActiveFilterId(sf.id);
               }}
-              onSave={(name) => saveFilter(name, filters)}
+              onSave={(name) => saveFilter(name, effectiveFilters)}
               onDelete={removeFilter}
               firstElementRef={(el) => { filterBarFirstRef.current = el; }}
               externalTriggerRef={(el) => { (savedFiltersDropdownTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el; }}
             />
             <FilterBar
               board={board}
-              filters={filters}
+              filters={effectiveFilters}
               onChange={(next) => {
                 // Any manual edit means the active preset no longer matches live state.
                 setActiveFilterId(null);

@@ -30,6 +30,20 @@ export function hasActiveClientFilters(filters: FilterState): boolean {
 }
 
 /**
+ * Drop label ids that no longer exist on the board from a filter (#1888).
+ * A saved/persisted/URL filter can name a deleted label; it would match no
+ * card, and FilterBar shows no chip for it, so the board looks empty with
+ * nothing to dismiss. Returns the same object when nothing needs pruning so
+ * callers can detect a change by identity.
+ */
+export function pruneStaleLabelIds(filters: FilterState, labels: { id: number }[]): FilterState {
+  if (filters.labelIds.length === 0) return filters;
+  const live = new Set(labels.map((l) => l.id));
+  if (filters.labelIds.every((id) => live.has(id))) return filters;
+  return { ...filters, labelIds: filters.labelIds.filter((id) => live.has(id)) };
+}
+
+/**
  * Pure client-side card filter. Applies assignee, label, priority, due-date,
  * and optional full-text search filters to a list of cards.
  *

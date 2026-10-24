@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getBoardFull, patchBoard as apiPatchBoard, reorderColumns as apiReorderColumns, reorderSwimlanes as apiReorderSwimlanes, deleteSwimlane as apiDeleteSwimlane, deleteColumn as apiDeleteColumn } from "../api/boards";
 import { moveCard as apiMoveCard } from "../api/cards";
 import { failureReason } from "../utils/moveFailure";
+import { dropUnknownLabels } from "../utils/cardLabels";
 import type { BoardFull, BoardMembership, Card, EffectiveBoardMember, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
 
 /** Result of useBoard.moveCard: it never rejects, so callers must check `ok`. */
@@ -385,7 +386,9 @@ export function useBoard() {
   }, []);
 
   const updateCard = useCallback((card: Card) => {
-    setBoard((b) => b ? { ...b, cards: b.cards.map((c) => c.id === card.id ? card : c) } : b);
+    // dropUnknownLabels: a response/echo that lands after label.deleted must not
+    // put the deleted label back on the card (#1888).
+    setBoard((b) => b ? { ...b, cards: b.cards.map((c) => c.id === card.id ? dropUnknownLabels(card, b.labels) : c) } : b);
   }, []);
 
   const updateColumn = useCallback((column: Column) => {
@@ -397,11 +400,31 @@ export function useBoard() {
   }, []);
 
   const updateLabel = useCallback((label: Label) => {
-    setBoard((b) => b ? { ...b, labels: b.labels.map((l) => l.id === label.id ? label : l) } : b);
+    // The server broadcasts only the label on `label.updated`, so the copies
+    // embedded in cards[*].labels would keep the old name/color (#1888).
+    // Untouched cards keep their identity.
+    setBoard((b) => b ? {
+      ...b,
+      labels: b.labels.map((l) => l.id === label.id ? label : l),
+      cards: b.cards.map((c) => c.labels.some((l) => l.id === label.id)
+        ? { ...c, labels: c.labels.map((l) => l.id === label.id ? label : l) }
+        : c),
+    } : b);
   }, []);
 
   const removeLabel = useCallback((labelUid: string) => {
-    setBoard((b) => b ? { ...b, labels: b.labels.filter((l) => l.uid !== labelUid) } : b);
+    // The server drops the card<->label M2M rows silently and broadcasts only
+    // `label.deleted` (no per-card `card.updated`), so strip the label from
+    // every local card too (#1888); CardItem renders card.labels unfiltered.
+    // Cards not holding the label keep their identity so memo'd CardItems
+    // do not re-render.
+    setBoard((b) => b ? {
+      ...b,
+      labels: b.labels.filter((l) => l.uid !== labelUid),
+      cards: b.cards.map((c) => c.labels.some((l) => l.uid === labelUid)
+        ? { ...c, labels: c.labels.filter((l) => l.uid !== labelUid) }
+        : c),
+    } : b);
   }, []);
 
   // Custom fields (#371) — one wholesale-replace setter rather than granular

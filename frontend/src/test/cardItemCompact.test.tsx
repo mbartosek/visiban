@@ -362,3 +362,23 @@ describe('CardItem — open in the card detail sheet (#1914)', () => {
     expect(face.style.borderColor).not.toBe('')
   })
 })
+
+describe('CardItem — embedded label changes (#1888)', () => {
+  it('re-renders when a label is renamed or recolored without its id changing', () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const { rerender } = render(<CardItem density="comfortable" card={makeCard({ labels: [bug] })} compact={false} />)
+    expect(screen.getByText('Bug')).toBeInTheDocument()
+    rerender(<CardItem density="comfortable" card={makeCard({ labels: [{ ...bug, name: 'Defect' }] })} compact={false} />)
+    expect(screen.getByText('Defect')).toBeInTheDocument()
+    expect(screen.queryByText('Bug')).not.toBeInTheDocument()
+  })
+
+  it('re-renders when a label is recolored without its id or name changing', () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const { rerender } = render(<CardItem density="comfortable" card={makeCard({ labels: [bug] })} compact={false} />)
+    const dot = () => screen.getByText('Bug').closest('span') as HTMLElement
+    const before = dot().outerHTML
+    rerender(<CardItem density="comfortable" card={makeCard({ labels: [{ ...bug, color: '#00FF00' }] })} compact={false} />)
+    expect(dot().outerHTML).not.toBe(before)
+  })
+})
