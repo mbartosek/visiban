@@ -4833,6 +4833,16 @@ unaffected. See <a href="../../api/boards/#panel-visibility-by-role">panel visib
 (#1826).</p>
 </div>
 <div class="admonition note">
+<p class="admonition-title">A board with an unrecognized export setting is now admin-only for export</p>
+<p>A board's <code>export_min_role</code> setting accepts <code>viewer</code>, <code>collaborator</code>, <code>member</code> or <code>admin</code>.
+Before 1.2 a stored value outside that set (written directly to the database, never through
+the API) let every role with read access export. It now means admins only, and migration
+<code>0086</code> rewrites such a value to <code>admin</code> (a blank value becomes <code>viewer</code>). <strong>On an affected
+board, export narrows from everyone with read access to board admins.</strong> Boards set through the
+API or the Board Settings dialog are not affected. Owners and site admins can always export.
+To restore wider access, set the threshold again in Board Settings (#1725).</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Deleted cards keep their movement history; movements are read-only in the admin</p>
 <p>Hard-deleting a card (or the column or swimlane it is in) no longer deletes its movement
 history. The records stay on the board's <strong>History</strong> view under the card's original UID

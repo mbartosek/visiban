@@ -4455,6 +4455,7 @@
 </tr>
 </tbody>
 </table>
+<p><em>Update 2026-10-24 (#1725):</em> the <code>export_min_role or "viewer"</code> mutant is now killed. An unrecognized threshold is treated as admin-only, so <code>ExportHelperUnitTests::test_can_export_at_min_role</code> fails on <code>or "XXviewerXX"</code>.</p>
 <p>Everything the first commit on this branch and this pass pinned is a value a caller or client can observe (the echo caps are pinned through the length of the response message, not by reading the constants): throttle scopes and rates, option and flag parsing, the exact echo cut-offs of <code>_bounded_repr</code> and <code>_bounded_text</code>, the per-card caps and the username cap on both sides of the limit, <code>_card_rows</code> and <code>_card_usernames</code>, naive-timestamp acceptance, the write-guard log line, JSON and Trello response counts, the group broadcast, label colors, empty movement destinations, the weight-change activity, and the OpenAPI text.</p>
 <h3 id="runtime">Runtime<a class="headerlink" href="#runtime" title="Permanent link">&para;</a></h3>
 <p>Each module was split across 16 parallel copies of the tree (see <a href="#parallel-runs">Parallel runs</a>) on an 18-core machine. "Wall" is the slowest shard; "CPU total" is the sum of every shard's elapsed time, which is roughly what a single serial run would cost under the same load.</p>
@@ -4760,7 +4761,7 @@
 </tbody>
 </table>
 <p><strong>Mutant counts for #1505</strong> (enumerated with mutmut 2.5.1 (mutant counts only; the test suite was not re-run against them, so kill rates are not re-measured; re-measuring is part of the nightly baseline work in #1384)): <code>cards.py</code> 246 honored / 254 raw on <code>main</code> to 246 / 246 at HEAD (the 8 pragma'd mutants gone). <code>import_export.py</code> 1721 / 1721 on <code>main</code> to 1707 / 1709 at HEAD: 12 mutants deleted with the dead branches, and the 2 excluded are the <code>detail</code> key and text of the export 403. Kill rates for the touched modules were not re-measured.
-| <code>board.export_min_role or "viewer"</code> (line 1672) | 1 | Equivalent | The restriction branch is entered only when <code>export_min_role</code> is set. |
+| <code>board.export_min_role or "viewer"</code> (line 1672) | 1 | Equivalent | The restriction branch is entered only when <code>export_min_role</code> is set. <em>(Update 2026-10-24, #1725: that expression no longer exists; the 403 body reports <code>_effective_export_min_role(board)</code>, pinned by the export controls and movement export tests.)</em> |
 | <code>request.query_params.get("format", "csv")</code> default (line 1676) | 1 | Equivalent | Any value other than <code>json</code> takes the CSV branch. |
 | <code>BoardExportLogSerializer(..., context={"request": request})</code> (lines 2116, 2118) | 2 | Equivalent | The actor serializer only reads the request when a <code>board</code> is also in its context, which this view does not pass. |
 | <code>responses=BoardExportLogSerializer(many=False)</code> on <code>export_history</code> (line 2093) | 1 | Covered elsewhere | <code>test_board_schema_contract.py::test_export_history_matches_schema</code> fails on it; that file is outside the scoped list. |</p>

@@ -5020,6 +5020,11 @@ arrives by any other route, any non-API write.</p>
 <td>Group-inherited roles use the same nearest-ancestor rule and skip out-of-enum group roles. Explicit rows are listed as stored, including out-of-enum ones, so admins can see and remove them; those display differences are tracked in #1905. Pinned by <code>FullRosterLadderTests</code></td>
 </tr>
 <tr>
+<td>Board export threshold (REST)</td>
+<td><code>boards/views/import_export.py</code> <code>_effective_export_min_role</code>, <code>_can_export_at_min_role</code> (also used by the movement export in <code>boards/views/analytics.py</code>); <code>boards/serializers.py</code> <code>BoardSerializer.export_min_role</code></td>
+<td>The serializer field is a <code>ChoiceField</code> over <code>Board.ExportMinRole.choices</code>; the model field declares the same <code>choices</code>, so the admin form enforces them too, and migration 0086 maps any stored out-of-set value to <code>admin</code>. MCP has no export action. A stored <code>export_min_role</code> outside that set is treated as <code>admin</code> (owners and site admins still pass), not as <code>viewer</code>. Pinned by <code>boards/tests/test_export_controls.py</code> <code>ExportMinRoleUnrecognizedValueTests</code> (#1725)</td>
+</tr>
+<tr>
 <td>Board role resolution (all transports)</td>
 <td><code>boards/permissions.py</code> <code>get_board_role</code>, <code>get_board_roles</code></td>
 <td>A stored board membership role outside <code>BoardMembership.Role.values</code> resolves to no access; a stored group role outside <code>GroupMembership.Role.values</code> is skipped in the ancestor walk (<code>_nearest_ancestor_role</code>); the moderator flag is honored only for an in-enum role</td>
