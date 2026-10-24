@@ -66,3 +66,20 @@ describe('ColumnHeader — keyboard (#1376)', () => {
     expect(props.onToggleCollapse).not.toHaveBeenCalled()
   })
 })
+
+// #1775 — the Edit settings modal opens from a kebab item that unmounts with its menu
+describe('ColumnHeader — focus return from the kebab (#1775)', () => {
+  it('Edit settings: Tab stays in the modal and Escape returns focus to the column kebab', async () => {
+    const user = userEvent.setup()
+    renderHeader()
+    const kebab = screen.getByRole('button', { name: 'Actions for column "Backlog"' })
+    await user.click(kebab)
+    await user.click(screen.getByRole('menuitem', { name: 'Edit settings…' }))
+    const dialog = await screen.findByRole('dialog', { name: /Edit Column/i })
+    await user.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(kebab).toHaveFocus()
+  })
+})

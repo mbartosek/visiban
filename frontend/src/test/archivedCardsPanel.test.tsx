@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import OverflowMenu from '../components/Layout/OverflowMenu'
 import ArchivedCardsPanel from '../components/Board/ArchivedCardsPanel'
 import type { BoardFull, Card } from '../types'
 import type { ArchivedCardsPage } from '../api/cards'
@@ -374,5 +375,32 @@ describe('ArchivedCardsPanel focus management (#1732)', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(opener).toHaveFocus()
+  })
+
+  it('opened from an OverflowMenu item: Tab stays trapped and Escape returns focus to the kebab (#1775)', async () => {
+    mockGetArchivedCards.mockResolvedValue(makePage([archivedCard]))
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <OverflowMenu items={[{ id: 'a', label: 'Show archived cards', onSelect: () => setOpen(true) }]} />
+          {open && (
+            <ArchivedCardsPanel board={fakeBoard} onClose={() => setOpen(false)} onUnarchived={vi.fn()} />
+          )}
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Harness />)
+    const kebab = screen.getByRole('button', { name: 'More board actions' })
+    await user.click(kebab)
+    await user.click(screen.getByRole('menuitem', { name: 'Show archived cards' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Archived cards' })
+    await waitFor(() => expect(screen.getByText('Old feature')).toBeInTheDocument())
+    await user.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(kebab).toHaveFocus()
   })
 })

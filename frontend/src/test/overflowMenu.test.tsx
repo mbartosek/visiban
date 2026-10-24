@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import ModalWrapper from '../components/shared/ModalWrapper'
 import OverflowMenu, { type OverflowItem } from '../components/Layout/OverflowMenu'
 
 afterEach(() => {
@@ -247,6 +249,52 @@ describe('OverflowMenu', () => {
     )
     expect(onExternalOpenChange).toHaveBeenCalledWith(true)
   })
+
+  it('moves focus to the trigger before onSelect runs (#1775)', async () => {
+    let activeDuringSelect: Element | null = null
+    const onSelect = vi.fn(() => { activeDuringSelect = document.activeElement })
+    render(<OverflowMenu items={[item('a', 'Alpha', { onSelect })]} />)
+    const trigger = screen.getByRole('button', { name: 'More board actions' })
+    await userEvent.setup().click(trigger)
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Alpha' }))
+    expect(activeDuringSelect).toBe(trigger)
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('a ModalWrapper opened from an item returns focus to the trigger on close (#1775)', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <OverflowMenu items={[item('a', 'Open it', { onSelect: () => setOpen(true) })]} />
+          <ModalWrapper open={open} onClose={() => setOpen(false)} title="Thing">
+            <button>Inside</button>
+          </ModalWrapper>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'More board actions' })
+    await user.click(trigger)
+    await user.click(screen.getByRole('menuitem', { name: 'Open it' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Thing' })
+    await user.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('does not move focus or call onSelect for a disabled item (#1775)', async () => {
+    const onSelect = vi.fn()
+    render(<OverflowMenu items={[item('a', 'Alpha', { onSelect, disabled: true, disabledReason: 'No' })]} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More board actions' }))
+    fireEvent.click(screen.getByRole('menuitem'))
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
 })
 
 describe('OverflowMenu — keyboard navigation', () => {
@@ -360,4 +408,5 @@ describe('OverflowMenu — keyboard navigation', () => {
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     })
   })
+
 })
