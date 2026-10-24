@@ -1983,7 +1983,7 @@ class Command(BaseCommand):
             group=group, user=owner, defaults={"role": GroupMembership.Role.ADMIN},
         )
         # #1570: every route under /groups/{id}/ resolves the group through
-        # get_accessible_group_ids(), which admits only owners and members. The
+        # get_accessible_group_ids(), which admits only members (#1829). The
         # schema-fuzz user is a plain board MEMBER (never the group owner), so
         # without a GroupMembership row all ~17 group operations answered 404
         # no matter which id the hook supplied. MEMBER, not ADMIN: the fuzzer

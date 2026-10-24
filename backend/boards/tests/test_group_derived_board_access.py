@@ -343,6 +343,17 @@ class StoredRoleTests(_GroupFixture):
         self._assert_no_access(self.board)
         self.assertIsNotNone(get_board_role(self.user, self.sub_board))
 
+    def test_unknown_board_role_cannot_be_chosen_as_default_board(self):
+        # The default-board choice is scoped to the user's memberships; one
+        # whose stored role is outside the enum grants no access, so it is
+        # answered like a board the user is not a member of (#1829).
+        row = BoardMembership.objects.create(board=self.board, user=self.user, role="bogus")
+        r = self.client.patch("/api/v1/auth/me/", {"default_board_id": self.board.id}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+        BoardMembership.objects.filter(pk=row.pk).update(role=BoardMembership.Role.VIEWER)
+        r = self.client.patch("/api/v1/auth/me/", {"default_board_id": self.board.id}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+
     def test_board_owner_is_admitted_with_unknown_own_board_role(self):
         from boards.views._helpers import get_accessible_boards_queryset
 

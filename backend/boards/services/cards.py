@@ -84,6 +84,16 @@ _MUTATION_ROLES = (
     SITE_ADMIN,
 )
 
+# Roles permitted to add and delete card comments and attachments and to work on
+# checklist items: the mutation roles plus collaborator, who annotates cards
+# without changing them (``BoardMembership`` docstring). An allow-list for the
+# same reason as ``_MUTATION_ROLES``: a role added later gets no write access
+# until it is listed here (#1829, #875).
+ANNOTATION_ROLES = (
+    BoardMembership.Role.COLLABORATOR,
+    *_MUTATION_ROLES,
+)
+
 # Roles permitted to override a soft WIP or weight limit with force=True.
 _FORCE_ROLES = (BoardMembership.Role.ADMIN, SITE_ADMIN)
 

@@ -163,9 +163,9 @@ class ConsumerActorScopedFieldTests(TestCase):
         for event in SCOPED:
             with self.subTest(event=event):
                 msg = self._message(event, self.actor.id, "group_event")
-                own = _deliver(_group_consumer(7, self.actor), "group_event", msg)
+                own = _deliver(_group_consumer(7, self.actor, visible_boards=(7,)), "group_event", msg)
                 self.assertEqual(own, msg["payload"])
-                theirs = _deliver(_group_consumer(7, self.other), "group_event", msg)
+                theirs = _deliver(_group_consumer(7, self.other, visible_boards=(7,)), "group_event", msg)
                 self.assertNotIn("is_starred", theirs["data"])
                 self.assertEqual(theirs["data"], {"id": 7, "name": "N"})
 
@@ -240,8 +240,9 @@ class WritePathBase(TestCase):
                 else:
                     handler = "group_event"
                     gid = int(group_name.split("_")[1])
-                    own_c = _group_consumer(gid, self.actor)
-                    others = [_group_consumer(gid, self.other)]
+                    board_ids = (message["payload"]["data"].get("id"),)
+                    own_c = _group_consumer(gid, self.actor, visible_boards=board_ids)
+                    others = [_group_consumer(gid, self.other, visible_boards=board_ids)]
                 own = _deliver(own_c, handler, message)
                 self.assertIn("is_starred", own["data"])
                 if starred is not None:

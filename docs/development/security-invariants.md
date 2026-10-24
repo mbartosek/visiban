@@ -411,15 +411,34 @@ arrives by any other route, any non-API write.
 | Board export threshold (REST) | `boards/views/import_export.py` `_effective_export_min_role`, `_can_export_at_min_role` (also used by the movement export in `boards/views/analytics.py`); `boards/serializers.py` `BoardSerializer.export_min_role` | The serializer field is a `ChoiceField` over `Board.ExportMinRole.choices`; the model field declares the same `choices`, so the admin form enforces them too, and migration 0086 maps any stored out-of-set value to `admin`. MCP has no export action. A stored `export_min_role` outside that set is treated as `admin` (owners and site admins still pass), not as `viewer`. Pinned by `boards/tests/test_export_controls.py` `ExportMinRoleUnrecognizedValueTests` (#1725) |
 | Board role resolution (all transports) | `boards/permissions.py` `get_board_role`, `get_board_roles` | A stored board membership role outside `BoardMembership.Role.values` resolves to no access; a stored group role outside `GroupMembership.Role.values` is skipped in the ancestor walk (`_nearest_ancestor_role`); the moderator flag is honored only for an in-enum role |
 | Board list and card query scoping | `boards/views/_helpers.py` `get_accessible_boards_queryset`, `board_access_q`; `groups/views.py` `GroupViewSet.boards` GET, `_descendant_boards_queryset` (serves `descendant_boards` and `descendant_boards_paged`) | A stored board membership role outside `BoardMembership.Role.values` admits no board through that membership and, as in `get_board_role`, is not overridden by group membership; the board owner is admitted regardless |
-| Group-derived board scoping | `groups/models.py` `get_group_ids_for_board_access` | Only group memberships whose stored role is within `GroupMembership.Role.values` contribute groups |
+| Group-derived board scoping | `groups/models.py` `get_group_ids_for_board_access` | Only group memberships whose stored role is within `GroupMembership.Role.values` contribute groups (`_access_memberships`, shared with the group access predicates below) |
+| Group access: REST nested routes, group list and retrieve | `groups/models.py` `user_has_group_access` (behind `groups/views.py` `_require_group_member`), `group_access_resolver` (`navigation_only`), `get_accessible_group_ids` (`GroupViewSet.get_queryset`, `resolve_group_for_board_placement`) | Only memberships whose stored role is within `GroupMembership.Role.values` grant access or list a group (`_access_memberships`), so a row outside the enum grants no group route, list entry or channel, as it grants no board role. Group ownership alone is not a rung: the owner holds a direct admin row (Rule 11) (#1829). Pinned by `groups/tests/test_group_role_fail_closed_1829.py` |
+| Group member roster | `groups/views.py` `GroupViewSet.members` | An inherited row whose stored role is outside the enum is skipped, and the nearest ancestor row within the enum is listed instead. Direct rows are listed as stored, including out-of-enum ones, so admins can see and remove them (#1829) |
+| Group invite preview and join, consumed links | `groups/views.py` `_is_member` | A member of the group may follow a consumed link of theirs without the creator check; only a row within `GroupMembership.Role.values` counts as membership (#1829) |
+| Card comment, attachment and checklist writes (REST) | `boards/views/cards.py` `CardViewSet.comments`, `delete_comment`, `attachments`, `delete_attachment`, `checklist`, `checklist_item`, `checklist_reorder` | The resolved role must be in the allow-list `boards/services/cards.py` `ANNOTATION_ROLES` (collaborator, member, admin, site admin), not merely other than viewer, so a role added later gets no write access until listed (#1829, as #875 did for `set_collapsed`) |
+| Import user matching pool | `boards/services/trello_import.py` `visible_users` (Rule 5) | Only the importer's own board and group memberships within the enum make their co-members matchable (#1829) |
+| Default board choice (REST) | `accounts/serializers.py` `UserSerializer` (`default_board_id`) | The choice is limited to boards where the user holds a membership within `BoardMembership.Role.values`; any other id is a `400` (#1829) |
 | WebSocket (board) | `boards/consumers.py` `_lookup_role` | The role comes from `get_board_role`; the consumer accepts no role from a frame |
-| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Access is the membership predicate `user_has_group_access`, which reads no role; the consumer accepts no role from a frame |
+| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Access is `user_has_group_access`, which ignores a membership outside the enum; `board.created` and `board.updated` frames are forwarded only when `get_board_role` resolves a role on that board for the subscriber, so an explicit board row outside the enum withholds them as on the board channel (#1829); the consumer accepts no role from a frame |
 | MCP | `mcp_server/tools.py` `_resolve_board` | Roles come from `get_board_role` and `get_board_roles`; no tool writes a membership role |
 
 Coverage: `boards/tests/test_members_role_validation.py` (writer rejection,
 stored out-of-enum board and group roles, bulk resolver, moderator flag),
 `groups/tests/test_groups.py` (`test_invalid_role_returns_400`,
-`test_all_valid_roles_are_accepted`, `test_invalid_invite_link_role_returns_400`).
+`test_all_valid_roles_are_accepted`, `test_invalid_invite_link_role_returns_400`),
+`boards/tests/test_group_derived_board_access.py` `StoredRoleTests` (board list,
+retrieve and card query), `groups/tests/test_group_role_fail_closed_1829.py`
+(group predicates, REST routes, list, roster, group WebSocket handshake and
+board frames), `boards/tests/test_card_annotation_roles_1829.py` (comment,
+attachment and checklist allow-list) and `boards/tests/test_import_user_scope.py`
+`test_rows_with_an_unrecognized_role_do_not_widen_the_pool`.
+
+Readers that still count a group membership outside the enum, accepted as
+display or availability effects that grant nothing: the group `member_count`
+(`groups/counts.py` `annotate_group_counts`, which counts the direct rows the
+roster lists), and an invite join (`groups/views.py` `JoinGroupView.post`,
+`groups/invite_registration.py`), whose `get_or_create` keeps such an existing
+row instead of replacing it, so the user stays without access.
 
 ## Rule 10: A second transport is no broader than REST for the same role
 
@@ -438,7 +457,7 @@ fails closed.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check |
+| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check. A `board.created` or `board.updated` frame, which carries a full board, is forwarded only to a subscriber on whom `get_board_role` resolves a role for that board, the predicate of REST board detail and `BoardConsumer` (#1829); the verdict is cached per board for the access re-check window. `board.deleted` (identifiers only: `board_uid`, and `board_id` on a move-out) is accepted as ungated, since access cannot be resolved for a deleted board and a client needs it to drop a listed row |
 | WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
 | MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` starts from `boards/views/_helpers.py` `get_accessible_boards_queryset`, the queryset `BoardViewSet.get_queryset` uses; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
 | MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
@@ -491,6 +510,14 @@ Existing data: migration `groups/0022_restore_group_owner_admin_rows` gives
 every group's owner a direct `admin` membership, promoting a non-admin row or
 adding a missing one, so the owner half of the rule holds for every existing
 group (`groups/tests/test_group_owner_admin_repair_1786.py`).
+
+The owner's group access rests on that row alone: since #1829 no group access
+predicate has an ownership rung (`get_accessible_group_ids` had one), so an
+owner whose row is missing or carries a role outside the enum sees the group
+like any non-member. A superuser repairs it with the Django admin transfer,
+which offers only the group's other active members as the new owner; for a
+group with no other member, someone with access to all content first adds
+one through the API.
 
 ## Rule 12: Extension panels are filtered on the caller's role before they run
 

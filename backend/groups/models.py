@@ -38,6 +38,13 @@ def user_has_group_access(user, group):
     query to avoid N+1 on deep trees. ``can_access_all_content`` bypasses.
     ``group_access_resolver`` applies the same rule to many groups at once;
     change both together.
+
+    Only memberships whose stored role is within ``GroupMembership.Role`` count
+    (``_access_memberships``): ``choices`` is not enforced on save, so a row
+    written by an import, the shell or a migration can carry any string, and
+    ``get_board_role`` already treats such a row as no role. Counting it here
+    would grant the group routes and channel to a user with no board access
+    through the same row (#1829, security invariants Rule 9).
     """
     if getattr(user, "can_access_all_content", False):
         return True
@@ -48,10 +55,19 @@ def user_has_group_access(user, group):
         ancestor_ids.append(node.pk)
         node = node.parent
         depth += 1
-    return GroupMembership.objects.filter(
-        group_id__in=ancestor_ids,
-        user=user,
-    ).exists()
+    return _access_memberships(user).filter(group_id__in=ancestor_ids).exists()
+
+
+def _access_memberships(user):
+    """``user``'s memberships that grant group access: a stored role within ``GroupMembership.Role``.
+
+    The one membership filter behind ``user_has_group_access``,
+    ``group_access_resolver`` and ``get_accessible_group_ids``, so the group
+    routes, the group list and the group channel cannot disagree on a row with
+    an unrecognized role. ``get_group_ids_for_board_access`` and
+    ``get_board_role`` apply the same filter for board access.
+    """
+    return GroupMembership.objects.filter(user=user, role__in=GroupMembership.Role.values)
 
 
 def group_access_resolver(user):
@@ -66,9 +82,7 @@ def group_access_resolver(user):
     """
     if getattr(user, "can_access_all_content", False):
         return lambda group: True
-    member_ids = set(
-        GroupMembership.objects.filter(user=user).values_list("group_id", flat=True)
-    )
+    member_ids = set(_access_memberships(user).values_list("group_id", flat=True))
 
     def has_access(group):
         node = group
@@ -168,11 +182,26 @@ def _ancestor_ids_from(group_id, limit):
 def get_accessible_group_ids(user):
     """
     Return all group IDs accessible to user: groups where they are a direct
-    member/owner, plus all descendant sub-groups of those groups.
+    member, plus all descendant sub-groups of those groups.
     Site admins have access to all groups.
 
     Descendant discovery is capped at _GROUP_TRAVERSAL_MAX_DEPTH iterations.
     Groups nested deeper than this limit will not appear in the result set.
+
+    Membership is read through ``_access_memberships``, the filter
+    ``user_has_group_access`` uses, so a row whose stored role is outside
+    ``GroupMembership.Role`` lists nothing (#1829). Ownership alone is not a
+    rung (it was until #1829): a group's owner always holds a direct admin
+    membership (created with the group, kept by ownership transfer, guarded
+    against removal and demotion, restored by migration 0022, #1786 and
+    security invariants Rule 11), so for well-formed data the rung added
+    nothing. Where that row is missing or carries an unrecognized role, the
+    owner rung was the one path that still listed the group, its ancestors and
+    subgroups, and resolved the detail routes (retrieve, delete, ownership
+    transfer) for a user every member check refuses. A superuser repairs such
+    a group with the Django admin ownership transfer, which offers only the
+    group's other active members; a group with no other member first needs one
+    added through the API by a user with ``can_access_all_content``.
     """
     # Use can_access_all_content (not is_site_admin) — the documented privilege
     # model reserves is_site_admin for /api/admin/* UI access only, while
@@ -181,11 +210,7 @@ def get_accessible_group_ids(user):
     # enumerate all groups, violating the documented flag semantics.
     if getattr(user, "can_access_all_content", False):
         return set(Group.objects.values_list("id", flat=True))
-    direct_ids = set(
-        Group.objects.filter(
-            Q(owner=user) | Q(memberships__user=user)
-        ).values_list("id", flat=True)
-    )
+    direct_ids = set(_access_memberships(user).values_list("group_id", flat=True))
     all_ids = set(direct_ids)
     # Walk UP: include ancestor groups so the user can navigate to their
     # subgroup through the sidebar tree.  Ancestors are read-only — the user
@@ -263,11 +288,7 @@ def get_group_ids_for_board_access(user):
     """
     if getattr(user, "can_access_all_content", False):
         return set(Group.objects.values_list("id", flat=True))
-    direct_ids = set(
-        GroupMembership.objects.filter(
-            user=user, role__in=GroupMembership.Role.values,
-        ).values_list("group_id", flat=True)
-    )
+    direct_ids = set(_access_memberships(user).values_list("group_id", flat=True))
     all_ids = set(direct_ids)
     frontier = set(direct_ids)
     for depth in range(_GROUP_TRAVERSAL_MAX_DEPTH - 1):

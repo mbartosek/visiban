@@ -30,6 +30,7 @@ from accounts.tests.ws_helpers import bound_scope, session_ticket
 from groups.broadcast import broadcast_group_event
 from groups import consumers as consumers_module
 from groups.consumers import ACCESS_RECHECK_JITTER_SECONDS, ACCESS_RECHECK_SECONDS, GroupConsumer
+from boards.models import Board
 from groups.models import Group, GroupMembership
 
 SECRET = "Confidential-board-name-1477"
@@ -46,14 +47,20 @@ class _Clock:
         self.now += seconds
 
 
-def _board_frame():
-    return {"event": "board.updated", "data": {"id": 1, "name": SECRET}}
+def _board_frame(board_id):
+    """A board.updated frame for a real board in the group.
+
+    Real, because board.* state frames are forwarded only to a subscriber with
+    a role on the board they describe (#1829).
+    """
+    return {"event": "board.updated", "data": {"id": board_id, "name": SECRET}}
 
 
 class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
     def setUp(self):
         self.owner = User.objects.create_user(username="gar_owner", password="pass")
         self.group = Group.objects.create(name="GAR group", owner=self.owner)
+        self.board = Board.objects.create(name="Board in group", owner=self.owner, group=self.group)
         self.subscriber = User.objects.create_user(username="gar_sub", password="pass")
         self.membership = GroupMembership.objects.create(
             group=self.group, user=self.subscriber, role=GroupMembership.Role.MEMBER
@@ -92,7 +99,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         self.membership.delete()
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
-        self.assertIsNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_called_once_with(code=4003)
 
     def test_window_bounds_the_recheck_cost(self):
@@ -101,14 +108,14 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         self.clock.advance(ACCESS_RECHECK_SECONDS - 0.01)
 
         for _ in range(5):
-            self.assertEqual(self._deliver(consumer, _board_frame())["data"]["name"], SECRET)
+            self.assertEqual(self._deliver(consumer, _board_frame(self.board.id))["data"]["name"], SECRET)
         consumer._refresh_access.assert_not_called()
 
     def test_retained_access_forwards_and_restarts_the_window(self):
         consumer = self._consumer()
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
-        self.assertIsNotNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNotNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_not_called()
         self.assertEqual(consumer._access_verified_at, self.clock())
 
@@ -119,7 +126,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         consumer.group_id = child.id
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
-        self.assertIsNotNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNotNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_not_called()
 
     def test_membership_only_in_a_subgroup_does_not_admit_the_parent_channel(self):
@@ -145,7 +152,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         }
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
-        self.assertIsNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_called_once_with(code=4003)
 
     def test_owner_without_a_membership_row_is_not_admitted(self):
@@ -168,15 +175,15 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         consumer = self._consumer()
         self.clock.advance(ACCESS_RECHECK_SECONDS)
         with patch.object(consumers_module, "_jitter", return_value=1.5):
-            self.assertIsNotNone(self._deliver(consumer, _board_frame()))
+            self.assertIsNotNone(self._deliver(consumer, _board_frame(self.board.id)))
         self.assertEqual(consumer._access_window, ACCESS_RECHECK_SECONDS + 1.5)
 
         consumer._refresh_access = AsyncMock(return_value=True)
         self.clock.advance(ACCESS_RECHECK_SECONDS + 1.49)
-        self._deliver(consumer, _board_frame())
+        self._deliver(consumer, _board_frame(self.board.id))
         consumer._refresh_access.assert_not_called()  # still inside the jittered window
         self.clock.advance(0.01)
-        self._deliver(consumer, _board_frame())
+        self._deliver(consumer, _board_frame(self.board.id))
         consumer._refresh_access.assert_called_once()  # window lapsed: re-checked
 
         for _ in range(200):
@@ -190,7 +197,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
         with self.assertLogs("groups.consumers", level="WARNING") as logs:
-            self.assertIsNone(self._deliver(consumer, _board_frame()))
+            self.assertIsNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_called_once_with(code=4003)
         output = "\n".join(logs.output)
         self.assertIn("group access re-check failed", output)
@@ -202,7 +209,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         self.membership.delete()
         consumer = self._consumer(verified=False)
 
-        self.assertIsNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_called_once_with(code=4003)
 
     def test_deactivated_user_is_evicted(self):
@@ -210,7 +217,7 @@ class GroupConsumerAccessRecheckUnitTests(TransactionTestCase):
         User.objects.filter(pk=self.subscriber.pk).update(is_active=False)
         self.clock.advance(ACCESS_RECHECK_SECONDS)
 
-        self.assertIsNone(self._deliver(consumer, _board_frame()))
+        self.assertIsNone(self._deliver(consumer, _board_frame(self.board.id)))
         consumer.close.assert_called_once_with(code=4003)
 
 
@@ -222,6 +229,7 @@ class LostGroupMemberRemovedFrameE2ETests(TransactionTestCase):
         self.owner = User.objects.create_user(username="gar_e2e_owner", password="pass")
         self.member = User.objects.create_user(username="gar_e2e_member", password="pass")
         self.group = Group.objects.create(name="GAR e2e", owner=self.owner)
+        self.board = Board.objects.create(name="Board in group", owner=self.owner, group=self.group)
         GroupMembership.objects.create(group=self.group, user=self.owner, role=GroupMembership.Role.ADMIN)
         GroupMembership.objects.create(group=self.group, user=self.member, role=GroupMembership.Role.MEMBER)
 
@@ -259,7 +267,7 @@ class LostGroupMemberRemovedFrameE2ETests(TransactionTestCase):
 
             # connect() drew a real jitter; step past the longest window.
             clock.advance(ACCESS_RECHECK_SECONDS + ACCESS_RECHECK_JITTER_SECONDS)
-            await sync_to_async(broadcast_group_event)(self.group.id, "board.updated", _board_frame()["data"])
+            await sync_to_async(broadcast_group_event)(self.group.id, "board.updated", _board_frame(self.board.id)["data"])
 
             out = await comm.receive_output(timeout=2)
             self.assertEqual(out, {"type": "websocket.close", "code": 4003})
@@ -279,6 +287,7 @@ class GroupConsumerAccountStateTests(TransactionTestCase):
         self.owner = User.objects.create_user(username="gas_owner", password="pass")
         self.member = User.objects.create_user(username="gas_member", password="pass")
         self.group = Group.objects.create(name="GAS group", owner=self.owner)
+        self.board = Board.objects.create(name="Board in group", owner=self.owner, group=self.group)
         GroupMembership.objects.create(group=self.group, user=self.member, role=GroupMembership.Role.MEMBER)
 
     def _connect(self, *, flag=None):
@@ -324,7 +333,7 @@ class GroupConsumerAccountStateTests(TransactionTestCase):
                     await sync_to_async(User.objects.filter(pk=self.member.pk).update)(**{flag: True})
                     clock.advance(ACCESS_RECHECK_SECONDS + ACCESS_RECHECK_JITTER_SECONDS)
                     await sync_to_async(broadcast_group_event)(
-                        self.group.id, "board.updated", _board_frame()["data"]
+                        self.group.id, "board.updated", _board_frame(self.board.id)["data"]
                     )
 
                     out = await comm.receive_output(timeout=2)

@@ -652,9 +652,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         ancestor_ids = [a.pk for a in ancestors]
         if ancestor_ids:
             ancestor_map = {a.pk: a for a in ancestors}
+            # An ancestor row whose stored role is outside GroupMembership.Role
+            # grants nothing (user_has_group_access, get_board_role), so it is
+            # not listed as an inherited member and does not hide a row from
+            # a farther ancestor that does grant access (#1829). Direct rows
+            # above are listed as stored, so an admin can see and remove one.
             inherited_memberships = (
                 GroupMembership.objects
-                .filter(group_id__in=ancestor_ids)
+                .filter(group_id__in=ancestor_ids, role__in=GroupMembership.Role.values)
                 .select_related("user", "group")
             )
             # Re-apply nearest-first ordering by sorting against the ancestors list.
@@ -1913,11 +1918,18 @@ class JoinGroupRateThrottle(AnonRateThrottle):
 
 
 def _is_member(user, group_id) -> bool:
-    """True when ``user`` is an authenticated member of the group ``group_id``."""
+    """True when ``user`` is an authenticated member of the group ``group_id``.
+
+    A row whose stored role is outside ``GroupMembership.Role`` does not count,
+    as in ``user_has_group_access`` (#1829): such a holder of a consumed link
+    is answered like a non-member instead of skipping the creator check.
+    """
     return bool(
         user is not None
         and user.is_authenticated
-        and GroupMembership.objects.filter(group_id=group_id, user=user).exists()
+        and GroupMembership.objects.filter(
+            group_id=group_id, user=user, role__in=GroupMembership.Role.values,
+        ).exists()
     )
 
 
