@@ -87,9 +87,10 @@ def _effective_export_min_role(board):
     """The threshold the export gate applies for ``board`` (#843, #1725).
 
     A blank value means the default (``viewer``). A stored value outside the
-    ``Board.ExportMinRole`` set (``choices`` is not enforced on save) is treated as ``admin``, so a
-    typo narrows export access rather than widening it. API, import and admin
-    writes are validated; only a direct ORM or shell write can store one.
+    ``Board.ExportMinRole`` set (``choices`` is not enforced on save) is
+    treated as ``admin``, so a typo narrows export access rather than
+    widening it. API, import and admin writes are validated; only a direct
+    ORM or shell write can store one.
     """
     threshold = board.export_min_role or "viewer"
     if threshold not in _EXPORT_ROLE_RANK:
