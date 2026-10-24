@@ -26,7 +26,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # requirements-build.lock and used with --no-build-isolation, so nothing is
 # fetched unpinned. The builder stage is discarded, so setuptools never ships.
 COPY requirements.lock requirements-build.lock ./
+# pip is upgraded first, from the hash-pinned lock, and its version asserted (#1927):
+# pip < 26.2.2 always uses its own vendored certifi, which trusts the compromised
+# eMudhra emSign intermediates, and python:3.12-slim still ships pip 26.2.1.
+# REMOVABLE once the base image ships pip >= 26.2.2 (drop pip from
+# requirements-build.in and the assertion below).
 RUN pip install --no-cache-dir --only-binary :all: --require-hashes -r requirements-build.lock \
+    && python -c "import pip,sys; v=tuple(map(int,pip.__version__.split('.')[:3])); sys.exit(0 if v>=(26,2,2) else 'pip '+pip.__version__+' < 26.2.2')" \
     && pip wheel --no-cache-dir --only-binary :all: --no-binary dj-rest-auth \
     --no-build-isolation --require-hashes --wheel-dir /wheels -r requirements.lock
 
