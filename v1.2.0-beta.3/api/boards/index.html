@@ -7592,7 +7592,9 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">"expires_in_days"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span>
 <a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="p">}</span>
 </code></pre></div></p>
-<p><code>expires_in_days</code> is optional. Allowed values: <code>7</code>, <code>30</code>, <code>90</code>, or <code>null</code> (the default — never expires). Any other integer returns <code>400 Bad Request</code>. New in 1.1 (#804).</p>
+<p><code>expires_in_days</code> is optional. Allowed values: <code>7</code>, <code>30</code>, <code>90</code>, or <code>null</code>. Omitting it or sending <code>null</code> creates a link that never expires; this API default is part of the 1.x contract and does not change. Any other integer returns <code>400 Bad Request</code>. New in 1.1 (#804).</p>
+<p><em>(1.2+, #1865)</em> The <strong>Sharing</strong> tab in board settings pre-selects <strong>30 days</strong> and sends it explicitly; choosing <strong>Never</strong> sends <code>null</code>. Clients calling the API directly keep the "never expires" default unless they send a value.</p>
+<p><em>(1.2+, #1865)</em> The link records the admin who enabled it, and lasts only while that account keeps the standing that let it enable sharing on this board: active, and a board <code>admin</code> or <code>site_admin</code> there (by membership, ownership, group role, or all-content access). When that account is deactivated or deleted, demoted below board admin (including by being added to the board directly with a lower role, which takes precedence over a group role), removed from the board or from the group that made it an admin, loses that group role because it joined a nearer group with a lower role, the board's group is changed (<code>PATCH</code>/<code>PUT</code> with <code>group</code>, or move-group), or a group is moved or deleted, or loses all-content access, the token and its expiry are cleared and a <code>board.updated</code> event is sent. An account that is still an admin of the board another way keeps the link. Links enabled before 1.2 record no enabler and are not affected. The enabler is never returned by any endpoint or event.</p>
 <p><strong>Response</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">"share_token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"3fa85f64-5717-4562-b3fc-2c963f66afa6"</span><span class="p">,</span>
@@ -7601,7 +7603,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="p">}</span>
 </code></pre></div></p>
 <p><code>share_token_expires_at</code> is <code>null</code> when no TTL was requested.</p>
-<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller can see the board but is not a board admin; <code>404 Not Found</code> if the caller has no access to it. <code>400 Bad Request</code> if <code>expires_in_days</code> is not one of the allowed values.</p>
+<p><strong>Errors:</strong> <code>403 Forbidden</code> if the caller can see the board but is not a board admin, including a caller whose admin role was removed while the request was waiting on a concurrent change to the board; <code>404 Not Found</code> if the caller has no access to it. <code>400 Bad Request</code> if <code>expires_in_days</code> is not one of the allowed values.</p>
 <h3 id="delete-apiv1boardsidshare"><code>DELETE /api/v1/boards/{id}/share/</code><a class="headerlink" href="#delete-apiv1boardsidshare" title="Permanent link">&para;</a></h3>
 <p>Revoke the public share token for the board. Requires board admin. All existing share links immediately return <code>404 Not Found</code> after revocation. Both the token and any TTL are cleared.</p>
 <p><strong>Permissions:</strong> board <code>admin</code> or <code>site_admin</code> only.</p>
@@ -8434,7 +8436,7 @@ belonging to another board are silently ignored rather than reordered or exposed
 <p><strong>Authentication:</strong> none required (public endpoint).</p>
 <p><strong>Rate limiting:</strong> 120 requests/hour per IP, plus a 240 requests/hour per-token limit as defense in depth against CGNAT/proxy-pool abuse of a single link. Exceeding either returns <code>429 Too Many Requests</code>.</p>
 <p><strong>Errors:</strong>
-- <code>404 Not Found</code> if the token is invalid, has been revoked, or does not exist.
+- <code>404 Not Found</code> if the token is invalid, has been revoked, or does not exist. <em>(1.2+, #1865)</em> Also when the admin who enabled the link is no longer active or no longer an admin of the board; the link is cleared on that read and does not come back if the account regains admin. This is checked before the expiry, so such a link answers <code>404</code> even after its expiry has passed.
 - <code>410 Gone</code> if the token's TTL has elapsed (admin set an expiry at enable time and that timestamp has passed). The token is <em>not</em> auto-rotated — an admin must disable and re-enable sharing to get a fresh link. Body: <code>{"detail": "This share link has expired."}</code>. Added in 1.1 (#804).</p>
 <p><strong>Response</strong>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="p">{</span>

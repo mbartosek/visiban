@@ -4386,7 +4386,7 @@ Search for a new owner per board (any existing member — a direct board member 
 has access through group membership both count) and confirm; deactivation and the ownership
 transfers happen together, atomically. Deactivating the account also revokes any invite links
 the departing user created — site invite links and, <em>(1.2+)</em>, the pending board invites they
-emailed (each board's admins see those invites move to <strong>Revoked</strong>) and their active, unused group invite links (each affected group's admins see them move to <strong>Revoked</strong>). Consumed single-use links are left as they are.</p>
+emailed (each board's admins see those invites move to <strong>Revoked</strong>) and their active, unused group invite links (each affected group's admins see them move to <strong>Revoked</strong>). Consumed single-use links are left as they are. <em>(1.2+)</em> It also turns off any public board share link the user turned on (links turned on before 1.2 are not affected); see <a href="../../features/board/#when-a-share-link-ends-automatically">Board sharing</a>.</p>
 <h4 id="make-admin-demote-admin">Make admin / Demote admin<a class="headerlink" href="#make-admin-demote-admin" title="Permanent link">&para;</a></h4>
 <p>Grants or revokes site admin status. You cannot change your own admin status — ask another site admin. <strong>Demote admin</strong> is not shown for an account that is still a superuser (the API refuses it); remove superuser status in the Django admin first. <em>(1.2+)</em> <strong>Demote admin</strong> also revokes the unused site invite links that user created; only an active site admin's site invite links create accounts.</p>
 <p>The last active site admin on the instance cannot be demoted.</p>

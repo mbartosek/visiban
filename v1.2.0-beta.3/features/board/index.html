@@ -1552,6 +1552,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#when-a-share-link-ends-automatically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a share link ends automatically
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-the-public-view-shows" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5436,7 +5447,7 @@ parked out of sight cannot wash out every tint on the board.</p>
 <ol>
 <li>Open <strong>Board Settings</strong> and go to the <strong>Sharing</strong> tab.</li>
 <li>Toggle <strong>Enable public share link</strong> to the on position.</li>
-<li>Optionally set an <strong>expiry</strong> — choose 7 days, 30 days, 90 days, or no expiry. The default is no expiry.</li>
+<li>Optionally change the <strong>expiry</strong> — choose 7 days, 30 days, 90 days, or <strong>Never</strong>. <em>(1.2+)</em> The tab pre-selects <strong>30 days</strong>; pick <strong>Never</strong> for a link that does not expire. (In 1.0 and 1.1 the pre-selected choice was no expiry. The API default is unchanged: a request without an expiry still creates a link that never expires — see the <a href="../../api/boards/#post-apiv1boardsidshare">API reference</a>.)</li>
 <li>A URL in the format <code>https://&lt;host&gt;/share/&lt;token&gt;</code> is displayed with a <strong>Copy</strong> button.</li>
 </ol>
 <p>Share that URL with anyone — recipients do not need a Visiban account.</p>
@@ -5444,6 +5455,23 @@ parked out of sight cannot wash out every tint on the board.</p>
 <p><strong>Added in 1.1</strong> — share link expiry options (#804)</p>
 </blockquote>
 <p>When a share link expires, visitors who follow the URL receive a <code>410 Gone</code> response and a "This link has expired" page. Toggling sharing back on after expiry generates a new token — the expired token cannot be restored.</p>
+<h3 id="when-a-share-link-ends-automatically">When a share link ends automatically<a class="headerlink" href="#when-a-share-link-ends-automatically" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1865)</p>
+</blockquote>
+<p>If the admin who turned sharing on leaves the board or loses admin rights, the link stops working. Visitors see the same "This board is no longer shared" page as for a link that was turned off by hand.</p>
+<p>In detail, the link is turned off automatically, as if that admin had toggled it off, when their account is:</p>
+<ul>
+<li>deactivated or deleted,</li>
+<li>changed to a role below board admin, or removed from the board,</li>
+<li>added to the board directly with a role below board admin while they were an admin through a group (a direct board role takes precedence over a group role),</li>
+<li>demoted or removed in the group that made them an admin of the board, or joined a group nearer the board with a lower role, or that group arrangement changes (the board moves to another group or out of one, or a group is moved or deleted),</li>
+<li>no longer given access to all content (site admin), when that is how they administered the board.</li>
+</ul>
+<p>An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link.</p>
+<p>For the changes listed above, the <strong>Sharing</strong> tab shows sharing as off once the board page is reloaded.</p>
+<p>The public page also checks this every time it is opened, so the link never stays usable after the admin's role ends, however that happens.</p>
+<p>Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.</p>
 <h3 id="what-the-public-view-shows">What the public view shows<a class="headerlink" href="#what-the-public-view-shows" title="Permanent link">&para;</a></h3>
 <p>The public view renders the full board grid (columns, swimlane rows, and cards) in read-only mode. The following card metadata is visible:</p>
 <ul>
