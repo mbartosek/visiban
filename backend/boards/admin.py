@@ -731,8 +731,9 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
         super().save_model(request, obj, form, change)
         if change:
             # An owner or group change can end the admin standing of the
-            # share link's enabler (#1865). Before the payload is built, so
-            # the event carries the cleared link.
+            # share link's enabler (#1865). The refresh is defensive: it keeps
+            # ``obj`` in step with the row for anything that reads it after
+            # this point (the payload below carries no share fields).
             revoke_lapsed_share_links(board_ids=[obj.pk], actor_id=request.user.pk)
             obj.refresh_from_db(fields=["share_token", "share_token_expires_at", "share_enabled_by"])
         # No request in context: BoardSerializer.get_group_detail() reads
