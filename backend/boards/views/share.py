@@ -1,5 +1,7 @@
 """ShareBoardView — public read-only board access via share token."""
 
+import uuid
+
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 from rest_framework.generics import get_object_or_404
 from django.db import transaction
@@ -53,9 +55,19 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
         token = (view.kwargs or {}).get("token")
         if not token:
             return None
+        # Key on the canonical UUID, not the raw segment: uuid.UUID() accepts
+        # several spellings of one value (uppercase, no hyphens, braces,
+        # urn:uuid:), and each would otherwise get its own bucket and
+        # multiply the per-token limit (#1530).  A non-UUID segment returns
+        # None so it mints no cache key at all (the view answers it with 404);
+        # the per-IP ShareLinkThrottle still applies to it.
+        try:
+            ident = str(uuid.UUID(token))
+        except (ValueError, AttributeError, TypeError):
+            return None
         return self.cache_format % {
             "scope": self.scope,
-            "ident": token,
+            "ident": ident,
         }
 
 
@@ -93,9 +105,8 @@ class ShareBoardView(APIView):
         },
     )
     def get(self, request, token):
-        import uuid as _uuid
         try:
-            token_uuid = _uuid.UUID(token)
+            token_uuid = uuid.UUID(token)
         except ValueError:
             raise Http404
         board = get_object_or_404(
