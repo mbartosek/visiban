@@ -337,7 +337,10 @@ class ActionSchemaDeclarationTests(TestCase):
         self.assertTrue(self._op("post", path)["requestBody"]["required"])
         component = self._component(self._request_schema("post", path)["$ref"])
         self.assertEqual(component["required"], ["username"])
-        resp = self.client.post("/api/v1/auth/choose-username/", {"username": "renamed1783"}, format="json")
+        # A username change needs an interactive session (#1839), so sign in for real.
+        session_client = APIClient()
+        session_client.force_login(self.owner)
+        resp = session_client.post("/api/v1/auth/choose-username/", {"username": "renamed1783"}, format="json")
         self.assertEqual(resp.status_code, 200)
         self._assert_matches("post", path, 200, resp.json())
 

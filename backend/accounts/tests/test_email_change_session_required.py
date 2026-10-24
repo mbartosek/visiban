@@ -250,20 +250,43 @@ class EmailChangeRequiresSessionHelperTests(SimpleTestCase):
         request.auth = auth
         return request
 
-    def test_session_request_is_interactive(self):
-        self.assertTrue(credentials.request_is_interactive_session(self._request(None)))
-
-    def test_any_credential_object_is_not_interactive(self):
+    def test_non_drf_request_is_not_interactive(self):
+        # No authenticator to inspect, so it is refused whatever ``auth`` holds.
+        self.assertFalse(credentials.request_is_interactive_session(self._request(None)))
         self.assertFalse(credentials.request_is_interactive_session(self._request(object())))
 
+    def _token_request(self):
+        from rest_framework.authentication import TokenAuthentication
+        from rest_framework.request import Request
+
+        # Authenticate with a stub token authenticator that reports a credential
+        # object, as a real one does (real-token refusal: test_interactive_session_check.py).
+        class _Stub(TokenAuthentication):
+            def authenticate(self, request):
+                return (User(username="tok", is_active=True), object())
+
+        return Request(RequestFactory().patch("/"), authenticators=[_Stub()])
+
+    def _session_request(self):
+        from rest_framework.authentication import SessionAuthentication
+        from rest_framework.request import Request
+
+        raw = RequestFactory().patch("/")
+        raw.user = User(username="sess", is_active=True)
+        raw._dont_enforce_csrf_checks = True
+        return Request(raw, authenticators=[SessionAuthentication()])
+
     def test_unchanged_value_is_never_refused(self):
-        request = self._request(object())
+        request = self._token_request()
         self.assertFalse(credentials.email_change_requires_session(request, OLD, OLD))
         self.assertFalse(credentials.email_change_requires_session(request, None, ""))
 
-    def test_changed_value_is_refused_only_for_a_token(self):
-        self.assertTrue(credentials.email_change_requires_session(self._request(object()), OLD, NEW))
-        self.assertFalse(credentials.email_change_requires_session(self._request(None), OLD, NEW))
+    def test_changed_value_is_refused_for_a_token_and_allowed_for_a_session(self):
+        self.assertTrue(credentials.email_change_requires_session(self._token_request(), OLD, NEW))
+        self.assertFalse(credentials.email_change_requires_session(self._session_request(), OLD, NEW))
+
+    def test_changed_value_is_refused_for_a_plain_django_request(self):
+        self.assertTrue(credentials.email_change_requires_session(self._request(None), OLD, NEW))
 
     def test_no_request_is_not_refused(self):
         self.assertFalse(credentials.email_change_requires_session(None, OLD, NEW))

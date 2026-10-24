@@ -42,7 +42,7 @@ class PendingEmailActionTestBase(TestCase):
             user=self.user, email="erin@old.example", verified=True, primary=True
         )
         self.client = PasswordConfirmingAPIClient(password="pass12345678")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def _request_change(self, new="erin@new.example"):
         r = self.client.patch("/api/v1/auth/me/", {"email": new}, format="json")
@@ -102,7 +102,7 @@ class CancelPendingEmailTests(PendingEmailActionTestBase):
         pending = self._request_change()
         mallory = User.objects.create_user(username="mallory", password="pass12345678")
         other_client = APIClient()
-        other_client.force_authenticate(mallory)
+        other_client.force_login(mallory)
         r = other_client.delete(CANCEL_URL)
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertTrue(EmailAddress.objects.filter(pk=pending.pk).exists())
@@ -188,7 +188,7 @@ class ResendPendingEmailTests(PendingEmailActionTestBase):
         self._request_change()
         mallory = User.objects.create_user(username="mallory", password="pass12345678")
         other_client = APIClient()
-        other_client.force_authenticate(mallory)
+        other_client.force_login(mallory)
         self.assertEqual(other_client.post(RESEND_URL).status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(len(mail.outbox), 0)
 

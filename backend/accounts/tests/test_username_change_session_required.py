@@ -172,15 +172,36 @@ class UsernameChangeRuleTests(SimpleTestCase):
     def test_no_request_is_not_refused(self):
         self.assertFalse(credentials.username_change_requires_session(None, "a", "b"))
 
+    def _token_request(self):
+        from rest_framework.authentication import TokenAuthentication
+        from rest_framework.request import Request
+
+        # The token is looked up lazily, so authenticate with a stub token
+        # authenticator that reports a credential object, as a real one does.
+        class _Stub(TokenAuthentication):
+            def authenticate(self, request):
+                return (User(username="a", is_active=True), object())
+
+        return Request(RequestFactory().patch("/"), authenticators=[_Stub()])
+
     def test_unchanged_is_not_a_change_for_a_token(self):
-        self.assertFalse(
-            credentials.username_change_requires_session(self._request(object()), "a", "a")
-        )
+        self.assertFalse(credentials.username_change_requires_session(self._token_request(), "a", "a"))
 
     def test_changed_is_refused_for_a_token_and_allowed_for_a_session(self):
+        self.assertTrue(credentials.username_change_requires_session(self._token_request(), "a", "b"))
+        # A real session: the DRF request was accepted by SessionAuthentication.
+        from django.contrib.auth import get_user_model
+        from rest_framework.authentication import SessionAuthentication
+        from rest_framework.request import Request
+
+        raw = RequestFactory().patch("/")
+        raw.user = get_user_model()(username="a", is_active=True)
+        raw._dont_enforce_csrf_checks = True
+        session = Request(raw, authenticators=[SessionAuthentication()])
+        self.assertFalse(credentials.username_change_requires_session(session, "a", "b"))
+
+    def test_changed_is_refused_for_a_plain_django_request(self):
+        # No authenticator to inspect.
         self.assertTrue(
-            credentials.username_change_requires_session(self._request(object()), "a", "b")
-        )
-        self.assertFalse(
             credentials.username_change_requires_session(self._request(None), "a", "b")
         )

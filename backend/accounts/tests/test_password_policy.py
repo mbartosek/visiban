@@ -64,7 +64,7 @@ class DjRestAuthPasswordChangeOldPasswordTests(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="pwchange", password=CURRENT)
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_missing_old_password_is_rejected(self):
         r = self.client.post(DJ_URL, _dj_body(TWELVE))
@@ -105,7 +105,7 @@ class DjRestAuthPasswordChangeOldPasswordTests(APITestCase):
         social = User.objects.create_user(username="socialonly")
         social.set_unusable_password()
         social.save()
-        self.client.force_authenticate(social)
+        self.client.force_login(social)
         r = self.client.post(DJ_URL, _dj_body(TWELVE))
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         social.refresh_from_db()
@@ -157,7 +157,7 @@ class MinimumLengthOnBothChangeEndpointsTests(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="lenuser", password=CURRENT)
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_dj_rest_auth_rejects_eleven(self):
         r = self.client.post(DJ_URL, _dj_body(ELEVEN, old=CURRENT))
@@ -215,7 +215,7 @@ class MinimumLengthOnOtherSetPathsTests(TestCase):
 
     def test_admin_create_user_rejects_eleven_and_accepts_twelve(self):
         admin = make_admin(username="policy_admin2")
-        self.client.force_authenticate(admin)
+        self.client.force_login(admin)
         r = self.client.post("/api/v1/admin/users/", {
             "username": "adminmade1", "email": "am1@example.com", "password": ELEVEN,
         })
@@ -235,7 +235,7 @@ class FinalizePasswordChangeOnBothEndpointsTests(APITestCase):
         self.user.save(update_fields=["must_change_password"])
         PersonalAccessToken.generate(self.user, "a")
         PersonalAccessToken.generate(self.user, "b")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def _assert_finalized(self):
         self.user.refresh_from_db()
@@ -259,7 +259,7 @@ class FinalizePasswordChangeOnBothEndpointsTests(APITestCase):
         )
         self.client.post(DJ_URL, _dj_body(TWELVE, old=CURRENT))
         self.user.refresh_from_db()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
         self.assertEqual(self.client.get("/api/v1/boards/").status_code, status.HTTP_200_OK)
 
     def test_rejected_change_leaves_flag_and_tokens_alone(self):
