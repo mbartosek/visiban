@@ -18,6 +18,7 @@ import type { CardPatch } from "../../api/cards";
 import { createLabel } from "../../api/boards";
 import { PALETTE_COLORS, PRIORITY_COLORS } from "../../constants/colors";
 import ActivityTabPanel from "./ActivityTabPanel";
+import { dropUnknownLabels } from "../../utils/cardLabels";
 import { formatDateStr, formatDueDate, formatDateTimeUser } from "../../utils/date";
 import type { UserDatePrefs } from "../../utils/date";
 import MentionTextarea from "./MentionTextarea";
@@ -611,12 +612,17 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // Roll a failed save back to its snapshot, but keep the version and location
   // the reset effect may have synced from a remote change while it was in
   // flight, so later onUpdated payloads never write a stale version back.
+  // A save's continuation runs in the render it started in, so read the board's
+  // labels through a ref to see a label.deleted that landed meanwhile (#1888).
+  const boardLabelsRef = useRef(board.labels);
+  boardLabelsRef.current = board.labels;
   const rollbackTo = (prev: Card) =>
-    setLocalCard((c) => ({ ...prev, version: c.version, column: c.column, swimlane: c.swimlane }));
+    setLocalCard((c) => ({ ...dropUnknownLabels(prev, boardLabelsRef.current), version: c.version, column: c.column, swimlane: c.swimlane }));
   const adoptSaved = (updated: Card) => {
     titleBaselineRef.current = updated.title;
     ownVersionsRef.current.add(updated.version);
-    setLocalCard(updated);
+    // A response can carry a label deleted while the save was in flight (#1888).
+    setLocalCard(dropUnknownLabels(updated, boardLabelsRef.current));
   };
 
   const save = async (patch: CardPatch) => {

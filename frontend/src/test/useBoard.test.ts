@@ -899,6 +899,27 @@ describe('useBoard', () => {
     expect(b.cards[1]).toBe(untouched)
   })
 
+  it('updateCard drops a label that is no longer on the board (#1888)', async () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [keep] })
+    const tmpl = base.cards[0]
+    mockGetBoardFull.mockResolvedValue({ ...base, cards: [{ ...tmpl, id: 101, uid: 'carduid00101', labels: [keep] }] })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+
+    // a response/echo built before label.deleted still carries the deleted label
+    act(() => { result.current.updateCard({ ...tmpl, id: 101, uid: 'carduid00101', labels: [bug, keep], version: 9 } as never) })
+    const c = result.current.board!.cards[0]
+    expect(c.labels).toEqual([keep])
+    expect(c.version).toBe(9)
+
+    // a clean card is stored as given (identity preserved)
+    const clean = { ...tmpl, id: 101, uid: 'carduid00101', labels: [keep], version: 10 } as never
+    act(() => { result.current.updateCard(clean) })
+    expect(result.current.board!.cards[0]).toBe(clean)
+  })
+
   // #1290 — a member.* frame can arrive without is_site_admin (sent to admin
   // subscribers only); the known value must survive the row replacement.
   it('updateMember / addMember keep the known is_site_admin when a frame omits it', async () => {

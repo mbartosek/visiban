@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getBoardFull, patchBoard as apiPatchBoard, reorderColumns as apiReorderColumns, reorderSwimlanes as apiReorderSwimlanes, deleteSwimlane as apiDeleteSwimlane, deleteColumn as apiDeleteColumn } from "../api/boards";
 import { moveCard as apiMoveCard } from "../api/cards";
 import { failureReason } from "../utils/moveFailure";
+import { dropUnknownLabels } from "../utils/cardLabels";
 import type { BoardFull, BoardMembership, Card, EffectiveBoardMember, Column, Swimlane, Label, CustomFieldDefinition, SwimlaneCustomFieldDefinition } from "../types";
 
 /** Result of useBoard.moveCard: it never rejects, so callers must check `ok`. */
@@ -385,7 +386,9 @@ export function useBoard() {
   }, []);
 
   const updateCard = useCallback((card: Card) => {
-    setBoard((b) => b ? { ...b, cards: b.cards.map((c) => c.id === card.id ? card : c) } : b);
+    // dropUnknownLabels: a response/echo that lands after label.deleted must not
+    // put the deleted label back on the card (#1888).
+    setBoard((b) => b ? { ...b, cards: b.cards.map((c) => c.id === card.id ? dropUnknownLabels(card, b.labels) : c) } : b);
   }, []);
 
   const updateColumn = useCallback((column: Column) => {

@@ -1406,11 +1406,10 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // A label filter naming a label that no longer exists on the board (deleted
   // here or by another session; saved/persisted/URL filters can carry one)
   // would match no card and show no chip to dismiss (#1888). Ignore such ids
-  // when filtering, and prune them from the stored filter state below.
+  // as a derived value only; they are never written back to the URL or
+  // persisted state (BoardView stays mounted across a board switch with the
+  // previous board's filters, so a write-back would copy them to the new board).
   const effectiveFilters = useMemo(() => pruneStaleLabelIds(filters, board.labels), [filters, board.labels]);
-  useEffect(() => {
-    if (effectiveFilters !== filters) setFilters(effectiveFilters);
-  }, [effectiveFilters, filters, setFilters]);
 
   const filteredCardIds: Set<number> | null = useMemo(() => {
     const filters = effectiveFilters;
@@ -1734,7 +1733,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     });
   };
 
-  const activeCount = countActiveFilters(filters);
+  const activeCount = countActiveFilters(effectiveFilters);
 
   const hiddenCount = filteredCardIds !== null
     ? board.cards.filter((c) => !c.archived_at).length - filteredCardIds.size
@@ -2257,21 +2256,21 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           <div role="search" aria-label="Card filters" className="px-3 py-1.5 bg-surface border-b border-line shrink-0 flex items-center gap-2 flex-wrap">
             <SavedFiltersDropdown
               boardId={board.id}
-              filters={filters}
+              filters={effectiveFilters}
               savedFilters={savedFilters}
               loading={savedFiltersLoading}
               onLoad={(sf) => {
                 setFilters(hydrateFilter(sf));
                 setActiveFilterId(sf.id);
               }}
-              onSave={(name) => saveFilter(name, filters)}
+              onSave={(name) => saveFilter(name, effectiveFilters)}
               onDelete={removeFilter}
               firstElementRef={(el) => { filterBarFirstRef.current = el; }}
               externalTriggerRef={(el) => { (savedFiltersDropdownTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el; }}
             />
             <FilterBar
               board={board}
-              filters={filters}
+              filters={effectiveFilters}
               onChange={(next) => {
                 // Any manual edit means the active preset no longer matches live state.
                 setActiveFilterId(null);
