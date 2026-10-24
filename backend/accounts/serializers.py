@@ -534,13 +534,19 @@ class UserSerializer(serializers.ModelSerializer):
         normalize_username_field_validators(self.fields["username"])
         # After super().__init__ the fields BindingDict is built; we can now
         # replace the auto-generated read-only FK field with a writable one.
-        from boards.models import Board  # deferred to avoid startup ordering issues
+        from boards.models import Board, BoardMembership  # deferred to avoid startup ordering issues
         # Scope to boards the requesting user is a member of to prevent IDOR —
         # without this a user could set any board PK as their default, confirming
-        # existence of boards they have no access to.
+        # existence of boards they have no access to. A membership whose stored
+        # role is outside the enum grants no access (get_board_role), so it does
+        # not count either (#1829). Both conditions in one filter() so they apply
+        # to the same membership row.
         request = self.context.get("request")
         if request and request.user.is_authenticated:
-            board_qs = Board.objects.filter(memberships__user=request.user)
+            board_qs = Board.objects.filter(
+                memberships__user=request.user,
+                memberships__role__in=BoardMembership.Role.values,
+            )
         else:
             board_qs = Board.objects.none()
         self.fields["default_board_id"] = serializers.PrimaryKeyRelatedField(

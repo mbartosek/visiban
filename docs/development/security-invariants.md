@@ -417,6 +417,7 @@ arrives by any other route, any non-API write.
 | Group invite preview and join, consumed links | `groups/views.py` `_is_member` | A member of the group may follow a consumed link of theirs without the creator check; only a row within `GroupMembership.Role.values` counts as membership (#1829) |
 | Card comment, attachment and checklist writes (REST) | `boards/views/cards.py` `CardViewSet.comments`, `delete_comment`, `attachments`, `delete_attachment`, `checklist`, `checklist_item`, `checklist_reorder` | The resolved role must be in the allow-list `boards/services/cards.py` `ANNOTATION_ROLES` (collaborator, member, admin, site admin), not merely other than viewer, so a role added later gets no write access until listed (#1829, as #875 did for `set_collapsed`) |
 | Import user matching pool | `boards/services/trello_import.py` `visible_users` (Rule 5) | Only the importer's own board and group memberships within the enum make their co-members matchable (#1829) |
+| Default board choice (REST) | `accounts/serializers.py` `UserSerializer` (`default_board_id`) | The choice is limited to boards where the user holds a membership within `BoardMembership.Role.values`; any other id is a `400` (#1829) |
 | WebSocket (board) | `boards/consumers.py` `_lookup_role` | The role comes from `get_board_role`; the consumer accepts no role from a frame |
 | WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Access is `user_has_group_access`, which ignores a membership outside the enum; `board.created` and `board.updated` frames are forwarded only when `get_board_role` resolves a role on that board for the subscriber, so an explicit board row outside the enum withholds them as on the board channel (#1829); the consumer accepts no role from a frame |
 | MCP | `mcp_server/tools.py` `_resolve_board` | Roles come from `get_board_role` and `get_board_roles`; no tool writes a membership role |
@@ -431,6 +432,13 @@ retrieve and card query), `groups/tests/test_group_role_fail_closed_1829.py`
 board frames), `boards/tests/test_card_annotation_roles_1829.py` (comment,
 attachment and checklist allow-list) and `boards/tests/test_import_user_scope.py`
 `test_rows_with_an_unrecognized_role_do_not_widen_the_pool`.
+
+Readers that still count a group membership outside the enum, accepted as
+display or availability effects that grant nothing: the group `member_count`
+(`groups/counts.py` `annotate_group_counts`, which counts the direct rows the
+roster lists), and an invite join (`groups/views.py` `JoinGroupView.post`,
+`groups/invite_registration.py`), whose `get_or_create` keeps such an existing
+row instead of replacing it, so the user stays without access.
 
 ## Rule 10: A second transport is no broader than REST for the same role
 
@@ -449,7 +457,7 @@ fails closed.
 
 | Surface | Entry point | Enforced via |
 |---|---|---|
-| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check. A `board.created` or `board.updated` frame, which carries a full board, is forwarded only to a subscriber on whom `get_board_role` resolves a role for that board, the predicate of REST board detail and `BoardConsumer` (#1829); the verdict is cached per board for the access re-check window |
+| WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check. A `board.created` or `board.updated` frame, which carries a full board, is forwarded only to a subscriber on whom `get_board_role` resolves a role for that board, the predicate of REST board detail and `BoardConsumer` (#1829); the verdict is cached per board for the access re-check window. `board.deleted` (identifiers only: `board_uid`, and `board_id` on a move-out) is accepted as ungated, since access cannot be resolved for a deleted board and a client needs it to drop a listed row |
 | WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
 | MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` starts from `boards/views/_helpers.py` `get_accessible_boards_queryset`, the queryset `BoardViewSet.get_queryset` uses; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
 | MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |

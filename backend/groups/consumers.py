@@ -243,6 +243,9 @@ class GroupConsumer(AsyncWebsocketConsumer):
         board_id = data.get("id") if isinstance(data, dict) else None
         if not isinstance(board_id, int) or isinstance(board_id, bool):
             return False
+        # Bound to a local before the await: if an access re-check replaces
+        # the cache meanwhile, this verdict lands in the discarded dict, not in
+        # the fresh one. (Channels also runs one handler per socket at a time.)
         verdicts = self._board_verdicts
         if verdicts is None:
             verdicts = self._board_verdicts = {}

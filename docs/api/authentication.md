@@ -756,7 +756,7 @@ Update the authenticated user's profile. All fields are optional.
 | `theme` | string | No | Color scheme preference. One of `"system"`, `"dark"`, or `"light"`. Defaults to `"system"` for new accounts. |
 | `default_board_id` | integer \| null | No | Board to redirect to after login. Must be a board the user is a member of, or `null` to clear. |
 
-**`default_board_id`** — set the board to redirect to after login. Accepts a board `id` (integer) or `null` to clear. The value must be a board the requesting user is a member of; supplying a foreign board ID returns `400 Bad Request`. This prevents enumeration of boards the user has no access to.
+**`default_board_id`** — set the board to redirect to after login. Accepts a board `id` (integer) or `null` to clear. The value must be a board the requesting user is a member of; supplying a foreign board ID returns `400 Bad Request`. *(1.2+)* A membership whose stored role is not one of the four roles (`admin`, `member`, `collaborator`, `viewer`) does not count (#1829). This prevents enumeration of boards the user has no access to.
 
 > **Changed in 1.2** (#1273) — `username` is now checked case-insensitively and rate-limited, and under `EMAIL_VERIFICATION=mandatory` a changed `email` needs confirmation before it takes effect. Both fields remain writable. Earlier releases stored either value directly.
 
