@@ -291,15 +291,12 @@ _EFFECTIVE_MEMBER_SPEC = {
     "joined_at": _FieldSpec((str,)),
 }
 
-# export_min_role / card_density are plain CharFields with no model
-# `.choices` (see Board.export_min_role / Board.card_density docstrings) —
-# the valid-value sets below are read off BoardSerializer.validate_export_min_role
-# / .validate_card_density, the only place that enforces them. There is no
-# TextChoices to pull these from without hand-copying, so the copy lives here,
-# pointed at the validators that are the actual source of truth, rather than
-# silently accepting any string (the "right key, wrong value" gap this issue
-# exists to close).
-_EXPORT_MIN_ROLE_ENUM = {"viewer", "collaborator", "member", "admin"}
+# export_min_role reads its valid set from the model choices (#1725).
+# card_density is a plain CharField with no model `.choices` (see
+# Board.card_density docstring) — its set is read off
+# BoardSerializer.validate_card_density, the only place that enforces it, so
+# the copy lives here rather than silently accepting any string.
+_EXPORT_MIN_ROLE_ENUM = set(Board.ExportMinRole.values)
 _CARD_DENSITY_ENUM = {"comfortable", "standard", "dense"}
 
 _BOARD_FULL_SPEC = {

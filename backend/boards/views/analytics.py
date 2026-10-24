@@ -776,7 +776,8 @@ class BoardAnalyticsMixin:
             # Imported here, not at module level, to keep the two view modules
             # decoupled at import time.
             from .import_export import (
-                BoardExportThrottle, _can_export_at_min_role, _role_at_export,
+                BoardExportThrottle, _can_export_at_min_role, _effective_export_min_role,
+                _role_at_export,
             )
 
             # Same 20/hour export budget as the board export endpoint. Applied
@@ -793,7 +794,7 @@ class BoardAnalyticsMixin:
                     {
                         "detail": "Export is restricted on this board.",
                         "code": "export_restricted",
-                        "min_role": board.export_min_role or "viewer",
+                        "min_role": _effective_export_min_role(board),
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )

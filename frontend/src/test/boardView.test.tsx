@@ -1759,6 +1759,29 @@ describe('BoardView', () => {
       }
     })
 
+    it('treats an unrecognized export_min_role as admin-only (#1725)', () => {
+      const unknown = 'bogus' as unknown as 'viewer'
+      mockBoardContextValue = defaultContext({
+        board: makeBoard({ current_user_role: 'member', export_min_role: unknown }),
+      })
+      const { unmount } = render(<BoardView {...defaultProps()} />)
+      expect(screen.queryByLabelText('Export board')).not.toBeInTheDocument()
+      unmount()
+      mockBoardContextValue = defaultContext({
+        board: makeBoard({ current_user_role: 'admin', export_min_role: unknown }),
+      })
+      render(<BoardView {...defaultProps()} />)
+      expect(screen.getByLabelText('Export board')).toBeInTheDocument()
+    })
+
+    it('treats a blank export_min_role as the viewer default (#1725)', () => {
+      mockBoardContextValue = defaultContext({
+        board: makeBoard({ current_user_role: 'viewer', export_min_role: '' as unknown as 'viewer' }),
+      })
+      render(<BoardView {...defaultProps()} />)
+      expect(screen.getByLabelText('Export board')).toBeInTheDocument()
+    })
+
     it('does not fire when the user lacks export permission', () => {
       mockBoardContextValue = defaultContext({
         board: makeBoard({ current_user_role: 'viewer', export_min_role: 'member' }),

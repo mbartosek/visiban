@@ -1660,6 +1660,28 @@ describe('BoardSettingsModal — Export permission (#843)', () => {
     expect(screen.queryByRole('button', { name: /Export JSON|Export CSV/i })).toBeNull()
   })
 
+  it('treats an unrecognized export_min_role as admin-only (#1725)', () => {
+    const unknown = 'bogus' as unknown as 'viewer'
+    const asMember = { ...fakeBoard, export_min_role: unknown, current_user_role: 'member' as const }
+    const { unmount } = render(<BoardSettingsModal board={asMember} isAdmin={false} onClose={vi.fn()} initialTab="data" />)
+    expect(screen.queryByRole('button', { name: /Export JSON|Export CSV/i })).toBeNull()
+    unmount()
+    const asAdmin = { ...fakeBoard, export_min_role: unknown, current_user_role: 'admin' as const }
+    render(<BoardSettingsModal board={asAdmin} isAdmin={true} onClose={vi.fn()} initialTab="data" />)
+    expect(screen.getByRole('button', { name: /Export JSON/i })).toBeInTheDocument()
+  })
+
+  it('shows an unrecognized export_min_role as admin-only and a blank one as the default (#1725)', () => {
+    const unknown = { ...fakeBoard, export_min_role: 'bogus' as unknown as 'viewer', current_user_role: 'member' as const }
+    const { unmount } = render(<BoardSettingsModal board={unknown} isAdmin={false} onClose={vi.fn()} initialTab="data" />)
+    expect(screen.getByText('Only admins can export this board.')).toBeInTheDocument()
+    unmount()
+    const blank = { ...fakeBoard, export_min_role: '' as unknown as 'viewer', current_user_role: 'viewer' as const }
+    render(<BoardSettingsModal board={blank} isAdmin={false} onClose={vi.fn()} initialTab="data" />)
+    expect(screen.getByText('Anyone with read access can export this board.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Export JSON/i })).toBeInTheDocument()
+  })
+
   it('Export section is visible when role meets threshold', () => {
     const boardMember = { ...fakeBoard, export_min_role: 'member' as const, current_user_role: 'member' as const }
     render(<BoardSettingsModal board={boardMember} isAdmin={false} onClose={vi.fn()} initialTab="data" />)
