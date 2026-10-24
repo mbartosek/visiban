@@ -234,9 +234,9 @@ export default function OverflowMenu({
               if (item.disabled) return;
               // #1775: the focused item unmounts with the menu, so a surface
               // that onSelect opens would capture it as its opener and never
-              // get focus back. Hand focus to the surviving trigger first;
-              // onSelect's state change renders after this handler returns,
-              // so useFocusTrap captures the trigger.
+              // get focus back. Hand focus to the surviving trigger first; the
+              // invariant is that the trigger holds focus before onSelect runs,
+              // so useFocusTrap captures it as the opener.
               triggerRef.current?.focus({ preventScroll: true });
               item.onSelect();
               setOpen(false);
