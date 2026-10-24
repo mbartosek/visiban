@@ -3,3 +3,7 @@
 # installed in the Docker builder stage so the sdist is built with
 # --no-build-isolation instead of pip fetching an unpinned setuptools (#1378).
 setuptools
+# pip floor for the Docker builders (#1927): pip < 26.2.2 always uses its own vendored
+# certifi, which still trusts the eMudhra emSign intermediates. Removable once
+# python:3.12-slim ships pip >= 26.2.2 (and then drop this line).
+pip>=26.2.2

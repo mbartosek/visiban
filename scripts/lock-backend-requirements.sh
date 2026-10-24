@@ -16,7 +16,7 @@
 # byte-stable between a maintainer's machine and the CI freshness job.
 set -eu
 
-UV_VERSION="0.12.22"
+UV_VERSION="0.13.4"
 PY_VERSION="3.12"
 
 # LOCK_BACKEND_DIR exists so --self-test can run against a synthetic tree.

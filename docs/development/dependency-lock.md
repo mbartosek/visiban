@@ -26,7 +26,7 @@ git add backend/requirements.txt backend/requirements.lock backend/requirements-
 
 The script runs `uv pip compile --universal --python-version 3.12
 --generate-hashes`, so one lock covers every platform for the images' Python
-(`python:3.12-slim`). uv (Apache-2.0 / MIT, 0.12.22) is pinned in the script so output is
+(`python:3.12-slim`). uv (Apache-2.0 / MIT, 0.13.4) is pinned in the script so output is
 identical locally and in CI. Existing pins are kept unless `requirements.txt`
 forces a change; to pick up newer transitive versions, delete
 `backend/requirements.lock` and rerun the script.
@@ -61,6 +61,28 @@ If upstream starts publishing a wheel, drop `--no-binary`,
 appears, `uv pip compile --only-binary :all:` fails loudly; add it to the same
 `--no-binary` list with a note here and make sure its build requirements are in
 `requirements-build.in`.
+
+## pip floor (eMudhra emSign CA incident, #1927)
+
+pip older than 26.2.2 always uses its own vendored `certifi`, so the runtime
+`certifi` floor does not protect pip's TLS to PyPI against the compromised
+eMudhra emSign intermediates (2026-10-20). `python:3.12-slim` still ships an
+older pip, so:
+
+- Both Dockerfile builder stages get pip from `backend/requirements-build.lock`
+  (hash-pinned, `pip>=26.2.2` in `requirements-build.in`) in the same step that
+  installs the build backend, and assert the installed version before
+  `pip wheel`.
+- CI jobs on `python:3.12-slim` run the `.pip-floor` step
+  (`scripts/ensure-pip.sh`, hash-pinned in `scripts/pip-requirements.txt`)
+  before their first `pip install`. The script fails the job if pip is older
+  than 26.2.2; `backend-lock-check` also runs its `--self-test`.
+- uv in `scripts/uv-requirements.txt` is 0.13.4 or newer.
+
+All of this is removable once the base image ships pip 26.2.2 or newer. Each
+location carries a comment saying so. Bump the floor in three places together:
+`requirements-build.in` (then re-lock), `scripts/pip-requirements.txt`, and
+`PIP_MIN` in `scripts/ensure-pip.sh`.
 
 ## CI test jobs
 

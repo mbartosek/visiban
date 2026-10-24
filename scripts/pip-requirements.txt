@@ -1,0 +1,8 @@
+# Hash-pinned pip for CI (#1927). Installed by scripts/ensure-pip.sh with --require-hashes.
+# pip < 26.2.2 always loads its own vendored certifi, which still trusts the
+# eMudhra emSign intermediates. Removable once python:3.12-slim ships pip >= 26.2.2.
+# Keep the version in step with PIP_MIN in scripts/ensure-pip.sh and with
+# backend/requirements-build.in. Hashes: PyPI JSON API for pip 26.2.2.
+pip==26.2.2 \
+    --hash=sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70 \
+    --hash=sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f
