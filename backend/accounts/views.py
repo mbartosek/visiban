@@ -435,6 +435,8 @@ class PendingEmailView(APIView):
 
     @extend_schema(
         request=None,
+        # Session only: advertise the cookie scheme, not tokenAuth.
+        auth=[{"cookieAuth": []}],
         responses={
             200: CurrentUserSerializer,
             403: OpenApiResponse(
@@ -472,6 +474,8 @@ class PendingEmailResendView(APIView):
 
     @extend_schema(
         request=None,
+        # Session only: advertise the cookie scheme, not tokenAuth.
+        auth=[{"cookieAuth": []}],
         responses={
             200: inline_serializer(
                 name="PendingEmailResendResponse", fields={"detail": serializers.CharField()}
