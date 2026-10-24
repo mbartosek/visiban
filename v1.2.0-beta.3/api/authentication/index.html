@@ -5662,7 +5662,7 @@ actually bootstraps from) returns the identical shape — both are served by
 <h3 id="delete-apiv1authmepending-email"><code>DELETE /api/v1/auth/me/pending-email/</code><a class="headerlink" href="#delete-apiv1authmepending-email" title="Permanent link">&para;</a></h3>
 <p>Withdraw the authenticated user's pending email change (see <a href="#patch-apiv1authme">Changing <code>email</code> when verification is mandatory</a>). The unconfirmed address is removed from the account, so the link already sent stops working, and <code>email</code> is unchanged. Added in 1.2 (#1293).</p>
 <p>Only the address the pending change tracks is removed. In the rare case where two <code>PATCH</code> requests raced (see above), the losing request's unconfirmed address is indistinguishable from other unconfirmed addresses on the account, such as ones imported by a social login, so it is left in place. Its link can still verify it as an additional address, but it never changes <code>email</code>.</p>
-<p><strong>Permission:</strong> Requires authentication. Acts only on the caller's own pending change; the request takes no address or id. Blocked while the account has a forced password or username change pending, like other profile endpoints except <code>GET</code>/<code>PATCH /api/v1/auth/me/</code>.</p>
+<p><strong>Permission:</strong> Requires authentication, from an interactive session only (changed in 1.2, #1838): a request authenticated with a token (a personal access token or the login API token) answers <code>403 Forbidden</code> and nothing is changed, the same rule as changing <code>email</code> itself. Acts only on the caller's own pending change; the request takes no address or id. Blocked while the account has a forced password or username change pending, like other profile endpoints except <code>GET</code>/<code>PATCH /api/v1/auth/me/</code>.</p>
 <p><strong>Request body:</strong> none.</p>
 <p><strong>Response</strong> <code>200 OK</code> — the updated profile, the same shape as <a href="#get-apiv1authme"><code>GET /api/v1/auth/me/</code></a>, with <code>pending_email: null</code>.</p>
 <p>Idempotent: with no change pending it changes nothing and still returns <code>200</code>. Other unconfirmed addresses on the account (for example, ones imported by a social login) are never removed.</p>
@@ -5677,6 +5677,10 @@ actually bootstraps from) returns the identical shape — both are served by
 <tr>
 <td><code>401 Unauthorized</code></td>
 <td>Request is not authenticated</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td>Authenticated with a token rather than an interactive session — <code>{"detail": "Changing the email address is available from an interactive session only."}</code></td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>
@@ -5765,7 +5769,7 @@ actually bootstraps from) returns the identical shape — both are served by
 </table>
 <h3 id="post-apiv1authmepending-emailresend"><code>POST /api/v1/auth/me/pending-email/resend/</code><a class="headerlink" href="#post-apiv1authmepending-emailresend" title="Permanent link">&para;</a></h3>
 <p>Email the confirmation link for the authenticated user's pending email change again. The address is always the pending one; the request can't choose it. Added in 1.2 (#1293).</p>
-<p><strong>Permission:</strong> Requires authentication. Same gating as <code>DELETE /api/v1/auth/me/pending-email/</code>.</p>
+<p><strong>Permission:</strong> Requires authentication, from an interactive session only (changed in 1.2, #1838). Same gating as <code>DELETE /api/v1/auth/me/pending-email/</code>: a token caller answers <code>403 Forbidden</code> before the pending change is looked up, so the answer is the same whether or not one is pending.</p>
 <p><strong>Request body:</strong> none (any body is ignored).</p>
 <p><strong>Response</strong> <code>200 OK</code></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Confirmation email sent."</span><span class="w"> </span><span class="p">}</span>
@@ -5790,6 +5794,10 @@ actually bootstraps from) returns the identical shape — both are served by
 <tr>
 <td><code>401 Unauthorized</code></td>
 <td>Request is not authenticated</td>
+</tr>
+<tr>
+<td><code>403 Forbidden</code></td>
+<td>Authenticated with a token rather than an interactive session — <code>{"detail": "Changing the email address is available from an interactive session only."}</code></td>
 </tr>
 <tr>
 <td><code>403 Forbidden</code></td>
