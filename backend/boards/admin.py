@@ -707,6 +707,18 @@ class BoardAdminForm(RowVersionFormMixin, forms.ModelForm):
         "make your changes again."
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # #1725: a stored export_min_role outside the allowed set (only a
+        # direct ORM or shell write can leave one) has no matching <option>,
+        # so the browser would submit the first option, ``viewer``, on an
+        # unrelated save. Show the value the export gate applies instead, so
+        # the form round-trips it.
+        if self.instance.pk and "export_min_role" in self.fields:
+            from .views.import_export import _effective_export_min_role
+
+            self.initial["export_min_role"] = _effective_export_min_role(self.instance)
+
     class Meta:
         model = Board
         fields = "__all__"

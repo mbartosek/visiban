@@ -207,9 +207,12 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
 
   // #843 — per-board export threshold. Plain-English labels per UX spec; the
   // server validates on write and may reject unknown values.
-  const [exportMinRole, setExportMinRole] = useState<BoardExportMinRole>(
-    (board.export_min_role as BoardExportMinRole) || "viewer",
-  );
+  // A blank value means the default (viewer); a value outside the known set
+  // is shown as the admin-only setting the server applies (#1725).
+  const [exportMinRole, setExportMinRole] = useState<BoardExportMinRole>(() => {
+    const stored = board.export_min_role || "viewer";
+    return (stored in { viewer: 0, collaborator: 0, member: 0, admin: 0 } ? stored : "admin") as BoardExportMinRole;
+  });
   const [exportRoleError, setExportRoleError] = useState<string | null>(null);
 
   // #842 — export audit history. Lazy-loaded when an admin opens the Data tab

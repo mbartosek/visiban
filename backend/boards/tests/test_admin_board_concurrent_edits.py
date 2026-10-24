@@ -166,6 +166,21 @@ class BoardAdminConcurrentEditTests(_Fixtures, TestCase):
         board_bc.assert_called_once()
         group_bc.assert_called_once()
 
+    def test_out_of_set_export_min_role_round_trips_as_admin(self):
+        """#1725: the form shows the effective value; an unrelated save leaves the stored one alone."""
+        Board.objects.filter(pk=self.board.pk).update(export_min_role="typo")
+        response = self.render(self.client, self.board_url())
+        form = response.context["adminform"].form
+        self.assertEqual(form.initial["export_min_role"], "admin")
+        data = page_data(response, row_version=False, name="Renamed ERM")
+        self.assertEqual(data["export_min_role"], "admin")
+        response, _, _ = self.post(data)
+        self.assertEqual(response.status_code, 302)
+        stored = self.stored_board()
+        self.assertEqual(stored.name, "Renamed ERM")
+        # Unchanged, so still admin-only to the export gate; not widened to viewer.
+        self.assertEqual(stored.export_min_role, "typo")
+
     def test_unchanged_owner_and_group_keep_changes_made_after_load(self):
         data = page_data(
             self.render(self.client, self.board_url()), row_version=False, name="Renamed RV"

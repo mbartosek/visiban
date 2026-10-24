@@ -195,11 +195,17 @@ class ExportMinRoleUnrecognizedValueTests(TestCase):
         self.assertEqual(self._get(self.users["admin"]).status_code, status.HTTP_200_OK)
         self.assertEqual(self._get(self.owner).status_code, status.HTTP_200_OK)
 
-    def test_model_field_and_serializer_share_allowed_values(self):
+    def test_model_field_serializer_and_gate_share_allowed_values(self):
+        from boards.serializers import BoardSerializer
+        from boards.views.import_export import _EXPORT_ROLE_RANK
+
         values = {"viewer", "collaborator", "member", "admin"}
         self.assertEqual(set(Board.ExportMinRole.values), values)
         field = Board._meta.get_field("export_min_role")
         self.assertEqual({c[0] for c in field.choices}, values)
+        ser_field = BoardSerializer().fields["export_min_role"]
+        self.assertEqual(set(ser_field.choices), values)
+        self.assertEqual({str(k) for k in _EXPORT_ROLE_RANK}, values)
 
 
 class NormalizeExportMinRoleMigrationTests(TestCase):
@@ -223,25 +229,8 @@ class NormalizeExportMinRoleMigrationTests(TestCase):
         self.assertEqual(
             got,
             {"viewer": "viewer", "collaborator": "collaborator", "member": "member",
-             "admin": "admin", "typo": "admin", "": ""},
+             "admin": "admin", "typo": "admin", "": "viewer"},
         )
-
-    def test_admin_form_round_trips_normalized_value(self):
-        """After 0086 the admin form's select has the stored value selected."""
-        from boards.admin import BoardAdminForm
-
-        owner = User.objects.create_user(username="form_owner", password="pass")
-        board = Board.objects.create(name="FB", owner=owner)
-        Board.objects.filter(pk=board.pk).update(export_min_role="typo")
-        import importlib
-
-        from django.apps import apps
-
-        importlib.import_module(
-            "boards.migrations.0086_normalize_board_export_min_role"
-        ).normalize_export_min_role(apps, None)
-        board.refresh_from_db()
-        self.assertEqual(BoardAdminForm(instance=board).initial["export_min_role"], "admin")
 
 
 class ExportAuditLogTests(TestCase):

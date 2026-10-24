@@ -131,7 +131,8 @@ class Board(models.Model):
     class ExportMinRole(models.TextChoices):
         """Board-relative roles accepted as an export threshold (#843, #1725).
 
-        Single source of truth for the serializer and the export gate.
+        The allowed set for the serializer field, the admin form and the model
+        field; a test ties the export gate's rank table to the same values.
         ``site_admin`` and ``owner`` are deliberately absent: they always
         bypass the threshold, so they are not meaningful setting values.
         """

@@ -1774,6 +1774,14 @@ describe('BoardView', () => {
       expect(screen.getByLabelText('Export board')).toBeInTheDocument()
     })
 
+    it('treats a blank export_min_role as the viewer default (#1725)', () => {
+      mockBoardContextValue = defaultContext({
+        board: makeBoard({ current_user_role: 'viewer', export_min_role: '' as unknown as 'viewer' }),
+      })
+      render(<BoardView {...defaultProps()} />)
+      expect(screen.getByLabelText('Export board')).toBeInTheDocument()
+    })
+
     it('does not fire when the user lacks export permission', () => {
       mockBoardContextValue = defaultContext({
         board: makeBoard({ current_user_role: 'viewer', export_min_role: 'member' }),

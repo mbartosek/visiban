@@ -316,6 +316,17 @@ class BoardFullMembersSchemaTests(TestCase):
         suffixed = [n for n in self.components if n.startswith("Role") and n != "RoleEnum"]
         self.assertEqual(suffixed, [])
 
+    def test_export_min_role_is_pinned_to_its_own_enum(self):
+        """#1725: the field's own enum must not take over the published RoleEnum."""
+        self.assertEqual(
+            sorted(self.components["ExportMinRoleEnum"]["enum"]),
+            ["admin", "collaborator", "member", "viewer"],
+        )
+        self.assertIn("RoleEnum", self.components)
+        for name in ("Board", "BoardFull", "BoardRequest"):
+            prop = self.components[name]["properties"]["export_min_role"]
+            self.assertEqual(self._ref(prop["allOf"][0]), "ExportMinRoleEnum", name)
+
     # ── live response vs schema ──────────────────────────────────────────────
 
     def test_synthesized_rows_validate_against_full_schema(self):

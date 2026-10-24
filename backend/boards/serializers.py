@@ -2888,8 +2888,11 @@ class BoardSerializer(serializers.ModelSerializer):
     # model's own choices. ``site_admin`` is rejected because it is a
     # cross-cutting identity, not a board-level threshold; ``owner`` always
     # bypasses the threshold, so as a setting value it would be meaningless.
-    # Declared explicitly (rather than left to the model-derived field) so the
-    # 400 text stays the one clients already see.
+    # Declared explicitly (rather than left to the model-derived field) so a
+    # value outside the set keeps its "must be one of" message. Status code and
+    # error key are unchanged for every rejected value; the message text
+    # differs for a blank value and for a string over 20 characters, which now
+    # also get the "must be one of" text.
     export_min_role = serializers.ChoiceField(
         choices=Board.ExportMinRole.choices,
         required=False,
