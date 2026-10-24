@@ -151,6 +151,26 @@ def email_collides_with_identifier(email, exclude_pk=None) -> bool:
     )
 
 
+def answers_in_use_address_as_new() -> bool:
+    """Whether registration (REST and the HTML form) answers an address in use like a new one (#1877).
+
+    Only under ``EMAIL_VERIFICATION=mandatory``. There, a new registration is
+    answered ``201 {"detail": "Verification e-mail sent."}`` and is not signed
+    in, so a registration for an address in use can get exactly that answer
+    while its owner is mailed instead. Under ``optional`` or ``none`` a new
+    registration is signed in and receives a token in the response, which a
+    registration that creates no account cannot reproduce, so there the
+    existing 400 is kept. This matches allauth's own signup form, which
+    only takes this path under mandatory verification as well.
+    """
+    from allauth.account import app_settings as allauth_account_settings
+
+    return (
+        allauth_account_settings.EMAIL_VERIFICATION
+        == allauth_account_settings.EmailVerificationMethod.MANDATORY
+    )
+
+
 class UsernameFormatValidator:
     """DRF/Django field validator wrapping `is_valid_username_format`."""
 

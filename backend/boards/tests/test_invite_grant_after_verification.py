@@ -177,12 +177,17 @@ class _RestRegistrationTests:
         link, raw = self.make_invite()
         self._register(INVITED, raw)
         first = self._registered()
-        # Another address does not match the binding; the invited address is
-        # already taken by the first account. Neither creates an account.
-        for email in ("second.person@example.org", INVITED.upper()):
+        # Another address does not match the binding (400); the invited
+        # address is already taken by the first account, which under mandatory
+        # verification is answered like a new registration (#1877). Neither
+        # creates an account.
+        for email, expected in (
+            ("second.person@example.org", status.HTTP_400_BAD_REQUEST),
+            (INVITED.upper(), status.HTTP_201_CREATED),
+        ):
             with self.subTest(email=email):
                 r = self._register(email, raw)
-                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST, r.content)
+                self.assertEqual(r.status_code, expected, r.content)
         self.assertEqual(User.objects.filter(email__iexact=INVITED).count(), 1)
         self.assertFalse(User.objects.filter(email="second.person@example.org").exists())
         link.refresh_from_db()
