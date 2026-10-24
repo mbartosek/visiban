@@ -427,12 +427,29 @@ class PendingEmailView(APIView):
     so there is no object to look up and nothing to IDOR. Keeps the default
     permission chain (including the forced password/username-change gates):
     unlike ``/auth/me/`` itself this is not part of the flow that clears them.
+
+    Interactive session only (#1838), like the email change it acts on
+    (``credentials.email_change_requires_session``): a token caller could not
+    have started the change, and the rule stays uniform across the family.
     """
 
-    @extend_schema(request=None, responses={200: CurrentUserSerializer})
+    @extend_schema(
+        request=None,
+        responses={
+            200: CurrentUserSerializer,
+            403: OpenApiResponse(
+                description="Authenticated with a token rather than an interactive session."
+            ),
+        },
+    )
     def delete(self, request):
         from .email_change import cancel_email_change
 
+        if not credentials.request_is_interactive_session(request):
+            return Response(
+                {"detail": credentials.EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         cancel_email_change(request.user)
         return Response(CurrentUserSerializer(request.user, context={"request": request}).data)
 
@@ -447,6 +464,10 @@ class PendingEmailResendView(APIView):
     sent something. The address is never taken from the request — only the
     row the user's own pending change tracks can be mailed — so this cannot
     be pointed at an arbitrary inbox.
+
+    Interactive session only (#1838), matching ``PendingEmailView`` and the
+    email change itself. Checked before the pending row is looked up, so a
+    token caller gets the same 403 whether or not a change is pending.
     """
 
     @extend_schema(
@@ -455,11 +476,19 @@ class PendingEmailResendView(APIView):
             200: inline_serializer(
                 name="PendingEmailResendResponse", fields={"detail": serializers.CharField()}
             ),
+            403: OpenApiResponse(
+                description="Authenticated with a token rather than an interactive session."
+            ),
         },
     )
     def post(self, request):
         from .email_change import resend_email_change
 
+        if not credentials.request_is_interactive_session(request):
+            return Response(
+                {"detail": credentials.EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         sent = resend_email_change(request, request.user)
         if sent is None:
             return Response(

@@ -20,11 +20,14 @@ from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework import status
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from accounts.tests.email_change_helpers import PasswordConfirmingAPIClient
 
-from accounts.models import User
+from accounts import credentials
+from accounts.models import PersonalAccessToken, User
+from accounts.authentication import SCOPE_READ, SCOPE_WRITE
 
 CANCEL_URL = "/api/v1/auth/me/pending-email/"
 RESEND_URL = "/api/v1/auth/me/pending-email/resend/"
@@ -262,3 +265,50 @@ class BlockedConfirmationTests(PendingEmailActionTestBase):
         r = self._confirm(pending)
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertEqual(r.json(), {"detail": "ok"})
+
+
+class PendingEmailSessionOnlyTests(PendingEmailActionTestBase):
+    """Cancel and resend are interactive-session only, like the change (#1838)."""
+
+    def _token_clients(self):
+        _, raw = PersonalAccessToken.generate(
+            self.user, "agent", scopes=[SCOPE_READ, SCOPE_WRITE]
+        )
+        pat = APIClient()
+        pat.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+        legacy = APIClient()
+        legacy.credentials(
+            HTTP_AUTHORIZATION=f"Token {Token.objects.get_or_create(user=self.user)[0].key}"
+        )
+        return {"pat": pat, "auth_token": legacy}
+
+    def _assert_refused(self, r):
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.json()["detail"], credentials.EMAIL_CHANGE_SESSION_REQUIRED_MESSAGE)
+
+    def test_token_cancel_is_refused_and_leaves_the_change_pending(self):
+        pending = self._request_change()
+        for name, client in self._token_clients().items():
+            with self.subTest(credential=name):
+                self._assert_refused(client.delete(CANCEL_URL))
+                self.assertTrue(EmailAddress.objects.filter(pk=pending.pk).exists())
+                self.user.refresh_from_db()
+                self.assertEqual(self.user.pending_email_address_id, pending.pk)
+
+    def test_token_resend_is_refused_and_sends_nothing(self):
+        self._request_change()
+        for name, client in self._token_clients().items():
+            with self.subTest(credential=name):
+                self._assert_refused(client.post(RESEND_URL))
+                self.assertEqual(len(mail.outbox), 0)
+
+    def test_token_gets_the_same_403_with_nothing_pending(self):
+        # No 404-vs-403 probe of whether a change is pending.
+        client = self._token_clients()["pat"]
+        self._assert_refused(client.delete(CANCEL_URL))
+        self._assert_refused(client.post(RESEND_URL))
+
+    def test_session_still_cancels_and_resends(self):
+        self._request_change()
+        self.assertEqual(self.client.post(RESEND_URL).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.delete(CANCEL_URL).status_code, status.HTTP_200_OK)

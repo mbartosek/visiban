@@ -814,7 +814,7 @@ Withdraw the authenticated user's pending email change (see [Changing `email` wh
 
 Only the address the pending change tracks is removed. In the rare case where two `PATCH` requests raced (see above), the losing request's unconfirmed address is indistinguishable from other unconfirmed addresses on the account, such as ones imported by a social login, so it is left in place. Its link can still verify it as an additional address, but it never changes `email`.
 
-**Permission:** Requires authentication. Acts only on the caller's own pending change; the request takes no address or id. Blocked while the account has a forced password or username change pending, like other profile endpoints except `GET`/`PATCH /api/v1/auth/me/`.
+**Permission:** Requires authentication, from an interactive session only (changed in 1.2, #1838): a request authenticated with a token (a personal access token or the login API token) answers `403 Forbidden` and nothing is changed, the same rule as changing `email` itself. Acts only on the caller's own pending change; the request takes no address or id. Blocked while the account has a forced password or username change pending, like other profile endpoints except `GET`/`PATCH /api/v1/auth/me/`.
 
 **Request body:** none.
 
@@ -825,6 +825,7 @@ Idempotent: with no change pending it changes nothing and still returns `200`. O
 | Status | Reason |
 |---|---|
 | `401 Unauthorized` | Request is not authenticated |
+| `403 Forbidden` | Authenticated with a token rather than an interactive session — `{"detail": "Changing the email address is available from an interactive session only."}` |
 | `403 Forbidden` | A forced password or username change is pending |
 
 ### `DELETE /api/v1/auth/me/pending-connect/`
@@ -886,7 +887,7 @@ Disconnect a provider from the caller's account. Added in 1.2 (#1314).
 
 Email the confirmation link for the authenticated user's pending email change again. The address is always the pending one; the request can't choose it. Added in 1.2 (#1293).
 
-**Permission:** Requires authentication. Same gating as `DELETE /api/v1/auth/me/pending-email/`.
+**Permission:** Requires authentication, from an interactive session only (changed in 1.2, #1838). Same gating as `DELETE /api/v1/auth/me/pending-email/`: a token caller answers `403 Forbidden` before the pending change is looked up, so the answer is the same whether or not one is pending.
 
 **Request body:** none (any body is ignored).
 
@@ -903,6 +904,7 @@ The link is sent through the same confirmation email as the original request and
 | `404 Not Found` | No email change is pending — `{"detail": "No email change is waiting for confirmation."}` |
 | `429 Too Many Requests` | A confirmation email went to this address within the cooldown, so none was sent. The `detail` says so; the earlier link still works. |
 | `401 Unauthorized` | Request is not authenticated |
+| `403 Forbidden` | Authenticated with a token rather than an interactive session — `{"detail": "Changing the email address is available from an interactive session only."}` |
 | `403 Forbidden` | A forced password or username change is pending |
 
 ---
