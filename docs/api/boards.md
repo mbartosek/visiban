@@ -547,7 +547,7 @@ Create a new saved filter preset.
 |---|---|---|
 | `name` | ✓ | Filter name (max 100 characters, unique per user per board) |
 | `state_json` | ✓ | Filter state object — see [shape](#state_json-shape) below |
-| `state_version` |  | Schema version the client is writing (positive integer; defaults to `1`). Clients should send `1`; the server accepts higher values unchanged so a mixed-version deploy does not lose the user's save |
+| `state_version` |  | Schema version the client is writing (integer from 1 to 32767; defaults to `1`). Clients should send `1`; the server accepts higher values unchanged so a mixed-version deploy does not lose the user's save |
 
 #### `state_json` shape
 
@@ -563,7 +563,7 @@ Top-level keys are validated server-side. Unknown keys are rejected; each known 
 
 All keys are optional. The total serialized size of `state_json` must not exceed 64 KB.
 
-**Errors:** `400 Bad Request` if name is empty, exceeds 100 characters, a filter with the same name already exists for this user on this board, `state_json` contains unknown keys or wrong-typed values, or `state_version` is not a positive integer.
+**Errors:** `400 Bad Request` if name is empty, exceeds 100 characters, a filter with the same name already exists for this user on this board, `state_json` contains unknown keys or wrong-typed values, or `state_version` is not an integer between 1 and 32767.
 
 ### `DELETE /api/v1/boards/{id}/saved-filters/{filter_id}/`
 Delete a saved filter preset. Only the owning user can delete their own filters — attempting to delete another user's filter returns `404 Not Found`.

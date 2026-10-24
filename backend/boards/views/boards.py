@@ -930,9 +930,15 @@ class BoardViewSet(
         # so a mixed-version deploy where a newer client posts v2 to an older
         # server does not silently drop the user's save (#698).
         raw_version = request.data.get("state_version", 1)
-        if not isinstance(raw_version, int) or isinstance(raw_version, bool) or raw_version < 1:
+        # Upper bound matches SavedFilter.state_version (PositiveSmallIntegerField);
+        # without it an oversized value raises DataError at INSERT and returns 500 (#1919).
+        if (
+            not isinstance(raw_version, int)
+            or isinstance(raw_version, bool)
+            or not 1 <= raw_version <= 32767
+        ):
             return Response(
-                {"detail": "state_version must be a positive integer."},
+                {"detail": "state_version must be an integer between 1 and 32767."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
