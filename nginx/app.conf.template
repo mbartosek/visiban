@@ -78,10 +78,17 @@ server {
     add_header Cache-Control $visiban_cache_control;
     # script-src: 'self' only — the theme-init.js script is served as a static
     # file rather than inline to avoid requiring 'unsafe-inline' here.
-    # style-src: 'unsafe-inline' is required for Tailwind's JIT-compiled
-    # CSS-in-JS utilities injected at runtime by some component libraries.
-    # connect-src: ws/wss covers Django Channels WebSocket connections.
-    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'" always;
+    # style-src: 'unsafe-inline' is retained. The React UI sets inline `style=`
+    # attributes (dynamic widths, colors, drag positions) and component
+    # libraries inject <style> elements at runtime; dropping it would need a
+    # nonce/hash pipeline plus a separate style-src-attr policy, which is a
+    # larger change than this header alignment.
+    # connect-src: the SPA opens its Django Channels WebSocket on the same
+    # origin it was served from, so the policy names that origin: 'self' plus
+    # an explicit wss:// form of ${DOMAIN} (some browsers do not map 'self' to
+    # ws/wss), with and without a port. ${DOMAIN} is rendered by envsubst at
+    # container startup, like server_name.
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss://${DOMAIN} wss://${DOMAIN}:*; font-src 'self'; frame-ancestors 'none'" always;
 
     # Must clear the largest application upload cap plus multipart framing:
     # IMPORT_MAX_SIZE_BYTES (25 MB Trello imports, #456) + 10 MB headroom.
