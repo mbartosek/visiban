@@ -199,7 +199,9 @@ def get_accessible_group_ids(user):
     owner rung was the one path that still listed the group, its ancestors and
     subgroups, and resolved the detail routes (retrieve, delete, ownership
     transfer) for a user every member check refuses. A superuser repairs such
-    a group from the Django admin.
+    a group with the Django admin ownership transfer, which offers only the
+    group's other active members; a group with no other member first needs one
+    added through the API by a user with ``can_access_all_content``.
     """
     # Use can_access_all_content (not is_site_admin) — the documented privilege
     # model reserves is_site_admin for /api/admin/* UI access only, while

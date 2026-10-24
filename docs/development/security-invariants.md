@@ -514,7 +514,10 @@ group (`groups/tests/test_group_owner_admin_repair_1786.py`).
 The owner's group access rests on that row alone: since #1829 no group access
 predicate has an ownership rung (`get_accessible_group_ids` had one), so an
 owner whose row is missing or carries a role outside the enum sees the group
-like any non-member, and a superuser repairs it with the Django admin transfer.
+like any non-member. A superuser repairs it with the Django admin transfer,
+which offers only the group's other active members as the new owner; for a
+group with no other member, someone with access to all content first adds
+one through the API.
 
 ## Rule 12: Extension panels are filtered on the caller's role before they run
 
