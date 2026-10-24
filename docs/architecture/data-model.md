@@ -92,6 +92,7 @@ Board
  ├── allowed_priorities (JSON — intended card priorities; not enforced, see field-enforcement.md)
  ├── share_token (UUID, nullable — public read-only share link; null = sharing disabled)
  ├── share_token_expires_at (datetime, nullable — null = never expires; past this the share endpoint returns 410)
+ ├── share_enabled_by → User (nullable, SET_NULL — the admin who enabled the current share link; never serialized)
  ├── export_min_role (str, default viewer — minimum BoardMembership.Role required to export)
  ├── card_density (str — comfortable | standard | dense; default comfortable for new boards)
  ├── show_wip_at_limit (bool, default false — ambient "WIP n/n" indicator at exactly the limit)
@@ -207,7 +208,7 @@ Append-only record of a fixed, enumerable set of instance-wide admin actions (#1
 
 `allowed_priorities` is a JSON list of the priority values intended for cards on this board; an empty list means all priorities (`low`, `medium`, `high`, `urgent`). It is a **scaffold**: stored and returned, but card create and update accept any priority regardless of it — see [Field Enforcement](field-enforcement.md) (#1429).
 
-`share_token` is a UUID generated when a board admin enables public sharing. When set, the board is accessible at `/share/:token` as a read-only view with no login required. Setting the token to null disables sharing immediately. `share_token_expires_at` (nullable) optionally bounds that link: past the timestamp the share endpoint returns `410 Gone` rather than auto-rotating the token.
+`share_token` is a UUID generated when a board admin enables public sharing. When set, the board is accessible at `/share/:token` as a read-only view with no login required. Setting the token to null disables sharing immediately. `share_token_expires_at` (nullable) optionally bounds that link: past the timestamp the share endpoint returns `410 Gone` rather than auto-rotating the token. `share_enabled_by` (nullable, since 1.2) records the admin who enabled the current link; the link is cleared when that account is deactivated or deleted, or is no longer a board admin or site admin on the board (#1865). It is null for links enabled before 1.2, which are not affected, and is never returned by the API.
 
 `export_min_role` (default `viewer`) sets the minimum `BoardMembership.Role` required to export the board; owners and site admins always bypass it. It limits only the export action and file formats, not ordinary reads. `card_density` (`comfortable` / `standard` / `dense`, default `comfortable` for new boards) controls how much metadata renders on the card face. `show_wip_at_limit` is purely ambient — it swaps a column's card count for a "WIP n/n" indicator once the count exactly equals the limit, and does not affect move enforcement. `show_row_chip_field_names` (default `true`, with a database default too) is display-only as well: when off, pinned swimlane row chips drop their visible `{name}:` label (checkbox fields excepted); card-face chips are unaffected.
 

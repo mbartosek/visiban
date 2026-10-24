@@ -1391,8 +1391,31 @@ describe('BoardSettingsModal — Sharing tab', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'false')
 
     await user.click(toggle)
-    await waitFor(() => expect(mockEnableBoardSharing).toHaveBeenCalledWith(1, null))
+    // The Sharing tab pre-selects a 30-day expiry (#1865) and sends it explicitly.
+    await waitFor(() => expect(mockEnableBoardSharing).toHaveBeenCalledWith(1, 30))
     await waitFor(() => expect(screen.getByText(/abc-token-123/)).toBeInTheDocument())
+  })
+
+  it('pre-selects a 30-day expiry for a new share link (#1865)', () => {
+    render(<BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} initialTab="sharing" />)
+    expect(screen.getByRole('combobox')).toHaveTextContent('30 days')
+  })
+
+  it('choosing "Never" sends a null expiry, so a non-expiring link stays available (#1865)', async () => {
+    mockEnableBoardSharing.mockResolvedValue({
+      share_token: 'tok-never',
+      share_url: 'http://localhost/share/tok-never',
+      share_token_expires_at: null,
+    })
+    const user = (await import('@testing-library/user-event')).default.setup()
+    render(<BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} initialTab="sharing" />)
+
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: 'Never' }))
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+
+    await waitFor(() => expect(mockEnableBoardSharing).toHaveBeenCalledWith(1, null))
+    await waitFor(() => expect(screen.getByTestId('share-expiry-line').textContent).toBe('Never expires'))
   })
 
   it('selecting a TTL forwards expires_in_days to enableBoardSharing (#804)', async () => {

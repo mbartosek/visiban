@@ -26,6 +26,7 @@ from .services.cards import (
     enforce_column_limits, lock_board_for_card_write, lock_card_cell_entry,
     lock_card_for_write, lock_card_row, lock_cards_for_cascade, require_swimlane_exists,
 )
+from .services.share_links import revoke_lapsed_share_links
 from .services.errors import (
     CardNotFound, SwimlaneNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded,
 )
@@ -719,7 +720,8 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 # form from the locked row (and form fields the administrator
                 # did not change), so a concurrent change to them is not
                 # reverted by the earlier read held in ``obj``. The share-link
-                # fields are editable=False, so they are never on the form.
+                # fields (token, expiry, enabler) are editable=False, so they
+                # are never on the form and always come from the locked row.
                 # A submitted row_version is compared with the locked row
                 # first, so a form rendered against an older owner or group
                 # is refused before anything is written or broadcast.
@@ -727,6 +729,12 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 self.check_row_version(form, stored)
                 self.keep_unchanged_fields(obj, form, stored)
         super().save_model(request, obj, form, change)
+        if change:
+            # An owner or group change can end the admin standing of the
+            # share link's enabler (#1865). Before the payload is built, so
+            # the event carries the cleared link.
+            revoke_lapsed_share_links(board_ids=[obj.pk], actor_id=request.user.pk)
+            obj.refresh_from_db(fields=["share_token", "share_token_expires_at", "share_enabled_by"])
         # No request in context: BoardSerializer.get_group_detail() reads
         # request.query_params (a DRF Request attribute) to resolve
         # ?expand=group, which the plain Django admin HttpRequest does not
@@ -856,6 +864,7 @@ class BoardMembershipAdmin(RowVersionAdminMixin, _BoardEventAdminMixin, admin.Mo
         run before that save, so a refused submission records and broadcasts
         nothing; the change view's transaction holds the locks until commit.
         """
+        stored_board_id = None
         if change:
             # Both boards the save touches, in one pk-ordered statement: the
             # stored board (the form may move the membership off it) and the
@@ -875,6 +884,25 @@ class BoardMembershipAdmin(RowVersionAdminMixin, _BoardEventAdminMixin, admin.Mo
             self.check_row_version(form, stored)
             self.keep_unchanged_fields(obj, form, stored)
         super().save_model(request, obj, form, change)
+        if change:
+            # A role change (or a membership moved to another user or board)
+            # can end the standing a share link's enabler held (#1865).
+            revoke_lapsed_share_links(
+                board_ids={stored_board_id, obj.board_id}, actor_id=request.user.pk,
+            )
+
+    def delete_model(self, request, obj):
+        board_id = obj.board_id
+        with transaction.atomic():
+            super().delete_model(request, obj)
+            # A removed admin stops holding a share link they enabled (#1865).
+            revoke_lapsed_share_links(board_ids=[board_id], actor_id=request.user.pk)
+
+    def delete_queryset(self, request, queryset):
+        with transaction.atomic():
+            board_ids = set(queryset.values_list("board_id", flat=True))
+            super().delete_queryset(request, queryset)
+            revoke_lapsed_share_links(board_ids=board_ids, actor_id=request.user.pk)
 
     def _board_id(self, obj):
         return obj.board_id

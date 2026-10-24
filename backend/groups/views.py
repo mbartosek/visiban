@@ -756,6 +756,10 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupMembership.objects.filter(pk=locked.pk).delete()
                 # A removed admin's links must not linger as active (#1510).
                 _revoke_lapsed_admin_invite_links(target_user, group)
+                # Nor the public share links they enabled through this group's
+                # admin role (#1865); boards they still administer keep theirs.
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(enabler=target_user, actor_id=request.user.pk)
 
                 def _evict_stale_ws(
                     uid=removed_user_id,
@@ -861,6 +865,10 @@ class GroupViewSet(viewsets.ModelViewSet):
             # A demoted admin's links must not linger as active (#1510).
             if role != GroupMembership.Role.ADMIN:
                 _revoke_lapsed_admin_invite_links(target_user, group)
+                # Nor the public share links they enabled through this
+                # group's admin role (#1865).
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(enabler=target_user, actor_id=request.user.pk)
             # Pre-build the payload before registering the on_commit callback
             # so the closure carries plain data, not an ORM instance (#998).
             membership_data = GroupMembershipSerializer(membership).data

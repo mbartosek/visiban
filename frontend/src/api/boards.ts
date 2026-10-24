@@ -305,6 +305,9 @@ export const getPublicBoard = (token: string) =>
 
 // expiresInDays = null → never expires; allowed values: 7, 30, 90.
 // The backend rejects anything else with 400 — keep this list in sync.
+// The default here stays null to match the API, where a missing or null
+// expires_in_days means "never expires"; the Sharing tab pre-selects 30 days
+// and passes it explicitly (#1865).
 export type ShareTtlDays = 7 | 30 | 90 | null;
 
 export const enableBoardSharing = (boardId: number, expiresInDays: ShareTtlDays = null) =>

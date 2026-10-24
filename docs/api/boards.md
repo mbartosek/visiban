@@ -1455,7 +1455,11 @@ If a token already exists, calling this endpoint immediately invalidates the pre
 }
 ```
 
-`expires_in_days` is optional. Allowed values: `7`, `30`, `90`, or `null` (the default — never expires). Any other integer returns `400 Bad Request`. New in 1.1 (#804).
+`expires_in_days` is optional. Allowed values: `7`, `30`, `90`, or `null`. Omitting it or sending `null` creates a link that never expires; this API default is part of the 1.x contract and does not change. Any other integer returns `400 Bad Request`. New in 1.1 (#804).
+
+*(1.2+, #1865)* The **Sharing** tab in board settings pre-selects **30 days** and sends it explicitly; choosing **Never** sends `null`. Clients calling the API directly keep the "never expires" default unless they send a value.
+
+*(1.2+, #1865)* The link records the admin who enabled it, and lasts only while that account keeps the standing that let it enable sharing on this board: active, and a board `admin` or `site_admin` there (by membership, ownership, group role, or all-content access). When that account is deactivated or deleted, demoted below board admin, removed from the board or from the group that made it an admin, or loses all-content access, the token and its expiry are cleared and a `board.updated` event is sent. An account that is still an admin of the board another way keeps the link. Links enabled before 1.2 record no enabler and are not affected. The enabler is never returned by any endpoint or event.
 
 **Response**
 ```json
@@ -1468,7 +1472,7 @@ If a token already exists, calling this endpoint immediately invalidates the pre
 
 `share_token_expires_at` is `null` when no TTL was requested.
 
-**Errors:** `403 Forbidden` if the caller can see the board but is not a board admin; `404 Not Found` if the caller has no access to it. `400 Bad Request` if `expires_in_days` is not one of the allowed values.
+**Errors:** `403 Forbidden` if the caller can see the board but is not a board admin, including a caller whose admin role was removed while the request was waiting on a concurrent change to the board; `404 Not Found` if the caller has no access to it. `400 Bad Request` if `expires_in_days` is not one of the allowed values.
 
 ### `DELETE /api/v1/boards/{id}/share/`
 Revoke the public share token for the board. Requires board admin. All existing share links immediately return `404 Not Found` after revocation. Both the token and any TTL are cleared.
@@ -2099,7 +2103,7 @@ Returns a read-only board payload identified by its UUID share token. No authent
 **Rate limiting:** 120 requests/hour per IP, plus a 240 requests/hour per-token limit as defense in depth against CGNAT/proxy-pool abuse of a single link. Exceeding either returns `429 Too Many Requests`.
 
 **Errors:**
-- `404 Not Found` if the token is invalid, has been revoked, or does not exist.
+- `404 Not Found` if the token is invalid, has been revoked, or does not exist. *(1.2+, #1865)* Also when the admin who enabled the link is no longer active or no longer an admin of the board; the link is cleared on that read and does not come back if the account regains admin. This is checked before the expiry, so such a link answers `404` even after its expiry has passed.
 - `410 Gone` if the token's TTL has elapsed (admin set an expiry at enable time and that timestamp has passed). The token is *not* auto-rotated — an admin must disable and re-enable sharing to get a fresh link. Body: `{"detail": "This share link has expired."}`. Added in 1.1 (#804).
 
 **Response**

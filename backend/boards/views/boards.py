@@ -29,7 +29,7 @@ from .. import broadcast as _broadcast
 from ..models import (
     Board, BoardEvent, BoardFavorite, BoardMembership, Column, Notification, SavedFilter, Swimlane,
 )
-from ..permissions import PER_USER_EVENTS, get_board_role, SITE_ADMIN
+from ..permissions import GROUP_ANCESTOR_SELECT_RELATED, PER_USER_EVENTS, get_board_role, SITE_ADMIN
 from ..serializers import (
     BoardSerializer, BoardEventSerializer, BoardFullSerializer,
     BoardMembershipSerializer, SavedFilterSerializer,
@@ -537,6 +537,15 @@ class BoardViewSet(
             # matching no row.
             lock_board_row_or_404(board, no_key=True)
             if request.method == "POST":
+                # Re-derive the caller's standing under the board lock (#1865):
+                # the role above was read before it, and a role change or
+                # removal that held the lock first has committed by now. The
+                # link records its enabler, and must not be issued to one who
+                # no longer qualifies.
+                from ..services.share_links import share_enabler_has_standing
+                fresh = Board.objects.select_related(GROUP_ANCESTOR_SELECT_RELATED).get(pk=board.pk)
+                if not share_enabler_has_standing(request.user, fresh):
+                    raise PermissionDenied
                 body = request.data
                 # A JSON body that parses to a non-object (e.g. `true` or a bare
                 # number/string/array) previously reached `.get()` unguarded —
@@ -567,7 +576,10 @@ class BoardViewSet(
                     expires_at = timezone.now() + timedelta(days=days)
                 board.share_token = _uuid.uuid4()
                 board.share_token_expires_at = expires_at
-                board.save(update_fields=["share_token", "share_token_expires_at"])
+                # The link lasts while this admin keeps admin standing on the
+                # board (#1865, boards/services/share_links.py).
+                board.share_enabled_by = request.user
+                board.save(update_fields=["share_token", "share_token_expires_at", "share_enabled_by"])
                 share_url = request.build_absolute_uri(f"/api/share/{board.share_token}")
                 response_data = {
                     "share_token": str(board.share_token),
@@ -579,7 +591,8 @@ class BoardViewSet(
                 # starts from a clean "never expires" default.
                 board.share_token = None
                 board.share_token_expires_at = None
-                board.save(update_fields=["share_token", "share_token_expires_at"])
+                board.share_enabled_by = None
+                board.save(update_fields=["share_token", "share_token_expires_at", "share_enabled_by"])
                 # share_url is included as null on DELETE so the response
                 # shape matches POST and the TS ShareActionResponse interface
                 # does not need a discriminated union (#1005).
@@ -646,6 +659,10 @@ class BoardViewSet(
             old_group_id = locked.group_id
             board.save(update_fields=["group", "updated_at"])
             board_id = board.id
+            # A group-derived admin role can end with the move; a share link
+            # enabled through it ends with it (#1865).
+            from ..services.share_links import revoke_lapsed_share_links
+            revoke_lapsed_share_links(board_ids=[board_id], actor_id=request.user.id)
             # Re-fetch through get_queryset() so the response and broadcast include
             # annotations (_member_count, _card_count, _is_starred) rather than
             # triggering per-field subqueries from the bare post-save instance (#647).
@@ -1133,6 +1150,12 @@ class BoardViewSet(
                 if member_role in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.VIEWER):
                     membership.is_moderator = False
                 membership.save()
+                # A board admin moved to a lower role stops holding a share
+                # link they enabled, unless still an admin another way (#1865).
+                from ..services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(
+                    enabler=target_user, board_ids=[board.pk], actor_id=request.user.id,
+                )
             # Assign user directly so BoardMembershipSerializer does not issue a
             # separate query to load the FK — target_user is already in scope.
             membership.user = target_user
@@ -1210,4 +1233,10 @@ class BoardViewSet(
             lock_board_row_or_404(board, no_key=True)
             BoardMembership.objects.filter(board=board, user=target_user).delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_MEMBER_REMOVED, {"user_id": removed_user_id}, actor_id=request.user.id)
+            # A removed admin stops holding a share link they enabled, unless
+            # still an admin another way (#1865).
+            from ..services.share_links import revoke_lapsed_share_links
+            revoke_lapsed_share_links(
+                enabler=target_user, board_ids=[board_id], actor_id=request.user.id,
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)

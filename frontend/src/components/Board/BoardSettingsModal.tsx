@@ -232,7 +232,10 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
   const [shareToken, setShareToken] = useState<string | null>(board.share_token ?? null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(board.share_token_expires_at ?? null);
   // Selected TTL for the *next* enable action. Null = "never expires".
-  const [shareTtl, setShareTtl] = useState<7 | 30 | 90 | null>(null);
+  // Pre-selects 30 days (#1865) so a link expires unless the admin
+  // deliberately picks "Never". The API's own default stays "never" for
+  // backward compatibility, so the UI sends the choice explicitly.
+  const [shareTtl, setShareTtl] = useState<7 | 30 | 90 | null>(30);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
