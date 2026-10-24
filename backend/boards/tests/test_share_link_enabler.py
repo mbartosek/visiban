@@ -376,6 +376,74 @@ class GroupRoleChangeTests(_ShareFixtures):
         self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT, r.content)
         self.assert_kept(token)
 
+    def test_patch_group_to_none_clears(self, bc):
+        self.enable(user=self.group_admin)
+        r = _client(self.owner).patch(f"/api/v1/boards/{self.board.pk}/", {"group": None}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assert_cleared()
+
+    def test_put_into_another_group_clears(self, bc):
+        other = Group.objects.create(name="P1865", owner=self.owner)
+        GroupMembership.objects.get_or_create(
+            group=other, user=self.owner, defaults={"role": GroupMembership.Role.ADMIN},
+        )
+        self.enable(user=self.group_admin)
+        r = _client(self.owner).put(
+            f"/api/v1/boards/{self.board.pk}/", {"name": "B1865", "group": other.pk}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assert_cleared()
+
+    def test_patch_without_a_group_change_keeps_link(self, bc):
+        token = self.enable(user=self.group_admin)
+        r = _client(self.owner).patch(f"/api/v1/boards/{self.board.pk}/", {"name": "Renamed"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assert_kept(token)
+
+    def test_adding_a_group_admin_as_a_direct_member_clears(self, bc):
+        """A direct membership outranks the group role, so this lowers the role."""
+        self.enable(user=self.group_admin)
+        r = _client(self.owner).post(
+            f"/api/v1/boards/{self.board.pk}/members/",
+            {"user_id": self.group_admin.pk, "role": "member"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
+        self.assert_cleared()
+
+    def test_adding_a_group_admin_as_a_direct_admin_keeps_link(self, bc):
+        token = self.enable(user=self.group_admin)
+        r = _client(self.owner).post(
+            f"/api/v1/boards/{self.board.pk}/members/",
+            {"user_id": self.group_admin.pk, "role": "admin"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
+        self.assert_kept(token)
+
+    def _join_child_group_as_member(self):
+        from groups.models import GroupInviteLink
+
+        child = self._child_group_board()
+        _, raw = GroupInviteLink.generate(child, self.owner, role=GroupMembership.Role.MEMBER)
+        return _client(self.group_admin).post(f"/api/v1/groups/join/{raw}/")
+
+    def test_joining_a_nearer_group_with_a_lower_role_clears(self, bc):
+        """The nearest group role wins, so joining the board's own group lowers it."""
+        self.enable(user=self.group_admin)
+        r = self._join_child_group_as_member()
+        self.assertIn(r.status_code, (status.HTTP_200_OK, status.HTTP_201_CREATED), r.content)
+        self.assert_cleared()
+
+    def test_invite_grant_at_registration_rechecks_links(self, bc):
+        """The registration and confirmation grant shares the same sweep."""
+        from groups.invite_registration import _grant_membership
+        from groups.models import GroupInviteLink
+
+        child = self._child_group_board()
+        self.enable(user=self.group_admin)
+        link, _ = GroupInviteLink.generate(child, self.owner, role=GroupMembership.Role.VIEWER)
+        _grant_membership(link, self.group_admin)
+        self.assert_cleared()
+
     def test_move_out_of_the_group_clears(self, bc):
         self.enable(user=self.group_admin)
         r = _client(self.owner).post(
@@ -450,19 +518,38 @@ class HelperTests(_ShareFixtures):
         User.objects.filter(pk=self.enabler.pk).update(is_active=False)
         self.assertEqual(revoke_lapsed_share_links(enabler=self.enabler.pk), [self.board.pk])
 
-    def test_does_not_clear_a_link_reenabled_by_someone_else(self):
-        """The clear matches only the link that was judged."""
+    def _judged_then_changed(self, **change):
+        """A board judged lapsed, then changed before the clear runs."""
+        from boards.services.share_links import _clear_lapsed
+
         self.enable()
         User.objects.filter(pk=self.enabler.pk).update(is_active=False)
-        stale = Board.objects.get(pk=self.board.pk)
+        judged = Board.objects.get(pk=self.board.pk)
+        Board.objects.filter(pk=self.board.pk).update(**change)
+        return _clear_lapsed([judged], None)
+
+    def test_clear_skips_a_link_now_held_by_another_enabler(self):
+        """Same token, different enabler: the enabler match keeps the link."""
+        revoked = self._judged_then_changed(share_enabled_by=self.owner)
+        self.assertEqual(revoked, [])
+        self.board.refresh_from_db()
+        self.assertIsNotNone(self.board.share_token)
+        self.assertEqual(self.board.share_enabled_by_id, self.owner.pk)
+
+    def test_clear_skips_a_link_with_a_new_token(self):
+        """Same enabler, new token: the token match keeps the link."""
+        import uuid
+
+        new_token = uuid.uuid4()
+        revoked = self._judged_then_changed(share_token=new_token)
+        self.assertEqual(revoked, [])
+        self.board.refresh_from_db()
+        self.assertEqual(self.board.share_token, new_token)
+
+    def test_reenabled_link_survives_a_sweep(self):
+        self.enable()
+        User.objects.filter(pk=self.enabler.pk).update(is_active=False)
         new_token = self.enable(user=self.owner)
-        self.assertEqual(
-            Board.objects.filter(
-                pk=stale.pk, share_enabled_by_id=stale.share_enabled_by_id,
-                share_token=stale.share_token,
-            ).count(),
-            0,
-        )
         self.assertEqual(revoke_lapsed_share_links(board_ids=[self.board.pk]), [])
         self.assert_kept(new_token)
 
@@ -508,6 +595,21 @@ class DjangoAdminTests(_ShareFixtures):
             "action": "delete_selected", "_selected_action": [self.membership.pk], "post": "yes",
         })
         self.assertEqual(r.status_code, 302)
+        self.assert_cleared()
+
+    def test_membership_add_in_admin_clears(self, bc):
+        """Adding a direct lower membership for a group admin lowers their role."""
+        group = Group.objects.create(name="GA1865", owner=self.owner)
+        group_admin = User.objects.create_user(username="ga_adm1865", password=PW)
+        GroupMembership.objects.create(group=group, user=group_admin, role=GroupMembership.Role.ADMIN)
+        Board.objects.filter(pk=self.board.pk).update(group=group)
+        self.enable(user=group_admin)
+        url = reverse("admin:boards_boardmembership_add")
+        r = self.web.post(url, self._form_data(
+            url, board=str(self.board.pk), user=str(group_admin.pk), role="member",
+        ))
+        self.assertEqual(r.status_code, 302, getattr(r, "context", None) and r.context["adminform"].form.errors)
+        self.assertTrue(BoardMembership.objects.filter(board=self.board, user=group_admin).exists())
         self.assert_cleared()
 
     def test_board_owner_change_in_admin_clears(self, bc):

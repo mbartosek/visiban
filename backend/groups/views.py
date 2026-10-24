@@ -2145,6 +2145,14 @@ class JoinGroupView(APIView):
                 link.used_at = timezone.now()
                 link.save(update_fields=["used_at"])
 
+            if created:
+                # The nearest group role wins, so joining a group nearer a
+                # board with a lower role can end a group-derived admin role
+                # on it; share links the account enabled through that role
+                # end with it (#1865).
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(enabler=request.user)
+
             # Broadcast member.added on the group channel so other admin
             # sessions on GroupDetail see the new member appear in real time
             # (#998).  Only emit on a fresh join — re-redemption of an

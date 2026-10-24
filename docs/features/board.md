@@ -646,7 +646,8 @@ In detail, the link is turned off automatically, as if that admin had toggled it
 
 - deactivated or deleted,
 - changed to a role below board admin, or removed from the board,
-- demoted or removed in the group that made them an admin of the board, or that group arrangement changes (the board moves out of the group, or a group is moved or deleted),
+- added to the board directly with a role below board admin while they were an admin through a group (a direct board role takes precedence over a group role),
+- demoted or removed in the group that made them an admin of the board, or joined a group nearer the board with a lower role, or that group arrangement changes (the board moves to another group or out of one, or a group is moved or deleted),
 - no longer given access to all content (site admin), when that is how they administered the board.
 
 An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link.

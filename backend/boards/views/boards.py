@@ -337,6 +337,12 @@ class BoardViewSet(
             serializer.save()
             board = serializer.instance
             board_id = board.id
+            if board.group_id != old_group_id:
+                # A group-derived admin role can end with the group change; a
+                # share link enabled through it ends with it (#1865), as on
+                # move-group.
+                from ..services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(board_ids=[board_id], actor_id=self.request.user.id)
             # Re-fetch through get_queryset() so the serializer response includes
             # annotations (_member_count, _card_count, _is_starred) rather than
             # triggering per-field subqueries from the bare post-save instance (#647).
@@ -1152,12 +1158,14 @@ class BoardViewSet(
                 if member_role in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.VIEWER):
                     membership.is_moderator = False
                 membership.save()
-                # A board admin moved to a lower role stops holding a share
-                # link they enabled, unless still an admin another way (#1865).
-                from ..services.share_links import revoke_lapsed_share_links
-                revoke_lapsed_share_links(
-                    enabler=target_user, board_ids=[board.pk], actor_id=request.user.id,
-                )
+            # A board admin moved to a lower role stops holding a share link
+            # they enabled, unless still an admin another way (#1865). On a
+            # create too: a direct membership outranks a group-derived role,
+            # so adding a group admin as a direct member lowers their role.
+            from ..services.share_links import revoke_lapsed_share_links
+            revoke_lapsed_share_links(
+                enabler=target_user, board_ids=[board.pk], actor_id=request.user.id,
+            )
             # Assign user directly so BoardMembershipSerializer does not issue a
             # separate query to load the FK — target_user is already in scope.
             membership.user = target_user
