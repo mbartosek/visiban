@@ -620,6 +620,8 @@ Each card also carries its own `movements` (`{from_column, to_column, from_swiml
 
 On import with `history` on, every movement and activity entry is recorded under the importing user and keeps the file's time. Its source name is kept as text in `imported_from_username` — the entry's own `imported_from_username` when the file has one (a re-exported import), otherwise its `moved_by` / `actor`, or `""` when there is neither. Source names are never resolved to accounts; only `assignee` is. `imported_from_username` must be a string or `null`, at most 150 characters, with no NUL characters.
 
+Since 1.2 (#1906), import also restores each card's `created_at` from the file, whatever the `history` option. It is used when it is not in the future and, with `history` on, not later than the card's first imported history entry (movement, activity or comment). Otherwise, or when the field is absent or unusable, the card is dated to the import. A bad `created_at` does not reject the file.
+
 Comments (with `comments` on) work the same way since 1.2: each is posted under the importing user, keeps the file's `created_at`, and keeps its source name in `imported_from_username` — the comment's own `imported_from_username` when the file has one, otherwise its `author` (a string; any other value is ignored, as before), or `""`. A comment's `author` is never resolved to an account, and an `author` longer than 150 characters is cut to 150. The same `imported_from_username` validation applies.
 
 Since 1.2 the payload also carries the board's `custom_fields` schema and each card's
