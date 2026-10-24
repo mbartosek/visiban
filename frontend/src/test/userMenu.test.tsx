@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useEffect, useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Navbar from '../components/Layout/Navbar'
+import KeyboardShortcutsOverlay from '../components/Board/KeyboardShortcutsOverlay'
 import type { User } from '../types'
 
 vi.mock('../api/notifications', () => ({
@@ -131,6 +133,35 @@ describe('UserMenu', () => {
     } finally {
       window.removeEventListener('visiban:open-shortcuts', listener)
     }
+  })
+
+  it('the shortcuts overlay it opens traps Tab and returns focus to the account trigger (#1775)', async () => {
+    // Stand-in for BoardView's visiban:open-shortcuts listener, with the real overlay.
+    function Listener() {
+      const [open, setOpen] = useState(false)
+      useEffect(() => {
+        const h = () => setOpen(true)
+        window.addEventListener('visiban:open-shortcuts', h)
+        return () => window.removeEventListener('visiban:open-shortcuts', h)
+      }, [])
+      return open ? <KeyboardShortcutsOverlay onClose={() => setOpen(false)} /> : null
+    }
+    render(
+      <MemoryRouter initialEntries={['/boards/42']}>
+        <Navbar user={fakeUser} onLogout={vi.fn()} onUserUpdated={vi.fn()} />
+        <Listener />
+      </MemoryRouter>,
+    )
+    const user = userEvent.setup()
+    const trigger = screen.getByRole('button', { name: /Account menu for Jane Doe/ })
+    await user.click(trigger)
+    await user.click(await screen.findByRole('menuitem', { name: /Keyboard shortcuts/ }))
+    const dialog = await screen.findByRole('dialog', { name: /Keyboard shortcuts/i })
+    await user.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 
   it('the Keyboard shortcuts item is disabled outside board pages', async () => {

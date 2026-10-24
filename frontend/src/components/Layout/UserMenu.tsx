@@ -67,6 +67,10 @@ export default function UserMenu({ user, open, onOpenChange, onLogout }: Props) 
   };
 
   const handleOpenShortcuts = () => {
+    // #1775: the focused item unmounts with the menu, and the overlay it opens
+    // (in BoardView) would capture that item as its focus opener. Hand focus
+    // to the surviving trigger before the event so the overlay restores to it.
+    triggerRef.current?.focus({ preventScroll: true });
     onOpenChange(false);
     window.dispatchEvent(new CustomEvent("visiban:open-shortcuts"));
   };
