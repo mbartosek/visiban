@@ -90,3 +90,45 @@ class AnonRateLimitWiringTests(TestCase):
     def test_share_board_view_has_throttle_class(self):
         from boards.views import ShareBoardView, ShareLinkThrottle
         self.assertIn(ShareLinkThrottle, ShareBoardView.throttle_classes)
+
+
+class ShareLinkTokenThrottleKeyTests(TestCase):
+    """#1530: the per-token throttle keys on the canonical UUID."""
+
+    def _key(self, token):
+        from types import SimpleNamespace
+        from boards.views.share import ShareLinkTokenThrottle
+
+        view = SimpleNamespace(kwargs={"token": token})
+        return ShareLinkTokenThrottle().get_cache_key(request=None, view=view)
+
+    def test_spelling_variants_share_one_bucket(self):
+        import uuid
+
+        u = uuid.uuid4()
+        canonical = self._key(str(u))
+        self.assertIsNotNone(canonical)
+        for variant in (
+            str(u).upper(),
+            u.hex,
+            "{" + str(u) + "}",
+            "urn:uuid:" + str(u),
+        ):
+            self.assertEqual(self._key(variant), canonical, variant)
+
+    def test_non_uuid_token_mints_no_cache_key(self):
+        self.assertIsNone(self._key("not-a-uuid"))
+        self.assertIsNone(self._key("x" * 5000))
+
+    def test_valid_token_still_served_and_junk_still_404(self):
+        import uuid
+
+        owner = User.objects.create_user(username="owner_1530", password="pass")
+        board = Board.objects.create(name="B", owner=owner)
+        board.share_token = uuid.uuid4()
+        board.save(update_fields=["share_token"])
+        client = APIClient()
+        self.assertEqual(
+            client.get(f"/api/share/{board.share_token}/").status_code, 200
+        )
+        self.assertEqual(client.get("/api/share/not-a-uuid/").status_code, 404)

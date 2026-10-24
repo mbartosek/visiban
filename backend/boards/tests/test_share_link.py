@@ -419,8 +419,8 @@ class ShareLinkTokenThrottleTests(TestCase):
         throttle = ShareLinkTokenThrottle()
         # Distinct tokens must produce distinct cache keys so rate limits
         # do not collide across share links.
-        view_a = type("V", (), {"kwargs": {"token": "aaa"}})()
-        view_b = type("V", (), {"kwargs": {"token": "bbb"}})()
+        view_a = type("V", (), {"kwargs": {"token": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}})()
+        view_b = type("V", (), {"kwargs": {"token": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}})()
         request = type("R", (), {})()
 
         key_a = throttle.get_cache_key(request, view_a)
@@ -429,8 +429,8 @@ class ShareLinkTokenThrottleTests(TestCase):
         self.assertIsNotNone(key_a)
         self.assertIsNotNone(key_b)
         self.assertNotEqual(key_a, key_b)
-        self.assertIn("aaa", key_a)
-        self.assertIn("bbb", key_b)
+        self.assertIn("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", key_a)
+        self.assertIn("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", key_b)
         self.assertIn("share_link_token", key_a)
 
     def test_get_cache_key_returns_none_when_no_token(self):
