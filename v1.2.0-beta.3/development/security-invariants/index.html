@@ -5037,7 +5037,37 @@ arrives by any other route, any non-API write.</p>
 <tr>
 <td>Group-derived board scoping</td>
 <td><code>groups/models.py</code> <code>get_group_ids_for_board_access</code></td>
-<td>Only group memberships whose stored role is within <code>GroupMembership.Role.values</code> contribute groups</td>
+<td>Only group memberships whose stored role is within <code>GroupMembership.Role.values</code> contribute groups (<code>_access_memberships</code>, shared with the group access predicates below)</td>
+</tr>
+<tr>
+<td>Group access: REST nested routes, group list and retrieve</td>
+<td><code>groups/models.py</code> <code>user_has_group_access</code> (behind <code>groups/views.py</code> <code>_require_group_member</code>), <code>group_access_resolver</code> (<code>navigation_only</code>), <code>get_accessible_group_ids</code> (<code>GroupViewSet.get_queryset</code>, <code>resolve_group_for_board_placement</code>)</td>
+<td>Only memberships whose stored role is within <code>GroupMembership.Role.values</code> grant access or list a group (<code>_access_memberships</code>), so a row outside the enum grants no group route, list entry or channel, as it grants no board role. Group ownership alone is not a rung: the owner holds a direct admin row (Rule 11) (#1829). Pinned by <code>groups/tests/test_group_role_fail_closed_1829.py</code></td>
+</tr>
+<tr>
+<td>Group member roster</td>
+<td><code>groups/views.py</code> <code>GroupViewSet.members</code></td>
+<td>An inherited row whose stored role is outside the enum is skipped, and the nearest ancestor row within the enum is listed instead. Direct rows are listed as stored, including out-of-enum ones, so admins can see and remove them (#1829)</td>
+</tr>
+<tr>
+<td>Group invite preview and join, consumed links</td>
+<td><code>groups/views.py</code> <code>_is_member</code></td>
+<td>A member of the group may follow a consumed link of theirs without the creator check; only a row within <code>GroupMembership.Role.values</code> counts as membership (#1829)</td>
+</tr>
+<tr>
+<td>Card comment, attachment and checklist writes (REST)</td>
+<td><code>boards/views/cards.py</code> <code>CardViewSet.comments</code>, <code>delete_comment</code>, <code>attachments</code>, <code>delete_attachment</code>, <code>checklist</code>, <code>checklist_item</code>, <code>checklist_reorder</code></td>
+<td>The resolved role must be in the allow-list <code>boards/services/cards.py</code> <code>ANNOTATION_ROLES</code> (collaborator, member, admin, site admin), not merely other than viewer, so a role added later gets no write access until listed (#1829, as #875 did for <code>set_collapsed</code>)</td>
+</tr>
+<tr>
+<td>Import user matching pool</td>
+<td><code>boards/services/trello_import.py</code> <code>visible_users</code> (Rule 5)</td>
+<td>Only the importer's own board and group memberships within the enum make their co-members matchable (#1829)</td>
+</tr>
+<tr>
+<td>Default board choice (REST)</td>
+<td><code>accounts/serializers.py</code> <code>UserSerializer</code> (<code>default_board_id</code>)</td>
+<td>The choice is limited to boards where the user holds a membership within <code>BoardMembership.Role.values</code>; any other id is a <code>400</code> (#1829)</td>
 </tr>
 <tr>
 <td>WebSocket (board)</td>
@@ -5046,8 +5076,8 @@ arrives by any other route, any non-API write.</p>
 </tr>
 <tr>
 <td>WebSocket (group)</td>
-<td><code>groups/consumers.py</code> <code>_user_can_access_group_id</code></td>
-<td>Access is the membership predicate <code>user_has_group_access</code>, which reads no role; the consumer accepts no role from a frame</td>
+<td><code>groups/consumers.py</code> <code>_user_can_access_group_id</code>, <code>GroupConsumer._board_visible</code></td>
+<td>Access is <code>user_has_group_access</code>, which ignores a membership outside the enum; <code>board.created</code> and <code>board.updated</code> frames are forwarded only when <code>get_board_role</code> resolves a role on that board for the subscriber, so an explicit board row outside the enum withholds them as on the board channel (#1829); the consumer accepts no role from a frame</td>
 </tr>
 <tr>
 <td>MCP</td>
@@ -5059,7 +5089,19 @@ arrives by any other route, any non-API write.</p>
 <p>Coverage: <code>boards/tests/test_members_role_validation.py</code> (writer rejection,
 stored out-of-enum board and group roles, bulk resolver, moderator flag),
 <code>groups/tests/test_groups.py</code> (<code>test_invalid_role_returns_400</code>,
-<code>test_all_valid_roles_are_accepted</code>, <code>test_invalid_invite_link_role_returns_400</code>).</p>
+<code>test_all_valid_roles_are_accepted</code>, <code>test_invalid_invite_link_role_returns_400</code>),
+<code>boards/tests/test_group_derived_board_access.py</code> <code>StoredRoleTests</code> (board list,
+retrieve and card query), <code>groups/tests/test_group_role_fail_closed_1829.py</code>
+(group predicates, REST routes, list, roster, group WebSocket handshake and
+board frames), <code>boards/tests/test_card_annotation_roles_1829.py</code> (comment,
+attachment and checklist allow-list) and <code>boards/tests/test_import_user_scope.py</code>
+<code>test_rows_with_an_unrecognized_role_do_not_widen_the_pool</code>.</p>
+<p>Readers that still count a group membership outside the enum, accepted as
+display or availability effects that grant nothing: the group <code>member_count</code>
+(<code>groups/counts.py</code> <code>annotate_group_counts</code>, which counts the direct rows the
+roster lists), and an invite join (<code>groups/views.py</code> <code>JoinGroupView.post</code>,
+<code>groups/invite_registration.py</code>), whose <code>get_or_create</code> keeps such an existing
+row instead of replacing it, so the user stays without access.</p>
 <h2 id="rule-10-a-second-transport-is-no-broader-than-rest-for-the-same-role">Rule 10: A second transport is no broader than REST for the same role<a class="headerlink" href="#rule-10-a-second-transport-is-no-broader-than-rest-for-the-same-role" title="Permanent link">&para;</a></h2>
 <p><strong>Rule.</strong> Where a feature reaches the same data over a second transport
 (WebSocket, MCP, change feed, export), its access predicate and its output
@@ -5083,8 +5125,8 @@ fails closed.</p>
 <tbody>
 <tr>
 <td>WebSocket (group)</td>
-<td><code>groups/consumers.py</code> <code>_user_can_access_group_id</code></td>
-<td>Calls <code>groups/models.py</code> <code>user_has_group_access</code>, the predicate REST <code>_require_group_member</code> uses, at connect and at every periodic re-check</td>
+<td><code>groups/consumers.py</code> <code>_user_can_access_group_id</code>, <code>GroupConsumer._board_visible</code></td>
+<td>Calls <code>groups/models.py</code> <code>user_has_group_access</code>, the predicate REST <code>_require_group_member</code> uses, at connect and at every periodic re-check. A <code>board.created</code> or <code>board.updated</code> frame, which carries a full board, is forwarded only to a subscriber on whom <code>get_board_role</code> resolves a role for that board, the predicate of REST board detail and <code>BoardConsumer</code> (#1829); the verdict is cached per board for the access re-check window. <code>board.deleted</code> (identifiers only: <code>board_uid</code>, and <code>board_id</code> on a move-out) is accepted as ungated, since access cannot be resolved for a deleted board and a client needs it to drop a listed row</td>
 </tr>
 <tr>
 <td>WebSocket (board)</td>
@@ -5173,6 +5215,13 @@ queued on the group row in both orders).</p>
 every group's owner a direct <code>admin</code> membership, promoting a non-admin row or
 adding a missing one, so the owner half of the rule holds for every existing
 group (<code>groups/tests/test_group_owner_admin_repair_1786.py</code>).</p>
+<p>The owner's group access rests on that row alone: since #1829 no group access
+predicate has an ownership rung (<code>get_accessible_group_ids</code> had one), so an
+owner whose row is missing or carries a role outside the enum sees the group
+like any non-member. A superuser repairs it with the Django admin transfer,
+which offers only the group's other active members as the new owner; for a
+group with no other member, someone with access to all content first adds
+one through the API.</p>
 <h2 id="rule-12-extension-panels-are-filtered-on-the-callers-role-before-they-run">Rule 12: Extension panels are filtered on the caller's role before they run<a class="headerlink" href="#rule-12-extension-panels-are-filtered-on-the-callers-role-before-they-run" title="Permanent link">&para;</a></h2>
 <p><strong>Rule.</strong> Every surface that renders <code>ANALYTICS_EXTENSIONS</code> panels gets the
 callables to run from <code>boards/permissions.py</code> <code>analytics_extensions_for_role</code>,

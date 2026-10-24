@@ -5574,7 +5574,7 @@ actually bootstraps from) returns the identical shape — both are served by
 </tr>
 </tbody>
 </table>
-<p><strong><code>default_board_id</code></strong> — set the board to redirect to after login. Accepts a board <code>id</code> (integer) or <code>null</code> to clear. The value must be a board the requesting user is a member of; supplying a foreign board ID returns <code>400 Bad Request</code>. This prevents enumeration of boards the user has no access to.</p>
+<p><strong><code>default_board_id</code></strong> — set the board to redirect to after login. Accepts a board <code>id</code> (integer) or <code>null</code> to clear. The value must be a board the requesting user is a member of; supplying a foreign board ID returns <code>400 Bad Request</code>. <em>(1.2+)</em> A membership whose stored role is not one of the four roles (<code>admin</code>, <code>member</code>, <code>collaborator</code>, <code>viewer</code>) does not count (#1829). This prevents enumeration of boards the user has no access to.</p>
 <blockquote>
 <p><strong>Changed in 1.2</strong> (#1273) — <code>username</code> is now checked case-insensitively and rate-limited, and under <code>EMAIL_VERIFICATION=mandatory</code> a changed <code>email</code> needs confirmation before it takes effect. Both fields remain writable. Earlier releases stored either value directly.</p>
 </blockquote>
