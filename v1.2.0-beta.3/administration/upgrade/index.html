@@ -4535,6 +4535,63 @@ works for hand-rolled manifests — use it in place of bare <code>migrate</code>
 <h2 id="release-specific-upgrade-notes">Release-specific upgrade notes<a class="headerlink" href="#release-specific-upgrade-notes" title="Permanent link">&para;</a></h2>
 <h3 id="upgrading-to-12x">Upgrading to 1.2.x<a class="headerlink" href="#upgrading-to-12x" title="Permanent link">&para;</a></h3>
 <div class="admonition note">
+<p class="admonition-title">Four environment variables from the 1.2 pre-releases were renamed (old names still work)</p>
+<p>If you ran a 1.2 alpha or beta, four names it introduced changed before GA to follow the
+naming convention of the variables around them. The pre-release names are <strong>still read</strong>
+as deprecated aliases, so nothing breaks, but each one now logs a startup warning. Rename
+them when convenient:</p>
+<table>
+<thead>
+<tr>
+<th>Pre-release name (deprecated)</th>
+<th>Use instead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
+<td><code>IMPORT_MAX_SIZE_BYTES</code></td>
+</tr>
+<tr>
+<td><code>DEMO_USER_THROTTLE_RATE</code></td>
+<td><code>DEMO_THROTTLE_USER_RATE</code></td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_CONNECT_TIMEOUT</code></td>
+<td><code>MIGRATE_CONNECT_TIMEOUT_SECONDS</code></td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_LOCK_TIMEOUT</code></td>
+<td><code>MIGRATE_LOCK_TIMEOUT_SECONDS</code></td>
+</tr>
+</tbody>
+</table>
+<p>If both names are set, the new one wins. The Helm chart already sets the new names. Its
+values keys (<code>backend.settings.importMaxSizeBytes</code>, <code>demo.throttle.userRate</code>,
+<code>backend.migrate.connectTimeout</code>, <code>backend.migrate.lockTimeout</code>) are unchanged. If you
+are upgrading from 1.1, none of these names existed, so no action is needed. See
+<a href="../configuration/#deprecated-environment-variable-names">Deprecated environment variable names</a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Helm: use this chart with a backend image from the same release</p>
+<p>From this release the chart sets only the new names above. An older backend image
+(for example a 1.2 pre-release pinned through <code>backend.image.tag</code>) does not read them and
+<strong>silently</strong> uses its defaults:</p>
+<ul>
+<li>a custom <code>backend.settings.importMaxSizeBytes</code> is lost, and the Trello import cap goes
+  back to 25 MB;</li>
+<li><code>demo.throttle.userRate</code> stops applying, so demo visitors share the normal <code>user</code>
+  throttle limit again;</li>
+<li>a custom <code>backend.migrate.connectTimeout</code> or <code>backend.migrate.lockTimeout</code> reverts to
+  300 s or 900 s.</li>
+</ul>
+<p>Upgrade the chart and the image together. In a <strong>released</strong> chart (a tagged release or a
+published chart version), the default <code>backend.image.tag</code> is the matching release, so the
+skew only affects installs that override the tag. A chart taken from <code>main</code> between
+releases still defaults to the previous pre-release image, which does not read the new
+names. Set <code>backend.image.tag</code> to an image built from the same commit or later.</p>
+</div>
+<div class="admonition note">
 <p class="admonition-title">Clear stale card assignees after upgrading</p>
 <p>Assignable and notification member sets now follow the same role-resolution ladder as board
 access: an explicit board membership row takes precedence over group-inherited membership,
@@ -5260,7 +5317,7 @@ same name still overrides the derived one.</p>
 <div class="admonition note">
 <p class="admonition-title">Default transport body limit raised from 20 MB to 35 MB (Trello import)</p>
 <p>1.2 adds a <a href="../../features/trello-import/">Trello import</a> that accepts exports
-up to <code>VISIBAN_IMPORT_MAX_SIZE</code> (default 25 MB, Helm:
+up to <code>IMPORT_MAX_SIZE_BYTES</code> (default 25 MB, Helm:
 <code>backend.settings.importMaxSizeBytes</code>). So those uploads reach Visiban
 instead of dying at the edge, the transport limits are now derived from the
 <strong>larger</strong> of <code>maxUploadSizeBytes</code> and <code>importMaxSizeBytes</code> plus 10 MB:</p>
@@ -5765,7 +5822,12 @@ and the <a href="../../api/cards/">checklist item reference</a>.</p>
 </tr>
 </tbody>
 </table>
-<p>Before upgrading, search your <code>.env</code> file and any CI/CD secret stores for these old names and rename them. From 1.1 on, setting either removed alias logs a startup deprecation warning naming the canonical replacement — but the old name is no longer read, so that warning is your only signal that SSO or email verification has silently stopped working. If neither alias appears anywhere in your config, no action is required.</p>
+<p>Before upgrading, search your <code>.env</code> file and any CI/CD secret stores for these old names and rename them. The old names are no longer read, so SSO or email verification stops working <strong>silently</strong>. Do not count on a startup warning to tell you:</p>
+<ul>
+<li><strong>1.1.x</strong> raises only a Python <code>DeprecationWarning</code>, which Python hides by default, so nothing appears in the container log.</li>
+<li><strong>From 1.2</strong>, setting either name logs a visible startup warning: <code>OIDC_SECRET is no longer read and has no effect; replace it with OIDC_CLIENT_SECRET</code> (and the same for <code>ACCOUNT_EMAIL_VERIFICATION</code>).</li>
+</ul>
+<p>If neither alias appears anywhere in your config, no action is required.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Card density migration — existing boards default to Dense</p>

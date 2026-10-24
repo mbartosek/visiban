@@ -6679,7 +6679,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>400 Bad Request</code></td>
 <td><code>{"detail": "..."}</code></td>
-<td>File is missing, empty, has an unsupported extension, exceeds the upload size limit (<code>MAX_UPLOAD_SIZE_BYTES</code>, default 10 MB — the same env var and default as <a href="../cards/#attachments">card attachment uploads</a>, and distinct from the Trello importer's own <code>VISIBAN_IMPORT_MAX_SIZE</code>), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when <code>options</code> is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets <code>comments</code>, <code>checklist</code>, or <code>history</code> to <code>true</code> with <code>cards</code> set to <code>false</code>, or — for a CSV file — has any key other than <code>labels</code> and <code>cards</code>. A CSV file also returns <code>400</code> for a cell over the <a href="#csv-cell-limits">CSV cell limits</a>, a NUL byte, or an impossible <code>Due Date</code>.</td>
+<td>File is missing, empty, has an unsupported extension, exceeds the upload size limit (<code>MAX_UPLOAD_SIZE_BYTES</code>, default 10 MB — the same env var and default as <a href="../cards/#attachments">card attachment uploads</a>, and distinct from the Trello importer's own <code>IMPORT_MAX_SIZE_BYTES</code>), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when <code>options</code> is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets <code>comments</code>, <code>checklist</code>, or <code>history</code> to <code>true</code> with <code>cards</code> set to <code>false</code>, or — for a CSV file — has any key other than <code>labels</code> and <code>cards</code>. A CSV file also returns <code>400</code> for a cell over the <a href="#csv-cell-limits">CSV cell limits</a>, a NUL byte, or an impossible <code>Due Date</code>.</td>
 </tr>
 <tr>
 <td><code>401 Unauthorized</code></td>
@@ -6745,7 +6745,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <td><code>file</code></td>
 <td>file</td>
 <td>yes</td>
-<td>The Trello JSON export. Maximum size is <code>VISIBAN_IMPORT_MAX_SIZE</code> (default 25 MB).</td>
+<td>The Trello JSON export. Maximum size is <code>IMPORT_MAX_SIZE_BYTES</code> (default 25 MB).</td>
 </tr>
 <tr>
 <td><code>name</code></td>
@@ -7143,7 +7143,7 @@ import, <code>[]</code> when nothing was dropped). It holds at most 20 entries f
 <tr>
 <td><code>413 Content Too Large</code></td>
 <td><code>{"detail": "File too large. The maximum size for a Trello import is 25 MB."}</code></td>
-<td>The file is larger than <code>VISIBAN_IMPORT_MAX_SIZE</code>. Note that the native import endpoint returns <code>400</code> for an oversized file.</td>
+<td>The file is larger than <code>IMPORT_MAX_SIZE_BYTES</code>. Note that the native import endpoint returns <code>400</code> for an oversized file.</td>
 </tr>
 <tr>
 <td><code>429 Too Many Requests</code></td>

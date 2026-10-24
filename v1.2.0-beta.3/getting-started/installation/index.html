@@ -4602,9 +4602,9 @@ root-owned <code>node_modules</code> volume; see <a href="../../administration/u
 <td>Set <code>true</code> to serve the <a href="../../features/mcp-server/">MCP server</a> at <code>/mcp</code> (default: <code>false</code>). Also configurable: <code>MCP_ALLOWED_HOSTS</code> and the <code>MCP_THROTTLE_READ_RATE</code>, <code>MCP_THROTTLE_COMPUTE_RATE</code> and <code>MCP_THROTTLE_PREAUTH_RATE</code> limits. See <a href="../../administration/configuration/#optional-features-off-by-default">Optional features</a>.</td>
 </tr>
 <tr>
-<td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
+<td><code>IMPORT_MAX_SIZE_BYTES</code></td>
 <td style="text-align: center;">No</td>
-<td>Maximum Trello JSON export size for the <a href="../../features/trello-import/">Trello import wizard</a>, in bytes (default: <code>26214400</code> — 25 MB). Your reverse proxy must accept bodies at least this large; see <a href="../../administration/configuration/#import-limits">Import limits</a>.</td>
+<td>Maximum Trello JSON export size for the <a href="../../features/trello-import/">Trello import wizard</a>, in bytes (default: <code>26214400</code> — 25 MB). Your reverse proxy must accept bodies at least this large; see <a href="../../administration/configuration/#import-limits">Import limits</a>. The 1.2 pre-release name <code>VISIBAN_IMPORT_MAX_SIZE</code> still works as a deprecated alias.</td>
 </tr>
 </tbody>
 </table>

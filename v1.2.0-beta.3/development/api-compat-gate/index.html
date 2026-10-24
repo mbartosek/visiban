@@ -2779,6 +2779,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#environment-variable-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment variable naming
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment variable naming">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inventory-of-the-names-new-in-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inventory of the names new in 1.2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#allow-listing-a-deliberate-break" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4098,8 +4126,9 @@ statuses (4xx/5xx) are not part of the checked contract. A baseline property tha
 read-only <code>string</code> is treated as untyped: it is drf-spectacular's fallback for an unannotated
 <code>SerializerMethodField</code>, so correcting it to its real type is not a break.</p>
 <p><strong>Settings</strong> — every env var name that <code>backend/visiban/settings.py</code> reads at the GA tag
-(<code>env(...)</code>, <code>env.&lt;type&gt;(...)</code>, <code>_secret_env(...)</code>, <code>os.environ</code>/<code>os.getenv</code>, and the legacy
-name passed to <code>_warn_deprecated_env_alias</code>) must still be read at HEAD. A deprecated alias
+(<code>env(...)</code>, <code>env.&lt;type&gt;(...)</code>, <code>_secret_env(...)</code>, <code>os.environ</code>/<code>os.getenv</code>, the legacy
+name passed to <code>_warn_deprecated_env_alias</code>, and both names passed to <code>_env_alias_name</code>) must
+still be read at HEAD. A deprecated alias
 that is kept counts as present, which is exactly the rename policy in <code>CLAUDE.md</code>. The
 baseline is <code>scripts/compat-baseline/v1.1.0/settings-env.txt</code>.</p>
 <h2 id="component-names-are-not-part-of-the-contract">Component names are not part of the contract<a class="headerlink" href="#component-names-are-not-part-of-the-contract" title="Permanent link">&para;</a></h2>
@@ -4132,15 +4161,185 @@ below exist in the v1.1.0 baseline, so nothing shipped was renamed):</p>
 </ul>
 <p><code>backend/boards/tests/test_schema_generated_names_1874.py</code> fails if a <code>*RequestRequest</code>
 component or one of those <code>_retrieve</code> operationIds reappears.</p>
+<h2 id="environment-variable-naming">Environment variable naming<a class="headerlink" href="#environment-variable-naming" title="Permanent link">&para;</a></h2>
+<p>Env var names freeze the same way, and the gate cannot tell a good name from a bad one. Decided
+in #1873 for every name added from 1.2 on:</p>
+<ul>
+<li><strong>No product prefix on functional settings.</strong> Name them <code>&lt;FEATURE&gt;_&lt;NOUN&gt;[_&lt;UNIT&gt;]</code>, like
+  <code>BOARD_EVENT_RETENTION_DAYS</code>, <code>NOTIFICATION_EMAIL_TIMEOUT</code> and <code>GIT_LENS_ENABLED</code>. Almost every
+  pre-1.2 variable is already unprefixed, and a prefix on some settings but not others is how
+  the inconsistency starts.</li>
+<li><strong>Put the unit in the name when the value has one</strong>: <code>_BYTES</code>, <code>_DAYS</code>, <code>_SECONDS</code>. A size
+  without <code>_BYTES</code> reads as megabytes to half of all operators.</li>
+<li><strong>A name that mirrors an upstream setting keeps the upstream name and unit.</strong> Django,
+  DRF and allauth settings read from the environment use their own names (<code>EMAIL_TIMEOUT</code>,
+  <code>NUM_PROXIES</code>), and a feature-scoped copy of one follows it: <code>NOTIFICATION_EMAIL_TIMEOUT</code> is
+  in seconds, like the <code>EMAIL_TIMEOUT</code> it mirrors, so it carries no <code>_SECONDS</code>.</li>
+<li><strong>Feature on/off switches end in <code>_ENABLED</code></strong> (<code>MCP_SERVER_ENABLED</code>, <code>GIT_LENS_ENABLED</code>). A
+  boolean that picks a mode of a feature that is already on says what the mode is
+  (<code>NOTIFICATION_EMAIL_ASYNC</code>).</li>
+<li><strong>A switch that turns the whole instance into a named mode ends in <code>_MODE</code></strong> (<code>DEMO_MODE</code>).
+  It is not a feature toggle: it changes what the instance is (a public, write-fenced demo).
+  The name states the mode, so it has no <code>_ENABLED</code>.</li>
+<li><strong>Throttle rates are <code>&lt;FEATURE&gt;_THROTTLE_&lt;SCOPE&gt;_RATE</code></strong>, like <code>MCP_THROTTLE_READ_RATE</code> and
+  <code>DEMO_THROTTLE_USER_RATE</code>, so a feature's limits sort together.</li>
+<li><strong>The <code>VISIBAN_</code> prefix is reserved for two kinds of variable.</strong> One is key material that
+  Visiban itself uses to protect data (<code>VISIBAN_SECRET_ENCRYPTION_KEY</code>). The other is a
+  test- or CI-only input that a production install must never set
+  (<code>VISIBAN_DISABLE_THROTTLING</code>, <code>VISIBAN_GIT_LENS_STUB_PROVIDERS</code>, <code>VISIBAN_FUZZ_TOKEN_FILE</code>).
+  The prefix marks them as not ordinary tuning knobs. Other secrets are credentials for an
+  external service or an account, such as <code>REDIS_URL_PASSWORD</code> or <code>DEMO_LOGIN_PASSWORD</code>. They
+  are named like any other setting, <code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code>, without the prefix.</li>
+<li><strong>Fixing a name that has shipped</strong> (in any release, pre-releases included) means adding the
+  new name and keeping the old one as a working, deprecated alias. Use the helpers in
+  <code>backend/visiban/env_aliases.py</code>. They are pure stdlib, so <code>settings.py</code> and code outside it,
+  such as a management command, can both import them without a cycle. <strong>Import them under
+  their underscore names</strong>, as <code>settings.py</code> and <code>migrate_with_lock.py</code> do:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">visiban.env_aliases</span><span class="w"> </span><span class="kn">import</span> <span class="n">env_alias_name</span> <span class="k">as</span> <span class="n">_env_alias_name</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">visiban.env_aliases</span><span class="w"> </span><span class="kn">import</span> <span class="n">warn_deprecated_env_alias</span> <span class="k">as</span> <span class="n">_warn_deprecated_env_alias</span>
+</code></pre></div>
+<p>This gate (<code>scripts/check-api-compat.py</code>) and the chart's reader check
+  (<code>scripts/helm-structure-check.sh</code> section 3) match calls to <code>_env_alias_name(...)</code> and
+  <code>_warn_deprecated_env_alias(...)</code> by those names, with the variable names as string
+  literals. A call under any other name, or with a name passed through a variable, is
+  invisible to both. <code>_env_alias_name("NEW", "OLD")</code> picks which name to read: the new name
+  wins when it is non-empty. <code>_warn_deprecated_env_alias("OLD", "NEW")</code> logs the startup
+  warning. Pass <code>removed=True</code> for an old name that is no longer read at all, so the warning
+  says it has no effect. List the alias in the deprecated-names table in
+  <code>docs/administration/configuration.md</code>.</p>
+<p>Applied in #1873, before the first baseline roll that contains them. None of the old names is
+in the v1.1.0 baseline, but all of them shipped in 1.2 pre-releases (from <code>v1.2.0-alpha.1</code>
+on), so all of them are still read:</p>
+<table>
+<thead>
+<tr>
+<th>Pre-release name (deprecated alias)</th>
+<th>Canonical name</th>
+<th>Read in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
+<td><code>IMPORT_MAX_SIZE_BYTES</code></td>
+<td><code>visiban/settings.py</code></td>
+</tr>
+<tr>
+<td><code>DEMO_USER_THROTTLE_RATE</code></td>
+<td><code>DEMO_THROTTLE_USER_RATE</code></td>
+<td><code>visiban/settings.py</code></td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_CONNECT_TIMEOUT</code></td>
+<td><code>MIGRATE_CONNECT_TIMEOUT_SECONDS</code></td>
+<td><code>boards/management/commands/migrate_with_lock.py</code></td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_LOCK_TIMEOUT</code></td>
+<td><code>MIGRATE_LOCK_TIMEOUT_SECONDS</code></td>
+<td><code>boards/management/commands/migrate_with_lock.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>The Django setting <code>settings.VISIBAN_IMPORT_MAX_SIZE</code> keeps its name. Settings attributes are
+internal, and renaming it would only churn callers.
+<code>backend/accounts/tests/test_deprecated_env_aliases.py</code> and
+<code>backend/boards/tests/test_migrate_with_lock.py</code> cover the resolution order.</p>
+<h3 id="inventory-of-the-names-new-in-12">Inventory of the names new in 1.2<a class="headerlink" href="#inventory-of-the-names-new-in-12" title="Permanent link">&para;</a></h3>
+<p>How the list was derived, so it can be re-checked. <code>--dump-env</code> given a directory runs the
+gate's AST-based <code>env_names()</code> over every non-test <code>.py</code> file under it. It skips <code>tests/</code>
+directories, <code>test_*.py</code> and <code>conftest.py</code>. That covers lookups split across lines and the
+<code>JobSpec(name, "ENV", default)</code> entries in <code>run_scheduler.py</code>, which a per-line grep misses.
+Run it from the repository root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">TMP</span><span class="o">=</span><span class="k">$(</span>mktemp<span class="w"> </span>-d<span class="k">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>archive<span class="w"> </span>v1.1.0<span class="w"> </span>backend<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>-x<span class="w"> </span>-C<span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">"</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">"</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span><span class="s2">"</span><span class="nv">$OLDPWD</span><span class="s2">/scripts/check-api-compat.py"</span><span class="w"> </span>--dump-env<span class="w"> </span>backend<span class="w"> </span><span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/old.txt"</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--dump-env<span class="w"> </span>backend<span class="w"> </span>&gt;<span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/new.txt"</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>comm<span class="w"> </span>-13<span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/old.txt"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/new.txt"</span><span class="w">   </span><span class="c1"># names new since v1.1.0</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>comm<span class="w"> </span>-23<span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/old.txt"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$TMP</span><span class="s2">/new.txt"</span><span class="w">   </span><span class="c1"># names gone since v1.1.0 (must be empty)</span>
+</code></pre></div>
+<p>The <code>cd</code> matters: the script only reads paths under the repository, the system temp
+directory or the current directory. When this was last run for #1873, no name was gone. Every
+new name is either one of the four renamed pairs above or in this table:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Rule it follows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BOARD_EVENT_RETENTION_DAYS</code>, <code>NOTIFICATION_RETENTION_DAYS</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;_&lt;UNIT&gt;</code></td>
+</tr>
+<tr>
+<td><code>NOTIFICATION_EMAIL_ENABLED</code>, <code>INVITE_EMAIL_ENABLED</code>, <code>GIT_LENS_ENABLED</code>, <code>MCP_SERVER_ENABLED</code></td>
+<td>on/off switch ends in <code>_ENABLED</code></td>
+</tr>
+<tr>
+<td><code>NOTIFICATION_EMAIL_ASYNC</code></td>
+<td>mode of a feature that is already on</td>
+</tr>
+<tr>
+<td><code>NOTIFICATION_EMAIL_TIMEOUT</code></td>
+<td>mirrors Django's <code>EMAIL_TIMEOUT</code> (seconds)</td>
+</tr>
+<tr>
+<td><code>EMAIL_TIMEOUT</code>, <code>EMAIL_USE_SSL</code>, <code>NUM_PROXIES</code></td>
+<td>upstream Django/DRF names</td>
+</tr>
+<tr>
+<td><code>GIT_LENS_OUTBOUND_LOG_LEVEL</code>, <code>MCP_ALLOWED_HOSTS</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code></td>
+</tr>
+<tr>
+<td><code>REDIS_URL_PASSWORD</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code>: credential for an external service, so no reserved prefix</td>
+</tr>
+<tr>
+<td><code>MCP_THROTTLE_READ_RATE</code>, <code>MCP_THROTTLE_COMPUTE_RATE</code>, <code>MCP_THROTTLE_PREAUTH_RATE</code></td>
+<td><code>&lt;FEATURE&gt;_THROTTLE_&lt;SCOPE&gt;_RATE</code></td>
+</tr>
+<tr>
+<td><code>DEMO_MODE</code></td>
+<td>named instance mode, ends in <code>_MODE</code></td>
+</tr>
+<tr>
+<td><code>DEMO_LOGIN_USERNAME</code>, <code>DEMO_RESET_SCHEDULE</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code></td>
+</tr>
+<tr>
+<td><code>DEMO_LOGIN_PASSWORD</code>, <code>DEMO_ADMIN_PASSWORD</code>, <code>DEMO_MEMBER_PASSWORD</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code>: account credentials, so no reserved prefix</td>
+</tr>
+<tr>
+<td><code>SCHEDULE_NOTIFY_DUE_SOON</code>, <code>SCHEDULE_NOTIFY_STALE_CARDS</code>, <code>SCHEDULE_PRUNE_BOARD_EVENTS</code>, <code>SCHEDULE_PRUNE_NOTIFICATIONS</code></td>
+<td><code>&lt;FEATURE&gt;_&lt;NOUN&gt;</code>: the scheduler's <code>SCHEDULE_&lt;JOB&gt;</code> family, read through <code>JobSpec</code> in <code>run_scheduler.py</code></td>
+</tr>
+<tr>
+<td><code>VISIBAN_SECRET_ENCRYPTION_KEY</code></td>
+<td>reserved prefix: key material Visiban uses to protect data</td>
+</tr>
+<tr>
+<td><code>VISIBAN_DISABLE_THROTTLING</code>, <code>VISIBAN_GIT_LENS_STUB_PROVIDERS</code>, <code>VISIBAN_FUZZ_TOKEN_FILE</code></td>
+<td>reserved prefix: test/CI-only</td>
+</tr>
+</tbody>
+</table>
+<p>Out of scope: <code>MUTATION_SHARD</code>, <code>MUTATION_SHARDS</code>, <code>MUTATION_TARGET</code>, <code>CI_NODE_INDEX</code> and
+<code>CI_NODE_TOTAL</code> are read only by <code>backend/mutmut_config.py</code>, the mutation-testing harness (see
+<a href="../mutation-testing/">Mutation testing</a>). They are CI inputs, not operator settings.</p>
 <h2 id="allow-listing-a-deliberate-break">Allow-listing a deliberate break<a class="headerlink" href="#allow-listing-a-deliberate-break" title="Permanent link">&para;</a></h2>
 <p>A break that is intentional (a planned major bump, or a removal of an item already deprecated
 for a full release) goes in <code>scripts/compat-baseline/allowlist.json</code>. Every entry needs an
 <code>issue</code> (<code>#1234</code>) and a <code>reason</code>, and exactly one target:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span><span class="nt">"allow"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"REMOVED_RESPONSE_FIELD GET /api/v1/boards/ response 200 application/json .results[] .legacy_name"</span><span class="p">,</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">   </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1700"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deprecated in 1.2, removal scheduled for 2.0"</span><span class="p">},</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="p">{</span><span class="nt">"operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"POST /api/v1/old/"</span><span class="p">,</span><span class="w"> </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1701"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"endpoint retired after the 410 period"</span><span class="p">}</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span><span class="nt">"allow"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"REMOVED_RESPONSE_FIELD GET /api/v1/boards/ response 200 application/json .results[] .legacy_name"</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">   </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1700"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deprecated in 1.2, removal scheduled for 2.0"</span><span class="p">},</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="p">{</span><span class="nt">"operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"POST /api/v1/old/"</span><span class="p">,</span><span class="w"> </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1701"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"endpoint retired after the 410 period"</span><span class="p">}</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">]}</span>
 </code></pre></div>
 <ul>
 <li><code>key</code> is the exact text the gate prints (<code>*</code> is a wildcard).</li>
@@ -4157,9 +4356,9 @@ operation, so use it only when the whole operation is deliberately retired (the 
 freeze when the baseline is rolled. List it in <code>scripts/compat-baseline/experimental.json</code>
 (#1875), which is separate from the allow-list: the allow-list excuses one specific break,
 this keeps a whole operation out of the contract.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">"experimental"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"path_pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/api/v1/git-lens/*"</span><span class="p">,</span><span class="w"> </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1875"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"documented experimental in docs/api/git-lens.md"</span><span class="p">}</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="p">]}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="nt">"experimental"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="p">{</span><span class="nt">"path_pattern"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/api/v1/git-lens/*"</span><span class="p">,</span><span class="w"> </span><span class="nt">"issue"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#1875"</span><span class="p">,</span><span class="w"> </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"documented experimental in docs/api/git-lens.md"</span><span class="p">}</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">]}</span>
 </code></pre></div>
 <ul>
 <li><code>path_pattern</code> is an <code>fnmatch</code> pattern against the schema path (<code>*</code> is a wildcard).</li>
@@ -4263,26 +4462,26 @@ carries that error into the next baseline. #1783 corrected the cases its sweep c
 board import request bodies were corrected in #1792; hand-written <code>GET</code>s that
 publish no response body are tracked in #1793; any found later needs the same fix before the following roll.</p>
 <h2 id="running-it-locally">Running it locally<a class="headerlink" href="#running-it-locally" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python3<span class="w"> </span>scripts/check-api-compat.py
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>bash<span class="w"> </span>scripts/tests/check-api-compat.test.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">   </span><span class="c1"># the same env the backend tests use</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--self-test
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>python3<span class="w"> </span>scripts/check-api-compat.py
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>bash<span class="w"> </span>scripts/tests/check-api-compat.test.sh
 </code></pre></div>
 <h2 id="regenerating-the-baseline-at-each-ga-tag">Regenerating the baseline (at each GA tag)<a class="headerlink" href="#regenerating-the-baseline-at-each-ga-tag" title="Permanent link">&para;</a></h2>
 <p>Do this once, when a new GA tag is cut, from a clean checkout of the tag. Run it in a
 temporary worktree outside the repo and delete it afterward.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">TAG</span><span class="o">=</span>v1.2.0
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">VENV_PY</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/backend/.venv/bin/python"</span><span class="w">   </span><span class="c1"># run from the repository root</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>--detach<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span><span class="w"> </span><span class="nv">$TAG</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span>postgres://u:p@localhost:5432/d<span class="w"> </span><span class="nv">REDIS_URL</span><span class="o">=</span>redis://localhost:6379/0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">     </span><span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span>x<span class="w"> </span><span class="nv">DEBUG</span><span class="o">=</span>True<span class="w"> </span><span class="nv">ALLOWED_HOSTS</span><span class="o">=</span>localhost<span class="w"> </span><span class="nv">GIT_LENS_ENABLED</span><span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">     </span><span class="s2">"</span><span class="nv">$VENV_PY</span><span class="s2">"</span><span class="w"> </span>manage.py<span class="w"> </span>spectacular<span class="w"> </span>--format<span class="w"> </span>openapi-json<span class="w"> </span>--file<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span><span class="o">)</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--normalize<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/openapi.json
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--dump-env<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend/visiban/settings.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span>&gt;<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/settings-env.txt
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>git<span class="w"> </span>worktree<span class="w"> </span>remove<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">TAG</span><span class="o">=</span>v1.2.0
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">VENV_PY</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/backend/.venv/bin/python"</span><span class="w">   </span><span class="c1"># run from the repository root</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>--detach<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span><span class="w"> </span><span class="nv">$TAG</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="o">(</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span>postgres://u:p@localhost:5432/d<span class="w"> </span><span class="nv">REDIS_URL</span><span class="o">=</span>redis://localhost:6379/0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">     </span><span class="nv">DJANGO_SECRET_KEY</span><span class="o">=</span>x<span class="w"> </span><span class="nv">DEBUG</span><span class="o">=</span>True<span class="w"> </span><span class="nv">ALLOWED_HOSTS</span><span class="o">=</span>localhost<span class="w"> </span><span class="nv">GIT_LENS_ENABLED</span><span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">     </span><span class="s2">"</span><span class="nv">$VENV_PY</span><span class="s2">"</span><span class="w"> </span>manage.py<span class="w"> </span>spectacular<span class="w"> </span>--format<span class="w"> </span>openapi-json<span class="w"> </span>--file<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span><span class="o">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--normalize<span class="w"> </span>/tmp/<span class="nv">$TAG</span>.json<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/openapi.json
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>python3<span class="w"> </span>scripts/check-api-compat.py<span class="w"> </span>--dump-env<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>/backend/visiban/settings.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>&gt;<span class="w"> </span>scripts/compat-baseline/<span class="nv">$TAG</span>/settings-env.txt
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>git<span class="w"> </span>worktree<span class="w"> </span>remove<span class="w"> </span>/tmp/visiban-<span class="nv">$TAG</span>
 </code></pre></div>
 <p>Then, as a manual step on the
 release checklist, point <code>BASELINE_SCHEMA</code> / <code>BASELINE_ENV</code> in <code>scripts/check-api-compat.py</code>
@@ -4298,7 +4497,7 @@ entry it reports as stale (expected: the whole list, leaving <code>{"allow": []}
 it prints OK with no stale entries. As a safety net for the temporary entries (those whose
 <code>reason</code> starts with <code>temporary:</code>, citing #1783, #1788, #1789 or #1792), this lists any left
 behind; after deleting, it must print nothing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import json;[print(e['issue'],e.get('operation') or e['key']) for e in json.load(open('scripts/compat-baseline/allowlist.json'))['allow'] if e['reason'].startswith('temporary:') or e['issue'] in ('#1783','#1788','#1789','#1792')]"</span>
 </code></pre></div>
 <p>A temporary entry left behind fails the roll MR loudly. Then, in this file, delete every sentence
 or paragraph that describes temporary entries or counts exceptions to the "never added" rule
@@ -4312,6 +4511,10 @@ revise the prose that describes the v1.1.0 baseline drift and allow-list burn-do
   <code>serializer-ts-parity</code> covers frontend interfaces).</li>
 <li>WebSocket events: see <a href="../websocket-event-contract/">WebSocket event contract</a>.</li>
 <li>Settings <em>values</em> and defaults; only names are compared.</li>
+<li>Env vars read outside <code>backend/visiban/settings.py</code>, such as the <code>MIGRATE_*_TIMEOUT_SECONDS</code>
+  pair in <code>migrate_with_lock</code>. <code>scripts/helm-structure-check.sh</code> section 3 proves that every
+  name the chart injects has a reader under <code>backend/</code>, but nothing diffs these names against
+  a release.</li>
 </ul>
 
 

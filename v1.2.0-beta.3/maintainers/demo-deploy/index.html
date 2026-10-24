@@ -4190,6 +4190,17 @@ so the deployment record is the only durable trace that these were actually set 
 <li>
 <p>Install or upgrade. Pin both image tags to a release that contains #1179 and #1180
    (1.2.0 or later):</p>
+<div class="admonition warning">
+<p class="admonition-title">The image must be from the same release as the chart, or later</p>
+<p>From #1873 the chart renders <code>demo.throttle.userRate</code> as <code>DEMO_THROTTLE_USER_RATE</code>.
+Backend images from before that change (every 1.2 pre-release, including the
+chart's <code>v1.2.0-beta.3</code> default on <code>main</code> today) read only the old
+<code>DEMO_USER_THROTTLE_RATE</code>. With such an image the <code>60000/hour</code> ceiling is silently
+dropped, and every visitor shares the normal <code>user</code> limit, so a handful of visitors
+can exhaust it and get 429 responses. Deploying <code>./helm/visiban</code> from <code>main</code> therefore needs a
+<code>backend.image.tag</code> built from the same commit or later. See the
+<a href="../../administration/upgrade/#upgrading-to-12x">1.2 upgrade notes</a>.</p>
+</div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>visiban-demo<span class="w"> </span>./helm/visiban<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--namespace<span class="w"> </span>visiban-demo<span class="w"> </span>--create-namespace<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>-f<span class="w"> </span>helm/visiban/values-demo.yaml<span class="w"> </span><span class="se">\</span>

@@ -3392,6 +3392,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#deprecated-environment-variable-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deprecated environment variable names
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4557,8 +4568,8 @@
 </thead>
 <tbody>
 <tr>
-<td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
-<td>Maximum size, <strong>in bytes</strong>, of a Trello JSON export accepted by the <a href="../../features/trello-import/">Trello import wizard</a>. Oversized uploads get <code>413</code>. Separate from <code>MAX_UPLOAD_SIZE_BYTES</code>, which caps attachments and native board imports. Helm: <code>backend.settings.importMaxSizeBytes</code>. <em>(new in 1.2)</em></td>
+<td><code>IMPORT_MAX_SIZE_BYTES</code></td>
+<td>Maximum size, <strong>in bytes</strong>, of a Trello JSON export accepted by the <a href="../../features/trello-import/">Trello import wizard</a>. Oversized uploads get <code>413</code>. Separate from <code>MAX_UPLOAD_SIZE_BYTES</code>, which caps attachments and native board imports. Helm: <code>backend.settings.importMaxSizeBytes</code>. Deprecated alias: <code>VISIBAN_IMPORT_MAX_SIZE</code> (see <a href="#deprecated-environment-variable-names">Deprecated names</a>). <em>(new in 1.2)</em></td>
 <td><code>26214400</code> (25 MB)</td>
 </tr>
 </tbody>
@@ -4569,14 +4580,14 @@ created:</p>
 <ul>
 <li><strong>Docker Compose nginx</strong> (<code>nginx/*.conf.template</code>): <code>client_max_body_size</code>
   is <code>35M</code> (25 MB + 10 MB multipart headroom). Raise it if you raise
-  <code>VISIBAN_IMPORT_MAX_SIZE</code>. <code>proxy_read_timeout</code> on <code>/api/</code> is <code>90s</code>, well
+  <code>IMPORT_MAX_SIZE_BYTES</code>. <code>proxy_read_timeout</code> on <code>/api/</code> is <code>90s</code>, well
   above the few seconds a capped import takes.</li>
 <li><strong>Helm</strong>: nginx <code>client_max_body_size</code> and the ingress <code>proxy-body-size</code>
   annotation are derived automatically from the larger of
   <code>maxUploadSizeBytes</code> and <code>importMaxSizeBytes</code>.</li>
 <li><strong>Your own reverse proxy / load balancer</strong>: nginx defaults to a 1 MB body
   limit and returns its own <code>413</code> before Visiban sees the request. Allow at
-  least <code>VISIBAN_IMPORT_MAX_SIZE</code> + 10 MB.</li>
+  least <code>IMPORT_MAX_SIZE_BYTES</code> + 10 MB.</li>
 <li>The application server (daphne) and the web client set no request timeout
   of their own.</li>
 </ul>
@@ -4804,9 +4815,9 @@ error until a real sender address is set — by either method.</p>
 <td>Cron expression (UTC) of the reset job. Drives the countdown on the login page and in the app. Only minute and hour fields are evaluated; the other three must be <code>*</code>. An expression the backend cannot evaluate refuses to start while <code>DEMO_MODE</code> is on. Set but <strong>empty</strong> means no reset is scheduled: the login page and the demo bar then promise no reset and show no countdown. The Helm chart renders it empty when <code>demo.reset.enabled</code> is false.</td>
 </tr>
 <tr>
-<td><code>DEMO_USER_THROTTLE_RATE</code></td>
+<td><code>DEMO_THROTTLE_USER_RATE</code></td>
 <td><em>(empty)</em></td>
-<td>Replaces the rate of the <code>user</code> throttle scope while <code>DEMO_MODE</code> is on, e.g. <code>60000/hour</code>. Every visitor signs in as the one published account, so this scope is a single budget shared by all of them. Format <code>&lt;n&gt;/&lt;second\|minute\|hour\|day&gt;</code>; anything else refuses to start. Ignored when <code>DEMO_MODE</code> is off.</td>
+<td>Replaces the rate of the <code>user</code> throttle scope while <code>DEMO_MODE</code> is on, e.g. <code>60000/hour</code>. Every visitor signs in as the one published account, so this scope is a single budget shared by all of them. Format <code>&lt;n&gt;/&lt;second\|minute\|hour\|day&gt;</code>; anything else refuses to start. Ignored when <code>DEMO_MODE</code> is off. Deprecated alias: <code>DEMO_USER_THROTTLE_RATE</code> (see <a href="#deprecated-environment-variable-names">Deprecated names</a>).</td>
 </tr>
 </tbody>
 </table>
@@ -4848,6 +4859,55 @@ error until a real sender address is set — by either method.</p>
 <p>Both endpoints are unauthenticated and do not require a valid <code>Host</code> header.</p>
 <p><strong>Docker Compose</strong> uses the liveness endpoint in the backend healthcheck. <strong>Helm</strong> uses both: liveness probe hits <code>/api/health/liveness/</code>, readiness probe hits <code>/api/health/readiness/</code>.</p>
 <p>For external load balancers (AWS ALB, HAProxy, etc.), point your health check at <code>/api/health/readiness/</code> on the backend port (8000). This ensures traffic is only routed to instances with working database and Valkey connections.</p>
+<hr />
+<h2 id="deprecated-environment-variable-names">Deprecated environment variable names<a class="headerlink" href="#deprecated-environment-variable-names" title="Permanent link">&para;</a></h2>
+<p>Environment variable names are a public contract: once a name has shipped, it keeps working.
+When a name is changed, the old one stays as a <strong>deprecated alias</strong>. It is still read, and
+setting it logs a startup warning naming its replacement. Each alias works for at least one
+minor release after its deprecation, and its removal is announced in the
+<a href="../upgrade/">upgrade guide</a> first.</p>
+<p>If both names are set, the new name wins whenever it has a non-empty value. An install that
+sets only the old name behaves exactly as before.</p>
+<p>The Helm chart sets the new names, so it needs a backend image from the same release. See the
+<a href="../upgrade/#upgrading-to-12x">1.2 upgrade notes</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Deprecated name</th>
+<th>Use instead</th>
+<th>Deprecated in</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISIBAN_IMPORT_MAX_SIZE</code></td>
+<td><code>IMPORT_MAX_SIZE_BYTES</code></td>
+<td>1.2</td>
+<td>Shipped in 1.2 pre-releases. Renamed to match <code>MAX_UPLOAD_SIZE_BYTES</code>. The Helm key <code>backend.settings.importMaxSizeBytes</code> is unchanged.</td>
+</tr>
+<tr>
+<td><code>DEMO_USER_THROTTLE_RATE</code></td>
+<td><code>DEMO_THROTTLE_USER_RATE</code></td>
+<td>1.2</td>
+<td>Shipped in 1.2 pre-releases. Renamed to match <code>MCP_THROTTLE_*_RATE</code> and the Helm key <code>demo.throttle.userRate</code>, which is unchanged.</td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_CONNECT_TIMEOUT</code></td>
+<td><code>MIGRATE_CONNECT_TIMEOUT_SECONDS</code></td>
+<td>1.2</td>
+<td>Shipped in 1.2 pre-releases. Read by <code>manage.py migrate_with_lock</code>, the Helm chart's <code>migrate</code> init container. The Helm key <code>backend.migrate.connectTimeout</code> is unchanged.</td>
+</tr>
+<tr>
+<td><code>VISIBAN_MIGRATE_LOCK_TIMEOUT</code></td>
+<td><code>MIGRATE_LOCK_TIMEOUT_SECONDS</code></td>
+<td>1.2</td>
+<td>Shipped in 1.2 pre-releases. Read by <code>manage.py migrate_with_lock</code>. The Helm key <code>backend.migrate.lockTimeout</code> is unchanged.</td>
+</tr>
+</tbody>
+</table>
+<p>Names removed in earlier releases (<code>OIDC_SECRET</code> and <code>ACCOUNT_EMAIL_VERIFICATION</code>, both
+removed in 1.1) are listed in the <a href="../upgrade/#upgrading-to-11x">1.1 upgrade notes</a>.</p>
 
 
 
