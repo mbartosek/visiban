@@ -4304,10 +4304,12 @@ for both surfaces.</p>
   so a consumer holding a cursor learns the board is gone rather than simply
   losing access mid-stream. Its own board is of course no longer readable, so
   fetch it from the cursor you already hold, not from a fresh call.</li>
-<li><strong>A container delete is one event.</strong> Deleting a column, swimlane, or board
-  deletes its cards too, and the feed records only the <code>column.deleted</code>,
+<li><strong>A container delete is one delete event.</strong> Deleting a column, swimlane, or
+  board deletes its cards too, and the feed records only the <code>column.deleted</code>,
   <code>swimlane.deleted</code>, or <code>board.deleted</code> row, with no <code>card.deleted</code> row per
-  card. Treat it as the delete of every card in that container. See
+  card. Treat it as the delete of every card in that container. A surviving
+  card that one of the deleted cards was blocking gets a <code>card.updated</code> row
+  with its lowered <code>blocker_count</code> (since 1.2), on its own board's feed. See
   <a href="../websockets/#deleting-a-container-deletes-its-cards">Deleting a container deletes its cards</a>.</li>
 </ul>
 <h3 id="fields-that-depend-on-who-is-reading">Fields that depend on who is reading<a class="headerlink" href="#fields-that-depend-on-who-is-reading" title="Permanent link">&para;</a></h3>

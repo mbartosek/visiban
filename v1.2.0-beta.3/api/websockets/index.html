@@ -4678,7 +4678,12 @@ a <code>card.updated</code> frame for every card it was actively blocking, along
 that card's own <code>card.archived</code> / <code>card.unarchived</code> / <code>card.deleted</code> frame:
 an archived blocker stops counting toward its targets' <code>blocker_count</code>, and
 without those frames a client would keep rendering a blocked indicator for
-a blocker that is no longer on the board.</p>
+a blocker that is no longer on the board. This holds whichever way the
+card is archived or restored: through the REST API, the MCP
+<code>archive_card</code> tool, or by editing its archived date in the Django admin.
+Deleting a column, swimlane or
+board does the same for the cards its deleted cards were blocking (see
+<a href="#deleting-a-container-deletes-its-cards">Deleting a container deletes its cards</a>).</p>
 <p>A client that applies <code>card.updated</code> by replacing the card with that id
 needs no special handling for either case.</p>
 </div>
@@ -4691,7 +4696,9 @@ server announces the container, not each card: a column delete publishes one
 one <code>board.deleted</code>. There is no <code>card.deleted</code> frame for a card that went with
 its container, and none for the archived ones either. The same holds for a
 delete made in the Django admin, and for the <a href="../events/">change feed</a>, which
-records the same single event.</p>
+records the same single delete event. Cards <em>outside</em> the container whose
+<code>blocker_count</code> the delete lowered also get a <code>card.updated</code> frame each; see
+"Cards that survive the delete" below.</p>
 <p>A client that keeps cards locally must therefore treat a container delete as
 the delete of its cards:</p>
 <ul>
@@ -4703,10 +4710,24 @@ the delete of its cards:</p>
 <li>On <code>board.deleted</code>, discard the board's state; nothing on it remains.</li>
 </ul>
 <p>This is the contract, not a gap that later releases will fill with per-card
-frames: a column of thousands of cards is one frame, not thousands. Deleting a
-user account in the Django admin does not delete cards: an account that still
-owns boards cannot be deleted until its boards are transferred, and a card's
-<code>created_by</code> and <code>assignee</code> are cleared, not cascaded.</p>
+frames: a column of thousands of cards is one delete frame, not thousands.
+Deleting a user account in the Django admin does not delete cards: an account
+that still owns boards cannot be deleted until its boards are transferred, and
+a card's <code>created_by</code> and <code>assignee</code> are cleared, not cascaded.</p>
+<p><strong>Cards that survive the delete (since 1.2).</strong> A card outside the deleted
+container can be blocked by a card inside it. Its row survives but its
+<code>blocker_count</code> drops, so the delete is followed by one <code>card.updated</code> frame
+for each such card, carrying the count after the delete — the same frame
+<a href="#card-events">deleting a single card</a> sends for the cards it blocked. Only
+surviving cards get one: a blocked card deleted by the same cascade gets none,
+and deleting an archived blocker sends none, because an archived card does not
+count toward <code>blocker_count</code>. A container with no blocking relations to
+surviving cards still publishes exactly its one delete frame. The same applies
+to a delete made in the Django admin, single or bulk, including a card delete,
+and the change feed records a <code>card.updated</code> row for each of these frames. A
+card on another board (the Django admin can move a card, with its relations,
+to another board) gets its frame on its own board's channel, never on the
+deleted container's.</p>
 <h3 id="member-events">Member events<a class="headerlink" href="#member-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
