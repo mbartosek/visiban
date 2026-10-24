@@ -49,7 +49,9 @@ from boards.services.errors import (
     BoardNotFound, CardNotFound, CardServiceError,
 )
 from boards.utils import _get_assignable_member_ids
-from boards.views._helpers import _count_subquery, get_accessible_boards_queryset
+from boards.views._helpers import (
+    _count_subquery, get_accessible_boards_queryset, render_card_payloads,
+)
 from visiban.request_shape import MAX_OFFSET
 
 from .context import get_current_user
@@ -866,6 +868,12 @@ def archive_card(*, card_id):
                 "card_id": c.id,
                 "archived_at": c.archived_at.isoformat() if c.archived_at else None,
             },
+            # The cards this one blocks lose a blocker; their card.updated
+            # frames must carry a full CardSerializer card, as from the REST
+            # archive. Without render_many the service fell back to `render`
+            # above, broadcasting {card_id, archived_at} as a card.updated
+            # that clients could not apply (#1634).
+            render_many=lambda ids: render_card_payloads(board, ids),
         )
         return result.payload
     except CardServiceError as exc:

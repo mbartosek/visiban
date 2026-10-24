@@ -30,7 +30,7 @@ from .services.share_links import revoke_lapsed_share_links
 from .services.errors import (
     CardNotFound, SwimlaneNotFound, WeightLimitExceeded, WipHardBlocked, WipLimitExceeded,
 )
-from .views._helpers import _refetched_card_data
+from .views._helpers import _refetched_card_data, blocked_peers_of, publish_blocked_peers
 from .views.boards import _broadcast_board_group_change
 
 
@@ -320,8 +320,20 @@ class CardAdmin(admin.ModelAdmin):
     form = CardAdminForm
 
     def save_model(self, request, obj, form, change):
+        peers = {}
         with transaction.atomic():
-            self._lock_cell_entry(obj, change)
+            stored = self._lock_cell_entry(obj, change)
+            # The form edits archived_at (fields="__all__"), so a save can
+            # archive or restore the card. That moves the blocker_count of
+            # every card it blocks, as archive_card / unarchive_card do, so
+            # those cards need their own card.updated (#1634). Decided from
+            # the row read under the lock; collected before the save, with
+            # archived blockers included because this card's archived state
+            # is exactly what changes.
+            if stored is not None and (stored.archived_at is None) != (obj.archived_at is None):
+                peers = blocked_peers_of(
+                    Card.objects.filter(pk=obj.pk), active_blockers_only=False,
+                )
             super().save_model(request, obj, form, change)
             if change:
                 # This form can move a card to another board (the API cannot).
@@ -342,9 +354,14 @@ class CardAdmin(admin.ModelAdmin):
         event = _broadcast.EVT_CARD_UPDATED if change else _broadcast.EVT_CARD_CREATED
         card_data = _refetched_card_data_or_none(obj, request, board)
         if card_data is None:
+            # Deleted meanwhile: its delete already told the peers.
             return
-        board_id = board.id
-        _broadcast.record_board_event(board_id, event, card_data, actor_id=request.user.pk)
+        _broadcast.record_board_event(board.id, event, card_data, actor_id=request.user.pk)
+        # After the card's own frame, rendered from the saved state so each
+        # peer carries its new count. changeform_view's transaction is still
+        # open here, so the feed rows commit with the save and the publish
+        # waits for the commit, like the card's own frame above.
+        publish_blocked_peers(peers, request)
 
     @staticmethod
     def _lock_cell_entry(obj, change):
@@ -359,15 +376,20 @@ class CardAdmin(admin.ModelAdmin):
         column rows are held from before the card UPDATE until this
         transaction commits — which is what ``move_card``'s membership
         re-check (#1567) relies on. It does not re-run the limit check.
+
+        Returns the stored row read under the lock (``None`` on add, or when
+        the card is gone), so ``save_model`` can tell whether the save
+        archives or restores it (#1634).
         """
         if not change:
             lock_card_cell_entry(card_id=None, column_ids={obj.column_id})
-            return
+            return None
         stored = lock_card_row(obj.pk)
         if stored is not None and (stored.column_id, stored.swimlane_id) != (
             obj.column_id, obj.swimlane_id,
         ):
             lock_card_cell_entry(card_id=None, column_ids={stored.column_id, obj.column_id})
+        return stored
 
     def delete_model(self, request, obj):
         board_id = obj.board_id
@@ -376,10 +398,14 @@ class CardAdmin(admin.ModelAdmin):
         # transaction held across the delete (#1603; see lock_cards_for_cascade).
         with transaction.atomic():
             lock_cards_for_cascade(Card.objects.filter(pk=obj.pk))
+            # The cards this one blocks lose a blocker (#1634), as on the
+            # REST delete (#449). Read before the delete removes the relations.
+            peers = blocked_peers_of(Card.objects.filter(pk=obj.pk))
             super().delete_model(request, obj)
             _broadcast.record_board_event(
                 board_id, _broadcast.EVT_CARD_DELETED, {"card_uid": card_uid}, actor_id=request.user.pk
             )
+            publish_blocked_peers(peers, request)
 
     def delete_queryset(self, request, queryset):
         # One outer atomic: a bulk action is not wrapped by Django, so a lock
@@ -388,11 +414,15 @@ class CardAdmin(admin.ModelAdmin):
             lock_cards_for_cascade(Card.objects.filter(pk__in=queryset.values("pk")))
             # Capture board_id + uid before delete — post-delete the instances are gone.
             deleted = [(c.board_id, c.uid) for c in queryset]
+            # Surviving cards the deleted ones blocked (#1634); a peer deleted
+            # in the same bulk action gets its card.deleted, not a card.updated.
+            peers = blocked_peers_of(Card.objects.filter(pk__in=queryset.values("pk")))
             super().delete_queryset(request, queryset)
             for board_id, card_uid in deleted:
                 _broadcast.record_board_event(
                     board_id, _broadcast.EVT_CARD_DELETED, {"card_uid": card_uid}, actor_id=request.user.pk
                 )
+            publish_blocked_peers(peers, request)
 
 
 @admin.register(Column)
@@ -428,10 +458,14 @@ class ColumnAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
             _require_present_for_admin(
                 Board.objects.filter(pk=obj.board_id), Column.objects.filter(pk=obj.pk)
             )
+            # Surviving cards this column's cards blocked (#1634), as on the
+            # REST delete; read before the delete removes the relations.
+            peers = blocked_peers_of(Card.objects.filter(column_id=obj.pk))
             super().delete_model(request, obj)
             _broadcast.record_board_event(
                 board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
             )
+            publish_blocked_peers(peers, request)
 
     def delete_queryset(self, request, queryset):
         # One outer atomic across lock + delete (#1603).
@@ -442,11 +476,15 @@ class ColumnAdmin(ContainerChangedAdminMixin, admin.ModelAdmin):
                 boards=Board.objects.filter(pk__in=queryset.values("board_id")),
             )
             deleted = [(c.board_id, c.uid) for c in queryset]
+            # One read across every selected column, so a card blocked by a
+            # card in another selected column is excluded too (#1634).
+            peers = blocked_peers_of(Card.objects.filter(column__in=queryset.values("pk")))
             super().delete_queryset(request, queryset)
             for board_id, column_uid in deleted:
                 _broadcast.record_board_event(
                     board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=request.user.pk
                 )
+            publish_blocked_peers(peers, request)
 
 
 class _BoardEventAdminMixin:
@@ -567,7 +605,9 @@ class _BoardEventAdminMixin:
         payload = self._delete_payload(obj)
         with transaction.atomic():
             qs = type(obj).objects.filter(pk=obj.pk)
-            if self._cards_cascaded_by(qs) is None:
+            cards = self._cards_cascaded_by(qs)
+            peers = {}
+            if cards is None:
                 # No card cascade (label, membership): take the board row and
                 # the row itself, so a delete queued behind another delete of
                 # it answers 404 rather than recording a second event.
@@ -575,22 +615,31 @@ class _BoardEventAdminMixin:
             else:
                 self._lock_cascade(qs)
                 _require_present_for_admin(Board.objects.filter(pk=board_id), qs)
+                # Surviving cards the cascaded cards blocked (#1634); read
+                # before the delete removes the relations.
+                peers = blocked_peers_of(cards)
             super().delete_model(request, obj)
             self._emit(board_id, self.event_deleted, payload, request)
+            publish_blocked_peers(peers, request)
 
     def delete_queryset(self, request, queryset):
         # One outer atomic across lock + delete: a bulk action is not wrapped
         # by Django, so per-object locks would not be held (#1603).
         with transaction.atomic():
-            if self._cards_cascaded_by(queryset) is None:
+            cards = self._cards_cascaded_by(queryset)
+            peers = {}
+            if cards is None:
                 self._lock_boards_then_rows(queryset)
             else:
                 self._lock_cascade(queryset)
+                # One read across the whole selection (#1634; see ColumnAdmin).
+                peers = blocked_peers_of(cards)
             # Capture identifiers before delete — post-delete each instance's pk is cleared.
             deleted = [(self._board_id(o), self._delete_payload(o)) for o in queryset]
             super().delete_queryset(request, queryset)
             for board_id, payload in deleted:
                 self._emit(board_id, self.event_deleted, payload, request)
+            publish_blocked_peers(peers, request)
 
 
 @admin.register(Swimlane)
@@ -773,11 +822,16 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
             group_id = (
                 Board.objects.filter(pk=obj.pk).values_list("group_id", flat=True).first()
             )
+            # Cards on other boards this board's cards blocked (#1634) — only
+            # reachable through this admin's cross-board card move; see
+            # BoardViewSet.destroy. Each goes to its own board's channel.
+            peers = blocked_peers_of(Card.objects.filter(board_id=obj.pk))
             super().delete_model(request, obj)
             _record_board_and_group_event(
                 board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
                 actor_id=request.user.pk,
             )
+            publish_blocked_peers(peers, request)
 
     def get_deleted_objects(self, objs, request):
         """Let a board delete cascade its movement history (#1469).
@@ -811,12 +865,16 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                     "id", "uid", "group_id"
                 )
             )
+            # One read across every selected board, so a peer on another
+            # selected board (deleted too) gets no frame (#1634).
+            peers = blocked_peers_of(Card.objects.filter(board__in=queryset.values("pk")))
             super().delete_queryset(request, queryset)
             for board_id, board_uid, group_id in deleted:
                 _record_board_and_group_event(
                     board_id, group_id, _broadcast.EVT_BOARD_DELETED, {"board_uid": board_uid},
                     actor_id=request.user.pk,
                 )
+            publish_blocked_peers(peers, request)
 
 
 class BoardMembershipAdminForm(RowVersionFormMixin, forms.ModelForm):

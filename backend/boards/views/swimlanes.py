@@ -18,7 +18,7 @@ from visiban.permissions import (
 from visiban.request_shape import require_json_object
 
 from .. import broadcast as _broadcast
-from ..models import Board, BoardMembership, Column, Swimlane, SwimlaneCustomFieldDefinition
+from ..models import Board, BoardMembership, Card, Column, Swimlane, SwimlaneCustomFieldDefinition
 from ..permissions import SITE_ADMIN
 from ..serializers import (
     SwimlaneSerializer, SwimlaneAdminSerializer, _swimlane_custom_field_prefetch,
@@ -26,8 +26,8 @@ from ..serializers import (
 )
 from ..services.custom_fields import apply_swimlane_custom_field_values
 from ._helpers import (
-    CONTAINER_CHANGED_409, get_board_for_user, lock_board_and_row_or_404, lock_board_row_or_404,
-    lock_container_cascade,
+    CONTAINER_CHANGED_409, blocked_peers_of, get_board_for_user, lock_board_and_row_or_404,
+    lock_board_row_or_404, lock_container_cascade, publish_blocked_peers,
     require_present_or_404,
     validate_full_reorder_order,
 )
@@ -275,7 +275,7 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_destroy(self, instance):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         board_id = instance.board_id
@@ -297,8 +297,12 @@ class SwimlaneViewSet(viewsets.ModelViewSet):
                 Board.objects.filter(pk=instance.board_id),
                 Swimlane.objects.filter(pk=instance.pk),
             )
+            # Surviving cards the swimlane's cards blocked (#1634; see
+            # columns.py): collected before the delete removes the relations.
+            peers = blocked_peers_of(Card.objects.filter(swimlane_id=instance.pk))
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_SWIMLANE_DELETED, {"swimlane_uid": swimlane_uid}, actor_id=self.request.user.id)
+            publish_blocked_peers(peers, self.request, boards=[board])
 
     @_SET_COLLAPSED_SCHEMA
     @action(detail=True, methods=["patch"], url_path="set-collapsed")
