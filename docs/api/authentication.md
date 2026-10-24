@@ -988,6 +988,19 @@ When `registration_mode` is `"open"`, no invite token is required.
 
 The returned `key` is an API token that can be used immediately in the `Authorization: Token <key>` header.
 
+With `EMAIL_VERIFICATION=mandatory` the new account is not signed in, and the response is instead `201 Created` with `{"detail": "Verification e-mail sent."}`; the account can log in once its address is confirmed.
+
+#### An address that is already in use
+
+> **Changed in 1.2** (#1877)
+
+What a registration for an address that another account already uses gets depends on `EMAIL_VERIFICATION`:
+
+- **`mandatory`** — the same response as any other registration: `201 Created` with `{"detail": "Verification e-mail sent."}`, after the same form checks (password rules, matching passwords, a `403` when registration is closed). No account is created and the existing account is left unchanged. Instead of a confirmation link, the address receives an email saying an account already exists, with a link to reset its password. The same applies in invite-only mode, where the invite stays unused, and to the server-rendered `/accounts/signup/` form. Earlier releases answered `400` here.
+- **`optional`** or **`none`** (the default is `optional`) — `400 Bad Request` with `{"email": ["User is already registered with this e-mail address."]}`, as before. In these modes a new registration is signed in immediately and receives a token, which a registration that creates no account cannot match, so the existing response is kept.
+
+"In use" means an address another active account has as its email, an address another account has verified, or another account's username, compared ignoring case. Registration is rate-limited per IP address (`register` scope, 10 requests per minute) in every mode. Operators who want registration to answer every address the same way should set `EMAIL_VERIFICATION=mandatory` (see [Configuration](../administration/configuration.md)).
+
 #### Invite-only mode
 
 When `registration_mode` is `"invite_only"`, an additional `invite_token` field is required. Invite tokens are created by site admins via `POST /api/v1/admin/invite-links/` and distributed out-of-band, or emailed by a site admin from a group's invite panel (see below).
@@ -1022,7 +1035,7 @@ An emailed site, group or board invite is bound to the address it was sent to. R
 }
 ```
 
-**Response** `201 Created` — same shape as open mode: `{ "key": "<token>" }`.
+**Response** `201 Created` — same shape as open mode: `{ "key": "<token>" }`, or `{"detail": "Verification e-mail sent."}` with `EMAIL_VERIFICATION=mandatory`, including for an address that is already in use (see [above](#an-address-that-is-already-in-use)).
 
 **Errors**
 
@@ -1032,7 +1045,7 @@ An emailed site, group or board invite is bound to the address it was sent to. R
 | `400 Bad Request` | `invite_token` does not match any known site, group (`vbng_`) or board (`vbnb_`) invite, has been revoked, or has already been used (single-use links) — or *(1.2+)* is a site invite whose creator is no longer an active site admin (deactivated, deleted, or no longer a site admin) — all of these return the identical `code: "invite_invalid"`, `"Invalid or expired invite link."`, by design, so a caller cannot use the error to distinguish a wrong token from a spent one |
 | `400 Bad Request` | The invite link has expired (`code: "invite_expired"`, `"This invite link has expired."`) — the only invite-token failure with its own distinct code |
 | `400 Bad Request` (1.2+) | `invite_token` is a group or board invite that cannot create accounts — a shareable group or board link, or an emailed group or board invite whose sender is not a site admin. Only site invites and emailed single-use group or board invites sent by a site admin can create an account: `{"invite_token": ["This invite link can't be used to create an account on this site. Ask a site admin for an invite."]}`. The OAuth equivalent redirects with `auth_error=invite_not_for_registration` |
-| `400 Bad Request` | Email already registered, passwords do not match, or password too short |
+| `400 Bad Request` | Email already registered (only with `EMAIL_VERIFICATION` `optional` or `none`, see [above](#an-address-that-is-already-in-use)), passwords do not match, or password too short |
 | `403 Forbidden` | Registration is `"closed"` — no new accounts can be created |
 | `409 Conflict` (`invite_already_redeemed`, 1.1+) | The same email previously redeemed this multi-use invite link | Use a different invite link or contact the link's creator. The same status with `invite_invalid` is possible if a group or board invite is lost to a concurrent redemption (unreachable while the invite row lock is held); the account is rolled back either way |
 

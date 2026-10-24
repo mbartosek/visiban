@@ -1508,6 +1508,15 @@ class InviteRegisterView(RegisterView):
 
             if not signup_address_admits(invite, serializer.validated_data.get("email")):
                 raise DRFValidationError({"email": [REGISTRATION_MISMATCH_DETAIL], "code": MISMATCH_CODE})
+        # An address already in use under mandatory verification (#1877): no
+        # account is created and the response is the same 201 a new
+        # registration gets, from dj-rest-auth's get_response_data (which does
+        # not read the user in that mode). With no account, create() redeems
+        # nothing, so an invite stays usable.
+        if serializer.address_in_use:
+            serializer.decline_in_use_address(self.request._request)
+            self._registered_user = None
+            return None
         # Keep the new account so the invite can be redeemed for it;
         # dj-rest-auth's create() does not hand the user back.
         user = super().perform_create(serializer)

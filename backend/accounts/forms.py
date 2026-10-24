@@ -63,13 +63,24 @@ class VisibanSignupForm(SignupForm):
     The REST signup path (dj-rest-auth's ``RegisterSerializer``, which never
     touches this form) gets the equivalent check on
     ``RegistrationSerializer.validate_email`` (accounts/serializers.py).
+
+    Under ``EMAIL_VERIFICATION=mandatory`` an address in use is not a form
+    error here either (#1877), matching the REST path: the form is marked
+    ``account_already_exists``, allauth's own flag, and allauth's
+    ``try_save`` then creates no account, mails the address its "account
+    already exists" notice and shows the usual "verify your email" page.
+    allauth already does that for an address another account holds as its
+    email; this extends it to the extra matches #1221 adds.
     """
 
     def clean_email(self):
-        from .validators import email_collides_with_identifier
+        from .validators import answers_in_use_address_as_new, email_collides_with_identifier
 
         email = super().clean_email()
         if email and email_collides_with_identifier(email):
+            if answers_in_use_address_as_new():
+                self.account_already_exists = True
+                return email
             raise get_adapter().validation_error("email_taken")
         return email
 

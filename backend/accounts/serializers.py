@@ -26,6 +26,7 @@ from .validators import (
     EMAIL_TAKEN_MESSAGE,
     USERNAME_TAKEN_MESSAGE,
     UsernameFormatValidator,
+    answers_in_use_address_as_new,
     email_collides_with_identifier,
     is_username_taken,
     normalize_username_field_validators,
@@ -147,6 +148,12 @@ class RegistrationSerializer(RegisterSerializer):
     # RegistrationAdapter.clean_username, which rejects a username equal to
     # another active account's email (#1221) — see accounts/adapter.py.
 
+    #: Set by ``validate_email`` when the address is already in use and the
+    #: registration is to be answered like a new one (see
+    #: ``answers_in_use_address_as_new``). The view then calls
+    #: ``decline_in_use_address`` instead of creating an account.
+    address_in_use = False
+
     def validate_email(self, email):
         """dj-rest-auth's check, plus: no email another account already answers to (#1221).
 
@@ -165,16 +172,76 @@ class RegistrationSerializer(RegisterSerializer):
         signup form gets the equivalent check via
         ``accounts.forms.VisibanSignupForm.clean_email``.
 
-        Uses dj-rest-auth's own message, so the answer is identical to the one
-        a verified address already gets and says nothing about which kind of
+        Under ``EMAIL_VERIFICATION=mandatory`` an address in use is not an
+        error (#1877): the request is accepted like any other registration and
+        answered the same way, and no account is created — see
+        ``answers_in_use_address_as_new``. Otherwise it is refused with
+        dj-rest-auth's own message, identical to the one a verified address
+        gets from dj-rest-auth, so the answer says nothing about which kind of
         match it was.
+
+        This replaces dj-rest-auth's ``validate_email`` rather than wrapping
+        it, so the two "in use" checks share one outcome; ``clean_email`` and
+        the ``UNIQUE_EMAIL`` condition are kept as dj-rest-auth has them.
         """
-        email = super().validate_email(email)
-        if email_collides_with_identifier(email):
+        from allauth.account import app_settings as allauth_account_settings
+        from allauth.account.adapter import get_adapter
+        from allauth.account.models import EmailAddress
+
+        email = get_adapter().clean_email(email)
+        in_use = bool(email) and (
+            (allauth_account_settings.UNIQUE_EMAIL and EmailAddress.objects.is_verified(email))
+            or email_collides_with_identifier(email)
+        )
+        if in_use:
+            if answers_in_use_address_as_new():
+                self.address_in_use = True
+                return email
             raise serializers.ValidationError(
                 "User is already registered with this e-mail address."
             )
         return email
+
+    def decline_in_use_address(self, request):
+        """Answer a registration for an address in use without creating an account (#1877).
+
+        Called by ``InviteRegisterView.perform_create`` in place of ``save``
+        when ``validate_email`` set ``address_in_use``. It runs the same steps
+        as dj-rest-auth's ``RegisterSerializer.save`` up to the point where the
+        account would be written, so the request meets the same checks and
+        does roughly the same work as a new registration:
+
+        - ``save_user(commit=False)`` refuses a CLOSED instance with the same
+          403, and hashes the password just as a new account's is hashed;
+        - the password is re-validated against the unsaved account's
+          attributes, as dj-rest-auth does, so a password the new account
+          would be refused for is refused here with the same 400.
+
+        Then, instead of ``complete_signup``, allauth's login flow runs for an
+        account-less signup — the same flow a new registration goes through
+        under mandatory verification. It sends the address allauth's "account
+        already exists" mail (pointing at password reset) in place of the
+        confirmation mail, under the same verification-mail rate limit, and
+        through ``RegistrationAdapter.render_mail``, so an invite registration
+        still sends it after commit (#1639). Nothing is saved, no signup
+        signal is sent and no session is logged in.
+        """
+        from allauth.account.adapter import get_adapter
+        from allauth.account.internal.flows.login import perform_login
+        from allauth.account.models import Login
+
+        adapter = get_adapter()
+        user = adapter.new_user(request)
+        self.cleaned_data = self.get_cleaned_data()
+        adapter.save_user(request, user, self, commit=False)
+        try:
+            adapter.clean_password(self.cleaned_data["password1"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(detail=serializers.as_serializer_error(exc))
+        perform_login(
+            request,
+            Login(user=None, email=self.cleaned_data["email"], signup=True),
+        )
 
 
 class LoginSerializer(DjRestAuthLoginSerializer):
