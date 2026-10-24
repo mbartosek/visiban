@@ -134,9 +134,10 @@ class StaleUserRowTests(TestCase):
 
     def test_profile_patch_rename_still_clears_forced_username_change(self):
         User.objects.filter(pk=self.user.pk).update(must_change_username=True)
-        response = self._client_for(self._stale()).patch(
-            "/api/v1/auth/me/", {"username": "renamed_row"}, format="json"
-        )
+        # A username change needs an interactive session, so sign in for real.
+        client = APIClient()
+        client.force_login(self._stale())
+        response = client.patch("/api/v1/auth/me/", {"username": "renamed_row"}, format="json")
         self.assertEqual(response.status_code, 200)
         stored = self._stored()
         self.assertEqual(stored.username, "renamed_row")

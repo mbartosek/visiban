@@ -34,7 +34,7 @@ class ProfileUsernameUniquenessTests(TestCase):
         User.objects.create_user(username="bob", password="pass12345678")
         self.user = User.objects.create_user(username="alice", password="pass12345678")
         self.client = PasswordConfirmingAPIClient(password="pass12345678")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_case_variant_of_existing_username_is_rejected(self):
         for url in PROFILE_ENDPOINTS:
@@ -95,7 +95,7 @@ class ProfileUsernameThrottleTests(TestCase):
         cache.clear()
         self.user = User.objects.create_user(username="dave", password="pass12345678")
         self.client = PasswordConfirmingAPIClient(password="pass12345678")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
         for cls in (UsernameChangeThrottle, ChooseUsernameThrottle):
             patcher = patch.object(cls, "THROTTLE_RATES", self.RATES)
             patcher.start()
@@ -162,7 +162,7 @@ class MandatoryEmailChangeTests(TestCase):
             user=self.user, email="erin@old.example", verified=True, primary=True
         )
         self.client = PasswordConfirmingAPIClient(password="pass12345678")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def _confirm(self, address):
         anon = APIClient()
@@ -427,7 +427,7 @@ class OptionalEmailChangeTests(TestCase):
             username="gina", email="gina@old.example", password="pass12345678"
         )
         self.client = PasswordConfirmingAPIClient(password="pass12345678")
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_changed_email_is_written_directly(self):
         r = self.client.patch("/api/v1/auth/me/", {"email": "gina@new.example"}, format="json")
@@ -478,7 +478,7 @@ class UsernameTakenLookupTests(TestCase):
         User.objects.create_user(username="Hank")
         me = User.objects.create_user(username="jo", password="pass12345678")
         client = APIClient()
-        client.force_authenticate(me)
+        client.force_login(me)
         cache.clear()
         r = client.post("/api/v1/auth/choose-username/", {"username": "hank"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)

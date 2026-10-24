@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.request import Request
 
 
 def lock_user_row(user):
@@ -86,10 +88,10 @@ def first_password_requires_session(request, user) -> bool:
 
     An account with no usable password (social or SSO sign-in only) may set
     one without a current password, but only from an interactive session.
-    Fails closed: a session leaves ``request.auth`` as ``None``, so any
-    request that carries a non-``None`` credential object (a Personal Access
-    Token, the DRF auth ``Token``, or an authenticator added later) is
-    refused. A caller that proves a current password is unaffected, so this
+    Fails closed: only a request authenticated by a session (see
+    ``request_is_interactive_session``) passes, so a Personal Access Token,
+    the DRF auth ``Token`` and any authenticator added later are refused,
+    whether or not they report a credential object. A caller that proves a current password is unaffected, so this
     is false whenever ``user.has_usable_password()`` is true.
 
     Shared by both REST password-change routes
@@ -108,18 +110,35 @@ def request_is_interactive_session(request) -> bool:
 
     The one definition of "interactive session" for the account-credential
     rules that require one (``first_password_requires_session`` above,
-    ``email_change_requires_session`` below, and
-    ``accounts.views.ConnectedAccountDetailView.delete``, which calls this
-    directly). DRF's ``SessionAuthentication``
-    leaves ``request.auth`` as ``None``; the token authenticators configured
-    in ``DEFAULT_AUTHENTICATION_CLASSES`` (a Personal Access Token, the DRF
-    auth ``Token``) set it to the credential object. A token authenticator
-    added later is refused here without being listed, provided it follows the
-    DRF convention of returning its credential as ``request.auth``; one that
-    returns ``(user, None)`` would be treated as a session, so such an
-    authenticator must not be added without revisiting this check.
+    ``email_change_requires_session`` and ``username_change_requires_session``
+    below, and ``accounts.views.ConnectedAccountDetailView.delete``, which
+    calls this directly), so they all move together.
+
+    The check is positive. On a DRF request the authenticator that accepted
+    the credentials (``request.successful_authenticator``) must be a
+    ``SessionAuthentication`` (or a subclass, such as a CSRF-exempt variant),
+    and ``request.auth`` must be ``None``. Neither alone is enough: the
+    ``None`` test would also pass an authenticator that returns ``(user, None)``,
+    and the authenticator test alone would pass a session subclass that also
+    sets a credential object. Any other authenticator (a Personal Access Token,
+    the DRF auth ``Token``, a test ``force_authenticate``, or one added by an
+    extension) is refused without being listed.
+
+    A request that is not a DRF ``Request`` has no authenticator to inspect and
+    is refused. In particular the underlying ``request._request`` must not be
+    passed here: DRF copies ``auth`` onto it, so an authenticator that returns
+    no credential object would look like a session. Pass the DRF request.
+
+    Extension authenticators (``DEFAULT_AUTHENTICATION_CLASSES`` overrides)
+    that return ``(user, None)`` are therefore refused by these rules, and an
+    extension authenticator must not subclass ``SessionAuthentication`` unless
+    it really authenticates from the cookie session.
     """
-    return getattr(request, "auth", None) is None
+    if not isinstance(request, Request):
+        return False
+    if request.auth is not None:
+        return False
+    return isinstance(request.successful_authenticator, SessionAuthentication)
 
 
 PROVIDER_DISCONNECT_SESSION_REQUIRED_MESSAGE = (

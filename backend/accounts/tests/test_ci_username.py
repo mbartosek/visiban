@@ -20,7 +20,7 @@ class ChooseUsernameViewTests(TestCase):
             must_change_username=True,
         )
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_choose_valid_username(self):
         resp = self.client.post("/api/v1/auth/choose-username/", {"username": "newname"})
@@ -86,7 +86,7 @@ class MustNotHavePendingUsernameChangeTests(TestCase):
             must_change_username=True,
         )
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_blocked_user_cannot_access_normal_endpoints(self):
         # Use /api/auth/tokens/ which inherits DEFAULT_PERMISSION_CLASSES
@@ -138,7 +138,7 @@ class AdminCreateUserCIUsernameTests(TestCase):
             password="testpass12345",
         )
         self.client = APIClient()
-        self.client.force_authenticate(self.admin)
+        self.client.force_login(self.admin)
 
     def test_admin_create_user_rejects_ci_duplicate(self):
         resp = self.client.post("/api/v1/admin/users/", {
@@ -176,7 +176,7 @@ class UserSerializerMustChangeUsernameTests(TestCase):
             password="testpass12345",
         )
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_field_present_in_current_user(self):
         resp = self.client.get("/api/v1/auth/me/")

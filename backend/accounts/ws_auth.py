@@ -152,12 +152,16 @@ def credential_for_request(request):
 
     from .models import PersonalAccessToken
 
+    from .credentials import request_is_interactive_session
+
     auth = request.auth
     if isinstance(auth, PersonalAccessToken):
         return pat_credential(auth)
     if isinstance(auth, Token):
         return token_credential(auth)
-    if auth is None:
+    # The shared positive session check: an authenticator that returns no
+    # credential object is not a session, even on a request with a session cookie.
+    if request_is_interactive_session(request):
         session = getattr(request, "session", None)
         session_key = getattr(session, "session_key", None)
         if session_key:

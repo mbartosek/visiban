@@ -10,7 +10,7 @@ class CurrentUserViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="alice", password="pass12345678")
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_get_current_user(self):
         r = self.client.get("/api/v1/auth/me/")
@@ -93,7 +93,7 @@ class UserDetailsFlagExposureTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="carol", password="pass12345678")
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     @override_settings(GIT_LENS_ENABLED=True)
     def test_user_endpoint_exposes_git_lens_enabled_true(self):
@@ -202,7 +202,7 @@ class ChangePasswordViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="bob", password="oldpassword123")
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def test_correct_password_change(self):
         r = self.client.post("/api/v1/auth/change-password/", {
@@ -265,7 +265,7 @@ class ChangePasswordValidatorTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="pwval_user", password="OldPassword123!")
         self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        self.client.force_login(self.user)
 
     def _change(self, new_password):
         return self.client.post("/api/v1/auth/change-password/", {
@@ -348,7 +348,7 @@ class UserSearchViewTests(TestCase):
             password="pass", display_name="Bob Builder",
         )
         self.client = APIClient()
-        self.client.force_authenticate(self.requester)
+        self.client.force_login(self.requester)
 
     def test_search_by_display_name(self):
         r = self.client.get("/api/v1/users/", {"search": "Alice"})
@@ -493,7 +493,7 @@ class UserSearchMatchingTests(TestCase):
     def setUp(self):
         self.requester = User.objects.create_user(username="searcher", password="pass")
         self.client = APIClient()
-        self.client.force_authenticate(self.requester)
+        self.client.force_login(self.requester)
 
     def test_inactive_users_are_excluded(self):
         User.objects.create_user(username="zelda_active", password="pass")
