@@ -96,7 +96,7 @@ The 2 `_IMPORT_BACKFILL_BATCH` survivors could be killed by a PostgreSQL test (#
 | Mutants | Where | Why no test can kill it |
 |---:|---|---|
 | 1 | `_EXPORT_ROLE_RANK` `ADMIN: 3` to `4` | The rank is only compared with another rank from the same dict, so any order-preserving value is equivalent. |
-| 1 | `export_min_role or "viewer"` | A blank threshold maps to `viewer`, whose rank is the lowest; an unrecognized one is admin-only (#1725), so the blank case alone is untestable only as a mutant of the default string. |
+| 1 | `export_min_role or "viewer"` | A blank threshold maps to `viewer`, which has the lowest rank, and an unrecognized one is treated as `admin` (#1725), so replacing the blank default string with another unrecognized value is observable only through the 403 body, which this path does not reach. |
 | 1 | `_query_flag` default `""` to `"XXXX"` | Neither is in `("true", "1")`. |
 | 1 | `_IMPORTED_NAME_MAX_SUFFIX` 12 to 13 | A shorter `startswith` head only widens the database query; the exact comparison is in Python. |
 | 2 | `_IMPORT_BACKFILL_BATCH` 500 to 501 and to `None` | On SQLite `bulk_update` caps its own batch size at 499 (`connection.ops.bulk_batch_size`), so the constant is not observable here; `test_timestamp_backfill_runs_in_batches_of_500` pins two UPDATEs for 501 rows. A PostgreSQL test could kill it. |
