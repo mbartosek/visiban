@@ -208,7 +208,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
   // #843 — per-board export threshold. Plain-English labels per UX spec; the
   // server validates on write and may reject unknown values.
   const [exportMinRole, setExportMinRole] = useState<BoardExportMinRole>(
-    (board.export_min_role as BoardExportMinRole) ?? "viewer",
+    (board.export_min_role as BoardExportMinRole) || "viewer",
   );
   const [exportRoleError, setExportRoleError] = useState<string | null>(null);
 
@@ -220,13 +220,14 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
 
   // #843 — client-side mirror of the backend threshold gate for UI hiding.
   // Owner and site_admin always bypass (captured through current_user_role).
+  // An unrecognized threshold is treated as admin-only, as on the server (#1725).
   const EXPORT_ROLE_RANK: Record<string, number> = { viewer: 0, collaborator: 1, member: 2, admin: 3 };
   const currentRole = board.current_user_role;
   const canExport =
     currentRole === "site_admin" ||
     currentRole === "admin" ||
     (currentRole != null &&
-      EXPORT_ROLE_RANK[currentRole] >= (EXPORT_ROLE_RANK[exportMinRole] ?? 0));
+      EXPORT_ROLE_RANK[currentRole] >= (EXPORT_ROLE_RANK[exportMinRole] ?? EXPORT_ROLE_RANK.admin));
 
   // Sharing tab state — token is initialized from the board payload (admin-only field).
   const [shareToken, setShareToken] = useState<string | null>(board.share_token ?? null);
