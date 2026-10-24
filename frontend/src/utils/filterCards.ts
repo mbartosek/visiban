@@ -112,6 +112,8 @@ export function filterCards(
       // numeric). A card with no CustomFieldValue row for a filtered field
       // never matches a non-empty filter on that field — matching every other
       // "no value = doesn't match a specific-value filter" dimension above.
+      // Exception (#1848): a checkbox field treats a missing row as "false",
+      // since unchecking deletes the row.
       for (const [idStr, cf] of Object.entries(filters.customFields)) {
         if (cf.kind === "text" && cf.query === "") continue;
         if ((cf.kind === "number" || cf.kind === "date") && cf.equals === "") continue;
