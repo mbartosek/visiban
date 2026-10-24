@@ -541,10 +541,12 @@ class BoardViewSet(
                 # the role above was read before it, and a role change or
                 # removal that held the lock first has committed by now. The
                 # link records its enabler, and must not be issued to one who
-                # no longer qualifies.
+                # no longer qualifies. The account is re-read too: request.user
+                # carries the active and all-content flags read at sign-in.
                 from ..services.share_links import share_enabler_has_standing
                 fresh = Board.objects.select_related(GROUP_ANCESTOR_SELECT_RELATED).get(pk=board.pk)
-                if not share_enabler_has_standing(request.user, fresh):
+                fresh_user = User.objects.filter(pk=request.user.pk).first()
+                if not share_enabler_has_standing(fresh_user, fresh):
                     raise PermissionDenied
                 body = request.data
                 # A JSON body that parses to a non-object (e.g. `true` or a bare

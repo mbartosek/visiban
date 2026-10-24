@@ -640,14 +640,22 @@ When a share link expires, visitors who follow the URL receive a `410 Gone` resp
 
 > **Added in 1.2** (#1865)
 
-A share link stays live only while the admin who turned it on is still an admin of the board. The link is turned off automatically, as if that admin had toggled it off, when their account is:
+If the admin who turned sharing on leaves the board or loses admin rights, the link stops working. Visitors see the same "This board is no longer shared" page as for a link that was turned off by hand.
+
+In detail, the link is turned off automatically, as if that admin had toggled it off, when their account is:
 
 - deactivated or deleted,
 - changed to a role below board admin, or removed from the board,
-- demoted or removed in the group that made them an admin of the board, or the board moves out of that group,
+- demoted or removed in the group that made them an admin of the board, or that group arrangement changes (the board moves out of the group, or a group is moved or deleted),
 - no longer given access to all content (site admin), when that is how they administered the board.
 
-An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link. The public page also checks this every time it is opened, so a change that ends the admin's role in some other way (for example deleting or moving the group that made them an admin) stops the link at once, and the **Sharing** tab shows it as off after the next visit to the link. Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.
+An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link.
+
+For the changes listed above, the **Sharing** tab shows sharing as off once the board page is reloaded.
+
+The public page also checks this every time it is opened, so the link never stays usable after the admin's role ends, however that happens.
+
+Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.
 
 ### What the public view shows
 

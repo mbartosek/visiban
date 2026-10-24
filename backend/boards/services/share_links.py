@@ -56,12 +56,14 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
     Each clear is a conditional UPDATE that matches only while the board still
     carries the link that was judged (same enabler, same token), so a link an
     admin re-enabled meanwhile is never cleared by mistake. Each cleared board
-    records ``board.updated`` (persisted, published on commit) so open board
-    settings refresh, the same event the share action records.
+    records ``board.updated`` (persisted, published on commit), the same event
+    the share action records. The share fields are admin-only and stripped
+    from every frame and feed row, so clients see the cleared link on their
+    next board load.
     """
-    from .. import broadcast as _broadcast
+    from django.db import transaction
+
     from ..permissions import GROUP_ANCESTOR_SELECT_RELATED, get_board_roles
-    from ..serializers import BoardSerializer
 
     if enabler is None and board_ids is None:
         raise ValueError("revoke_lapsed_share_links needs an enabler or board_ids")
@@ -93,6 +95,17 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
             continue
         roles = get_board_roles(user, user_boards)
         lapsed.extend(b for b in user_boards if roles.get(b.pk) not in SHARE_ADMIN_ROLES)
+
+    # Atomic on its own too (free when nested): each clear and its event row
+    # commit together even for a caller outside a transaction.
+    with transaction.atomic():
+        return _clear_lapsed(lapsed, actor_id)
+
+
+def _clear_lapsed(lapsed, actor_id):
+    """Clear each judged link that is still in place; record board.updated per clear."""
+    from .. import broadcast as _broadcast
+    from ..serializers import BoardSerializer
 
     revoked = []
     for board in sorted(lapsed, key=lambda b: b.pk):

@@ -122,6 +122,23 @@ class EnablerRecordedTests(_ShareFixtures):
         self.assertIsNone(self.board.share_enabled_by_id)
 
 
+    def test_post_rereads_the_account_under_the_board_lock(self):
+        """A deactivation committed while the POST waited is seen, not the sign-in copy."""
+        from boards.views import boards as board_views
+
+        real_lock = board_views.lock_board_row_or_404
+
+        def deactivate_then_lock(board, **kwargs):
+            User.objects.filter(pk=self.enabler.pk).update(is_active=False)
+            return real_lock(board, **kwargs)
+
+        with patch.object(board_views, "lock_board_row_or_404", side_effect=deactivate_then_lock):
+            r = _client(self.enabler).post(f"/api/v1/boards/{self.board.pk}/share/", {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.board.refresh_from_db()
+        self.assertIsNone(self.board.share_token)
+
+
 class EnablerAbsentFromPayloadsTests(_ShareFixtures):
     def test_not_in_public_payload(self):
         token = self.enable()
@@ -323,6 +340,40 @@ class GroupRoleChangeTests(_ShareFixtures):
         token = self.enable(user=self.group_admin)
         r = _client(self.owner).patch(self.url, {"role": "member"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assert_kept(token)
+
+    def _child_group_board(self):
+        """Board in a child of self.group; the group admin's role comes from the parent."""
+        child = Group.objects.create(name="C1865", owner=self.owner, parent=self.group)
+        GroupMembership.objects.get_or_create(
+            group=child, user=self.owner, defaults={"role": GroupMembership.Role.ADMIN},
+        )
+        Board.objects.filter(pk=self.board.pk).update(group=child)
+        return child
+
+    def test_reparenting_the_boards_group_clears(self, bc):
+        child = self._child_group_board()
+        other = Group.objects.create(name="H1865", owner=self.owner)
+        GroupMembership.objects.get_or_create(
+            group=other, user=self.owner, defaults={"role": GroupMembership.Role.ADMIN},
+        )
+        self.enable(user=self.group_admin)
+        r = _client(self.owner).patch(f"/api/v1/groups/{child.pk}/", {"parent": other.pk}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
+        self.assert_cleared()
+
+    def test_deleting_the_group_clears(self, bc):
+        child = self._child_group_board()
+        self.enable(user=self.group_admin)
+        r = _client(self.owner).delete(f"/api/v1/groups/{child.pk}/")
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT, r.content)
+        self.assert_cleared()
+
+    def test_deleting_a_group_keeps_a_link_whose_enabler_is_still_admin(self, bc):
+        child = self._child_group_board()
+        token = self.enable(user=self.owner)
+        r = _client(self.owner).delete(f"/api/v1/groups/{child.pk}/")
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT, r.content)
         self.assert_kept(token)
 
     def test_move_out_of_the_group_clears(self, bc):

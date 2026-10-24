@@ -1082,6 +1082,8 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                       Expires in
                     </label>
                     <SelectDropdown
+                      id="share-ttl-select"
+                      ariaDescribedBy="share-ttl-help"
                       value={shareTtl === null ? "never" : String(shareTtl)}
                       onChange={(v) => setShareTtl(v === "never" ? null : (Number(v) as 7 | 30 | 90))}
                       options={[
@@ -1091,8 +1093,14 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                         { value: "90",    label: "90 days" },
                       ]}
                       disabled={shareLoading}
+                      disabledReason="Updating sharing…"
                     />
                   </div>
+                )}
+                {shareToken === null && (
+                  <p id="share-ttl-help" className="text-xs text-fg-muted -mt-2 mb-3">
+                    The link turns off automatically if you lose admin access to this board.
+                  </p>
                 )}
 
                 {/* URL field — shown when enabled */}

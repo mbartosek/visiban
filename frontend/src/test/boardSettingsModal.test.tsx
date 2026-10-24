@@ -1398,7 +1398,9 @@ describe('BoardSettingsModal — Sharing tab', () => {
 
   it('pre-selects a 30-day expiry for a new share link (#1865)', () => {
     render(<BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} initialTab="sharing" />)
-    expect(screen.getByRole('combobox')).toHaveTextContent('30 days')
+    const ttl = screen.getByRole('combobox', { name: /Expires in/ })
+    expect(ttl).toHaveTextContent('30 days')
+    expect(ttl).toHaveAccessibleDescription('The link turns off automatically if you lose admin access to this board.')
   })
 
   it('choosing "Never" sends a null expiry, so a non-expiring link stays available (#1865)', async () => {
