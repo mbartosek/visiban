@@ -1152,14 +1152,9 @@ class Command(BaseCommand):
                 board=board, user=user, defaults={"role": BoardMembership.Role.MEMBER},
             )
 
-        # The importer dates each card to the import; its history starts at
-        # the file's creation movement. Same rule as the hand-built boards.
-        cards = {}
-        for card in board.cards.order_by("id"):
-            first = card.movements.order_by("moved_at", "id").first()
-            Card.objects.filter(pk=card.pk).update(created_at=first.moved_at)
-            card.created_at = first.moved_at
-            cards[card.title] = card
+        # The importer restores each card's exported created_at (#1906), so the
+        # cards are already dated to the start of their own history.
+        cards = {card.title: card for card in board.cards.order_by("id")}
         return board, cards
 
     @staticmethod
