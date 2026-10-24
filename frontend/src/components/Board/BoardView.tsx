@@ -1413,8 +1413,8 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     }
 
     // filterCards handles the server search intersection via its searchResults param.
-    return new Set(filterCards(board.cards, filters, searchMatchIds ? [...searchMatchIds] : null, todayStr));
-  }, [filters, searchMatchIds, board.cards, todayStr]);
+    return new Set(filterCards(board.cards, filters, searchMatchIds ? [...searchMatchIds] : null, todayStr, board.custom_field_definitions));
+  }, [filters, searchMatchIds, board.cards, todayStr, board.custom_field_definitions]);
 
   /**
    * #1147 — the active overlay's per-cell values for the whole grid, built once per
