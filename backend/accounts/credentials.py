@@ -111,8 +111,9 @@ def request_is_interactive_session(request) -> bool:
     The one definition of "interactive session" for the account-credential
     rules that require one (``first_password_requires_session`` above,
     ``email_change_requires_session`` and ``username_change_requires_session``
-    below, and ``accounts.views.ConnectedAccountDetailView.delete``, which
-    calls this directly), so they all move together.
+    below, and ``accounts.views.ConnectedAccountDetailView.delete``,
+    ``PendingEmailView.delete`` and ``PendingEmailResendView.post``, which
+    call this directly), so they all move together.
 
     The check is positive. On a DRF request the authenticator that accepted
     the credentials (``request.successful_authenticator``) must be a
