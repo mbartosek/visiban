@@ -211,6 +211,11 @@ arrives as `swimlane.updated`, whose payload carries the swimlane's
 | `card.archived` | Card archived | `{ "card_uid": <string> }` |
 | `card.unarchived` | Card restored from archive | Full `CardSerializer` object |
 
+These shapes are the same whichever writer made the change: the REST API or the
+[MCP](mcp.md) write tools. *Fixed in 1.2 (#1926): a card created, moved or updated
+through MCP sent the MCP tool's own return shape in `card.created`, `card.moved`
+and `card.updated`, which clients could not apply.*
+
 !!! note "One change can publish several card frames (since 1.2)"
 
     A relation change alters two cards, so adding or removing one publishes

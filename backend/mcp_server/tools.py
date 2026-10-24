@@ -37,12 +37,15 @@ from django.db.models import Count, Q, Window
 from rest_framework.exceptions import ValidationError as _DRFValidationError
 
 from accounts.models import User
-from boards.models import Board, BoardMembership, Card, Column, Label, Swimlane
+from boards.models import (
+    Board, BoardMembership, Card, CardMovement, Column, Label, Swimlane,
+)
 from boards.permissions import (
     GROUP_ANCESTOR_SELECT_RELATED, SITE_ADMIN, get_board_role, get_board_roles,
 )
 from boards.serializers import (
-    CardSerializer, _card_checklist_items, _card_movements, _card_queryset,
+    CardMovementSerializer, CardSerializer, _card_checklist_items, _card_movements,
+    _card_queryset,
 )
 from boards.services import cards as card_services
 from boards.services.errors import (
@@ -50,7 +53,8 @@ from boards.services.errors import (
 )
 from boards.utils import _get_assignable_member_ids
 from boards.views._helpers import (
-    _count_subquery, get_accessible_boards_queryset, render_card_payloads,
+    _count_subquery, card_payload_context, get_accessible_boards_queryset,
+    render_card_payloads,
 )
 from visiban.request_shape import MAX_OFFSET
 
@@ -402,24 +406,6 @@ def _serialize_card(card):
     }
 
 
-def _refetch_and_serialize(card):
-    """Re-fetch *card* with every relation ``_serialize_card`` needs, then serialize.
-
-    The instance a caller holds right after a service call is not safe to
-    serialize directly: ``move_card`` fetches with only
-    ``select_related("column", "swimlane")`` (it needs no more to do the move
-    itself), and ``update_card``'s caller only has whatever
-    ``_resolve_board_for_card`` fetched (no ``assignee``/``labels`` prefetch at
-    all). Serializing either directly would cost 2-4 avoidable queries per
-    call — exactly the N+1 ``boards.views.cards._refetch_card_data`` exists to
-    avoid on the REST side (its own docstring: "the instance the service holds
-    ... would otherwise trigger ~7 extra queries"). Reusing ``_card_queryset``
-    here is the same fix applied the same way, once, rather than adding a
-    parallel prefetch chain that could drift from it.
-    """
-    return _serialize_card(_fetch_card_or_not_found(card))
-
-
 def _fetch_card_or_not_found(card):
     """Re-read ``card`` through the shared prefetch chain, or raise ``CardNotFound``.
 
@@ -433,6 +419,64 @@ def _fetch_card_or_not_found(card):
         return _card_queryset(Card.objects.filter(pk=card.pk)).get()
     except Card.DoesNotExist:
         raise CardNotFound() from None
+
+
+class _BroadcastRender:
+    """``render`` callbacks for the create/move/update tools (#1926).
+
+    The card service calls ``render`` inside its transaction and uses what it
+    returns twice: as the ``card.created``/``card.moved``/``card.updated``
+    WebSocket frame and change-feed row, and as ``result.payload``. Over REST
+    the two are deliberately the same dict, a ``CardSerializer`` card. These
+    tools return their own documented shape (``_serialize_card``) instead, and
+    passing a render that built it put that shape on the wire: ``column`` and
+    ``swimlane`` as ``{id, name}`` objects, labels as names, and no ``uid``,
+    ``version`` or ``blocker_count``. No web client could apply the frame.
+
+    So each callback returns the payload the equivalent REST endpoint
+    broadcasts, and parks the tool's own shape on ``tool_card`` /
+    ``tool_movement`` for the tool to return. Both come from one re-fetch
+    through ``_card_queryset`` inside the transaction, for the reason the
+    service renders there at all: rendering after commit would cost a second
+    multi-query fetch and let a concurrent writer land in between.
+
+    The re-fetch is needed because the instance the service holds is not
+    safe to serialize directly: ``move_card`` loads only
+    ``select_related("column", "swimlane")`` and ``update_card``'s caller has
+    whatever ``_resolve_board_for_card`` fetched, so serializing either would
+    cost the avoidable queries ``boards.views.cards._refetch_card_data``
+    exists to avoid on the REST side. Reusing ``_card_queryset`` is the same
+    fix, rather than a parallel prefetch chain that could drift from it.
+    """
+
+    def __init__(self, board):
+        self._board = board
+        self.tool_card = None
+        self.tool_movement = None
+
+    def card(self, card):
+        """``render`` for create and update: a ``CardSerializer`` card."""
+        fresh = _fetch_card_or_not_found(card)
+        self.tool_card = _serialize_card(fresh)
+        return CardSerializer(fresh, context=card_payload_context(self._board)).data
+
+    def moved(self, card, movement):
+        """``render`` for move: ``{card, movement}``, as the REST move endpoint
+        builds it; ``movement`` is absent for a same-cell reorder, as there."""
+        data = {"card": self.card(card)}
+        self.tool_movement = _serialize_movement(movement)
+        if movement is not None:
+            # Re-fetched with its relations loaded, as REST does, so
+            # CardMovementSerializer issues no query per related field.
+            try:
+                movement = CardMovement.objects.select_related(
+                    "moved_by", "card", "from_column", "to_column",
+                    "from_swimlane", "to_swimlane",
+                ).get(pk=movement.pk)
+            except CardMovement.DoesNotExist:
+                raise CardNotFound() from None
+            data["movement"] = CardMovementSerializer(movement).data
+        return data
 
 
 def _serialize_movement(movement):
@@ -768,21 +812,26 @@ def create_card(*, board_id, column_id, swimlane_id, title, description=None,
         def save(position):
             return serializer.save(board=board, created_by=user, position=position)
 
+        # result.payload is the broadcast card (#1926); the tool returns its own shape.
+        render = _BroadcastRender(board)
         result = card_services.create_card(
             actor=user, board=board, role=role,
             column_id=column_id, swimlane_id=swimlane_id,
-            save=save, render=_refetch_and_serialize,
+            save=save, render=render.card,
         )
         card = result.card
 
         if position is not None and position != card.position:
-            move_result = card_services.move_card(
+            # A same-cell reorder, so the card.moved frame is {card} with no
+            # movement, as for the same reorder over REST.
+            move_render = _BroadcastRender(board)
+            card_services.move_card(
                 actor=user, board=board, role=role, card_id=card.id,
                 target_column_id=column_id, target_swimlane_id=swimlane_id,
-                position=position, render=lambda c, _movement: _refetch_and_serialize(c),
+                position=position, render=move_render.moved,
             )
-            return move_result.payload
-        return result.payload
+            return move_render.tool_card
+        return render.tool_card
     except (CardServiceError, ValidationFailed, _DRFValidationError) as exc:
         return _error_payload(exc)
 
@@ -809,13 +858,14 @@ def move_card(*, card_id, to_column_id=None, to_swimlane_id=None, position=0):
         board, role, card = _resolve_board_for_card(user, card_id)
         target_column_id = to_column_id if to_column_id is not None else card.column_id
         target_swimlane_id = to_swimlane_id if to_swimlane_id is not None else card.swimlane_id
-        result = card_services.move_card(
+        render = _BroadcastRender(board)
+        card_services.move_card(
             actor=user, board=board, role=role, card_id=card_id,
             target_column_id=target_column_id, target_swimlane_id=target_swimlane_id,
             position=position if position is not None else 0,
-            render=lambda c, m: {"card": _refetch_and_serialize(c), "movement": _serialize_movement(m)},
+            render=render.moved,
         )
-        return result.payload
+        return {"card": render.tool_card, "movement": render.tool_movement}
     except CardServiceError as exc:
         return _error_payload(exc)
 
@@ -848,11 +898,12 @@ def update_card(*, card_id, title=None, description=None, priority=None,
         def apply():
             serializer.save()
 
-        result = card_services.update_card(
+        render = _BroadcastRender(board)
+        card_services.update_card(
             actor=user, board=board, role=role, card=card,
-            submitted=submitted, apply=apply, render=_refetch_and_serialize,
+            submitted=submitted, apply=apply, render=render.card,
         )
-        return result.payload
+        return render.tool_card
     except (CardServiceError, ValidationFailed, _DRFValidationError) as exc:
         return _error_payload(exc)
 
