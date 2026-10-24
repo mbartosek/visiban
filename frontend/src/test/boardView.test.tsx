@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -2103,6 +2103,54 @@ describe('BoardView', () => {
       render(<BoardView currentUser={lensUser} />)
       await waitFor(() => expect(getLensConnection).toHaveBeenCalled())
       expect(screen.getByRole('button', { name: 'Board' })).not.toHaveAttribute('data-deemphasized')
+    })
+  })
+  describe('Surfaces opened from the overflow menu return focus to its trigger (#1775)', () => {
+    // Folded toolbar (sub-lg): layout, archived, drawer and settings move into the kebab.
+    beforeEach(() => {
+      const mq = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true, writable: true, value: vi.fn(() => mq),
+      })
+      localStorage.setItem('user:prefs:overflow-seen', 'true')
+    })
+    afterEach(() => {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: undefined })
+    })
+
+    async function openFromKebab(itemName: RegExp, dialogName: RegExp) {
+      const user = userEvent.setup()
+      render(<BoardView {...defaultProps()} currentUser={fakeUser} />)
+      const trigger = screen.getByRole('button', { name: 'More board actions' })
+      await user.click(trigger)
+      await user.click(screen.getByRole('menuitem', { name: itemName }))
+      const dialog = await screen.findByRole('dialog', { name: dialogName })
+      return { user, trigger, dialog }
+    }
+
+    it('Export board modal: Escape returns focus to the kebab', async () => {
+      const { user, trigger } = await openFromKebab(/Export board/i, /Export board/i)
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: /Export board/i })).not.toBeInTheDocument())
+      expect(trigger).toHaveFocus()
+    })
+
+    // BoardSettingsModal, KeyboardShortcutsOverlay and ArchivedCardsPanel are
+    // mocked in this file, so assert the contract their real useFocusTrap
+    // relies on: the kebab, not the unmounted menu item, holds focus when the
+    // surface mounts (the trap captures its opener during that render).
+    it.each([
+      ['Board settings', /Board settings/i, 'settings-modal'],
+      ['Keyboard shortcuts', /Keyboard shortcuts/i, 'shortcuts-overlay'],
+      ['Show archived cards', /Show archived cards/i, 'archived-panel'],
+    ])('%s: the kebab holds focus when the surface opens', async (_label, itemName, testId) => {
+      const user = userEvent.setup()
+      render(<BoardView {...defaultProps()} currentUser={fakeUser} />)
+      const trigger = screen.getByRole('button', { name: 'More board actions' })
+      await user.click(trigger)
+      await user.click(screen.getByRole('menuitem', { name: itemName }))
+      expect(await screen.findByTestId(testId)).toBeInTheDocument()
+      expect(trigger).toHaveFocus()
     })
   })
 })

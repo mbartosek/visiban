@@ -14,7 +14,11 @@ export interface OverflowItem {
   icon?: ReactNode;
   /** Optional keyboard shortcut hint rendered right-aligned in a <kbd>. */
   shortcut?: string;
-  /** Click handler; menu closes automatically after. */
+  /**
+   * Click handler; menu closes automatically after. Focus moves to the menu
+   * trigger before this runs, so a focus-trapped surface opened here returns
+   * focus to the trigger on close (#1775).
+   */
   onSelect: () => void;
   /** Disables the item; always pair with disabledReason for accessibility. */
   disabled?: boolean;
@@ -228,6 +232,12 @@ export default function OverflowMenu({
             }
             onClick={() => {
               if (item.disabled) return;
+              // #1775: the focused item unmounts with the menu, so a surface
+              // that onSelect opens would capture it as its opener and never
+              // get focus back. Hand focus to the surviving trigger first;
+              // onSelect's state change renders after this handler returns,
+              // so useFocusTrap captures the trigger.
+              triggerRef.current?.focus({ preventScroll: true });
               item.onSelect();
               setOpen(false);
             }}
