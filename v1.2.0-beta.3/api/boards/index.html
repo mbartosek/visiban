@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -31,10 +31,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -6092,7 +6092,7 @@
 <tr>
 <td><code>state_version</code></td>
 <td></td>
-<td>Schema version the client is writing (positive integer; defaults to <code>1</code>). Clients should send <code>1</code>; the server accepts higher values unchanged so a mixed-version deploy does not lose the user's save</td>
+<td>Schema version the client is writing (integer from 1 to 32767; defaults to <code>1</code>). Clients should send <code>1</code>; the server accepts higher values unchanged so a mixed-version deploy does not lose the user's save</td>
 </tr>
 </tbody>
 </table>
@@ -6135,7 +6135,7 @@
 </tbody>
 </table>
 <p>All keys are optional. The total serialized size of <code>state_json</code> must not exceed 64 KB.</p>
-<p><strong>Errors:</strong> <code>400 Bad Request</code> if name is empty, exceeds 100 characters, a filter with the same name already exists for this user on this board, <code>state_json</code> contains unknown keys or wrong-typed values, or <code>state_version</code> is not a positive integer.</p>
+<p><strong>Errors:</strong> <code>400 Bad Request</code> if name is empty, exceeds 100 characters, a filter with the same name already exists for this user on this board, <code>state_json</code> contains unknown keys or wrong-typed values, or <code>state_version</code> is not an integer between 1 and 32767.</p>
 <h3 id="delete-apiv1boardsidsaved-filtersfilter_id"><code>DELETE /api/v1/boards/{id}/saved-filters/{filter_id}/</code><a class="headerlink" href="#delete-apiv1boardsidsaved-filtersfilter_id" title="Permanent link">&para;</a></h3>
 <p>Delete a saved filter preset. Only the owning user can delete their own filters — attempting to delete another user's filter returns <code>404 Not Found</code>.</p>
 <hr />
@@ -8579,10 +8579,10 @@ belonging to another board are silently ignored rather than reordered or exposed
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.breadcrumbs", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.breadcrumbs", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
