@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterCards, hasActiveClientFilters } from "../utils/filterCards";
+import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../utils/filterCards";
 import { EMPTY_FILTER } from "../components/Board/FilterBar";
 import type { Card } from "../types";
 
@@ -178,5 +178,27 @@ describe("hasActiveClientFilters (#371 regression)", () => {
 
   it("is false for search alone — search is handled by BoardView's separate server-side path, not this gate", () => {
     expect(hasActiveClientFilters({ ...EMPTY_FILTER, search: "bug" })).toBe(false);
+  });
+});
+
+describe("pruneStaleLabelIds (#1888)", () => {
+  it("drops label ids that are no longer on the board and keeps live ones", () => {
+    const f = { ...EMPTY_FILTER, labelIds: [1, 2, 3] };
+    const pruned = pruneStaleLabelIds(f, [{ id: 1 }, { id: 3 }]);
+    expect(pruned.labelIds).toEqual([1, 3]);
+    expect(pruned).not.toBe(f);
+  });
+
+  it("returns the same object when nothing is stale or no label filter is set", () => {
+    const f = { ...EMPTY_FILTER, labelIds: [1] };
+    expect(pruneStaleLabelIds(f, [{ id: 1 }])).toBe(f);
+    expect(pruneStaleLabelIds(EMPTY_FILTER, [])).toBe(EMPTY_FILTER);
+  });
+
+  it("a filter pruned of its only (deleted) label no longer hides every card", () => {
+    const cards = [makeCard({ id: 1 }), makeCard({ id: 2 })];
+    const f = { ...EMPTY_FILTER, labelIds: [9] };
+    expect(filterCards(cards, f)).toEqual([]);
+    expect(filterCards(cards, pruneStaleLabelIds(f, []))).toEqual([1, 2]);
   });
 });

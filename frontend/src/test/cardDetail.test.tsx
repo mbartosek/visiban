@@ -282,6 +282,26 @@ describe('CardDetail', () => {
     expect(highBtn).not.toBeDisabled()
   })
 
+  it('drops a label from an open detail when it is deleted, keeping other edits (#1888)', async () => {
+    const bug = { id: 100, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 101, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const props = defaultProps()
+    const { rerender } = render(<CardDetail {...props} board={makeBoard({ labels: [bug, keep] })} card={makeCard({ labels: [bug, keep] })} />)
+    expect(screen.getByText('Bug')).toBeInTheDocument()
+    fireEvent.change(screen.getByDisplayValue('Test Card'), { target: { value: 'Edited title' } })
+
+    // label.deleted: board.labels and the live card lose the label, version unchanged
+    rerender(<CardDetail {...props} board={makeBoard({ labels: [keep] })} card={makeCard({ labels: [keep] })} />)
+    await waitFor(() => expect(screen.queryByText('Bug')).not.toBeInTheDocument())
+    expect(screen.getByDisplayValue('Edited title')).toBeInTheDocument()
+
+    // toggling the remaining label must not send the deleted id
+    await userEvent.click(screen.getByText('Keep'))
+    await waitFor(() => expect(mockUpdateCard).toHaveBeenCalled())
+    const patch = mockUpdateCard.mock.calls[0][2] as { label_ids: number[] }
+    expect(patch.label_ids).toEqual([])
+  })
+
   it('renders existing labels from board', () => {
     render(<CardDetail {...defaultProps()} />)
     expect(screen.getByText('Bug')).toBeInTheDocument()

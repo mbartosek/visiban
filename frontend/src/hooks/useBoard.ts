@@ -397,7 +397,16 @@ export function useBoard() {
   }, []);
 
   const updateLabel = useCallback((label: Label) => {
-    setBoard((b) => b ? { ...b, labels: b.labels.map((l) => l.id === label.id ? label : l) } : b);
+    // The server broadcasts only the label on `label.updated`, so the copies
+    // embedded in cards[*].labels would keep the old name/color (#1888).
+    // Untouched cards keep their identity.
+    setBoard((b) => b ? {
+      ...b,
+      labels: b.labels.map((l) => l.id === label.id ? label : l),
+      cards: b.cards.map((c) => c.labels.some((l) => l.id === label.id)
+        ? { ...c, labels: c.labels.map((l) => l.id === label.id ? label : l) }
+        : c),
+    } : b);
   }, []);
 
   const removeLabel = useCallback((labelUid: string) => {

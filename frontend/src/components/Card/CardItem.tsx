@@ -118,7 +118,10 @@ function arePropsEqual(prev: Props, next: Props): boolean {
 
   // Shallow label identity check
   for (let i = 0; i < prev.card.labels.length; i++) {
-    if (prev.card.labels[i].id !== next.card.labels[i].id) return false;
+    const pl = prev.card.labels[i];
+    const nl = next.card.labels[i];
+    // name/color too: label.updated rewrites the embedded label in place (#1888).
+    if (pl.id !== nl.id || pl.name !== nl.name || pl.color !== nl.color) return false;
   }
 
   // Custom field value check (#371) — NOT a copy of the labels loop above.

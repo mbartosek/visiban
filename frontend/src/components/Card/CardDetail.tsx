@@ -498,6 +498,24 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     ...liveCardRef.current,
     version: Math.max(liveCardRef.current.version, localCardRef.current.version),
   });
+  // label.deleted strips the label from the live card without a version bump,
+  // so the version-gated sync below never sees it (#1888). Drop a label from
+  // localCard when it vanished from both the live card and the board, so the
+  // chip goes and no later label_ids PATCH can carry the deleted id.
+  const prevLiveLabelsRef = useRef(card.labels);
+  useEffect(() => {
+    const prevLabels = prevLiveLabelsRef.current;
+    prevLiveLabelsRef.current = card.labels;
+    const gone = prevLabels.filter(
+      (l) => !card.labels.some((n) => n.id === l.id) && !board.labels.some((b) => b.id === l.id),
+    );
+    if (gone.length === 0) return;
+    setLocalCard((c) => (
+      c.labels.some((l) => gone.some((g) => g.id === l.id))
+        ? { ...c, labels: c.labels.filter((l) => !gone.some((g) => g.id === l.id)) }
+        : c
+    ));
+  }, [card.labels, board.labels]);
   const localLocationRef = useRef({ column: localCard.column, swimlane: localCard.swimlane });
   localLocationRef.current = { column: localCard.column, swimlane: localCard.swimlane };
   useEffect(() => {

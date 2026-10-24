@@ -80,7 +80,7 @@ import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { MENU_ITEM_FOCUS_RING } from "../Common/menuItemFocusRing";
 import { buildGridOverlayState } from "../../gridOverlays/slot";
 import GridOverlayLegend from "./GridOverlay/GridOverlayLegend";
-import { filterCards, hasActiveClientFilters } from "../../utils/filterCards";
+import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../../utils/filterCards";
 import ModalWrapper from "../shared/ModalWrapper";
 
 interface Props {
@@ -1403,7 +1403,17 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // Memoized (#1147): this used to be a bare IIFE that allocated a fresh Set on every
   // render whenever a filter was active, which silently defeated any downstream useMemo
   // keyed on it — including the grid overlay's per-cell map.
+  // A label filter naming a label that no longer exists on the board (deleted
+  // here or by another session; saved/persisted/URL filters can carry one)
+  // would match no card and show no chip to dismiss (#1888). Ignore such ids
+  // when filtering, and prune them from the stored filter state below.
+  const effectiveFilters = useMemo(() => pruneStaleLabelIds(filters, board.labels), [filters, board.labels]);
+  useEffect(() => {
+    if (effectiveFilters !== filters) setFilters(effectiveFilters);
+  }, [effectiveFilters, filters, setFilters]);
+
   const filteredCardIds: Set<number> | null = useMemo(() => {
+    const filters = effectiveFilters;
     const clientFiltersActive = hasActiveClientFilters(filters);
 
     if (!clientFiltersActive && searchMatchIds === null) return null;
@@ -1415,7 +1425,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
 
     // filterCards handles the server search intersection via its searchResults param.
     return new Set(filterCards(board.cards, filters, searchMatchIds ? [...searchMatchIds] : null, todayStr, board.custom_field_definitions));
-  }, [filters, searchMatchIds, board.cards, todayStr, board.custom_field_definitions]);
+  }, [effectiveFilters, searchMatchIds, board.cards, todayStr, board.custom_field_definitions]);
 
   /**
    * #1147 — the active overlay's per-cell values for the whole grid, built once per
