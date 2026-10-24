@@ -368,6 +368,36 @@ class SampleFetchCompressionTests(SimpleTestCase):
                 self.assertRegex(text, r"gzip_types[^;]*application/json")
 
 
+class NginxConnectSrcPolicyTests(SimpleTestCase):
+    """The Compose nginx templates scope CSP connect-src to the app origin (#1879).
+
+    Pinned next to the other shipped-config checks so a bare ws:/wss: scheme
+    source cannot be reintroduced unnoticed.
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parents[3]
+    EXPECTED = {
+        "nginx/app.conf.template": "wss",
+        "nginx/app-http.conf.template": "ws",
+    }
+
+    def test_connect_src_names_the_app_origin(self):
+        import re
+
+        for rel, scheme in self.EXPECTED.items():
+            path = self.REPO_ROOT / rel
+            if not path.exists():
+                self.skipTest("deployment configs are not part of the backend image")
+            with self.subTest(rel):
+                m = re.search(r"Content-Security-Policy[^\n]*connect-src ([^;]*);", path.read_text())
+                self.assertIsNotNone(m)
+                sources = m.group(1).split()
+                self.assertEqual(
+                    sources,
+                    ["'self'", f"{scheme}://${{DOMAIN}}", f"{scheme}://${{DOMAIN}}:*"],
+                )
+
+
 class SampleTypeContractTests(SimpleTestCase):
     """The TS ``SampleBoardInclude`` union must list exactly the values the API can send (#1452)."""
 

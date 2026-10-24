@@ -43,7 +43,10 @@ server {
     # Cache-Control per $visiban_cache_control (see map above); no `always`, so error
     # responses (e.g. a 404 under /assets/) are never marked cacheable.
     add_header Cache-Control $visiban_cache_control;
-    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'" always;
+    # connect-src names the app origin ('self' plus an explicit ws:// form of
+    # ${DOMAIN}, with and without a port); see app.conf.template for the
+    # style-src note.
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws://${DOMAIN} ws://${DOMAIN}:*; font-src 'self'; frame-ancestors 'none'" always;
 
     # Must clear the largest application upload cap plus multipart framing:
     # IMPORT_MAX_SIZE_BYTES (25 MB Trello imports, #456) + 10 MB headroom.
