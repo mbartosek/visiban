@@ -27,7 +27,8 @@ from visiban.request_shape import coerce_int_id, optional_text, require_json_obj
 
 from .. import broadcast as _broadcast
 from ..models import (
-    Board, BoardEvent, BoardFavorite, BoardMembership, Column, Notification, SavedFilter, Swimlane,
+    Board, BoardEvent, BoardFavorite, BoardMembership, Card, Column, Notification, SavedFilter,
+    Swimlane,
 )
 from ..permissions import GROUP_ANCESTOR_SELECT_RELATED, PER_USER_EVENTS, get_board_role, SITE_ADMIN
 from ..serializers import (
@@ -37,8 +38,9 @@ from ..serializers import (
 from ..services.notifications import create_notifications
 from ..utils import create_template_columns, resolve_board_template
 from ._helpers import (
-    CONTAINER_CHANGED_409, annotate_board_counts, get_board_for_user, get_accessible_boards_queryset,
-    lock_board_row_or_404, lock_container_cascade, require_present_or_404,
+    CONTAINER_CHANGED_409, annotate_board_counts, blocked_peers_of, get_board_for_user,
+    get_accessible_boards_queryset, lock_board_row_or_404, lock_container_cascade,
+    publish_blocked_peers, require_present_or_404,
 )
 from .analytics import BoardAnalyticsMixin
 from .import_export import BoardImportExportMixin
@@ -397,6 +399,12 @@ class BoardViewSet(
             group_id = (
                 Board.objects.filter(pk=board.pk).values_list("group_id", flat=True).first()
             )
+            # A board's cards can only block cards on the same board through
+            # the API, and those are deleted with it — but the Django admin can
+            # move a card, relations and all, to another board, so a card on
+            # a *surviving* board can be blocked by one of these (#1634). Its
+            # card.updated goes to its own board, never to this one.
+            peers = blocked_peers_of(Card.objects.filter(board_id=board.pk))
             board.delete()
             # board_uid is the stable identifier for terminal events (#979).
             # All deletion events (card/column/swimlane/label/saved_filter)
@@ -413,6 +421,7 @@ class BoardViewSet(
                 if gid is not None:
                     _broadcast_group_event(gid, _broadcast.EVT_BOARD_DELETED, pl)
             transaction.on_commit(_broadcast_deleted)
+            publish_blocked_peers(peers, request)
         # Logged only once the delete has committed: a ContainerChanged 409
         # (#1602) raises out of the block above with nothing deleted.
         logger.info(

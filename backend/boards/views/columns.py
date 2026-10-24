@@ -17,12 +17,12 @@ from visiban.permissions import (
 from visiban.request_shape import require_json_object
 
 from .. import broadcast as _broadcast
-from ..models import Board, BoardMembership, Column
+from ..models import Board, BoardMembership, Card, Column
 from ..permissions import SITE_ADMIN
 from ..serializers import ColumnSerializer
 from ._helpers import (
-    CONTAINER_CHANGED_409, get_board_for_user, lock_board_and_row_or_404, lock_board_row_or_404,
-    lock_container_cascade,
+    CONTAINER_CHANGED_409, blocked_peers_of, get_board_for_user, lock_board_and_row_or_404,
+    lock_board_row_or_404, lock_container_cascade, publish_blocked_peers,
     require_present_or_404,
     validate_full_reorder_order,
 )
@@ -125,7 +125,7 @@ class ColumnViewSet(viewsets.ModelViewSet):
             ) from None
 
     def perform_destroy(self, instance):
-        _, role = self._board_and_role()
+        board, role = self._board_and_role()
         if role not in (BoardMembership.Role.ADMIN, SITE_ADMIN):
             raise PermissionDenied
         board_id = instance.board_id
@@ -147,8 +147,13 @@ class ColumnViewSet(viewsets.ModelViewSet):
                 Board.objects.filter(pk=instance.board_id),
                 Column.objects.filter(pk=instance.pk),
             )
+            # Cards outside the column that its cards were blocking keep a
+            # stale blocker_count unless told (#1634). Collected under the
+            # cascade locks and before the delete, which removes the relations.
+            peers = blocked_peers_of(Card.objects.filter(column_id=instance.pk))
             instance.delete()
             _broadcast.record_board_event(board_id, _broadcast.EVT_COLUMN_DELETED, {"column_uid": column_uid}, actor_id=self.request.user.id)
+            publish_blocked_peers(peers, self.request, boards=[board])
 
     @extend_schema(
         summary="Reorder columns",

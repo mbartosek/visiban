@@ -9,6 +9,11 @@ row, with no per-card ``card.deleted``. Clients drop the container's cards on
 receipt. These tests pin that contract on every delete path: the REST destroy
 views (#1599) and the Django admin single and bulk deletes (#1603).
 
+The fixture has no blocking relations, so these also pin that a delete with
+no surviving blocked card publishes nothing beyond its one delete frame. The
+``card.updated`` frames for surviving blocked cards (#1634) are pinned in
+``test_container_delete_blocked_peers.py``.
+
 A user delete never reaches cards: the admin refuses to delete a board owner,
 and the card foreign keys to a user are ``SET_NULL``. The last class pins that.
 """

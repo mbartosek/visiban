@@ -502,6 +502,64 @@ def _refetched_card_data(card, request, board, *, member_ids=None, assignable_id
     ).data
 
 
+def blocked_peers_of(cards):
+    """Collect, before a cascading delete of ``cards``, the surviving cards
+    they block (#1634). See ``services.cards.blocked_peer_ids_by_board``."""
+    return _card_services.blocked_peer_ids_by_board(cards)
+
+
+def publish_blocked_peers(peers_by_board, request, *, boards=()):
+    """Publish ``card.updated`` for the cards a cascading delete unblocked (#1634).
+
+    The column, swimlane and board deletes (REST and Django admin) and the
+    admin card deletes cascade a set of cards. A card outside that set that
+    one of them blocked keeps its row but its ``blocker_count`` drops, and
+    without a frame every connected client keeps rendering a blocked indicator
+    for a blocker that is gone — the container-delete twin of what
+    ``delete_card`` already publishes for a single card (#449).
+
+    ``peers_by_board`` comes from ``blocked_peers_of`` (called before the
+    delete); this is called after it, inside the same transaction, so each
+    peer renders with its post-delete count and its change-feed row commits
+    with the delete. Rendering is the same as ``CardViewSet._batch_card_payloads``
+    uses for ``delete_card``'s peers — one ``_card_queryset`` prefetch pass —
+    run once per peer *board*, not per peer card, so the cost is bounded by
+    the number of boards (one, unless the admin moved a card with relations
+    across boards).
+
+    ``boards`` are board instances the caller already holds, to skip the
+    lookup; any other peer board is fetched in one ``in_bulk`` query. Each
+    render is filtered to the board it is published on, so a peer that moved
+    board meanwhile is never published to a board it is no longer on.
+    """
+    if not peers_by_board:
+        return
+    known = {b.pk: b for b in boards}
+    missing = [bid for bid in peers_by_board if bid not in known]
+    if missing:
+        known.update(Board.objects.in_bulk(missing))
+
+    def render_many(board_id, card_ids):
+        board = known.get(board_id)
+        if board is None:
+            return []
+        ctx = {
+            "request": request,
+            "board": board,
+            "_member_ids": _get_effective_member_ids(board),
+            "_assignable_member_ids": _get_assignable_member_ids(board),
+            "_board_labels_qs": board.labels.all(),
+        }
+        return [
+            CardSerializer(c, context=ctx).data
+            for c in _card_queryset(
+                Card.objects.filter(pk__in=list(card_ids), board_id=board_id)
+            )
+        ]
+
+    _card_services.broadcast_blocked_peers_by_board(peers_by_board, request.user, render_many)
+
+
 def validate_full_reorder_order(order, existing_ids, *, item_label, scope_label):
     """Validate a `reorder` action's ``order`` list against the full set it must match.
 

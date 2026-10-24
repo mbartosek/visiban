@@ -309,6 +309,76 @@ def _broadcast_blocked_peers(board_id, peer_ids, actor, render, render_many=None
         _broadcast_after_commit(board_id, _broadcast.EVT_CARD_UPDATED, payload, actor.id)
 
 
+def blocked_peer_ids_by_board(cards):
+    """Surviving cards an active card in ``cards`` blocks, grouped by board (#1634).
+
+    The container-delete counterpart of ``_blocked_peer_ids``: a column,
+    swimlane or board delete — and a bulk card delete in the Django admin —
+    cascades a whole set of cards, and every card *outside* that set that one
+    of them was blocking has its ``blocker_count`` drop. Returns
+    ``{board_id: [card_id, ...]}``.
+
+    Three choices, each deliberate:
+
+    * **Peers inside ``cards`` are excluded.** They are deleted by the same
+      cascade, so a ``card.updated`` for them would describe a card that no
+      longer exists.
+    * **Archived blockers are skipped.** ``blocker_count`` only counts active
+      blockers (``_active_blockers_prefetch``), so deleting an archived one
+      moves nothing and is worth no frame. A container cascade includes its
+      archived cards; ``delete_card`` never deletes one, which is why
+      ``_blocked_peer_ids`` needs no such filter.
+    * **Grouped by the peer's own board.** The API only creates same-board
+      relations, but the Django admin card form can move a card to another
+      board, and its relations go with it. A peer on another board must hear
+      about it on *its* board's channel, never on the deleted container's —
+      that would publish a card to subscribers who may have no access to it.
+
+    One query, whatever the size of ``cards`` (a subquery, not a list of ids).
+    Call it after the cascade's card locks and **before** the delete: the
+    relation rows cascade away with their cards. Under the locks a relation
+    added concurrently has either committed (and counts) or queues behind the
+    delete, since adding a relation locks both of its cards ``FOR UPDATE``.
+    """
+    rows = (
+        CardRelation.objects.filter(
+            relation_type=CardRelation.Type.BLOCKS,
+            from_card__in=cards,
+            from_card__archived_at__isnull=True,
+        )
+        .exclude(to_card__in=cards)
+        .order_by("to_card__board_id", "to_card_id")
+        .values_list("to_card__board_id", "to_card_id")
+        .distinct()
+    )
+    by_board = {}
+    for board_id, card_id in rows:
+        by_board.setdefault(board_id, []).append(card_id)
+    return by_board
+
+
+def broadcast_blocked_peers_by_board(peers_by_board, actor, render_many):
+    """Publish ``card.updated`` for every peer in ``peers_by_board`` (#1634).
+
+    ``peers_by_board`` is what ``blocked_peer_ids_by_board`` returned before
+    the delete. ``render_many(board_id, card_ids)`` renders one board's peers
+    in a single prefetch pass; the caller supplies it so this module still
+    imports no serializer. Each board's frames go to that board's channel.
+
+    Call it inside the deleting transaction, **after** the delete: the peers
+    are rendered from that transaction's own view, in which the deleted
+    blockers are already gone, so the published ``blocker_count`` is the
+    post-delete one. ``_broadcast_after_commit`` records each change-feed row
+    in the same transaction and defers the publish until commit, exactly as
+    ``delete_card`` does for its peers.
+    """
+    for board_id, peer_ids in peers_by_board.items():
+        _broadcast_blocked_peers(
+            board_id, peer_ids, actor, None,
+            render_many=lambda ids, bid=board_id: render_many(bid, ids),
+        )
+
+
 def _board_scoped(model, pk, board, error):
     """Fetch a row by pk, requiring it to belong to *board*.
 
