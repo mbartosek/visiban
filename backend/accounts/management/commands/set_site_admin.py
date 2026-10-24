@@ -50,6 +50,12 @@ class Command(BaseCommand):
                     from groups.views import _revoke_lapsed_admin_invite_links
 
                     _revoke_lapsed_admin_invite_links(user)
+                # Share links the account enabled through its site-admin
+                # role end with it; boards it still administers keep theirs
+                # (#1865).
+                from boards.services.share_links import revoke_lapsed_share_links
+
+                revoke_lapsed_share_links(enabler=user)
             self.stdout.write(self.style.WARNING(f'Revoked site admin from "{username}"'))
         else:
             user.is_site_admin = True

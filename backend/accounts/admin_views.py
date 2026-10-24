@@ -1030,6 +1030,15 @@ def apply_access_loss_revocations(target, actor, prior):
         # and kept counting toward the per-group active-link cap.
         AdminUserDeactivateView._revoke_invite_links(target, actor)
         return
+    if (prior["is_site_admin"] and not target.is_site_admin) or (
+        prior["can_access_all_content"] and not target.can_access_all_content
+    ):
+        # can_access_all_content is what makes the account a site admin on
+        # every board; share links it enabled through that role end with it
+        # (#1865). Standing is re-derived per board, so a link on a board the
+        # account still administers by membership or ownership is kept.
+        from boards.services.share_links import revoke_lapsed_share_links
+        revoke_lapsed_share_links(enabler=target, actor_id=getattr(actor, "pk", None))
     if prior["is_site_admin"] and not target.is_site_admin:
         # Only an active site admin may admit accounts through a site invite
         # (registry Rule 2). Redemption re-checks the creator regardless;
@@ -1769,7 +1778,7 @@ class AdminUserDeactivateView(APIView):
 
     @classmethod
     def _revoke_invite_links(cls, target, actor):
-        """Delete the user's PATs and DRF auth token and revoke every pending site, board and group invite they created.
+        """Delete the user's PATs and DRF auth token, revoke every pending site, board and group invite they created, and clear the share links they enabled.
 
         Shared by the deactivate endpoint and ``PATCH is_active=false`` (#1510)
         so the two deactivation paths cannot drift apart.
@@ -1795,6 +1804,11 @@ class AdminUserDeactivateView(APIView):
 
         # And their group invite links (#1490), announced on each group channel.
         cls._revoke_group_invite_links(target)
+
+        # And the public share links they enabled (#1865), announced on each
+        # board channel.
+        from boards.services.share_links import revoke_lapsed_share_links
+        revoke_lapsed_share_links(enabler=target, actor_id=getattr(actor, "pk", None))
 
     @staticmethod
     def _revoke_group_invite_links(target):

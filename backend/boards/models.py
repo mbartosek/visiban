@@ -115,6 +115,19 @@ class Board(models.Model):
             "Gone — the token is not auto-rotated, only refused."
         ),
     )
+    # The admin who enabled the current share link (#1865). The link lasts only
+    # while that account keeps the standing that let it enable sharing (active,
+    # and board admin or site admin on this board): losing it clears the link
+    # (``boards.services.share_links.revoke_lapsed_share_links``) and the public view
+    # re-checks it on every read. NULL for links enabled before this field
+    # existed, which keep their previous behavior. SET_NULL alone would turn a
+    # deleted enabler's link into such a legacy link, so a pre_delete receiver
+    # clears the link first. db_index=False: the partial index in Meta.indexes
+    # is built concurrently in its own migration. Never serialized.
+    share_enabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+", db_index=False, editable=False,
+    )
     export_min_role = models.CharField(
         max_length=20,
         default="viewer",
@@ -182,6 +195,16 @@ class Board(models.Model):
     class Meta:
         db_table = "boards"
         ordering = ["-updated_at"]
+        indexes = [
+            # Serves the enabler lookup when an account loses access, and the
+            # SET_NULL update on account delete. Partial: only boards whose
+            # share link records its enabler have a value.
+            models.Index(
+                fields=["share_enabled_by"],
+                name="board_share_enabled_by_idx",
+                condition=models.Q(share_enabled_by__isnull=False),
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -1849,6 +1872,42 @@ class CardExternalRef(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.ref}"
+
+
+@receiver(pre_delete, sender=settings.AUTH_USER_MODEL, dispatch_uid="boards_clear_deleted_enabler_share_links")
+def clear_share_links_of_deleted_enabler(sender, instance, **kwargs):
+    """Clear the public share links a user enabled before the user row goes (#1865).
+
+    ``Board.share_enabled_by`` is SET_NULL, which on its own would leave the
+    link in place with no recorded enabler, the state of a link enabled
+    before the field existed. A pre_delete receiver covers every deletion
+    path, as ``revoke_board_invite_links_of_deleted_creator`` below does.
+    Boards the user owns are skipped: they are deleted with the user
+    (``Board.owner`` is CASCADE), and an event row recorded for one here would
+    reference a board the delete has already collected.
+    """
+    enabled = list(
+        Board.objects.filter(share_enabled_by=instance, share_token__isnull=False)
+        .exclude(owner=instance)
+        .values_list("pk", flat=True).order_by("pk")
+    )
+    if not enabled:
+        return
+
+    from . import broadcast as _board_broadcast
+    from .serializers import BoardSerializer
+
+    for board_id in enabled:
+        updated = Board.objects.filter(pk=board_id, share_enabled_by=instance).update(
+            share_token=None, share_token_expires_at=None, share_enabled_by=None,
+        )
+        if not updated:
+            continue
+        board = Board.objects.filter(pk=board_id).first()
+        if board is not None:
+            _board_broadcast.record_board_event(
+                board_id, _board_broadcast.EVT_BOARD_UPDATED, BoardSerializer(board).data,
+            )
 
 
 @receiver(pre_delete, sender=settings.AUTH_USER_MODEL, dispatch_uid="boards_revoke_deleted_creator_links")

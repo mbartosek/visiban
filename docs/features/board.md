@@ -627,7 +627,7 @@ Board admins can generate a public read-only link that lets anyone view the boar
 
 1. Open **Board Settings** and go to the **Sharing** tab.
 2. Toggle **Enable public share link** to the on position.
-3. Optionally set an **expiry** — choose 7 days, 30 days, 90 days, or no expiry. The default is no expiry.
+3. Optionally change the **expiry** — choose 7 days, 30 days, 90 days, or **Never**. *(1.2+)* The tab pre-selects **30 days**; pick **Never** for a link that does not expire. (In 1.0 and 1.1 the pre-selected choice was no expiry. The API default is unchanged: a request without an expiry still creates a link that never expires — see the [API reference](../api/boards.md#post-apiv1boardsidshare).)
 4. A URL in the format `https://<host>/share/<token>` is displayed with a **Copy** button.
 
 Share that URL with anyone — recipients do not need a Visiban account.
@@ -635,6 +635,28 @@ Share that URL with anyone — recipients do not need a Visiban account.
 > **Added in 1.1** — share link expiry options (#804)
 
 When a share link expires, visitors who follow the URL receive a `410 Gone` response and a "This link has expired" page. Toggling sharing back on after expiry generates a new token — the expired token cannot be restored.
+
+### When a share link ends automatically
+
+> **Added in 1.2** (#1865)
+
+If the admin who turned sharing on leaves the board or loses admin rights, the link stops working. Visitors see the same "This board is no longer shared" page as for a link that was turned off by hand.
+
+In detail, the link is turned off automatically, as if that admin had toggled it off, when their account is:
+
+- deactivated or deleted,
+- changed to a role below board admin, or removed from the board,
+- added to the board directly with a role below board admin while they were an admin through a group (a direct board role takes precedence over a group role),
+- demoted or removed in the group that made them an admin of the board, or joined a group nearer the board with a lower role, or that group arrangement changes (the board moves to another group or out of one, or a group is moved or deleted),
+- no longer given access to all content (site admin), when that is how they administered the board.
+
+An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link.
+
+For the changes listed above, the **Sharing** tab shows sharing as off once the board page is reloaded.
+
+The public page also checks this every time it is opened, so the link never stays usable after the admin's role ends, however that happens.
+
+Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.
 
 ### What the public view shows
 

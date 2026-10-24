@@ -232,7 +232,10 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
   const [shareToken, setShareToken] = useState<string | null>(board.share_token ?? null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(board.share_token_expires_at ?? null);
   // Selected TTL for the *next* enable action. Null = "never expires".
-  const [shareTtl, setShareTtl] = useState<7 | 30 | 90 | null>(null);
+  // Pre-selects 30 days (#1865) so a link expires unless the admin
+  // deliberately picks "Never". The API's own default stays "never" for
+  // backward compatibility, so the UI sends the choice explicitly.
+  const [shareTtl, setShareTtl] = useState<7 | 30 | 90 | null>(30);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
@@ -1079,6 +1082,8 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                       Expires in
                     </label>
                     <SelectDropdown
+                      id="share-ttl-select"
+                      ariaDescribedBy="share-ttl-help"
                       value={shareTtl === null ? "never" : String(shareTtl)}
                       onChange={(v) => setShareTtl(v === "never" ? null : (Number(v) as 7 | 30 | 90))}
                       options={[
@@ -1088,8 +1093,14 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                         { value: "90",    label: "90 days" },
                       ]}
                       disabled={shareLoading}
+                      disabledReason="Updating sharing…"
                     />
                   </div>
+                )}
+                {shareToken === null && (
+                  <p id="share-ttl-help" className="text-xs text-fg-muted -mt-2 mb-3">
+                    The link turns off automatically if you lose admin access to this board.
+                  </p>
                 )}
 
                 {/* URL field — shown when enabled */}

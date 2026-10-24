@@ -282,6 +282,12 @@ def _grant_membership(link: GroupInviteLink, user) -> None:
         group_id=link.group_id, user=user, defaults={"role": link.role},
     )
     if created:
+        # As in JoinGroupView: a lower role nearer a board can end a
+        # group-derived admin role, and the share links it enabled (#1865).
+        from boards.services.share_links import revoke_lapsed_share_links
+
+        revoke_lapsed_share_links(enabler=user)
+
         from .serializers import GroupMembershipSerializer
 
         data = dict(GroupMembershipSerializer(membership).data)

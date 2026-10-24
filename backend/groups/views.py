@@ -310,6 +310,29 @@ def _revoke_lapsed_admin_invite_links(user, group=None):
     transaction.on_commit(_announce)
 
 
+def _subtree_board_ids(group_id):
+    """Pks of the boards in *group_id* and every group under it."""
+    from boards.models import Board
+
+    from .services import _subtree_ids
+
+    return list(
+        Board.objects.filter(group_id__in=_subtree_ids(group_id)).values_list("pk", flat=True)
+    )
+
+
+def _revoke_lapsed_subtree_share_links(group_id, *, actor_id=None):
+    """Clear share links on the subtree's boards whose enabler lost admin standing (#1865).
+
+    Called when the subtree moves under another parent: a group-derived admin
+    role comes from the ancestor chain, which the move replaced.
+    """
+    board_ids = _subtree_board_ids(group_id)
+    if board_ids:
+        from boards.services.share_links import revoke_lapsed_share_links
+        revoke_lapsed_share_links(board_ids=board_ids, actor_id=actor_id)
+
+
 def _revoke_lapsed_subtree_invite_links(group):
     """Revoke unused invite links in ``group``'s subtree whose creators lost admin (#1513).
 
@@ -521,6 +544,8 @@ class GroupViewSet(viewsets.ModelViewSet):
             if group.parent_id != old_parent_id:
                 # Inherited admin rights moved with the subtree (#1513).
                 _revoke_lapsed_subtree_invite_links(group)
+                # So did the standing behind share links on its boards (#1865).
+                _revoke_lapsed_subtree_share_links(group.pk, actor_id=request.user.id)
             annotated = self._annotated_groups().get(pk=group.pk)
             # Full detail: the caller passed _require_group_admin, and the
             # payload goes to this group's own channel, whose subscribers are
@@ -565,7 +590,15 @@ class GroupViewSet(viewsets.ModelViewSet):
                     {"detail": "Only the group owner can delete this group."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+            # The subtree's boards survive the delete (Board.group is
+            # SET_NULL) but lose every group-derived role; share links enabled
+            # through one end with it (#1865). Read before the delete, cleared
+            # after it, in the same transaction.
+            subtree_board_ids = _subtree_board_ids(gid)
             group.delete()
+            if subtree_board_ids:
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(board_ids=subtree_board_ids, actor_id=request.user.id)
             payload = {"id": gid}
 
             def _broadcast_deleted(g=gid, pid=parent_id, pl=payload):
@@ -756,6 +789,14 @@ class GroupViewSet(viewsets.ModelViewSet):
                 GroupMembership.objects.filter(pk=locked.pk).delete()
                 # A removed admin's links must not linger as active (#1510).
                 _revoke_lapsed_admin_invite_links(target_user, group)
+                # Nor the public share links they enabled through this group's
+                # admin role (#1865); boards they still administer keep theirs.
+                # Only an admin membership can carry that role: removing a lower
+                # one never lowers a board role below admin (the next ancestor's
+                # role, if any, applies instead).
+                if locked.role == GroupMembership.Role.ADMIN:
+                    from boards.services.share_links import revoke_lapsed_share_links
+                    revoke_lapsed_share_links(enabler=target_user, actor_id=request.user.pk)
 
                 def _evict_stale_ws(
                     uid=removed_user_id,
@@ -861,6 +902,10 @@ class GroupViewSet(viewsets.ModelViewSet):
             # A demoted admin's links must not linger as active (#1510).
             if role != GroupMembership.Role.ADMIN:
                 _revoke_lapsed_admin_invite_links(target_user, group)
+                # Nor the public share links they enabled through this
+                # group's admin role (#1865).
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(enabler=target_user, actor_id=request.user.pk)
             # Pre-build the payload before registering the on_commit callback
             # so the closure carries plain data, not an ORM instance (#998).
             membership_data = GroupMembershipSerializer(membership).data
@@ -2099,6 +2144,14 @@ class JoinGroupView(APIView):
             if link.single_use and link.used_at is None:
                 link.used_at = timezone.now()
                 link.save(update_fields=["used_at"])
+
+            if created:
+                # The nearest group role wins, so joining a group nearer a
+                # board with a lower role can end a group-derived admin role
+                # on it; share links the account enabled through that role
+                # end with it (#1865).
+                from boards.services.share_links import revoke_lapsed_share_links
+                revoke_lapsed_share_links(enabler=request.user)
 
             # Broadcast member.added on the group channel so other admin
             # sessions on GroupDetail see the new member appear in real time
