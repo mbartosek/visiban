@@ -2994,7 +2994,7 @@ class BoardSerializer(serializers.ModelSerializer):
         # ``owner`` is not a BoardMembership.Role; the owner always bypasses
         # the threshold, so admitting it as a setting value would be
         # meaningless.
-        allowed = {"viewer", "collaborator", "member", "admin"}
+        allowed = set(Board.ExportMinRole.values)
         if value not in allowed:
             raise serializers.ValidationError(
                 f"export_min_role must be one of: {sorted(allowed)}."

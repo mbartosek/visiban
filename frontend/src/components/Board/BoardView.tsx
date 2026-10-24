@@ -360,13 +360,14 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // the threshold flips via WebSocket, the Export button re-evaluates on
   // re-render and hides itself, and the auto-close effect below dismisses
   // an open export modal so the user doesn't click into a 403.
+  // An unrecognized threshold is treated as admin-only, as on the server (#1725).
   const EXPORT_ROLE_RANK: Record<string, number> = { viewer: 0, collaborator: 1, member: 2, admin: 3 };
-  const exportMinRole = board.export_min_role ?? "viewer";
+  const exportMinRole = board.export_min_role || "viewer";
   const canExport =
     board.current_user_role === "site_admin" ||
     board.current_user_role === "admin" ||
     (board.current_user_role != null &&
-      EXPORT_ROLE_RANK[board.current_user_role] >= (EXPORT_ROLE_RANK[exportMinRole] ?? 0));
+      EXPORT_ROLE_RANK[board.current_user_role] >= (EXPORT_ROLE_RANK[exportMinRole] ?? EXPORT_ROLE_RANK.admin));
 
   const validColumnIds = useMemo(() => new Set(board.columns.map((c) => c.id)), [board.columns]);
   const validSwimlaneIds = useMemo(() => new Set(board.swimlanes.map((s) => s.id)), [board.swimlanes]);

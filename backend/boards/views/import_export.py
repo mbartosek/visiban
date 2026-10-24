@@ -83,19 +83,31 @@ def _role_at_export(board, user, role):
     return role
 
 
+def _effective_export_min_role(board):
+    """The threshold the export gate applies for ``board`` (#843, #1725).
+
+    A blank value means the default (``viewer``). A stored value outside the
+    ``Board.ExportMinRole`` set (an ORM, admin or import write can store one,
+    since ``choices`` is not enforced on save) is treated as ``admin``, so a
+    typo narrows export access rather than widening it.
+    """
+    threshold = board.export_min_role or "viewer"
+    if threshold not in _EXPORT_ROLE_RANK:
+        return "admin"
+    return threshold
+
+
 def _can_export_at_min_role(board, user, role):
     """True iff the user's role meets ``board.export_min_role`` (#843).
 
     Owner and site_admin always bypass the threshold — they are always
-    considered above any board-level role. The threshold is stored as a
-    plain string so unknown/future values fall back to the most permissive
-    default (``viewer``) rather than locking out existing users on a typo.
+    considered above any board-level role. An unrecognized stored threshold
+    is treated as admin-only (see ``_effective_export_min_role``).
     """
     if role == SITE_ADMIN or board.owner_id == user.id:
         return True
-    threshold = board.export_min_role or "viewer"
     actor_rank = _EXPORT_ROLE_RANK.get(role)
-    threshold_rank = _EXPORT_ROLE_RANK.get(threshold, 0)
+    threshold_rank = _EXPORT_ROLE_RANK[_effective_export_min_role(board)]
     if actor_rank is None:
         return False
     return actor_rank >= threshold_rank
@@ -2595,7 +2607,7 @@ class BoardImportExportMixin:
                 {
                     "detail": "Export is restricted on this board.",
                     "code": "export_restricted",
-                    "min_role": board.export_min_role or "viewer",
+                    "min_role": _effective_export_min_role(board),
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )

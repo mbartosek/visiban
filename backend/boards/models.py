@@ -128,9 +128,22 @@ class Board(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="+", db_index=False, editable=False,
     )
+    class ExportMinRole(models.TextChoices):
+        """Board-relative roles accepted as an export threshold (#843, #1725).
+
+        Single source of truth for the serializer and the export gate.
+        ``site_admin`` and ``owner`` are deliberately absent: they always
+        bypass the threshold, so they are not meaningful setting values.
+        """
+        VIEWER = "viewer"
+        COLLABORATOR = "collaborator"
+        MEMBER = "member"
+        ADMIN = "admin"
+
     export_min_role = models.CharField(
         max_length=20,
         default="viewer",
+        choices=ExportMinRole.choices,
         help_text=(
             "Minimum BoardMembership.Role required to export this board (#843). "
             "Limits only the export action and its file formats (board and "
@@ -139,9 +152,8 @@ class Board(models.Model):
             "Default ``viewer`` preserves pre-1.1 behavior where every role with "
             "read access can export. Owners and site admins always bypass this "
             "threshold. The valid values are viewer / collaborator / member / "
-            "admin — validated at the serializer layer so the DB column stays "
-            "a simple CharField that will accept future values without a "
-            "schema migration."
+            "admin — validated at the serializer layer; a stored value outside "
+            "that set is treated as admin-only by the export gate."
         ),
     )
     card_density = models.CharField(

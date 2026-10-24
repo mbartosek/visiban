@@ -2566,9 +2566,11 @@ class ExportHelperUnitTests(TestCase):
         b.export_min_role = "collaborator"
         self.assertTrue(_can_export_at_min_role(b, self.other, Role.COLLABORATOR))
         self.assertFalse(_can_export_at_min_role(b, self.other, Role.VIEWER))
-        # Unknown threshold falls back to the most permissive rank.
+        # An unrecognized threshold is admin-only (#1725).
         b.export_min_role = "typo"
-        self.assertTrue(_can_export_at_min_role(b, self.other, Role.VIEWER))
+        self.assertFalse(_can_export_at_min_role(b, self.other, Role.VIEWER))
+        self.assertFalse(_can_export_at_min_role(b, self.other, Role.MEMBER))
+        self.assertTrue(_can_export_at_min_role(b, self.other, Role.ADMIN))
         b.export_min_role = ""
         self.assertTrue(_can_export_at_min_role(b, self.other, Role.VIEWER))
         # An unranked role (not a member role) never passes.

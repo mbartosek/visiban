@@ -160,6 +160,31 @@ class ExportMinRoleGateTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class ExportMinRoleUnrecognizedValueTests(ExportMinRoleGateTests):
+    """#1725 — a stored threshold outside the allowed set is admin-only.
+
+    ``update()`` is used because it skips model validation, as an ORM, admin
+    or import write would. Inherits setUp/_get; the inherited tests also run,
+    which re-pins the known values.
+    """
+
+    def test_unrecognized_threshold_allows_admins_only(self):
+        Board.objects.filter(pk=self.board.pk).update(export_min_role="admins")
+        self.board.refresh_from_db()
+        for u in (self.viewer, self.collab, self.member):
+            r = self._get(u)
+            self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN, f"{u.username}")
+            self.assertEqual(r.json()["min_role"], "admin")
+        self.assertEqual(self._get(self.admin).status_code, status.HTTP_200_OK)
+        self.assertEqual(self._get(self.owner).status_code, status.HTTP_200_OK)
+
+    def test_model_field_and_serializer_share_allowed_values(self):
+        values = {"viewer", "collaborator", "member", "admin"}
+        self.assertEqual(set(Board.ExportMinRole.values), values)
+        field = Board._meta.get_field("export_min_role")
+        self.assertEqual({c[0] for c in field.choices}, values)
+
+
 class ExportAuditLogTests(TestCase):
     """#842 — BoardExportLog is written after every successful export."""
 
