@@ -521,8 +521,8 @@ def render_card_payloads(board, card_ids, request=None):
     archive tool — which have no per-request board-context cache.
 
     Filtered to ``board``, so a card that moved to another board is never
-    rendered for this one. ``request`` is optional: without it, attachment
-    URLs come out relative, as on every other request-less render.
+    rendered for this one. ``request`` is optional: nothing in this payload
+    depends on it.
     """
     ctx = {
         "request": request,
