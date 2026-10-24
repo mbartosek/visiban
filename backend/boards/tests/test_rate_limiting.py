@@ -120,7 +120,7 @@ class ShareLinkTokenThrottleKeyTests(TestCase):
         self.assertIsNone(self._key("not-a-uuid"))
         self.assertIsNone(self._key("x" * 5000))
 
-    def test_variant_spellings_still_served_and_junk_still_404(self):
+    def test_valid_token_still_served_and_junk_still_404(self):
         import uuid
 
         owner = User.objects.create_user(username="owner_1530", password="pass")
