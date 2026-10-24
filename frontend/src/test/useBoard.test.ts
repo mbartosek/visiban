@@ -844,6 +844,41 @@ describe('useBoard', () => {
     expect(result.current.board!.labels).toHaveLength(0)
   })
 
+  it('removeLabel strips the label from cards, leaving other cards and labels untouched (#1888)', async () => {
+    const bug = { id: 1, uid: 'lbluid000001', name: 'Bug', color: '#EF4444' }
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [bug, keep] })
+    const tmpl = base.cards[0] ?? ({} as never)
+    const cards = [
+      { ...tmpl, id: 101, uid: 'carduid00101', labels: [bug, keep] },
+      { ...tmpl, id: 102, uid: 'carduid00102', labels: [keep] },
+    ]
+    mockGetBoardFull.mockResolvedValue({ ...base, cards })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    const untouched = result.current.board!.cards[1]
+
+    act(() => { result.current.removeLabel('lbluid000001') })
+    const b = result.current.board!
+    expect(b.labels.map((l) => l.uid)).toEqual(['lbluid000002'])
+    expect(b.cards[0].labels.map((l) => l.uid)).toEqual(['lbluid000002'])
+    expect(b.cards[1]).toBe(untouched)
+  })
+
+  it('removeLabel with an unknown uid is a no-op on cards (#1888)', async () => {
+    const keep = { id: 2, uid: 'lbluid000002', name: 'Keep', color: '#22C55E' }
+    const base = makeBoard({ labels: [keep] })
+    const tmpl = base.cards[0] ?? ({} as never)
+    mockGetBoardFull.mockResolvedValue({ ...base, cards: [{ ...tmpl, id: 101, uid: 'carduid00101', labels: [keep] }] })
+    const { result } = renderHook(() => useBoard())
+    await waitFor(() => expect(result.current.board).not.toBeNull())
+    const before = result.current.board!.cards[0]
+
+    act(() => { result.current.removeLabel('nope') })
+    expect(result.current.board!.cards[0]).toBe(before)
+    expect(result.current.board!.labels).toHaveLength(1)
+  })
+
   // #1290 — a member.* frame can arrive without is_site_admin (sent to admin
   // subscribers only); the known value must survive the row replacement.
   it('updateMember / addMember keep the known is_site_admin when a frame omits it', async () => {

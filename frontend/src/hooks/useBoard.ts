@@ -401,7 +401,18 @@ export function useBoard() {
   }, []);
 
   const removeLabel = useCallback((labelUid: string) => {
-    setBoard((b) => b ? { ...b, labels: b.labels.filter((l) => l.uid !== labelUid) } : b);
+    // The server drops the card<->label M2M rows silently and broadcasts only
+    // `label.deleted` (no per-card `card.updated`), so strip the label from
+    // every local card too (#1888); CardItem renders card.labels unfiltered.
+    // Cards not holding the label keep their identity so memo'd CardItems
+    // do not re-render.
+    setBoard((b) => b ? {
+      ...b,
+      labels: b.labels.filter((l) => l.uid !== labelUid),
+      cards: b.cards.map((c) => c.labels.some((l) => l.uid === labelUid)
+        ? { ...c, labels: c.labels.filter((l) => l.uid !== labelUid) }
+        : c),
+    } : b);
   }, []);
 
   // Custom fields (#371) — one wholesale-replace setter rather than granular
