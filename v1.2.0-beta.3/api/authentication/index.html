@@ -5392,7 +5392,13 @@ session (see above), so a token client reports the condition to the account owne
 <p><code>/auth/user/</code> (and <code>/auth/me/</code>) is the identity object, and the instance-wide flags already on it are <strong>frozen</strong>: <code>uploads_enabled</code>, <code>git_lens_enabled</code>, <code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code>. They stay for the 1.x contract and are never removed or renamed.</p>
 <p><strong>Why:</strong> each flag on this object can add a settings, cache, or database read to every <code>/auth/user/</code> request and becomes a permanent field on a 1.0+ identity object.</p>
 <p><strong>The rule:</strong> new instance-level flags go on <a href="#get-apiv1authsite-config"><code>GET /api/v1/auth/site-config/</code></a> (or a capabilities payload), never on this object. Only per-user state belongs here.</p>
-<p><code>demo_mode</code> and <code>demo_next_reset_at</code> also appear on <code>site-config</code>. That duplication is intentional: the SPA reads <code>site-config</code> before login and <code>/auth/user/</code> after, and both must report the same values and types. A test pins both field sets (<code>backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py</code>) and a type assertion keeps the TypeScript <code>User</code> and <code>SiteConfig</code> in step.</p>
+<p>All of them except <code>uploads_enabled</code> also appear on <code>site-config</code>: <code>git_lens_enabled</code>, <code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code>. The server computes both copies with the same code, so they always report the same values and types. Tests pin both field sets (<code>backend/accounts/tests/test_current_user_instance_flags_frozen_1664.py</code> and <code>test_site_config_instance_flags_1872.py</code>), and a type assertion keeps the TypeScript <code>User</code> and <code>SiteConfig</code> in step.</p>
+<div class="admonition warning">
+<p class="admonition-title">Deprecated in 1.2: read instance flags from <code>site-config</code></p>
+<p><code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code> on <code>/auth/user/</code> and <code>/auth/me/</code> are <strong>deprecated</strong> (#1872). Read them from <a href="#get-apiv1authsite-config"><code>GET /api/v1/auth/site-config/</code></a>. The OpenAPI schema marks the <code>/auth/user/</code> copies <code>deprecated: true</code>. They are still returned, with unchanged values, for the whole 1.x line. Removal needs a major version.</p>
+<p><code>git_lens_enabled</code> is <strong>not</strong> deprecated on <code>/auth/user/</code>. It is a frozen 1.x field there (#1666), and <code>site-config</code> carries the same value.</p>
+<p>The bundled web app still reads the <code>/auth/user/</code> copies. Moving it to <code>site-config</code> is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1913">#1913</a>.</p>
+</div>
 <h3 id="get-apiv1authme"><code>GET /api/v1/auth/me/</code><a class="headerlink" href="#get-apiv1authme" title="Permanent link">&para;</a></h3>
 <p>Returns the authenticated user's profile.</p>
 <div class="admonition note">
@@ -5430,27 +5436,27 @@ actually bootstraps from) returns the identical shape — both are served by
 <tr>
 <td><code>git_lens_enabled</code></td>
 <td>boolean</td>
-<td>Instance-wide setting reflecting whether the <a href="../../features/issue-board-lens/">Issue Board Lens</a> is enabled (<code>GIT_LENS_ENABLED</code>). When <code>false</code>, the SPA hides the Lens tab, board settings, and related API surface entirely. Read-only. Added in 1.2.</td>
+<td>Instance-wide setting reflecting whether the <a href="../../features/issue-board-lens/">Issue Board Lens</a> is enabled (<code>GIT_LENS_ENABLED</code>). When <code>false</code>, the SPA hides the Lens tab, board settings, and related API surface entirely. Read-only. Added in 1.2. Also on <a href="#get-apiv1authsite-config"><code>site-config</code></a>; not deprecated here.</td>
 </tr>
 <tr>
 <td><code>maintenance_mode</code></td>
 <td>boolean</td>
-<td>Instance-wide setting reflecting whether the instance is in read-only maintenance mode. When <code>true</code>, non-admin writes return <code>503</code> — see <a href="../admin/#maintenance-mode">Maintenance mode</a>. Read-only. Added in 1.2.</td>
+<td>Instance-wide setting reflecting whether the instance is in read-only maintenance mode. When <code>true</code>, non-admin writes return <code>503</code> — see <a href="../admin/#maintenance-mode">Maintenance mode</a>. Read-only. Added in 1.2. <strong>Deprecated:</strong> read it from <a href="#get-apiv1authsite-config"><code>site-config</code></a>.</td>
 </tr>
 <tr>
 <td><code>maintenance_message</code></td>
 <td>string</td>
-<td>The notice to show while <code>maintenance_mode</code> is <code>true</code>. Always non-empty in that case (the server substitutes a built-in default for a blank operator message), and <code>""</code> otherwise. Plain text — render it as text, never as HTML. Read-only. Added in 1.2.</td>
+<td>The notice to show while <code>maintenance_mode</code> is <code>true</code>. Always non-empty in that case (the server substitutes a built-in default for a blank operator message), and <code>""</code> otherwise. Plain text — render it as text, never as HTML. Read-only. Added in 1.2. <strong>Deprecated:</strong> read it from <a href="#get-apiv1authsite-config"><code>site-config</code></a>.</td>
 </tr>
 <tr>
 <td><code>demo_mode</code></td>
 <td>boolean</td>
-<td>Whether the instance is a public hosted demo (<code>DEMO_MODE</code>). When <code>true</code>, unsafe requests outside a small allowlist return <code>403</code> with <code>code: "demo_read_only"</code> — see <a href="../../administration/demo-data/#hosted-demo-instance">Hosted demo instance</a>. Read-only. Added in 1.2.</td>
+<td>Whether the instance is a public hosted demo (<code>DEMO_MODE</code>). When <code>true</code>, unsafe requests outside a small allowlist return <code>403</code> with <code>code: "demo_read_only"</code> — see <a href="../../administration/demo-data/#hosted-demo-instance">Hosted demo instance</a>. Read-only. Added in 1.2. <strong>Deprecated:</strong> read it from <a href="#get-apiv1authsite-config"><code>site-config</code></a>.</td>
 </tr>
 <tr>
 <td><code>demo_next_reset_at</code></td>
 <td>string (ISO 8601 UTC) or null</td>
-<td>The next scheduled demo reset, computed server-side from <code>DEMO_RESET_SCHEDULE</code>. <code>null</code> unless <code>demo_mode</code> is <code>true</code>. Read-only. Added in 1.2.</td>
+<td>The next scheduled demo reset, computed server-side from <code>DEMO_RESET_SCHEDULE</code>. <code>null</code> unless <code>demo_mode</code> is <code>true</code>. Read-only. Added in 1.2. <strong>Deprecated:</strong> read it from <a href="#get-apiv1authsite-config"><code>site-config</code></a>.</td>
 </tr>
 <tr>
 <td><code>pending_email</code></td>
@@ -5803,8 +5809,11 @@ actually bootstraps from) returns the identical shape — both are served by
 <a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">  </span><span class="nt">"demo_login"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
 <a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">  </span><span class="nt">"demo_reset_schedule"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
 <a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">  </span><span class="nt">"demo_next_reset_at"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">  </span><span class="nt">"invite_email_available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="p">}</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">  </span><span class="nt">"invite_email_available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">  </span><span class="nt">"git_lens_enabled"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="w">  </span><span class="nt">"maintenance_mode"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="w">  </span><span class="nt">"maintenance_message"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="p">}</span>
 </code></pre></div></p>
 <table>
 <thead>
@@ -5858,8 +5867,31 @@ actually bootstraps from) returns the identical shape — both are served by
 <td><code>true</code> / <code>false</code></td>
 <td>Whether admins can email invite links. <code>true</code> only when <code>INVITE_EMAIL_ENABLED</code> is on, demo mode is off, and outbound mail looks configured (<code>EMAIL_BACKEND</code> is set explicitly, or the effective sender address is not the <code>example.com</code> placeholder). A UI hint, not a delivery guarantee. Added in 1.2.</td>
 </tr>
+<tr>
+<td><code>git_lens_enabled</code></td>
+<td>boolean</td>
+<td><code>true</code> / <code>false</code></td>
+<td>Whether the <a href="../../features/issue-board-lens/">Issue Board Lens</a> is enabled (<code>GIT_LENS_ENABLED</code>). Same value as on <code>/auth/user/</code>. Added in 1.2 (#1872).</td>
+</tr>
+<tr>
+<td><code>maintenance_mode</code></td>
+<td>boolean</td>
+<td><code>true</code> / <code>false</code></td>
+<td>Whether the instance is in read-only <a href="../admin/#maintenance-mode">maintenance mode</a>. Added in 1.2 (#1872).</td>
+</tr>
+<tr>
+<td><code>maintenance_message</code></td>
+<td>string</td>
+<td>text / <code>""</code></td>
+<td>The maintenance notice. Always non-empty while <code>maintenance_mode</code> is <code>true</code> (a blank operator message is replaced by the built-in default), and <code>""</code> otherwise. Plain text: render it as text, never as HTML. Added in 1.2 (#1872).</td>
+</tr>
 </tbody>
 </table>
+<p>Every field describes the instance, not the caller, so an anonymous request and a signed-in one get the same body. Clients should read <code>git_lens_enabled</code>, <code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code> here rather than from <code>/auth/user/</code> (see <a href="#frozen-instance-flags-on-authuser">Frozen instance flags</a>).</p>
+<div class="admonition note">
+<p class="admonition-title">The maintenance notice is public</p>
+<p>Anyone can read this endpoint, so <code>maintenance_message</code> is visible without signing in. An anonymous write during maintenance also gets the same notice in its <code>503</code> body. Do not put internal detail in the notice.</p>
+</div>
 <p>Site admins can change the registration mode in <strong>Admin → Site Settings</strong>. See <a href="../../administration/site-admins/">Site Admins</a>.</p>
 <hr />
 <h2 id="registration">Registration<a class="headerlink" href="#registration" title="Permanent link">&para;</a></h2>

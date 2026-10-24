@@ -4748,10 +4748,14 @@ of an upgrade or a migration.</p>
   <code>detail</code> is the operator's message, or the built-in default when that message is blank.
 - <strong>Site admins are exempt</strong> and keep full read/write access, whether they authenticate with a
   session cookie or a personal access token.
-- <strong><code>GET /api/v1/auth/user/</code></strong> reports <code>maintenance_mode</code> and <code>maintenance_message</code> so a client
-  can show the notice. When <code>maintenance_mode</code> is <code>true</code>, <code>maintenance_message</code> is always
-  non-empty. Same shape as <a href="../authentication/#get-apiv1authme"><code>GET /api/v1/auth/me/</code></a> — both
-  are served by <code>CurrentUserSerializer</code>.</p>
+- <strong><a href="../authentication/#get-apiv1authsite-config"><code>GET /api/v1/auth/site-config/</code></a></strong> reports
+  <code>maintenance_mode</code> and <code>maintenance_message</code> so a client can show the notice, signed in or
+  not. When <code>maintenance_mode</code> is <code>true</code>, <code>maintenance_message</code> is always non-empty.
+  <code>GET /api/v1/auth/user/</code> and <code>/auth/me/</code> still report both, with the same values, but those
+  copies are deprecated (#1872).
+- <strong>The notice is public.</strong> <code>site-config</code> needs no authentication, and an anonymous write gets
+  the notice in its <code>503</code> body, so anyone who can reach the instance can read it. Keep internal
+  detail out of <code>maintenance_message</code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Endpoints that stay writable</p>
 <p><code>/api/v1/admin/</code>, <code>/api/v1/auth/login/</code>, <code>/api/v1/auth/logout/</code>, the password reset and

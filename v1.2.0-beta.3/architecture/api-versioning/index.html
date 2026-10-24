@@ -4120,6 +4120,26 @@
 <td>1.2</td>
 <td>Deprecated in favor of <code>next_cursor</code>. Still returned in every response with a value identical to <code>next_cursor</code>, and marked <code>deprecated: true</code> in the OpenAPI schema. Removed only at a major version bump. Tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1869">#1869</a>.</td>
 </tr>
+<tr>
+<td><code>CurrentUser.maintenance_mode</code> (<code>GET /auth/user/</code>, <code>/auth/me/</code>)</td>
+<td>1.2</td>
+<td>Read it from <a href="../../api/authentication/#get-apiv1authsite-config"><code>GET /auth/site-config/</code></a>, which returns the same value. Still returned unchanged for all of 1.x and marked <code>deprecated: true</code> in the OpenAPI schema. Removal needs a major version (<a href="https://gitlab.com/visiban/visiban/-/issues/1872">#1872</a>).</td>
+</tr>
+<tr>
+<td><code>CurrentUser.maintenance_message</code> (<code>GET /auth/user/</code>, <code>/auth/me/</code>)</td>
+<td>1.2</td>
+<td>Same as <code>maintenance_mode</code>: read it from <code>site-config</code>. Removal needs a major version (<a href="https://gitlab.com/visiban/visiban/-/issues/1872">#1872</a>).</td>
+</tr>
+<tr>
+<td><code>CurrentUser.demo_mode</code> (<code>GET /auth/user/</code>, <code>/auth/me/</code>)</td>
+<td>1.2</td>
+<td>Same as <code>maintenance_mode</code>: read it from <code>site-config</code>. Removal needs a major version (<a href="https://gitlab.com/visiban/visiban/-/issues/1872">#1872</a>).</td>
+</tr>
+<tr>
+<td><code>CurrentUser.demo_next_reset_at</code> (<code>GET /auth/user/</code>, <code>/auth/me/</code>)</td>
+<td>1.2</td>
+<td>Same as <code>maintenance_mode</code>: read it from <code>site-config</code>. Removal needs a major version (<a href="https://gitlab.com/visiban/visiban/-/issues/1872">#1872</a>).</td>
+</tr>
 </tbody>
 </table>
 <h2 id="future-versioning">Future versioning<a class="headerlink" href="#future-versioning" title="Permanent link">&para;</a></h2>

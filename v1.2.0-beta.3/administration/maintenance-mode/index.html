@@ -4047,7 +4047,7 @@ mode on only when you specifically want to freeze writes, and off again once you
 </tr>
 <tr>
 <td><strong>Message</strong></td>
-<td>Plain-text notice (max 1000 characters) shown to everyone while maintenance mode is on. Leave it blank to use the built-in default.</td>
+<td>Plain-text notice (max 1000 characters) shown to everyone while maintenance mode is on. Leave it blank to use the built-in default. The notice is public, so keep internal detail out of it (see below).</td>
 </tr>
 </tbody>
 </table>
@@ -4071,6 +4071,9 @@ for every worker — there is no need to restart the service or wait for a cache
   <code>503</code> and a <code>maintenance_mode</code> error. This covers the REST API and the MCP write tools alike.</li>
 <li><strong>Every signed-in user sees the notice</strong> — a non-dismissible amber banner — until you turn
   maintenance mode back off.</li>
+<li><strong>The notice is public.</strong> Anyone who can reach the instance can read it without signing in:
+  it is returned by the public <code>GET /api/v1/auth/site-config/</code> endpoint and in the <code>503</code> body of
+  any blocked write. Keep internal detail (hostnames, ticket links, names) out of it.</li>
 <li><strong>Site admins are exempt</strong> and keep full read/write access, whether they're signed in
   through the browser or using a personal access token. Admins still see the notice, so they
   can tell at a glance that the instance is not in its normal state.</li>

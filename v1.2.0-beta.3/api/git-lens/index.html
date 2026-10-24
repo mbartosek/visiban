@@ -4138,7 +4138,7 @@
 <p>Read-only and <strong>public repositories only</strong>. The REST endpoints below are subject to change without a deprecation notice until the feature leaves experimental status. The contract surfaces listed under <a href="#stable-contract-surfaces">Stable contract surfaces</a> are the exception.</p>
 </div>
 <h3 id="stable-contract-surfaces">Stable contract surfaces<a class="headerlink" href="#stable-contract-surfaces" title="Permanent link">&para;</a></h3>
-<p>Three Git Lens surfaces are part of the frozen 1.x API contract and are <strong>not</strong> covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.</p>
+<p>Four Git Lens surfaces are part of the frozen 1.x API contract and are <strong>not</strong> covered by the experimental notice above. They follow the standard compatibility rules: additive changes only, and removals need a deprecation release or a major version bump.</p>
 <table>
 <thead>
 <tr>
@@ -4158,6 +4158,10 @@
 <tr>
 <td>The <code>git_lens_enabled</code> field on the current user (<code>/auth/user/</code>)</td>
 <td><a href="../authentication/#user-profile">User profile</a></td>
+</tr>
+<tr>
+<td>The <code>git_lens_enabled</code> field on <code>GET /api/v1/auth/site-config/</code> (same value, public)</td>
+<td><a href="../authentication/#get-apiv1authsite-config">Site configuration</a></td>
 </tr>
 </tbody>
 </table>

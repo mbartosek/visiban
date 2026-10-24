@@ -4684,6 +4684,16 @@ the changelog and the API docs. The 1.2 names are the contract from
 no longer what <code>/auth/user/</code> returns. Request component names for login, registration, and
 password reset are unchanged.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Instance flags: read them from <code>site-config</code></p>
+<p><code>GET /api/v1/auth/site-config/</code> now returns <code>git_lens_enabled</code>, <code>maintenance_mode</code> and
+<code>maintenance_message</code>, alongside the <code>demo_mode</code> and <code>demo_next_reset_at</code> it already had.
+The <code>/auth/user/</code> copies of <code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code> and
+<code>demo_next_reset_at</code> are still returned, but they are deprecated. A client built against a
+1.2 beta should read them from <code>site-config</code>. <code>git_lens_enabled</code> stays on <code>/auth/user/</code> as a
+normal field. See <a href="../../api/authentication/#frozen-instance-flags-on-authuser">Frozen instance flags</a>
+(#1872).</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Status codes changed on board-scoped and member routes</p>
 <p>Requests from a caller with no access to a board now return <code>404 Not Found</code> on every
