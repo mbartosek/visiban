@@ -149,6 +149,9 @@ class GroupConsumerAuthTests(TestCase):
 
     def test_group_event_forwards_payload(self):
         consumer = self._make_consumer()
+        # Board 7's verdict served from the cache, like the access check above:
+        # board.* state frames are gated per board (#1829).
+        consumer._board_verdicts = {7: True}
         payload = {"event": "board.created", "data": {"id": 7}}
 
         async def run():

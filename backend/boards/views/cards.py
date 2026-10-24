@@ -60,6 +60,19 @@ _PERM_DENIED = "You do not have permission to perform this action."
 _VIEWER_DENIED = "Viewers cannot perform this action."
 
 
+def _annotation_denied(role):
+    """403 response when ``role`` may not write card comments or attachments, else ``None``.
+
+    Checked against the allow-list ``card_services.ANNOTATION_ROLES``, not by
+    refusing viewers by name, so a role added later is refused until it is
+    listed (#1829). A viewer keeps its documented ``_VIEWER_DENIED`` body.
+    """
+    if role in card_services.ANNOTATION_ROLES:
+        return None
+    detail = _VIEWER_DENIED if role == BoardMembership.Role.VIEWER else _PERM_DENIED
+    return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
+
+
 # ---------------------------------------------------------------------------
 # Upload validation helpers (used by attachments action)
 # ---------------------------------------------------------------------------
@@ -1286,13 +1299,11 @@ class CardViewSet(viewsets.ModelViewSet):
         card = get_object_or_404(Card, pk=pk, board=board)
         if request.method == "GET":
             return Response(CardCommentSerializer(card.comments.select_related("author"), many=True).data)
-        # Only viewers are blocked — collaborators are intentionally allowed to
-        # comment on cards.  See docs/features/rbac/roles.md permission table.
-        if role == BoardMembership.Role.VIEWER:
-            return Response(
-                {"detail": _VIEWER_DENIED},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Collaborators are intentionally allowed to comment on cards; viewers
+        # are not. See docs/features/rbac/roles.md permission table.
+        denied = _annotation_denied(role)
+        if denied is not None:
+            return denied
         serializer = CardCommentSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
@@ -1381,13 +1392,11 @@ class CardViewSet(viewsets.ModelViewSet):
     def delete_comment(self, request, board_pk=None, pk=None, comment_pk=None):
         """Delete a comment. Non-moderator members and collaborators may only delete their own."""
         board, role = self._board_and_role()
-        # Only viewers are blocked — collaborators may delete their own comments.
+        # Collaborators may delete their own comments; viewers may not.
         # See docs/features/rbac/roles.md permission table.
-        if role == BoardMembership.Role.VIEWER:
-            return Response(
-                {"detail": _VIEWER_DENIED},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        denied = _annotation_denied(role)
+        if denied is not None:
+            return denied
         card = get_object_or_404(Card, pk=pk, board=board)
         comment = get_object_or_404(CardComment, pk=comment_pk, card=card)
         # Ownership gate: members and collaborators may only delete their own
@@ -1442,13 +1451,11 @@ class CardViewSet(viewsets.ModelViewSet):
             )
             return Response(serializer.data)
 
-        # Only viewers are blocked — collaborators are intentionally allowed to
-        # upload attachments.  See docs/features/rbac/roles.md permission table.
-        if role == BoardMembership.Role.VIEWER:
-            return Response(
-                {"detail": _VIEWER_DENIED},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Collaborators are intentionally allowed to upload attachments;
+        # viewers are not. See docs/features/rbac/roles.md permission table.
+        denied = _annotation_denied(role)
+        if denied is not None:
+            return denied
 
         # Check instance-wide feature toggle. This applies to all users
         # including admins — disabling uploads halts all new uploads.
@@ -1518,13 +1525,11 @@ class CardViewSet(viewsets.ModelViewSet):
     def delete_attachment(self, request, board_pk=None, pk=None, attachment_pk=None):
         """Delete an attachment and its underlying file from storage."""
         board, role = self._board_and_role()
-        # Only viewers are blocked — collaborators may delete their own attachments.
+        # Collaborators may delete their own attachments; viewers may not.
         # See docs/features/rbac/roles.md permission table.
-        if role == BoardMembership.Role.VIEWER:
-            return Response(
-                {"detail": _VIEWER_DENIED},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        denied = _annotation_denied(role)
+        if denied is not None:
+            return denied
         card = get_object_or_404(Card, pk=pk, board=board)
         attachment = get_object_or_404(CardAttachment, pk=attachment_pk, card=card)
         # Ownership gate: members and collaborators may only delete their own
@@ -1589,7 +1594,7 @@ class CardViewSet(viewsets.ModelViewSet):
         # than a block-list ensures any future role must be explicitly granted
         # access rather than inheriting it silently.
         # SITE_ADMIN access is handled upstream by can_access_all_content.
-        if role not in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.MEMBER, BoardMembership.Role.ADMIN, SITE_ADMIN):
+        if role not in card_services.ANNOTATION_ROLES:
             raise PermissionDenied(_PERM_DENIED)
         serializer = CardChecklistSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1626,7 +1631,7 @@ class CardViewSet(viewsets.ModelViewSet):
         # than a block-list ensures any future role must be explicitly granted
         # access rather than inheriting it silently.
         # SITE_ADMIN access is handled upstream by can_access_all_content.
-        if role not in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.MEMBER, BoardMembership.Role.ADMIN, SITE_ADMIN):
+        if role not in card_services.ANNOTATION_ROLES:
             raise PermissionDenied(_PERM_DENIED)
         card = get_object_or_404(Card, pk=pk, board=board)
         item = get_object_or_404(CardChecklist, pk=item_pk, card=card)
@@ -1702,7 +1707,7 @@ class CardViewSet(viewsets.ModelViewSet):
         # not ownership-gated like PATCH/DELETE on a single item — reordering
         # touches the whole list's display order, not one item's content, so it
         # doesn't fit the "only the creator" model the way editing text does.
-        if role not in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.MEMBER, BoardMembership.Role.ADMIN, SITE_ADMIN):
+        if role not in card_services.ANNOTATION_ROLES:
             raise PermissionDenied(_PERM_DENIED)
         card = get_object_or_404(Card, pk=pk, board=board)
         # A JSON body that parses to a non-object (a bare number, string or list)

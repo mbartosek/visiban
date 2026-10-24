@@ -585,8 +585,15 @@ def visible_users(user, group=None):
     """
     if user.is_site_admin or user.can_access_all_content:
         return User.objects.filter(is_active=True)
-    my_boards = BoardMembership.objects.filter(user=user).values("board_id")
-    my_groups = GroupMembership.objects.filter(user=user).values("group_id")
+    # Only the importer's own rows with a role in the enum count: a stored role
+    # outside it grants no access (get_board_role, user_has_group_access), so
+    # it must not widen the pool either (#1829).
+    my_boards = BoardMembership.objects.filter(
+        user=user, role__in=BoardMembership.Role.values,
+    ).values("board_id")
+    my_groups = GroupMembership.objects.filter(
+        user=user, role__in=GroupMembership.Role.values,
+    ).values("group_id")
     q = (
         Q(pk=user.pk)
         | Q(memberships__board_id__in=my_boards)

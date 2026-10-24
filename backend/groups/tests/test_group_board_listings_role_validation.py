@@ -77,14 +77,14 @@ class GroupBoardListingRoleValidationTests(TestCase):
             self.assertIn(own.id, self._ids(surface))
 
     def test_invalid_only_group_role_lists_no_boards(self):
-        # Only the ``boards`` surface discriminates against the previous code;
-        # the two descendant surfaces already skipped such a membership and
-        # are regression guards here.
+        # Since #1829 such a membership grants no group access either, so the
+        # group itself is not visible and every listing answers 404 (before
+        # it, the listings answered 200 with no boards).
         GroupMembership.objects.filter(pk=self.gm.pk).update(role="bogus")
         self.assertIsNone(get_board_role(self.member, Board.objects.get(pk=self.board.pk)))
-        self.assertEqual(self._ids("boards"), set())
-        for surface in ("descendant", "paged"):
-            self.assertEqual(self._ids(surface), set())
+        for surface, url in self._urls().items():
+            with self.subTest(surface=surface):
+                self.assertEqual(self.client.get(url).status_code, 404)
 
     def test_invalid_nearest_ancestor_role_falls_through_to_farther_valid_one(self):
         """The ladder skips an invalid group role and keeps walking up, so a

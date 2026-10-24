@@ -62,7 +62,14 @@ def _board_consumer(board, user, role):
     return consumer
 
 
-def _group_consumer(group_id, user):
+def _group_consumer(group_id, user, visible_boards=()):
+    """A verified GroupConsumer; ``visible_boards`` seeds the per-board verdicts (#1829).
+
+    Board ids listed there are served from the verdict cache as boards the
+    subscriber has a role on, the same way ``_access_verified_at`` serves the
+    group access check, so board.* state frames need no DB from the consumer
+    thread.
+    """
     consumer = GroupConsumer()
     consumer.group_id = group_id
     consumer.room = f"group_{group_id}"
@@ -72,6 +79,7 @@ def _group_consumer(group_id, user):
     consumer.close = AsyncMock()
     consumer.scope = {"url_route": {"kwargs": {"group_id": group_id}}, "user": user}
     consumer._access_verified_at = group_now()
+    consumer._board_verdicts = {board_id: True for board_id in visible_boards}
     return consumer
 
 

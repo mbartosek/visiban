@@ -10,6 +10,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from accounts.ws_auth import WS_CREDENTIAL_SCOPE_KEY, load_live_ws_user
 from visiban.authorization import authorize_account
 
+from boards.broadcast import EVT_BOARD_CREATED, EVT_BOARD_UPDATED
+from boards.consumers import _lookup_role as _board_role
 from boards.permissions import PER_USER_EVENTS, per_user_event_visible, without_actor_scoped_fields
 
 from .broadcast import EVT_GROUP_STAR_CHANGED, EVT_MEMBER_REMOVED, EVT_PING
@@ -20,6 +22,15 @@ from .models import Group, user_has_group_access
 # Derived from the board channel's set so a new per-user board event is covered
 # here too, plus the group's own star event.
 GROUP_PER_USER_EVENTS = PER_USER_EVENTS | {EVT_GROUP_STAR_CHANGED}
+
+# Group-channel events whose payload is one board's full serialized state
+# (#1829). Forwarded only to a subscriber who has a role on that board, judged
+# by ``get_board_role`` as on the board channel, so a group member whose own
+# board membership resolves to no access (a stored role outside the enum) does
+# not receive that board's data here either. ``board.deleted`` carries only
+# the board's identifiers, and access can no longer be resolved for a deleted
+# board, so it is not gated: it lets a client drop a row it already lists.
+BOARD_STATE_EVENTS = frozenset({EVT_BOARD_CREATED, EVT_BOARD_UPDATED})
 
 # Mirror BoardConsumer.PING_INTERVAL; NATs and reverse proxies commonly drop idle
 # WebSocket connections after 60–120s of silence, so 30s keeps them warm.
@@ -89,6 +100,15 @@ class GroupConsumer(AsyncWebsocketConsumer):
     # This socket's current window: ACCESS_RECHECK_SECONDS plus its own jitter,
     # redrawn on each successful check.
     _access_window = ACCESS_RECHECK_SECONDS
+    # Per-board verdicts for BOARD_STATE_EVENTS ({board_id: has_role}), cached
+    # for the same window as the group access check and cleared whenever that
+    # check is re-evaluated, so a board role change reaches this socket within
+    # the same bound as a group membership change (#1829).
+    _board_verdicts = None
+    # The User row the last access re-check loaded (fresh flags), used for the
+    # board verdicts; None until the first re-check, when the handshake user
+    # (loaded at connect) is used.
+    _live_user = None
 
     async def connect(self):
         self.group_id = int(self.scope["url_route"]["kwargs"]["group_id"])
@@ -199,9 +219,52 @@ class GroupConsumer(AsyncWebsocketConsumer):
         scoped = without_actor_scoped_fields(
             payload.get("event"), payload.get("data"), self.scope["user"].id, event.get("actor_id"),
         )
+        if payload.get("event") in BOARD_STATE_EVENTS and not await self._board_visible(
+            payload.get("data")
+        ):
+            # Not a loss of group access: the socket stays open, and only this
+            # board's frame is withheld (#1829).
+            return
         if scoped is not payload.get("data"):
             payload = {**payload, "data": scoped}
         await self.send(text_data=json.dumps(payload))
+
+    async def _board_visible(self, data):
+        """True if the subscriber has a role on the board a board.* frame describes (#1829).
+
+        The same predicate as ``BoardConsumer`` and REST board detail
+        (``get_board_role``, through ``boards.consumers._lookup_role``), so a
+        group member blocked from one board by their own board membership
+        does not receive that board's state on the group channel. Fails
+        closed: a frame with no usable board id, a board that no longer
+        exists, or a check that raises is withheld. The verdict is cached per
+        board until the group access check is next re-evaluated.
+        """
+        board_id = data.get("id") if isinstance(data, dict) else None
+        if not isinstance(board_id, int) or isinstance(board_id, bool):
+            return False
+        verdicts = self._board_verdicts
+        if verdicts is None:
+            verdicts = self._board_verdicts = {}
+        if board_id in verdicts:
+            return verdicts[board_id]
+        try:
+            visible = await self._board_role_resolves(board_id)
+        except Exception as exc:  # noqa: BLE001 — fail closed on any check failure, see docstring
+            # Class name only: the message can carry DB connection details.
+            logger.warning(
+                "group board-frame check failed: group_id=%s error=%s",
+                self.group_id,
+                type(exc).__name__,
+            )
+            return False
+        verdicts[board_id] = visible
+        return visible
+
+    @database_sync_to_async
+    def _board_role_resolves(self, board_id):
+        user = self._live_user or self.scope["user"]
+        return _board_role(user, board_id) is not None
 
     async def _verify_access(self):
         """True if the subscriber may still receive this group's frames (#1477).
@@ -241,6 +304,8 @@ class GroupConsumer(AsyncWebsocketConsumer):
             return False
         self._access_verified_at = _now()
         self._access_window = ACCESS_RECHECK_SECONDS + _jitter()
+        # Board verdicts expire with the access check they were cached under.
+        self._board_verdicts = {}
         return True
 
     @database_sync_to_async
@@ -262,4 +327,5 @@ class GroupConsumer(AsyncWebsocketConsumer):
         user = load_live_ws_user(self.scope)
         if user is None:
             return False
+        self._live_user = user
         return _user_can_access_group_id(user, self.group_id)

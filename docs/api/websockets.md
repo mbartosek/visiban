@@ -355,7 +355,9 @@ Pushes board create/update/delete events for boards that currently live in the g
 ws://<host>/ws/groups/<group_id>/
 ```
 
-Authentication uses the same two mechanisms as the board channel — session cookie, or a [ticket](#ticket-authentication-since-12) for token-authenticated clients. The server checks that the user is a member of the group or one of its ancestors before completing the handshake and closes with the same `4001` / `4003` codes on failure.
+Authentication uses the same two mechanisms as the board channel — session cookie, or a [ticket](#ticket-authentication-since-12) for token-authenticated clients. The server checks that the user is a member of the group or one of its ancestors before completing the handshake and closes with the same `4001` / `4003` codes on failure. *(1.2+)* Only a membership with one of the four roles (`admin`, `member`, `collaborator`, `viewer`) counts, as for the [group REST routes](groups.md#get-apiv1groups); owning the group is not enough on its own (#1829).
+
+*(1.2+)* `board.created` and `board.updated` are delivered only to subscribers who can open that board, judged as for [`GET /api/v1/boards/{id}/`](boards.md#get-apiv1boardsid) and the board channel. A group member whose own membership on one board grants no access (its stored role is not one of the four roles) does not receive that board's frames; the socket stays open and every other frame is delivered (#1829). `board.deleted` is not filtered: it carries only the board's identifiers.
 
 ### Event reference
 

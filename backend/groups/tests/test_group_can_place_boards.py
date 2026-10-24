@@ -155,6 +155,12 @@ class CanPlaceBoardsDepthTests(TestCase):
         node = root
         for i in range(depth):
             node = Group.objects.create(name=f"n{n}-{i}", owner=actor, parent=node)
+            # An owner holds a direct admin row on each group they own (Rule 11:
+            # group create writes it, migration 0022 restores it). Group listing
+            # reads membership rows only since #1829, so without the row the
+            # descendant walk of get_accessible_group_ids would cost one query
+            # per level here, which is not what this test measures.
+            GroupMembership.objects.create(group=node, user=actor, role=Role.ADMIN)
         GroupMembership.objects.create(group=node, user=heir, role=Role.ADMIN)
         client = APIClient()
         client.force_authenticate(actor)

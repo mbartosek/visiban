@@ -91,6 +91,26 @@ class ImportUserScopeTests(TestCase):
         GroupMembership.objects.create(group=group, user=self.importer, role=GroupMembership.Role.ADMIN)
         self.assertIn(self.hidden, visible_users(self.importer))
 
+    def test_rows_with_an_unrecognized_role_do_not_widen_the_pool(self):
+        # A stored role outside the enum grants no access to the board or
+        # group (get_board_role, user_has_group_access), so its co-members are
+        # not the importer's peers either (#1829).
+        from boards.services.trello_import import visible_users
+
+        group = Group.objects.create(name="Odd", owner=self.hidden)
+        GroupMembership.objects.create(group=group, user=self.hidden, role=GroupMembership.Role.ADMIN)
+        odd_group_row = GroupMembership.objects.create(group=group, user=self.importer, role="auditor")
+        board = Board.objects.create(name="Odd board", owner=self.hidden)
+        BoardMembership.objects.create(board=board, user=self.hidden, role=BoardMembership.Role.ADMIN)
+        odd_board_row = BoardMembership.objects.create(board=board, user=self.importer, role="auditor")
+        self.assertNotIn(self.hidden, visible_users(self.importer))
+
+        GroupMembership.objects.filter(pk=odd_group_row.pk).update(role=GroupMembership.Role.VIEWER)
+        self.assertIn(self.hidden, visible_users(self.importer))
+        GroupMembership.objects.filter(pk=odd_group_row.pk).delete()
+        BoardMembership.objects.filter(pk=odd_board_row.pk).update(role=BoardMembership.Role.VIEWER)
+        self.assertIn(self.hidden, visible_users(self.importer))
+
     def test_unseen_user_and_nonexistent_user_get_the_same_result(self):
         a = Card.objects.get(board=self._import(_payload(assignee="hidden")))
         b = Card.objects.get(board=self._import(_payload(assignee="no-such-user")))

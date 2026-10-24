@@ -341,9 +341,12 @@ class GroupSocketCredentialRevocationTests(_RevocationScenarios, TransactionTest
     def make_channel(self):
         self.group = Group.objects.create(name="Revocation group", owner=self.user)
         GroupMembership.objects.create(group=self.group, user=self.user, role=GroupMembership.Role.ADMIN)
+        # A real board in the group: board.* state frames are forwarded only to
+        # a subscriber with a role on the board they describe (#1829).
+        self.board = Board.objects.create(name="Revocation group board", owner=self.user, group=self.group)
 
     def ws_path(self):
         return f"/ws/groups/{self.group.id}/"
 
     def broadcast(self):
-        broadcast_group_event(self.group.id, "board.updated", {"id": 1, "name": SECRET})
+        broadcast_group_event(self.group.id, "board.updated", {"id": self.board.id, "name": SECRET})

@@ -205,17 +205,19 @@ class GroupPlacementRoleTests(TestCase):
         self.assertEqual(self._import("json", self.group.pk).status_code, status.HTTP_201_CREATED)
 
     def test_group_owner_without_admin_membership_row_is_refused(self):
+        # Since #1829 ownership alone does not make the group visible either,
+        # so the owner gets the 404 of a group they cannot see (it was a 403).
         owner_client = APIClient()
         owner_client.force_authenticate(self.owner)
         board = Board.objects.create(name="Owned", owner=self.owner)
         resp = owner_client.post(
             f"/api/v1/boards/{board.pk}/move-group/", {"group_id": self.group.pk}, format="json"
         )
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         resp = owner_client.post(
             JSON_URL, {"file": _json_file(), "group_id": self.group.pk}, format="multipart"
         )
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
         board.refresh_from_db()
         self.assertIsNone(board.group_id)
 
