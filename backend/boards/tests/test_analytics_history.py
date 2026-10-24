@@ -795,6 +795,16 @@ class TestMovementExportGate(AnalyticsHistorySetup):
         backend.assert_not_called()
         self.assertEqual(BoardExportLog.objects.count(), 0)
 
+    def test_unrecognized_threshold_refused_as_admin_only(self):
+        """#1725 — a stored value outside the allowed set reports ``admin``."""
+        from boards.models import Board
+
+        Board.objects.filter(pk=self.board.pk).update(export_min_role="admins")
+        resp, backend = self._export(self.member)
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.data["min_role"], "admin")
+        backend.assert_not_called()
+
     def test_allowed_role_dispatches_and_logs_once(self):
         from boards.models import BoardExportLog
 

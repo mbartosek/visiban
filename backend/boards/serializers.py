@@ -2884,6 +2884,22 @@ class BoardSerializer(serializers.ModelSerializer):
     # BoardTemplate row to apply at creation. Never appears in a response, so
     # this does not change the read shape of any Board endpoint (#1115).
     template = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True, max_length=100)
+    # #843, #1725: whitelist only the board-relative role hierarchy, from the
+    # model's own choices. ``site_admin`` is rejected because it is a
+    # cross-cutting identity, not a board-level threshold; ``owner`` always
+    # bypasses the threshold, so as a setting value it would be meaningless.
+    # Declared explicitly (rather than left to the model-derived field) so the
+    # 400 text stays the one clients already see.
+    export_min_role = serializers.ChoiceField(
+        choices=Board.ExportMinRole.choices,
+        required=False,
+        help_text=Board._meta.get_field("export_min_role").help_text,
+        error_messages={
+            "invalid_choice": (
+                "export_min_role must be one of: " + str(sorted(Board.ExportMinRole.values)) + "."
+            ),
+        },
+    )
 
     class Meta:
         model = Board
@@ -2985,20 +3001,6 @@ class BoardSerializer(serializers.ModelSerializer):
     def validate_stale_warning_pct(self, value):
         if value < 0 or value > 100:
             raise serializers.ValidationError("stale_warning_pct must be between 0 and 100.")
-        return value
-
-    def validate_export_min_role(self, value):
-        # #843: whitelist only the board-relative role hierarchy. ``site_admin``
-        # is rejected because it is a cross-cutting identity, not a board-level
-        # threshold — conflating the two would confuse the gate logic.
-        # ``owner`` is not a BoardMembership.Role; the owner always bypasses
-        # the threshold, so admitting it as a setting value would be
-        # meaningless.
-        allowed = set(Board.ExportMinRole.values)
-        if value not in allowed:
-            raise serializers.ValidationError(
-                f"export_min_role must be one of: {sorted(allowed)}."
-            )
         return value
 
     def validate_card_density(self, value):

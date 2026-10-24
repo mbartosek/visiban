@@ -138,6 +138,11 @@ class ExportMinRoleGateTests(TestCase):
             format="json",
         )
         self.assertEqual(bad.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("export_min_role must be one of", str(bad.json()["export_min_role"][0]))
+        blank = c.patch(
+            f"/api/v1/boards/{self.board.id}/", {"export_min_role": ""}, format="json",
+        )
+        self.assertEqual(blank.status_code, status.HTTP_400_BAD_REQUEST)
 
         ok = c.patch(
             f"/api/v1/boards/{self.board.id}/",
@@ -160,22 +165,34 @@ class ExportMinRoleGateTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class ExportMinRoleUnrecognizedValueTests(ExportMinRoleGateTests):
+class ExportMinRoleUnrecognizedValueTests(TestCase):
     """#1725 — a stored threshold outside the allowed set is admin-only.
 
-    ``update()`` is used because it skips model validation, as an ORM, admin
-    or import write would. Inherits setUp/_get; the inherited tests also run,
-    which re-pins the known values.
+    ``update()`` is used because it skips model validation, as a direct ORM
+    or shell write would.
     """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="pass")
+        self.users = {}
+        self.board = _make_board(self.owner)
+        for role in ("viewer", "collaborator", "member", "admin"):
+            u = User.objects.create_user(username=f"u_{role}", password="pass")
+            _add_member(self.board, u, role)
+            self.users[role] = u
+
+    def _get(self, user):
+        c = APIClient()
+        c.force_authenticate(user)
+        return c.get(f"/api/v1/boards/{self.board.id}/export/?format=csv")
 
     def test_unrecognized_threshold_allows_admins_only(self):
         Board.objects.filter(pk=self.board.pk).update(export_min_role="admins")
-        self.board.refresh_from_db()
-        for u in (self.viewer, self.collab, self.member):
-            r = self._get(u)
-            self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN, f"{u.username}")
+        for role in ("viewer", "collaborator", "member"):
+            r = self._get(self.users[role])
+            self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN, role)
             self.assertEqual(r.json()["min_role"], "admin")
-        self.assertEqual(self._get(self.admin).status_code, status.HTTP_200_OK)
+        self.assertEqual(self._get(self.users["admin"]).status_code, status.HTTP_200_OK)
         self.assertEqual(self._get(self.owner).status_code, status.HTTP_200_OK)
 
     def test_model_field_and_serializer_share_allowed_values(self):
@@ -183,6 +200,48 @@ class ExportMinRoleUnrecognizedValueTests(ExportMinRoleGateTests):
         self.assertEqual(set(Board.ExportMinRole.values), values)
         field = Board._meta.get_field("export_min_role")
         self.assertEqual({c[0] for c in field.choices}, values)
+
+
+class NormalizeExportMinRoleMigrationTests(TestCase):
+    """#1725 — migration 0086 maps an out-of-set value to ``admin`` only."""
+
+    def test_only_out_of_set_rows_change(self):
+        import importlib
+
+        from django.apps import apps
+
+        mod = importlib.import_module("boards.migrations.0086_normalize_board_export_min_role")
+        owner = User.objects.create_user(username="mig_owner", password="pass")
+        boards = {
+            v: Board.objects.create(name=f"B-{i}", owner=owner)
+            for i, v in enumerate(["viewer", "collaborator", "member", "admin", "typo", ""])
+        }
+        for v, b in boards.items():
+            Board.objects.filter(pk=b.pk).update(export_min_role=v)
+        mod.normalize_export_min_role(apps, None)
+        got = {v: Board.objects.get(pk=b.pk).export_min_role for v, b in boards.items()}
+        self.assertEqual(
+            got,
+            {"viewer": "viewer", "collaborator": "collaborator", "member": "member",
+             "admin": "admin", "typo": "admin", "": ""},
+        )
+
+    def test_admin_form_round_trips_normalized_value(self):
+        """After 0086 the admin form's select has the stored value selected."""
+        from boards.admin import BoardAdminForm
+
+        owner = User.objects.create_user(username="form_owner", password="pass")
+        board = Board.objects.create(name="FB", owner=owner)
+        Board.objects.filter(pk=board.pk).update(export_min_role="typo")
+        import importlib
+
+        from django.apps import apps
+
+        importlib.import_module(
+            "boards.migrations.0086_normalize_board_export_min_role"
+        ).normalize_export_min_role(apps, None)
+        board.refresh_from_db()
+        self.assertEqual(BoardAdminForm(instance=board).initial["export_min_role"], "admin")
 
 
 class ExportAuditLogTests(TestCase):
