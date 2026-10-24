@@ -163,7 +163,7 @@ Rates use the DRF form `<count>/<period>` with `sec`, `min`, `hour` or `day`. Se
 
 | Variable | Description | Default |
 |---|---|---|
-| `VISIBAN_IMPORT_MAX_SIZE` | Maximum size, **in bytes**, of a Trello JSON export accepted by the [Trello import wizard](../features/trello-import.md). Oversized uploads get `413`. Separate from `MAX_UPLOAD_SIZE_BYTES`, which caps attachments and native board imports. Helm: `backend.settings.importMaxSizeBytes`. *(new in 1.2)* | `26214400` (25 MB) |
+| `IMPORT_MAX_SIZE_BYTES` | Maximum size, **in bytes**, of a Trello JSON export accepted by the [Trello import wizard](../features/trello-import.md). Oversized uploads get `413`. Separate from `MAX_UPLOAD_SIZE_BYTES`, which caps attachments and native board imports. Helm: `backend.settings.importMaxSizeBytes`. Deprecated alias: `VISIBAN_IMPORT_MAX_SIZE` (see [Deprecated names](#deprecated-environment-variable-names)). *(new in 1.2)* | `26214400` (25 MB) |
 
 The import runs synchronously inside the request, so every hop in front of
 Django must accept a body this large and wait long enough for the board to be
@@ -171,14 +171,14 @@ created:
 
 - **Docker Compose nginx** (`nginx/*.conf.template`): `client_max_body_size`
   is `35M` (25 MB + 10 MB multipart headroom). Raise it if you raise
-  `VISIBAN_IMPORT_MAX_SIZE`. `proxy_read_timeout` on `/api/` is `90s`, well
+  `IMPORT_MAX_SIZE_BYTES`. `proxy_read_timeout` on `/api/` is `90s`, well
   above the few seconds a capped import takes.
 - **Helm**: nginx `client_max_body_size` and the ingress `proxy-body-size`
   annotation are derived automatically from the larger of
   `maxUploadSizeBytes` and `importMaxSizeBytes`.
 - **Your own reverse proxy / load balancer**: nginx defaults to a 1 MB body
   limit and returns its own `413` before Visiban sees the request. Allow at
-  least `VISIBAN_IMPORT_MAX_SIZE` + 10 MB.
+  least `IMPORT_MAX_SIZE_BYTES` + 10 MB.
 - The application server (daphne) and the web client set no request timeout
   of their own.
 
@@ -326,7 +326,7 @@ Demo mode turns an instance into a public, shared demo: the login page offers a 
 | `DEMO_ADMIN_PASSWORD` | *(empty)* | Password of the seeded site admin (`admin`). **Never published**, and must differ from `DEMO_LOGIN_PASSWORD`. Required by `seed_demo_data --demo-site`. |
 | `DEMO_MEMBER_PASSWORD` | *(empty)* | Password for the two seeded member accounts. Never published. Required by `seed_demo_data --demo-site`. |
 | `DEMO_RESET_SCHEDULE` | `0 * * * *` | Cron expression (UTC) of the reset job. Drives the countdown on the login page and in the app. Only minute and hour fields are evaluated; the other three must be `*`. An expression the backend cannot evaluate refuses to start while `DEMO_MODE` is on. Set but **empty** means no reset is scheduled: the login page and the demo bar then promise no reset and show no countdown. The Helm chart renders it empty when `demo.reset.enabled` is false. |
-| `DEMO_USER_THROTTLE_RATE` | *(empty)* | Replaces the rate of the `user` throttle scope while `DEMO_MODE` is on, e.g. `60000/hour`. Every visitor signs in as the one published account, so this scope is a single budget shared by all of them. Format `<n>/<second\|minute\|hour\|day>`; anything else refuses to start. Ignored when `DEMO_MODE` is off. |
+| `DEMO_THROTTLE_USER_RATE` | *(empty)* | Replaces the rate of the `user` throttle scope while `DEMO_MODE` is on, e.g. `60000/hour`. Every visitor signs in as the one published account, so this scope is a single budget shared by all of them. Format `<n>/<second\|minute\|hour\|day>`; anything else refuses to start. Ignored when `DEMO_MODE` is off. Deprecated alias: `DEMO_USER_THROTTLE_RATE` (see [Deprecated names](#deprecated-environment-variable-names)). |
 
 If `DEMO_LOGIN_USERNAME` or `DEMO_LOGIN_PASSWORD` is set while `DEMO_MODE` is off, startup logs a warning: nothing is published, but the fence is not armed either.
 
@@ -349,3 +349,29 @@ Both endpoints are unauthenticated and do not require a valid `Host` header.
 **Docker Compose** uses the liveness endpoint in the backend healthcheck. **Helm** uses both: liveness probe hits `/api/health/liveness/`, readiness probe hits `/api/health/readiness/`.
 
 For external load balancers (AWS ALB, HAProxy, etc.), point your health check at `/api/health/readiness/` on the backend port (8000). This ensures traffic is only routed to instances with working database and Valkey connections.
+
+---
+
+## Deprecated environment variable names
+
+Environment variable names are a public contract: once a name has shipped, it keeps working.
+When a name is changed, the old one stays as a **deprecated alias**. It is still read, and
+setting it logs a startup warning naming its replacement. Each alias works for at least one
+minor release after its deprecation, and its removal is announced in the
+[upgrade guide](upgrade.md) first.
+
+If both names are set, the new name wins whenever it has a non-empty value. An install that
+sets only the old name behaves exactly as before.
+
+The Helm chart sets the new names, so it needs a backend image from the same release. See the
+[1.2 upgrade notes](upgrade.md#upgrading-to-12x).
+
+| Deprecated name | Use instead | Deprecated in | Notes |
+|---|---|---|---|
+| `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` | 1.2 | Shipped in 1.2 pre-releases. Renamed to match `MAX_UPLOAD_SIZE_BYTES`. The Helm key `backend.settings.importMaxSizeBytes` is unchanged. |
+| `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` | 1.2 | Shipped in 1.2 pre-releases. Renamed to match `MCP_THROTTLE_*_RATE` and the Helm key `demo.throttle.userRate`, which is unchanged. |
+| `VISIBAN_MIGRATE_CONNECT_TIMEOUT` | `MIGRATE_CONNECT_TIMEOUT_SECONDS` | 1.2 | Shipped in 1.2 pre-releases. Read by `manage.py migrate_with_lock`, the Helm chart's `migrate` init container. The Helm key `backend.migrate.connectTimeout` is unchanged. |
+| `VISIBAN_MIGRATE_LOCK_TIMEOUT` | `MIGRATE_LOCK_TIMEOUT_SECONDS` | 1.2 | Shipped in 1.2 pre-releases. Read by `manage.py migrate_with_lock`. The Helm key `backend.migrate.lockTimeout` is unchanged. |
+
+Names removed in earlier releases (`OIDC_SECRET` and `ACCOUNT_EMAIL_VERIFICATION`, both
+removed in 1.1) are listed in the [1.1 upgrade notes](upgrade.md#upgrading-to-11x).

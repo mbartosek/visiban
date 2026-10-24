@@ -135,8 +135,12 @@ def parse_demo_mode(raw: str | None) -> bool:
     )
 
 
-def parse_demo_user_throttle_rate(raw: str | None) -> str | None:
-    """Parse ``DEMO_USER_THROTTLE_RATE`` (#1180); None when unset or blank.
+def parse_demo_user_throttle_rate(raw: str | None, name: str = "DEMO_THROTTLE_USER_RATE") -> str | None:
+    """Parse ``DEMO_THROTTLE_USER_RATE`` (#1180); None when unset or blank.
+
+    ``name`` is the variable the value came from, so the boot error names the
+    one the operator actually set: ``DEMO_USER_THROTTLE_RATE`` is its
+    deprecated alias from the 1.2 pre-releases (#1873).
 
     DRF's ``user`` scope counts per ACCOUNT, and on a public demo every visitor
     signs in as the one published account, so the normal 5000/hour becomes a
@@ -152,7 +156,7 @@ def parse_demo_user_throttle_rate(raw: str | None) -> str | None:
     value = raw.strip()
     if not _THROTTLE_RATE_RE.match(value):
         raise ImproperlyConfigured(
-            f"DEMO_USER_THROTTLE_RATE={raw!r} is not a throttle rate. Use <n>/<period> "
+            f"{name}={raw!r} is not a throttle rate. Use <n>/<period> "
             "with period second, minute, hour or day, e.g. '60000/hour'."
         )
     return value

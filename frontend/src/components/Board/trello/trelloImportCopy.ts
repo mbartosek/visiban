@@ -87,7 +87,7 @@ export function describeTrelloError(err: unknown, mode: "preview" | "confirm"): 
     case 403:
       return { tone: "danger", text: "You don't have permission to create boards in this group." };
     case 413:
-      // The limit is server-configured (VISIBAN_IMPORT_MAX_SIZE), so only the
+      // The limit is server-configured (IMPORT_MAX_SIZE_BYTES), so only the
       // server knows it: use its JSON detail. A reverse-proxy 413 is usually
       // HTML with no detail, so fall back to generic copy.
       return {

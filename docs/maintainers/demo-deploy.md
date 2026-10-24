@@ -120,6 +120,16 @@ so the deployment record is the only durable trace that these were actually set 
 2. Install or upgrade. Pin both image tags to a release that contains #1179 and #1180
    (1.2.0 or later):
 
+    !!! warning "The image must be from the same release as the chart, or later"
+        From #1873 the chart renders `demo.throttle.userRate` as `DEMO_THROTTLE_USER_RATE`.
+        Backend images from before that change (every 1.2 pre-release, including the
+        chart's `v1.2.0-beta.3` default on `main` today) read only the old
+        `DEMO_USER_THROTTLE_RATE`. With such an image the `60000/hour` ceiling is silently
+        dropped, and every visitor shares the normal `user` limit, so a handful of visitors
+        can exhaust it and get 429 responses. Deploying `./helm/visiban` from `main` therefore needs a
+        `backend.image.tag` built from the same commit or later. See the
+        [1.2 upgrade notes](../administration/upgrade.md#upgrading-to-12x).
+
     ```bash
     helm upgrade --install visiban-demo ./helm/visiban \
       --namespace visiban-demo --create-namespace \

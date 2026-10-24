@@ -66,6 +66,9 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DEFAULT_DB_ALIAS, OperationalError, connections
 
+from visiban.env_aliases import env_alias_name as _env_alias_name
+from visiban.env_aliases import warn_deprecated_env_alias as _warn_deprecated_env_alias
+
 # Fixed forever. Advisory-lock keys are namespaced by database, so two Visiban
 # installs in two databases never collide, and two releases pointed at ONE
 # database are meant to collide — that is the whole point. Written as a literal
@@ -94,12 +97,12 @@ def _positive_int(raw: str, default: int) -> int:
     """Coerce `raw` to a positive integer, falling back on `default`.
 
     Takes the already-read string rather than the variable's name so that every
-    environment lookup in this file is a LITERAL `os.environ.get("NAME")` at its
-    call site. scripts/helm-structure-check.sh section 3 asserts that every env
-    var the chart injects is looked up somewhere under backend/, and it matches
-    the literal — a helper that reads `os.environ.get(name)` through a parameter
-    is invisible to it, which is how an injected-but-unread variable (#1038
-    blocker 1) gets back in.
+    environment lookup in this file names its variables as LITERALS at the call
+    site (`_env_alias_name("NEW", "OLD")`). scripts/helm-structure-check.sh
+    section 3 asserts that every env var the chart injects is looked up
+    somewhere under backend/, and it matches the literal — a helper that reads
+    `os.environ.get(name)` through a parameter is invisible to it, which is how
+    an injected-but-unread variable (#1038 blocker 1) gets back in.
 
     A malformed value falls back rather than crashing: this runs as the first
     init container of every backend pod, and refusing to start the whole
@@ -115,6 +118,25 @@ def _positive_int(raw: str, default: int) -> int:
     return value if value > 0 else default
 
 
+# MIGRATE_*_TIMEOUT_SECONDS follow the env naming convention (#1873): no
+# VISIBAN_ prefix on a tuning knob, and the unit in the name. The VISIBAN_
+# names shipped in 1.2 pre-releases and stay working deprecated aliases: the
+# canonical name wins when it is non-empty, and an install that sets only the
+# old name behaves exactly as before.
+
+
+def _connect_timeout_from_env() -> int:
+    _warn_deprecated_env_alias("VISIBAN_MIGRATE_CONNECT_TIMEOUT", "MIGRATE_CONNECT_TIMEOUT_SECONDS")
+    name = _env_alias_name("MIGRATE_CONNECT_TIMEOUT_SECONDS", "VISIBAN_MIGRATE_CONNECT_TIMEOUT")
+    return _positive_int(os.environ.get(name, ""), DEFAULT_CONNECT_TIMEOUT)
+
+
+def _lock_timeout_from_env() -> int:
+    _warn_deprecated_env_alias("VISIBAN_MIGRATE_LOCK_TIMEOUT", "MIGRATE_LOCK_TIMEOUT_SECONDS")
+    name = _env_alias_name("MIGRATE_LOCK_TIMEOUT_SECONDS", "VISIBAN_MIGRATE_LOCK_TIMEOUT")
+    return _positive_int(os.environ.get(name, ""), DEFAULT_LOCK_TIMEOUT)
+
+
 class Command(BaseCommand):
     help = (
         "Run `migrate` under a session-scoped PostgreSQL advisory lock so that "
@@ -128,7 +150,7 @@ class Command(BaseCommand):
             default=None,
             help=(
                 "Seconds to wait for the database to accept connections "
-                f"(env VISIBAN_MIGRATE_CONNECT_TIMEOUT, default {DEFAULT_CONNECT_TIMEOUT})."
+                f"(env MIGRATE_CONNECT_TIMEOUT_SECONDS, default {DEFAULT_CONNECT_TIMEOUT})."
             ),
         )
         parser.add_argument(
@@ -137,23 +159,17 @@ class Command(BaseCommand):
             default=None,
             help=(
                 "Seconds to wait for another replica's migration to finish "
-                f"(env VISIBAN_MIGRATE_LOCK_TIMEOUT, default {DEFAULT_LOCK_TIMEOUT})."
+                f"(env MIGRATE_LOCK_TIMEOUT_SECONDS, default {DEFAULT_LOCK_TIMEOUT})."
             ),
         )
 
     def handle(self, *args, **options):
         connect_timeout = options.get("connect_timeout")
         if connect_timeout is None:
-            connect_timeout = _positive_int(
-                os.environ.get("VISIBAN_MIGRATE_CONNECT_TIMEOUT", ""),
-                DEFAULT_CONNECT_TIMEOUT,
-            )
+            connect_timeout = _connect_timeout_from_env()
         lock_timeout = options.get("lock_timeout")
         if lock_timeout is None:
-            lock_timeout = _positive_int(
-                os.environ.get("VISIBAN_MIGRATE_LOCK_TIMEOUT", ""),
-                DEFAULT_LOCK_TIMEOUT,
-            )
+            lock_timeout = _lock_timeout_from_env()
 
         verbosity = options.get("verbosity", 1)
 

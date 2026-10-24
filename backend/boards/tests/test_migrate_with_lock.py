@@ -22,17 +22,24 @@ connection-leak trap in CLAUDE.md entirely.
 
 from __future__ import annotations
 
+import logging
+import os
 import unittest
+import warnings
 from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import DEFAULT_DB_ALIAS, OperationalError, connections
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TransactionTestCase
 
 from boards.management.commands.migrate_with_lock import (
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_LOCK_TIMEOUT,
     MIGRATION_LOCK_KEY,
+    _connect_timeout_from_env,
+    _lock_timeout_from_env,
     _positive_int,
 )
 
@@ -70,6 +77,72 @@ class PositiveIntTests(TransactionTestCase):
 
     def test_a_valid_value_is_used(self):
         self.assertEqual(_positive_int("42", 300), 42)
+
+
+class TimeoutEnvAliasTests(SimpleTestCase):
+    """MIGRATE_*_TIMEOUT_SECONDS with the 1.2 pre-release VISIBAN_ names as working aliases (#1873)."""
+
+    CASES = [
+        # (resolver, canonical, legacy, default)
+        (_connect_timeout_from_env, "MIGRATE_CONNECT_TIMEOUT_SECONDS", "VISIBAN_MIGRATE_CONNECT_TIMEOUT", DEFAULT_CONNECT_TIMEOUT),
+        (_lock_timeout_from_env, "MIGRATE_LOCK_TIMEOUT_SECONDS", "VISIBAN_MIGRATE_LOCK_TIMEOUT", DEFAULT_LOCK_TIMEOUT),
+    ]
+
+    def _resolve(self, resolver, new, old, values):
+        """Run `resolver` with exactly `values` set for the two names; return (result, log lines)."""
+        with patch.dict(os.environ, values, clear=False):
+            for name in (new, old):
+                if name not in values:
+                    os.environ.pop(name, None)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with self.assertLogs("visiban.env_aliases", level="WARNING") as logs:
+                    # assertLogs fails on silence; one sentinel line keeps the
+                    # "no warning" cases checkable as len(output) == 1.
+                    logging.getLogger("visiban.env_aliases").warning("sentinel-1873")
+                    result = resolver()
+        return result, logs.output[1:]
+
+    def test_neither_set_uses_the_default(self):
+        for resolver, new, old, default in self.CASES:
+            with self.subTest(new=new):
+                result, logged = self._resolve(resolver, new, old, {})
+                self.assertEqual(result, default)
+                self.assertEqual(logged, [])
+
+    def test_old_name_only_still_works_and_warns(self):
+        for resolver, new, old, _default in self.CASES:
+            with self.subTest(new=new):
+                result, logged = self._resolve(resolver, new, old, {old: "42"})
+                self.assertEqual(result, 42)
+                self.assertEqual(len(logged), 1)
+                self.assertIn(f"{old} is deprecated; rename it to {new}", logged[0])
+
+    def test_new_name_only_works_without_warning(self):
+        for resolver, new, old, _default in self.CASES:
+            with self.subTest(new=new):
+                result, logged = self._resolve(resolver, new, old, {new: "43"})
+                self.assertEqual(result, 43)
+                self.assertEqual(logged, [])
+
+    def test_both_set_new_wins(self):
+        for resolver, new, old, _default in self.CASES:
+            with self.subTest(new=new):
+                result, _logged = self._resolve(resolver, new, old, {new: "43", old: "42"})
+                self.assertEqual(result, 43)
+
+    def test_empty_new_does_not_shadow_the_old_value(self):
+        for resolver, new, old, _default in self.CASES:
+            with self.subTest(new=new):
+                result, _logged = self._resolve(resolver, new, old, {new: "", old: "42"})
+                self.assertEqual(result, 42)
+
+    def test_empty_old_alone_falls_back_to_the_default_as_before(self):
+        for resolver, new, old, default in self.CASES:
+            with self.subTest(new=new):
+                result, logged = self._resolve(resolver, new, old, {old: ""})
+                self.assertEqual(result, default)
+                self.assertEqual(logged, [])
 
 
 class DatabaseWaitTests(TransactionTestCase):

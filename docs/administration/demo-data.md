@@ -200,7 +200,7 @@ helm test visiban-demo -n visiban-demo --logs
 | `demo.reset.schedule` | `0 * * * *` | When to reset, always in UTC. The same value becomes the backend's `DEMO_RESET_SCHEDULE`, which drives the countdown visitors see, so the two cannot drift. Minute and hour fields only; the other three must be `*`. |
 | `demo.reset.*` | | `startingDeadlineSeconds`, `activeDeadlineSeconds`, `backoffLimit`, `successfulJobsHistoryLimit`, `failedJobsHistoryLimit` (at least 1, so a failed run stays visible). |
 | `demo.seed.*` | | `activeDeadlineSeconds` and `backoffLimit` of the install/upgrade seed hook. |
-| `demo.throttle.userRate` | *(empty)* | `DEMO_USER_THROTTLE_RATE`. It re-aims the `user` throttle scope, which every visitor shares because they all use one account. `values-demo.yaml` sets `60000/hour` as a ceiling that protects the node, not a per-visitor limit. |
+| `demo.throttle.userRate` | *(empty)* | `DEMO_THROTTLE_USER_RATE` (deprecated alias: `DEMO_USER_THROTTLE_RATE`). It re-aims the `user` throttle scope, which every visitor shares because they all use one account. `values-demo.yaml` sets `60000/hour` as a ceiling that protects the node, not a per-visitor limit. |
 | `demo.resourceQuota.*` | off | A ResourceQuota and a LimitRange for the release's namespace, for a demo that shares a node. Only use it in a namespace dedicated to the demo. |
 | `backend.settings.numProxies` | *required, ≥ 1* | `NUM_PROXIES`, [the client-IP depth](configuration.md#reverse-proxies-and-the-client-ip). `values-demo.yaml` sets `2` for a Cloudflare Tunnel. |
 

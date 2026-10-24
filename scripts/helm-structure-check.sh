@@ -359,6 +359,9 @@ check_env_contract() {
   # Flattened to one line first because a lookup is routinely split across lines
   # by the formatter — EMAIL_BACKEND is written as `env(\n    "EMAIL_BACKEND",`
   # — and a per-line grep silently misses every one of those.
+  #
+  # settings._env_alias_name("NEW", "OLD") (#1873) is a lookup of BOTH names:
+  # it picks which one settings then reads, so either argument counts.
   local blob
   blob="$(mktemp)"
   find "$REPO_ROOT/backend" -name '*.py' -exec cat {} + | tr '\n' ' ' > "$blob"
@@ -366,7 +369,7 @@ check_env_contract() {
   local unread=0
   while IFS= read -r name; do
     [ -z "$name" ] && continue
-    if ! grep -qE "(env|env\.[a-z_]+|os\.getenv|os\.environ\.get)\([[:space:]]*[\"']${name}[\"']|os\.environ\[[[:space:]]*[\"']${name}[\"']" "$blob"; then
+    if ! grep -qE "(env|env\.[a-z_]+|os\.getenv|os\.environ\.get)\([[:space:]]*[\"']${name}[\"']|os\.environ\[[[:space:]]*[\"']${name}[\"']|_env_alias_name\([[:space:]]*([\"'][A-Z0-9_]+[\"'][[:space:]]*,[[:space:]]*)?[\"']${name}[\"']" "$blob"; then
       fail "chart injects '$name' but nothing under backend/ LOOKS IT UP — the value silently reaches nothing, which is #1038 blocker 1 verbatim"
       unread=$((unread + 1))
     fi
@@ -567,14 +570,15 @@ check_transport_limits() {
     fail "MAX_UPLOAD_SIZE_BYTES is not wired — the app cap is invisible to the chart and the transport limits cannot be checked against it"
     return
   fi
-  # The Trello import cap (VISIBAN_IMPORT_MAX_SIZE, #456) is usually the larger
+  # The Trello import cap (IMPORT_MAX_SIZE_BYTES, #456; VISIBAN_IMPORT_MAX_SIZE
+  # before #1873) is usually the larger
   # of the two app caps; the transport limits must clear whichever is bigger.
   local import_bytes
   import_bytes="$(doc Deployment 'backend$' \
-    | yq '.spec.template.spec.containers[].env[] | select(.name == "VISIBAN_IMPORT_MAX_SIZE") | .value' \
+    | yq '.spec.template.spec.containers[].env[] | select(.name == "IMPORT_MAX_SIZE_BYTES") | .value' \
     | tr -d '"' | head -1)"
   if [ -z "$import_bytes" ] || [ "$import_bytes" = "null" ]; then
-    fail "VISIBAN_IMPORT_MAX_SIZE is not wired — the Trello import cap is invisible to the chart"
+    fail "IMPORT_MAX_SIZE_BYTES is not wired — the Trello import cap is invisible to the chart"
     return
   fi
   if [ "$import_bytes" -gt "$app_bytes" ]; then

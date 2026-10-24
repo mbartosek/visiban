@@ -165,6 +165,10 @@ demo:
     # of the host: DRF's `anon` scope stops applying to an authenticated
     # request. Other per-account scopes (`user_search`, `card_query`) are
     # shared-fate the same way and are left at their normal rates.
+    # Rendered as DEMO_THROTTLE_USER_RATE (#1873), which only backend images from
+    # the same release as this chart read. An older pinned image (a 1.2
+    # pre-release) ignores it silently, and the demo falls back to the normal
+    # shared `user` limit, so keep backend.image.tag in step with this chart.
     userRate: "60000/hour"
   resources:
     requests:

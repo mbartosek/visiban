@@ -357,6 +357,43 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 
 ### Upgrading to 1.2.x
 
+!!! note "Four environment variables from the 1.2 pre-releases were renamed (old names still work)"
+    If you ran a 1.2 alpha or beta, four names it introduced changed before GA to follow the
+    naming convention of the variables around them. The pre-release names are **still read**
+    as deprecated aliases, so nothing breaks, but each one now logs a startup warning. Rename
+    them when convenient:
+
+    | Pre-release name (deprecated) | Use instead |
+    |---|---|
+    | `VISIBAN_IMPORT_MAX_SIZE` | `IMPORT_MAX_SIZE_BYTES` |
+    | `DEMO_USER_THROTTLE_RATE` | `DEMO_THROTTLE_USER_RATE` |
+    | `VISIBAN_MIGRATE_CONNECT_TIMEOUT` | `MIGRATE_CONNECT_TIMEOUT_SECONDS` |
+    | `VISIBAN_MIGRATE_LOCK_TIMEOUT` | `MIGRATE_LOCK_TIMEOUT_SECONDS` |
+
+    If both names are set, the new one wins. The Helm chart already sets the new names. Its
+    values keys (`backend.settings.importMaxSizeBytes`, `demo.throttle.userRate`,
+    `backend.migrate.connectTimeout`, `backend.migrate.lockTimeout`) are unchanged. If you
+    are upgrading from 1.1, none of these names existed, so no action is needed. See
+    [Deprecated environment variable names](configuration.md#deprecated-environment-variable-names).
+
+!!! warning "Helm: use this chart with a backend image from the same release"
+    From this release the chart sets only the new names above. An older backend image
+    (for example a 1.2 pre-release pinned through `backend.image.tag`) does not read them and
+    **silently** uses its defaults:
+
+    - a custom `backend.settings.importMaxSizeBytes` is lost, and the Trello import cap goes
+      back to 25 MB;
+    - `demo.throttle.userRate` stops applying, so demo visitors share the normal `user`
+      throttle limit again;
+    - a custom `backend.migrate.connectTimeout` or `backend.migrate.lockTimeout` reverts to
+      300 s or 900 s.
+
+    Upgrade the chart and the image together. In a **released** chart (a tagged release or a
+    published chart version), the default `backend.image.tag` is the matching release, so the
+    skew only affects installs that override the tag. A chart taken from `main` between
+    releases still defaults to the previous pre-release image, which does not read the new
+    names. Set `backend.image.tag` to an image built from the same commit or later.
+
 !!! note "Clear stale card assignees after upgrading"
     Assignable and notification member sets now follow the same role-resolution ladder as board
     access: an explicit board membership row takes precedence over group-inherited membership,
@@ -1066,7 +1103,7 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
 
 !!! note "Default transport body limit raised from 20 MB to 35 MB (Trello import)"
     1.2 adds a [Trello import](../features/trello-import.md) that accepts exports
-    up to `VISIBAN_IMPORT_MAX_SIZE` (default 25 MB, Helm:
+    up to `IMPORT_MAX_SIZE_BYTES` (default 25 MB, Helm:
     `backend.settings.importMaxSizeBytes`). So those uploads reach Visiban
     instead of dying at the edge, the transport limits are now derived from the
     **larger** of `maxUploadSizeBytes` and `importMaxSizeBytes` plus 10 MB:
@@ -1537,7 +1574,12 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     | `OIDC_SECRET` | `OIDC_CLIENT_SECRET` |
     | `ACCOUNT_EMAIL_VERIFICATION` | `EMAIL_VERIFICATION` |
 
-    Before upgrading, search your `.env` file and any CI/CD secret stores for these old names and rename them. From 1.1 on, setting either removed alias logs a startup deprecation warning naming the canonical replacement — but the old name is no longer read, so that warning is your only signal that SSO or email verification has silently stopped working. If neither alias appears anywhere in your config, no action is required.
+    Before upgrading, search your `.env` file and any CI/CD secret stores for these old names and rename them. The old names are no longer read, so SSO or email verification stops working **silently**. Do not count on a startup warning to tell you:
+
+    - **1.1.x** raises only a Python `DeprecationWarning`, which Python hides by default, so nothing appears in the container log.
+    - **From 1.2**, setting either name logs a visible startup warning: `OIDC_SECRET is no longer read and has no effect; replace it with OIDC_CLIENT_SECRET` (and the same for `ACCOUNT_EMAIL_VERIFICATION`).
+
+    If neither alias appears anywhere in your config, no action is required.
 
 !!! note "Card density migration — existing boards default to Dense"
     In 1.1, card display is controlled by a per-board **Card density** setting (Comfortable / Standard / Dense) that replaces the previous per-user per-field hide toggles.

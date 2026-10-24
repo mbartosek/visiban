@@ -249,7 +249,7 @@ A template with comments is at `frontend/.env.local.example`.
 | `SCHEDULE_NOTIFY_DUE_SOON`, `SCHEDULE_NOTIFY_STALE_CARDS`, `SCHEDULE_PRUNE_BOARD_EVENTS`, `SCHEDULE_PRUNE_NOTIFICATIONS` | No | Daily run time (`HH:MM`, UTC, or `off`) for each job of the opt-in Compose `scheduler` service. Defaults: `07:00`, `08:00`, `off`, `off`. Read only by `manage.py run_scheduler`. See [Scheduled Jobs](../administration/scheduled-jobs.md). |
 | `GIT_LENS_ENABLED` | No | Set `true` to enable the [Issue Board Lens](../features/issue-board-lens.md) (default: `false`). See [Optional features](../administration/configuration.md#optional-features-off-by-default). |
 | `MCP_SERVER_ENABLED` | No | Set `true` to serve the [MCP server](../features/mcp-server.md) at `/mcp` (default: `false`). Also configurable: `MCP_ALLOWED_HOSTS` and the `MCP_THROTTLE_READ_RATE`, `MCP_THROTTLE_COMPUTE_RATE` and `MCP_THROTTLE_PREAUTH_RATE` limits. See [Optional features](../administration/configuration.md#optional-features-off-by-default). |
-| `VISIBAN_IMPORT_MAX_SIZE` | No | Maximum Trello JSON export size for the [Trello import wizard](../features/trello-import.md), in bytes (default: `26214400` — 25 MB). Your reverse proxy must accept bodies at least this large; see [Import limits](../administration/configuration.md#import-limits). |
+| `IMPORT_MAX_SIZE_BYTES` | No | Maximum Trello JSON export size for the [Trello import wizard](../features/trello-import.md), in bytes (default: `26214400` — 25 MB). Your reverse proxy must accept bodies at least this large; see [Import limits](../administration/configuration.md#import-limits). The 1.2 pre-release name `VISIBAN_IMPORT_MAX_SIZE` still works as a deprecated alias. |
 
 OAuth variables are documented in [OAuth Setup](oauth.md).
 

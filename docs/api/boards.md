@@ -953,7 +953,7 @@ The `board.created` event for the new board carries the resolved options as an a
 
 | Status | Body | When |
 |---|---|---|
-| `400 Bad Request` | `{"detail": "..."}` | File is missing, empty, has an unsupported extension, exceeds the upload size limit (`MAX_UPLOAD_SIZE_BYTES`, default 10 MB — the same env var and default as [card attachment uploads](cards.md#attachments), and distinct from the Trello importer's own `VISIBAN_IMPORT_MAX_SIZE`), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when `options` is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets `comments`, `checklist`, or `history` to `true` with `cards` set to `false`, or — for a CSV file — has any key other than `labels` and `cards`. A CSV file also returns `400` for a cell over the [CSV cell limits](#csv-cell-limits), a NUL byte, or an impossible `Due Date`. |
+| `400 Bad Request` | `{"detail": "..."}` | File is missing, empty, has an unsupported extension, exceeds the upload size limit (`MAX_UPLOAD_SIZE_BYTES`, default 10 MB — the same env var and default as [card attachment uploads](cards.md#attachments), and distinct from the Trello importer's own `IMPORT_MAX_SIZE_BYTES`), is not valid JSON/CSV, or references columns/swimlanes that fail validation. Also returned when `options` is not valid JSON, is not an object, has an unknown key, has a non-boolean value, sets `comments`, `checklist`, or `history` to `true` with `cards` set to `false`, or — for a CSV file — has any key other than `labels` and `cards`. A CSV file also returns `400` for a cell over the [CSV cell limits](#csv-cell-limits), a NUL byte, or an impossible `Due Date`. |
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
 | `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of. Since 1.2; before 1.2 a caller who was not a member of the group received `403`, and any member could import. |
 | `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. *(1.2+)* Also returned, with nothing created, when the group is deleted while the import runs; a group delete that arrives while an import into it is in flight waits for it and then detaches the new board from the group (#1719). |
@@ -982,7 +982,7 @@ Sending neither, or both, returns `400 Bad Request` (`"Specify exactly one of ?d
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `file` | file | yes | The Trello JSON export. Maximum size is `VISIBAN_IMPORT_MAX_SIZE` (default 25 MB). |
+| `file` | file | yes | The Trello JSON export. Maximum size is `IMPORT_MAX_SIZE_BYTES` (default 25 MB). |
 | `name` | string | no | Board name. Defaults to the Trello board's name. Maximum 255 characters. Only used on `confirm`. |
 | `group_id` | integer | no | Place the imported board into this group. Requires group admin. Also widens the pool used for [member matching](#member-matching). |
 | `mapping` | string (JSON) | no | JSON-encoded object of mapping options, described below. Omitted or blank means all defaults. Send the same `mapping` on `dry_run` and `confirm`. |
@@ -1206,7 +1206,7 @@ Creating the board broadcasts `board.created` on the same channels as the native
 | `401 Unauthorized` | `{"detail": "Authentication credentials were not provided."}` | Caller is not authenticated. |
 | `403 Forbidden` | `{"detail": "..."}` | `group_id` was supplied for a group the caller can see but is not an admin of (since 1.2; before 1.2 a caller who was not a member of the group received `403`, and any member could import); or the account has a pending password or username change. |
 | `404 Not Found` | `{"detail": "..."}` | `group_id` does not match a group that exists and is visible to the caller. *(1.2+)* Also returned, with nothing created, when the group is deleted while the import runs; a group delete that arrives while an import into it is in flight waits for it and then detaches the new board from the group (#1719). |
-| `413 Content Too Large` | `{"detail": "File too large. The maximum size for a Trello import is 25 MB."}` | The file is larger than `VISIBAN_IMPORT_MAX_SIZE`. Note that the native import endpoint returns `400` for an oversized file. |
+| `413 Content Too Large` | `{"detail": "File too large. The maximum size for a Trello import is 25 MB."}` | The file is larger than `IMPORT_MAX_SIZE_BYTES`. Note that the native import endpoint returns `400` for an oversized file. |
 | `429 Too Many Requests` | `{"detail": "Request was throttled. ..."}` | Rate limit exceeded; see **Rate limits** above. |
 
 ---
