@@ -1636,6 +1636,19 @@ class GroupViewSet(viewsets.ModelViewSet):
     # link_id is digits-only (#731): without the constraint this pattern also
     # matched "invite-links/send/" and, depending on route order, answered the
     # send endpoint's POST with 405.
+    # The 400 is runtime behavior the schema omitted (#1912): drf-spectacular
+    # only knew the DELETE default of 204.
+    @extend_schema(
+        responses={
+            204: None,
+            400: inline_serializer(
+                name="GroupInviteRevokeRefused", fields={"detail": drf_serializers.CharField()},
+            ),
+            404: inline_serializer(
+                name="GroupInviteRevokeNotFound", fields={"detail": drf_serializers.CharField()},
+            ),
+        },
+    )
     @action(detail=True, methods=["delete"], url_path=r"invite-links/(?P<link_id>\d+)")
     def revoke_invite_link(self, request, pk=None, link_id=None):
         from .services import lock_group_row

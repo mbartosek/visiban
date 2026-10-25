@@ -975,9 +975,27 @@ class AdminInviteLinkRevokeContractTests(TestCase):
         first = client.delete(f"/api/v1/admin/invite-links/{link.pk}/")
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(first.json()["id"], link.pk)
+        self.assertEqual(first.json()["status"], "revoked")
         again = client.delete(f"/api/v1/admin/invite-links/{link.pk}/")
         self.assertEqual(again.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("detail", again.json())
+
+    def test_nonexistent_revoke_is_404_with_detail_body(self):
+        client = APIClient()
+        client.force_authenticate(make_admin())
+        r = client.delete("/api/v1/admin/invite-links/99999/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("detail", r.json())
+
+    def test_group_revoke_schema_declares_400(self):
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        responses = schema["paths"]["/api/v1/groups/{id}/invite-links/{link_id}/"]["delete"]["responses"]
+        self.assertIn("204", responses)
+        self.assertIn("400", responses)
+        self.assertIn("404", responses)
+        self.assertNotIn("200", responses)
 
     def test_schema_declares_200_400_404_and_not_204(self):
         from drf_spectacular.generators import SchemaGenerator
@@ -990,3 +1008,7 @@ class AdminInviteLinkRevokeContractTests(TestCase):
         self.assertNotIn("204", responses)
         ref = responses["200"]["content"]["application/json"]["schema"]["$ref"]
         self.assertTrue(ref.endswith("/InviteLink"))
+        for code in ("400", "404"):
+            body_ref = responses[code]["content"]["application/json"]["schema"]["$ref"]
+            component = schema["components"]["schemas"][body_ref.rsplit("/", 1)[-1]]
+            self.assertIn("detail", component["properties"])

@@ -306,6 +306,12 @@ break. Entries are only ever deleted (when one goes stale) or re-justified, neve
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
 The temporary #1783 entries below are a third exception, and the #1792 entry a fourth.
 
+A fifth exception is permanent, not temporary: the `REMOVED_RESPONSE_STATUS DELETE /api/v1/admin/invite-links/{id}/ 204`
+entry under `#1912`. The v1.1.0 baseline listed `204` there (drf-spectacular's DELETE default), but
+v1.1.0 always answered `200` with the revoked link and `400` on a repeat revoke. That runtime
+contract is frozen for all of 1.x, so the schema now declares it and the entry is not removed at
+the v1.2.0 roll.
+
 Four temporary `key` entries under `#1788` cover `NEW_REQUIRED_REQUEST_BODY` on `POST swimlanes/`,
 `PUT swimlanes/{id}/`, and `PATCH swimlanes/{id}/set-collapsed/` and `set_collapsed/`. The v1.1.0
 baseline lacks those bodies because `SwimlaneViewSet` crashed during schema generation; #1788
