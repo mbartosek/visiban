@@ -53,6 +53,49 @@ class MembersRoleValidationTests(TestCase):
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         self.assertEqual(r.data["role"], BoardMembership.Role.MEMBER)
 
+    def _membership(self, role):
+        return BoardMembership.objects.create(board=self.board, user=self.target, role=role)
+
+    def test_omitted_role_keeps_existing_viewer_role_with_moderator_flag(self):
+        # Moderator is not valid for viewers, so the request is refused and the
+        # stored role is untouched (#1941).
+        self._membership(BoardMembership.Role.VIEWER)
+        r = self._post({"user_id": self.target.id, "is_moderator": True})
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.VIEWER)
+        self.assertFalse(m.is_moderator)
+
+    def test_omitted_role_keeps_existing_collaborator_role(self):
+        self._membership(BoardMembership.Role.COLLABORATOR)
+        r = self._post({"user_id": self.target.id})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r.data["role"], BoardMembership.Role.COLLABORATOR)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.COLLABORATOR)
+
+    def test_omitted_role_keeps_existing_member_moderator_update(self):
+        self._membership(BoardMembership.Role.MEMBER)
+        r = self._post({"user_id": self.target.id, "is_moderator": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.MEMBER)
+        self.assertTrue(m.is_moderator)
+
+    def test_omitted_role_keeps_existing_admin_role(self):
+        self._membership(BoardMembership.Role.ADMIN)
+        r = self._post({"user_id": self.target.id, "is_moderator": True})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.ADMIN)
+
+    def test_explicit_role_still_updates_existing_membership(self):
+        self._membership(BoardMembership.Role.VIEWER)
+        r = self._post({"user_id": self.target.id, "role": "member"})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.MEMBER)
+
     def test_members_accepts_valid_role(self):
         r = self._post({"user_id": self.target.id, "role": "viewer"})
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
