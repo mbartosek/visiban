@@ -22,9 +22,10 @@ In a browser, session-based login is used automatically — no token needed.
 3. Click **New token**.
 4. Enter a descriptive name — for example, `deploy-script` or `ci-pipeline`.
 5. Optionally set an expiry date (see [Expiry](#expiry) below).
-6. Click **Create token**.
+6. Choose the token's [scopes](#scopes). `read` and `write` are pre-checked, so leaving them alone gives the default token. Tick `mcp:read` (and `mcp:write` for write tools) to make a token an MCP client can use, or untick `read` and `write` if the token is only for MCP. At least one scope is required. `admin` is offered to site administrators only.
+7. Click **Generate token**.
 
-Tokens created this way get the default `read` and `write` scopes. To choose other scopes, such as `mcp:read`, create the token with `POST /api/v1/auth/tokens/` and a `scopes` list; see [Scopes](#scopes). A UI scope selector is tracked in [#1934](https://gitlab.com/visiban/visiban/-/issues/1934).
+The token list shows each token's scopes; tokens created before 1.2 are labeled "Legacy: full REST access". You can also set scopes through the API with `POST /api/v1/auth/tokens/` and a `scopes` list; see [Scopes](#scopes).
 
 !!! warning "Copy your token now"
     The full token value is shown **only once** — immediately after creation. Once you navigate away, Visiban stores only a secure hash and cannot show the token again. Copy it to a password manager or secret store before leaving the page.
@@ -74,7 +75,7 @@ A token created without specific scopes gets `read` and `write` — enough for t
 
 Tokens that already existed when your instance upgraded to 1.2 have **no scopes recorded**. They keep working exactly as before across the whole REST API, including the admin endpoints if you're a site administrator — upgrading doesn't break a running integration.
 
-They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with `mcp:read` through the API (`POST /api/v1/auth/tokens/` with `"scopes": ["mcp:read"]`; see [MCP Server](mcp-server.md#generating-a-bearer-token)).
+They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with `mcp:read` (tick it in Settings > Access Tokens, or use `POST /api/v1/auth/tokens/` with `"scopes": ["mcp:read"]`; see [MCP Server](mcp-server.md#generating-a-bearer-token)).
 
 Replace pre-1.2 tokens with scoped ones as you rotate them.
 

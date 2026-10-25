@@ -64,7 +64,7 @@ The seeded `demo1` to `demo5` accounts have unusable passwords, so use the site 
 
     The response's `token` field is the `vbn_...` value. Copy it now; it is shown once.
 
-The token-creation form in the web app does not offer a scope picker, and a token created there gets `read` and `write`, which `/mcp` refuses. That is why this step uses the API (see the [API Reference](../api/mcp.md)).
+This step uses the API so the walkthrough is scriptable; in the web app you would tick **mcp:read** under Settings > Access Tokens instead (see the [API Reference](../api/mcp.md)).
 
 A token with only `mcp:read` can list and read boards, columns, swimlanes, cards, and card history. Calling a write tool (`create_card`, `move_card`, `update_card`, `archive_card`) fails with a structured error. Scopes are not hierarchical; see [Personal Access Tokens](personal-access-tokens.md#scopes).
 

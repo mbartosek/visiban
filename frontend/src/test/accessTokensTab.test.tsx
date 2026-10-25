@@ -152,7 +152,69 @@ describe('AccessTokensTab', () => {
       expect(screen.getByTestId('new-token-reveal')).toBeInTheDocument()
       expect(screen.getByTestId('new-token-value')).toHaveTextContent(created.token)
     })
-    expect(mockCreateToken).toHaveBeenCalledWith('CI pipeline', undefined)
+    expect(mockCreateToken).toHaveBeenCalledWith('CI pipeline', undefined, ['read', 'write'])
+  })
+
+  // #1934 — default selection is read+write, so an untouched form mints the
+  // same token as before; mcp:* is opt-in.
+  it('pre-checks read and write only', async () => {
+    renderPage()
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('token-scopes')).toBeInTheDocument())
+    expect(screen.getByTestId('token-scope-read')).toBeChecked()
+    expect(screen.getByTestId('token-scope-write')).toBeChecked()
+    expect(screen.getByTestId('token-scope-mcp:read')).not.toBeChecked()
+    expect(screen.getByTestId('token-scope-mcp:write')).not.toBeChecked()
+    expect(screen.getByTestId('token-scopes')).toHaveTextContent('An MCP client needs mcp:read to use this token')
+  })
+
+  it('sends mcp:read when the user opts in', async () => {
+    mockCreateToken.mockResolvedValue({ ...token1, token: 'vbn_x' })
+    renderPage()
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('create-token-form')).toBeInTheDocument())
+    await userEvent.type(screen.getByTestId('token-name-input'), 'claude', { delay: null })
+    await userEvent.click(screen.getByTestId('token-scope-read'))
+    await userEvent.click(screen.getByTestId('token-scope-write'))
+    await userEvent.click(screen.getByTestId('token-scope-mcp:read'))
+    await userEvent.click(screen.getByTestId('create-token-button'))
+    await waitFor(() => expect(mockCreateToken).toHaveBeenCalledWith('claude', undefined, ['mcp:read']))
+  })
+
+  it('blocks submit when no scope is selected', async () => {
+    renderPage()
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('create-token-form')).toBeInTheDocument())
+    await userEvent.type(screen.getByTestId('token-name-input'), 'none', { delay: null })
+    await userEvent.click(screen.getByTestId('token-scope-read'))
+    await userEvent.click(screen.getByTestId('token-scope-write'))
+    expect(screen.getByTestId('token-scopes-error')).toBeInTheDocument()
+    expect(screen.getByTestId('create-token-button')).toBeDisabled()
+    fireEvent.submit(screen.getByTestId('create-token-form'))
+    expect(mockCreateToken).not.toHaveBeenCalled()
+  })
+
+  it('shows the admin scope only to site admins', async () => {
+    const { unmount } = renderPage()
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('token-scopes')).toBeInTheDocument())
+    expect(screen.queryByTestId('token-scope-admin')).not.toBeInTheDocument()
+    unmount()
+    render(
+      <MemoryRouter>
+        <SettingsPage user={{ ...fakeUser, is_site_admin: true }} onLogout={vi.fn()} onUserUpdated={vi.fn()} />
+      </MemoryRouter>
+    )
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('token-scope-admin')).not.toBeChecked())
+  })
+
+  it('shows each token scopes in the list, flagging legacy tokens', async () => {
+    mockListTokens.mockResolvedValue([token1, token2])
+    renderPage()
+    await switchToAccessTokensTab()
+    await waitFor(() => expect(screen.getByTestId('token-scopes-1')).toHaveTextContent('read, write'))
+    expect(screen.getByTestId('token-scopes-2')).toHaveTextContent('Legacy: full REST access')
   })
 
   it('dismisses the reveal panel when the user confirms copy', async () => {

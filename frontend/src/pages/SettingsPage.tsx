@@ -5,7 +5,7 @@ import { useConfirmFocusReturn } from "../hooks/useConfirmFocusReturn";
 import type { Location } from "react-router-dom";
 import { updateCurrentUser, changePassword, listTokens, createToken, revokeToken, resetTour, cancelPendingEmailChange, resendPendingEmailConfirmation, getAuthProviders, listConnectedAccounts, disconnectAccount } from "../api/auth";
 import Navbar from "../components/Layout/Navbar";
-import type { User, PersonalAccessToken, CreatedPersonalAccessToken, ConnectedAccount, ProviderId } from "../types";
+import type { User, PersonalAccessToken, PersonalAccessTokenScope, CreatedPersonalAccessToken, ConnectedAccount, ProviderId } from "../types";
 import { ProviderIcon, providerLabel } from "../components/Common/ProviderIcons";
 import { startProviderConnect } from "../utils/oauth";
 import { useTheme } from "../context/ThemeContext";
@@ -818,7 +818,7 @@ function SecurityTab({
           />
         </label>
 
-        <p className="text-xs h-4">
+        <p className="text-xs min-h-4">
           {error && <span className="text-danger">{error}</span>}
           {saved && !error && <span className="text-success">{savedText}</span>}
         </p>
@@ -840,11 +840,27 @@ function SecurityTab({
 
 const PAT_MAX = 10;
 
-function AccessTokensTab({ user }: { user?: UserDatePrefs | null }) {
+// Mirrors PAT_SCOPES in backend/accounts/models.py. Scopes are strictly
+// non-hierarchical, so each is an independent checkbox. `read` + `write` are
+// pre-checked (the backend's PAT_DEFAULT_SCOPES); `admin` and `mcp:*` are
+// opt-in. The backend has no rule limiting who may request `admin` (it grants
+// nothing to a non-admin account), so the UI only hides it from non-admins to
+// avoid offering a no-op.
+const PAT_SCOPE_OPTIONS: { scope: PersonalAccessTokenScope; label: string; hint: string }[] = [
+  { scope: "read", label: "read", hint: "Read data over the REST API" },
+  { scope: "write", label: "write", hint: "Create and change data over the REST API" },
+  { scope: "admin", label: "admin", hint: "Admin REST endpoints (site administrators only)" },
+  { scope: "mcp:read", label: "mcp:read", hint: "Connect an MCP client and call its read tools" },
+  { scope: "mcp:write", label: "mcp:write", hint: "Let an MCP client call write tools (also needs mcp:read)" },
+];
+const PAT_DEFAULT_SCOPES: PersonalAccessTokenScope[] = ["read", "write"];
+
+function AccessTokensTab({ user, isSiteAdmin = false }: { user?: UserDatePrefs | null; isSiteAdmin?: boolean }) {
   const [tokens, setTokens] = useState<PersonalAccessToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [scopes, setScopes] = useState<PersonalAccessTokenScope[]>(PAT_DEFAULT_SCOPES);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [newToken, setNewToken] = useState<CreatedPersonalAccessToken | null>(null);
@@ -879,14 +895,15 @@ function AccessTokensTab({ user }: { user?: UserDatePrefs | null }) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || scopes.length === 0) return;
     setCreating(true);
     setCreateError(null);
     try {
-      const created = await createToken(name.trim(), expiresAt || undefined);
+      const created = await createToken(name.trim(), expiresAt || undefined, scopes);
       setNewToken(created);
       setName("");
       setExpiresAt("");
+      setScopes(PAT_DEFAULT_SCOPES);
       await fetchTokens();
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -917,6 +934,9 @@ function AccessTokensTab({ user }: { user?: UserDatePrefs | null }) {
     if (!iso) return "Never";
     return formatDateUtil(iso, user);
   };
+
+  const toggleScope = (scope: PersonalAccessTokenScope) =>
+    setScopes((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]));
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl" data-testid="access-tokens-tab">
@@ -970,13 +990,39 @@ function AccessTokensTab({ user }: { user?: UserDatePrefs | null }) {
             />
             <button
               type="submit"
-              disabled={creating || !name.trim()}
+              disabled={creating || !name.trim() || scopes.length === 0}
               className="bg-button-primary hover:bg-button-primary-hover disabled:opacity-40 text-on-primary text-sm font-medium px-3 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
               data-testid="create-token-button"
             >
               {creating ? "Creating…" : "Generate token"}
             </button>
           </div>
+          <fieldset className="flex flex-col gap-1.5" data-testid="token-scopes" aria-describedby={scopes.length === 0 ? "token-scopes-error" : undefined}>
+            <legend className="text-xs text-fg-tertiary mb-1">Scopes</legend>
+            {PAT_SCOPE_OPTIONS.filter((o) => o.scope !== "admin" || isSiteAdmin).map((o) => (
+              <label key={o.scope} className="flex items-start gap-2 text-sm text-fg-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scopes.includes(o.scope)}
+                  onChange={() => toggleScope(o.scope)}
+                  className="accent-primary shrink-0 mt-0.5"
+                  data-testid={`token-scope-${o.scope}`}
+                />
+                <span className="min-w-0 flex flex-col sm:flex-row sm:gap-2">
+                  <span className="font-mono text-xs text-fg">{o.label}</span>
+                  <span className="text-xs text-fg-muted">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+            <p className="text-xs text-fg-muted">
+              An MCP client needs <span className="font-mono">mcp:read</span> to use this token.
+            </p>
+            {scopes.length === 0 && (
+              <p id="token-scopes-error" role="alert" className="text-xs text-danger" data-testid="token-scopes-error">
+                Select at least one scope.
+              </p>
+            )}
+          </fieldset>
           <p className="text-xs h-4">
             {createError
               ? <span className="text-danger">{createError}</span>
@@ -1017,6 +1063,9 @@ function AccessTokensTab({ user }: { user?: UserDatePrefs | null }) {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-sm text-fg truncate">{token.name}</span>
                 <span className="font-mono text-xs text-fg-muted">{token.prefix}…</span>
+                <span className="text-xs text-fg-muted" data-testid={`token-scopes-${token.id}`}>
+                  {token.scopes === null ? "Legacy: full REST access" : token.scopes.join(", ")}
+                </span>
               </div>
               <span className="text-xs text-fg-tertiary whitespace-nowrap">{formatDate(token.created_at)}</span>
               <span className="text-xs text-fg-tertiary whitespace-nowrap">{formatDate(token.expires_at)}</span>
@@ -1515,7 +1564,7 @@ export default function SettingsPage({ user, onLogout, onUserUpdated }: Props) {
           <div className="flex-1 min-w-0">
             {activeTab === "profile" && <ProfileTab user={user} onUserUpdated={onUserUpdated} from={from} />}
             {activeTab === "security" && <SecurityTab user={user} connectResult={connectResult} onUserUpdated={onUserUpdated} />}
-            {activeTab === "access-tokens" && <AccessTokensTab user={user} />}
+            {activeTab === "access-tokens" && <AccessTokensTab user={user} isSiteAdmin={!!user?.is_site_admin} />}
             {activeTab === "notifications" && <NotificationsTab user={user} onUserUpdated={onUserUpdated} />}
             {activeTab === "appearance" && <AppearanceTab />}
             {activeTab === "behavior" && <BehaviorTab user={user} onUserUpdated={onUserUpdated} />}
