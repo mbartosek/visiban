@@ -5085,7 +5085,8 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
 <li><strong>A session also needs the current password to change the email</strong> of an account that
   has a password: the same requests must include the new optional <code>current_password</code>
   field, or they get <code>400</code> with a <code>current_password</code> error. Accounts that sign in only
-  through an identity provider are not asked, and requests that don't change <code>email</code> are
+  through an identity provider are not asked (they need a recent provider sign-in
+  instead, below), and requests that don't change <code>email</code> are
   unaffected. Custom clients that let users change their email should send the field
   (see <a href="../../api/authentication/#patch-apiv1authme">Authentication API</a>).</li>
 <li><strong>The previous address is notified of an email change.</strong> Whenever an account's email
@@ -5108,6 +5109,11 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   set a first password only when the session signed in through one of the account's
   providers in the last five minutes; otherwise they answer <code>403</code> with
   <code>"code": "recent_login_required"</code>.
+  The same applies to changing the email of an account without a password
+  (<code>PATCH /api/v1/auth/me/</code>, <code>PATCH</code>/<code>PUT /api/v1/auth/user/</code>, and adding or making
+  an address primary on <code>/accounts/email/</code>, #1932). Addresses already on an account are
+  not changed by the upgrade; an operator who wants to review them can do so under
+  <strong>Email addresses</strong> in the Django admin.
   Accounts with a password are unaffected (see
   <a href="../authentication/#connected-accounts-and-email-collisions">Connected accounts</a>).</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
