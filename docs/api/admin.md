@@ -470,7 +470,7 @@ Clearing `is_site_admin` revokes the user's unused site invite links. Site invit
 
 Deactivate a user account and transfer ownership of any boards they own to other members.
 
-Deactivation also deletes the user's personal access tokens and API auth token, revokes the user's unused site invite links and *(1.2+)* their pending [board invites](boards.md#board-invites) (`revoked_by` is the caller; each board gets an `invite_link.revoked` event) and *(1.2+)* their active, unused [group invite links](groups.md) (each affected group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. *(1.2+)* It also turns off every public [board share link](boards.md#board-sharing) the user enabled, and each affected board receives a `board.updated` event; links enabled before 1.2 are not affected.
+Deactivation also deletes the user's personal access tokens and API auth token, revokes the user's unused site invite links and *(1.2+)* their pending [board invites](boards.md#board-invites) (`revoked_by` is the caller; each board gets an `invite_link.revoked` event) and *(1.2+)* their active, unused [group invite links](groups.md) (each affected group receives an `invite_link.revoked` event). Consumed single-use links are left as they are. *(1.2+)* It also turns off every public [board share link](boards.md#board-sharing) the user enabled, and each affected board receives a `board.updated` event. Links enabled before 1.2 record no enabler and no longer resolve from 1.2 on, whoever is deactivated ([upgrade notes](../administration/upgrade.md#upgrading-to-12x), #1939).
 
 **Permission:** `IsSiteAdmin`. Cannot deactivate your own account. Only a superuser can deactivate a superuser account (`400`).
 

@@ -5,8 +5,9 @@
 the role that let it enable sharing on that board (board admin, owner, group
 admin, or all-content access), on every route that removes it. Standing is
 re-derived from current state, so an account that is still an admin another
-way keeps the link. The public view re-checks standing on every read. Links
-with no recorded enabler are unaffected throughout.
+way keeps the link. The public view re-checks standing on every read. A link
+with no recorded enabler has no standing: the public view refuses and clears
+it, and the access-change sweeps leave it to the view (#1939).
 """
 
 from datetime import timedelta
@@ -208,7 +209,7 @@ class DeactivationTests(_ShareFixtures):
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
         self.assert_cleared()
 
-    def test_legacy_link_and_other_enablers_are_untouched(self, bc):
+    def test_unrecorded_link_and_other_enablers_are_untouched_by_the_sweep(self, bc):
         other_admin = User.objects.create_user(username="other1865", password=PW)
         other = Board.objects.create(name="Other1865", owner=self.owner)
         BoardMembership.objects.create(board=other, user=other_admin, role=BoardMembership.Role.ADMIN)
@@ -226,7 +227,12 @@ class DeactivationTests(_ShareFixtures):
         self.assertEqual(r.status_code, status.HTTP_200_OK, r.content)
         self.assert_cleared()
         self.assert_kept(other_token, board=other)
-        self.assert_kept(legacy_token, board=legacy)
+        # The sweep is scoped to this enabler, so it does not touch a link with
+        # no recorded enabler; the public view refuses that one on its own
+        # (#1939, PublicViewStandingTests).
+        legacy.refresh_from_db()
+        self.assertEqual(str(legacy.share_token), legacy_token)
+        self.assertIsNone(legacy.share_enabled_by_id)
 
 
 @patch("boards.broadcast.broadcast_board_event")
@@ -482,11 +488,63 @@ class PublicViewStandingTests(_ShareFixtures):
         Board.objects.filter(pk=self.board.pk).update(share_token_expires_at=timezone.now() - timedelta(days=1))
         self.assertEqual(self.public(token).status_code, status.HTTP_410_GONE)
 
-    def test_legacy_link_without_enabler_is_served(self, bc):
+    def _unrecorded_link(self, **extra):
+        """A link as an earlier release left it: token and hash, no enabler (#1939)."""
         token = self.enable()
-        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=None)
+        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=None, **extra)
+        return token
+
+    def test_link_without_recorded_enabler_answers_404_and_clears_the_board(self, bc):
+        """Every board admin still has standing; the link still does not resolve."""
+        token = self._unrecorded_link()
+        before = self.updated_events()
+        with self.captureOnCommitCallbacks(execute=True):
+            r = self.public(token)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_cleared()
+        self.assertEqual(self.updated_events(), before + 1)
+        event = BoardEvent.objects.filter(board_id=self.board.pk, event="board.updated").latest("pk")
+        for field in ("share_token", "share_token_expires_at", "share_token_hash", "share_enabled_by"):
+            self.assertNotIn(field, event.data)
+        self.assertEqual(self.public(token).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_link_without_recorded_enabler_answers_like_a_lapsed_one(self, bc):
+        """Same status and body as a link whose enabler lost standing."""
+        token = self._unrecorded_link()
+        unrecorded = self.public(token)
+        lapsed_token = self.enable()
         User.objects.filter(pk=self.enabler.pk).update(is_active=False)
+        lapsed = self.public(lapsed_token)
+        self.assertEqual(unrecorded.status_code, lapsed.status_code)
+        self.assertEqual(unrecorded.content, lapsed.content)
+
+    def test_link_without_recorded_enabler_precedes_expiry(self, bc):
+        token = self._unrecorded_link(share_token_expires_at=timezone.now() - timedelta(days=1))
+        self.assertEqual(self.public(token).status_code, status.HTTP_404_NOT_FOUND)
+        self.assert_cleared()
+
+    def test_reenabling_records_the_enabler_and_the_new_link_resolves(self, bc):
+        old = self._unrecorded_link()
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
+        new = self.enable(user=self.owner)
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.board.share_enabled_by_id, self.owner.pk)
+        self.assertEqual(self.public(new).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_reenabling_over_an_uncleared_link_records_the_enabler(self, bc):
+        """POST on a board whose unrecorded link was never read replaces it (no off/on needed)."""
+        old = self._unrecorded_link()
+        new = self.enable()
+        self.assertNotEqual(new, old)
+        self.assertEqual(self.board.share_enabled_by_id, self.enabler.pk)
+        self.assertEqual(self.public(new).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_recorded_enabler_with_standing_is_served(self, bc):
+        token = self.enable()
         self.assertEqual(self.public(token).status_code, status.HTTP_200_OK)
+        self.assert_kept(token)
 
 
 @patch("boards.broadcast.broadcast_board_event")
@@ -557,6 +615,33 @@ class HelperTests(_ShareFixtures):
 
     def test_standing_none_user(self):
         self.assertFalse(share_enabler_has_standing(None, self.board))
+
+    def test_unrecorded_links_are_cleared_only_when_included(self):
+        """``include_unrecorded`` opts a board-scoped sweep into clearing them (#1939)."""
+        self.enable()
+        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=None)
+        self.assertEqual(revoke_lapsed_share_links(board_ids=[self.board.pk]), [])
+        self.assertEqual(revoke_lapsed_share_links(enabler=self.enabler, include_unrecorded=True), [])
+        self.board.refresh_from_db()
+        self.assertIsNotNone(self.board.share_token)
+        self.assertEqual(
+            revoke_lapsed_share_links(board_ids=[self.board.pk], include_unrecorded=True),
+            [self.board.pk],
+        )
+        self.assert_cleared()
+
+    def test_clear_skips_an_unrecorded_link_that_gained_an_enabler(self):
+        """Judged with no enabler, then re-enabled on the same row: the IS NULL match keeps it."""
+        from boards.services.share_links import _clear_lapsed
+
+        self.enable()
+        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=None)
+        judged = Board.objects.get(pk=self.board.pk)
+        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=self.owner)
+        self.assertEqual(_clear_lapsed([judged], None), [])
+        self.board.refresh_from_db()
+        self.assertEqual(self.board.share_enabled_by_id, self.owner.pk)
+        self.assertIsNotNone(self.board.share_token)
 
 
 @_PLAIN_STATIC

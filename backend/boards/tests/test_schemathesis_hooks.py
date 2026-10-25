@@ -262,6 +262,26 @@ class PublicTokenAndOwnershipFixtureTests(TestCase):
         self.assertEqual(ids["share_token"], str(board.share_token))
         # The share view resolves by hash (#1880), so the fixture must set it.
         self.assertEqual(board.share_token_hash, board.hash_share_token(ids["share_token"]))
+        # And it serves only a link with a recorded enabler (#1939).
+        self.assertEqual(board.share_enabled_by_id, board.owner_id)
+        self.assertEqual(self.client.get(f"/api/share/{ids['share_token']}/").status_code, 200)
+
+    def test_reused_share_token_without_enabler_gets_the_owner_recorded(self):
+        import uuid
+
+        from boards.models import Board
+
+        owner, _member, _group, board = self._demo()
+        token = uuid.uuid4()
+        Board.objects.filter(pk=board.pk).update(
+            share_token=token, share_token_hash=Board.hash_share_token(token),
+        )
+
+        ids = _hooks()._load_real_ids()
+
+        board.refresh_from_db()
+        self.assertEqual(ids["share_token"], str(token))
+        self.assertEqual(board.share_enabled_by_id, owner.pk)
 
     def test_reload_does_not_accumulate_fixture_links_or_rotate_share_token(self):
         from boards.models import BoardInviteLink

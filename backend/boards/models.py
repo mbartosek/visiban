@@ -131,9 +131,10 @@ class Board(models.Model):
     # while that account keeps the standing that let it enable sharing (active,
     # and board admin or site admin on this board): losing it clears the link
     # (``boards.services.share_links.revoke_lapsed_share_links``) and the public view
-    # re-checks it on every read. NULL for links enabled before this field
-    # existed, which keep their previous behavior. SET_NULL alone would turn a
-    # deleted enabler's link into such a legacy link, so a pre_delete receiver
+    # re-checks it on every read. A link with NULL here (enabled before this
+    # field existed) has no standing: the public view refuses and clears it
+    # until a board admin enables sharing again (#1939). SET_NULL alone would
+    # turn a deleted enabler's link into such a link, so a pre_delete receiver
     # clears the link first. db_index=False: the partial index in Meta.indexes
     # is built concurrently in its own migration. Never serialized.
     share_enabled_by = models.ForeignKey(

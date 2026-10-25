@@ -1594,11 +1594,43 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     [Columns API](../api/boards.md#columns), the [Swimlanes API](../api/boards.md#swimlanes),
     and the [checklist item reference](../api/cards.md).
 
+!!! warning "Share links enabled before 1.2 must be turned on again"
+    From 1.2 a board's public share link records the board admin who enabled it, and lasts only
+    while that account is active and still an admin of the board (#1865). A link enabled before
+    1.2 has no recorded admin, so from the upgrade on it no longer opens: visitors get
+    `404 Not Found` and the same "This board is no longer shared" page as for a link that was
+    turned off (#1939). No admin is filled in for these links at upgrade. The first time such a
+    link is opened it is also cleared from the board, after which the **Sharing** tab shows
+    sharing as off.
+
+    **To restore public sharing on such a board**, a board admin opens
+    **Board Settings → Sharing** and turns **Enable public share link** on. If the tab still
+    shows it on (the link has not been opened since the upgrade), turn it off and back on. This
+    creates a new link recorded against that admin; send the new URL to anyone who needs it.
+    The previous URL does not come back. API clients call `POST /api/v1/boards/{id}/share/`,
+    which creates a new link whether or not one is set.
+
+    The same applies to a link that a backend pod still on the previous version creates or
+    re-enables during a rolling upgrade: it records no admin, so turn it on again once every
+    pod runs 1.2.
+
+    To list the boards whose link has no recorded admin (after migrating):
+
+    ```bash
+    docker compose -f docker-compose.prod.yml run --rm backend \
+      python manage.py shell -c "
+    from boards.models import Board
+    boards = Board.objects.filter(share_token__isnull=False, share_enabled_by__isnull=True)
+    for pk, name in boards.order_by('pk').values_list('pk', 'name'):
+        print(pk, name)
+    "
+    ```
+
 !!! note "Public share links are now looked up by a hash of their token"
     Board share links are now resolved by a SHA-256 hash of the share token, as invite links
     already are (#1880). Migrations `boards/0087`–`0089` add the hash column, fill it in for every
-    existing share link, and build its unique index concurrently. Share links created before the
-    upgrade keep working, and no action is needed. During a rolling upgrade, a backend pod still
+    existing share link, and build its unique index concurrently. This change needs no action for
+    links created before the upgrade (but see the note above on links enabled before 1.2). During a rolling upgrade, a backend pod still
     on the previous version writes the token without its hash. A share link that such a pod
     creates, regenerates or re-enables after migration `0088` has run answers `404 Not Found`,
     and so does the link it replaced, until a board admin regenerates it under

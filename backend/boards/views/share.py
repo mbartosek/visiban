@@ -98,9 +98,10 @@ class ShareBoardView(APIView):
             200: PublicBoardSerializer,
             404: OpenApiResponse(
                 description=(
-                    "Token is not a valid UUID, no board has that share token, or the "
+                    "Token is not a valid UUID, no board has that share token, the "
                     "admin who enabled the link is no longer active or no longer an "
-                    "admin of the board."
+                    "admin of the board, or the link has no recorded enabler (a board "
+                    "admin enables sharing again to issue a new link)."
                 ),
             ),
             410: OpenApiResponse(
@@ -139,13 +140,18 @@ class ShareBoardView(APIView):
         # so a lapsed link answers like a revoked one. The board is cleared
         # here too, so a later return of that standing does not bring this
         # link back; the clear is conditional on this token and enabler, so
-        # it never touches a link re-enabled meanwhile. Links with no recorded
-        # enabler (enabled before 1.2) are not checked.
-        if board.share_enabled_by_id is not None and not share_enabler_has_standing(
-            board.share_enabled_by, board
-        ):
+        # it never touches a link re-enabled meanwhile.
+        #
+        # A link with no recorded enabler (#1939) is answered the same way:
+        # there is no account whose standing could keep it, so it stops
+        # resolving and is cleared until a board admin enables sharing again,
+        # which records that admin. The enabler is deliberately not inferred
+        # from the board's current admins: one of them did not choose to share
+        # the board, and holding the link on their standing would keep it live
+        # after the account that did choose to share it lost its role.
+        if not share_enabler_has_standing(board.share_enabled_by, board):
             with transaction.atomic():
-                revoke_lapsed_share_links(board_ids=[board.pk])
+                revoke_lapsed_share_links(board_ids=[board.pk], include_unrecorded=True)
             raise Http404
         # TTL enforcement (#804): once the expiry has passed, stop serving the
         # board but keep returning 410 Gone rather than 404 so the caller can
