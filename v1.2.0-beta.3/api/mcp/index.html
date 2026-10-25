@@ -4873,7 +4873,7 @@
 </table>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code>board://{board_id}</code> deliberately omits every web-session-only field the REST board detail response carries — <code>share_token</code>, <code>capabilities</code>, <code>is_starred</code>, <code>members</code>, <code>current_user_role</code>. These have no meaning for an AI agent reading board context, and a share token in particular is a bearer credential that must never appear in agent-facing output.</p>
+<p><code>board://{board_id}</code> deliberately omits every web-session-only field the REST board detail response carries — <code>share_token</code> (deprecated on REST since 1.2), <code>share_token_expires_at</code>, <code>share_link_active</code>, <code>capabilities</code>, <code>is_starred</code>, <code>members</code>, <code>current_user_role</code>. These have no meaning for an AI agent reading board context, and a share token in particular is a bearer credential that must never appear in agent-facing output.</p>
 </div>
 <h3 id="cardcard_id"><code>card://{card_id}</code><a class="headerlink" href="#cardcard_id" title="Permanent link">&para;</a></h3>
 <p>Card detail plus full audit history. Requires board membership — any role, including <code>collaborator</code>/<code>viewer</code>. Mime type <code>application/json</code>.</p>

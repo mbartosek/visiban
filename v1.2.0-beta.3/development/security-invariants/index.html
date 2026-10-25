@@ -4992,7 +4992,9 @@ channels and the feed, <code>invite</code>, swimlane re-filtering, and a check t
 <code>boards/tests/test_actor_scoped_event_fields.py</code> (<code>is_starred</code> per recipient on
 both channels for each write path, and in the feed for every reader role),
 <code>boards/tests/test_board_events.py</code> <code>ReadSideStrippingTests</code> (including the
-shared-helper identity check), <code>boards/tests/test_consumer_role_refresh.py</code>, and
+shared-helper identity check), <code>boards/tests/test_share_link.py</code>
+<code>ShareLinkActiveFieldTests</code> (<code>share_link_active</code> is in <code>ADMIN_ONLY_BOARD_FIELDS</code>
+and null below admin on <code>/full/</code>), <code>boards/tests/test_consumer_role_refresh.py</code>, and
 <code>boards/tests/test_member_site_admin_flag.py</code>.</p>
 <h2 id="rule-9-role-writers-validate-against-the-model-enum-and-role-readers-fail-closed">Rule 9: Role writers validate against the model enum, and role readers fail closed<a class="headerlink" href="#rule-9-role-writers-validate-against-the-model-enum-and-role-readers-fail-closed" title="Permanent link">&para;</a></h2>
 <p><strong>Rule.</strong> Every code path that stores a board or group role validates the
@@ -5171,7 +5173,7 @@ fails closed.</p>
 <tr>
 <td>MCP (output)</td>
 <td><code>mcp_server/tools.py</code> <code>board_snapshot</code>, <code>_serialize_user</code>, <code>_swimlanes_payload</code>, <code>_serialize_card</code></td>
-<td>Explicit allow-list shapes, not <code>BoardFullSerializer</code>; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only</td>
+<td>Explicit allow-list shapes, not <code>BoardFullSerializer</code>; web-session-only fields (share token, share-link expiry and <code>share_link_active</code>, capabilities, members, current role) are absent (<code>test_mcp.py</code> <code>test_web_only_fields_are_never_exposed</code>); users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only</td>
 </tr>
 <tr>
 <td>Change feed and board export</td>

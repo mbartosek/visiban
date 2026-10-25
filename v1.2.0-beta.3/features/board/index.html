@@ -1554,6 +1554,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rotating-a-share-link" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotating a share link
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#when-a-share-link-ends-automatically" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5479,9 +5490,14 @@ parked out of sight cannot wash out every tint on the board.</p>
 <li>Open <strong>Board Settings</strong> and go to the <strong>Sharing</strong> tab.</li>
 <li>Toggle <strong>Enable public share link</strong> to the on position.</li>
 <li>Optionally change the <strong>expiry</strong> — choose 7 days, 30 days, 90 days, or <strong>Never</strong>. <em>(1.2+)</em> The tab pre-selects <strong>30 days</strong>; pick <strong>Never</strong> for a link that does not expire. (In 1.0 and 1.1 the pre-selected choice was no expiry. The API default is unchanged: a request without an expiry still creates a link that never expires — see the <a href="../../api/boards/#post-apiv1boardsidshare">API reference</a>.)</li>
-<li>A URL in the format <code>https://&lt;host&gt;/share/&lt;token&gt;</code> is displayed with a <strong>Copy</strong> button.</li>
+<li>A URL in the format <code>https://&lt;host&gt;/share/&lt;token&gt;</code> is displayed with a <strong>Copy</strong> button. <em>(1.2+)</em> Copy it now: the link is shown only this once. Click <strong>Done</strong> when you have it.</li>
 </ol>
 <p>Share that URL with anyone — recipients do not need a Visiban account.</p>
+<h3 id="rotating-a-share-link">Rotating a share link<a class="headerlink" href="#rotating-a-share-link" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1935)</p>
+</blockquote>
+<p>When you open the <strong>Sharing</strong> tab later, it shows that a public share link is active and when it expires, but not the link itself. To get a link you can copy again, choose an expiry under <strong>New link expires in</strong> and click <strong>Rotate link</strong>. Rotating creates a new link, shows it once, and stops the previous link working straight away, so send the new one to anyone who still needs it. (In 1.0 and 1.1 the tab showed the current link every time it was opened.)</p>
 <blockquote>
 <p><strong>Added in 1.1</strong> — share link expiry options (#804)</p>
 </blockquote>
