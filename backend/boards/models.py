@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import types
 import uuid
 
 from django.contrib.postgres.indexes import GinIndex
@@ -106,6 +108,16 @@ class Board(models.Model):
     share_token = models.UUIDField(
         null=True, blank=True, default=None, editable=False, unique=True,
         help_text="Public share token. Null means sharing is disabled. Never set directly — use the share action.",
+    )
+    # SHA-256 of the share token (#1880), the value public share links are
+    # resolved by, as the invite models resolve theirs by ``token_hash``. Set
+    # and cleared together with ``share_token`` (``issue_share_token``,
+    # ``SHARE_LINK_CLEARED``). ``share_token`` itself stays for the admin-only
+    # API fields that return it and is not used to look a link up. No
+    # field-level unique/index: the unique constraint in Meta.constraints is
+    # built concurrently in its own migration. Never serialized.
+    share_token_hash = models.CharField(
+        max_length=64, null=True, blank=True, default=None, editable=False,
     )
     share_token_expires_at = models.DateTimeField(
         null=True, blank=True, default=None,
@@ -218,9 +230,61 @@ class Board(models.Model):
                 condition=models.Q(share_enabled_by__isnull=False),
             ),
         ]
+        constraints = [
+            # Serves the public share-link lookup (#1880). Partial: only boards
+            # with a share link have a hash, and a partial unique constraint is
+            # a plain unique index on every backend, which boards/0089 builds
+            # with CREATE UNIQUE INDEX CONCURRENTLY.
+            models.UniqueConstraint(
+                fields=["share_token_hash"], name="board_share_token_hash_uniq",
+                condition=models.Q(share_token_hash__isnull=False),
+            ),
+        ]
+
+    #: The column values of a board with no share link. Every route that
+    #: clears a link writes all four, so the hash a link is resolved by never
+    #: outlives its token (#1880).
+    SHARE_LINK_CLEARED = types.MappingProxyType({
+        "share_token": None,
+        "share_token_hash": None,
+        "share_token_expires_at": None,
+        "share_enabled_by": None,
+    })
+    #: The share-link columns, for ``update_fields`` and ``refresh_from_db``.
+    SHARE_LINK_FIELDS = tuple(SHARE_LINK_CLEARED)
 
     def __str__(self):
         return self.name
+
+    @staticmethod
+    def hash_share_token(token):
+        """Return the stored hash of a share token (#1880).
+
+        SHA-256 hex, the scheme the invite models use for ``token_hash``, over
+        the canonical UUID string (lowercase, hyphenated), so every spelling
+        ``uuid.UUID`` accepts for one token hashes the same. Raises
+        ``ValueError`` for a value that is not a UUID. Migration
+        ``boards/0088_backfill_board_share_token_hash`` inlines this; a test
+        keeps the two in step.
+        """
+        canonical = str(token if isinstance(token, uuid.UUID) else uuid.UUID(str(token)))
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def issue_share_token(self):
+        """Set a fresh share token and its hash on this instance; return the token.
+
+        Does not save: the caller saves ``share_token`` and
+        ``share_token_hash`` (with any other share fields) in one write.
+        """
+        token = uuid.uuid4()
+        self.share_token = token
+        self.share_token_hash = self.hash_share_token(token)
+        return token
+
+    def clear_share_link(self):
+        """Set every share-link column to its cleared value on this instance (no save)."""
+        for name, value in self.SHARE_LINK_CLEARED.items():
+            setattr(self, name, value)
 
 
 class BoardMembership(models.Model):
@@ -1911,8 +1975,11 @@ def clear_share_links_of_deleted_enabler(sender, instance, **kwargs):
     from .serializers import BoardSerializer
 
     for board_id in enabled:
+        # Keywords spelled out (the columns of Board.SHARE_LINK_CLEARED): the
+        # group-placement entry-point check reads update() keywords statically.
         updated = Board.objects.filter(pk=board_id, share_enabled_by=instance).update(
-            share_token=None, share_token_expires_at=None, share_enabled_by=None,
+            share_token=None, share_token_hash=None, share_token_expires_at=None,
+            share_enabled_by=None,
         )
         if not updated:
             continue

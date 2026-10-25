@@ -251,6 +251,14 @@ class Migration(migrations.Migration):
 
 Migration `0030_card_trigram_search_indexes` uses this same `SeparateDatabaseAndState` shape
 for its GIN indexes; read it for a worked example already in the tree.
+When the uniqueness only has to hold for non-null values, a *partial* `UniqueConstraint`
+(`condition=Q(col__isnull=False)`) is simpler: Django implements it as a unique index on
+every backend, so the `ALTER TABLE ... ADD CONSTRAINT ... USING INDEX` step drops out.
+`boards/0089_board_share_token_hash_uniq` is the worked example. It also drops a leftover
+index of the same name before the build, because a failed `CREATE INDEX CONCURRENTLY` leaves
+an `INVALID` index that `IF NOT EXISTS` would skip. On SQLite it calls
+`schema_editor.add_constraint` / `remove_constraint`, so test databases there enforce the
+constraint and can still migrate backward.
 
 ---
 

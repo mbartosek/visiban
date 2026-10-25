@@ -176,7 +176,9 @@ INTENTIONALLY_UNHANDLED_BOARD_EVENTS: dict[str, str] = {
 # ``BoardSerializer`` does not declare them today (a test pins that); this list
 # keeps a payload built from a richer serializer from changing that. Admin clients read these fields over
 # REST (``/full/`` and the ``share`` response), never from a frame.
-ADMIN_ONLY_BOARD_FIELDS = frozenset({"share_token", "share_token_expires_at"})
+# ``share_token_hash`` (#1880) is declared by no serializer at all; it is listed
+# so a payload built from the model's fields could not carry it either.
+ADMIN_ONLY_BOARD_FIELDS = frozenset({"share_token", "share_token_expires_at", "share_token_hash"})
 
 
 def without_admin_only_board_fields(payload):

@@ -781,7 +781,7 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
                 # form from the locked row (and form fields the administrator
                 # did not change), so a concurrent change to them is not
                 # reverted by the earlier read held in ``obj``. The share-link
-                # fields (token, expiry, enabler) are editable=False, so they
+                # fields (token, token hash, expiry, enabler) are editable=False, so they
                 # are never on the form and always come from the locked row.
                 # A submitted row_version is compared with the locked row
                 # first, so a form rendered against an older owner or group
@@ -796,7 +796,7 @@ class BoardAdmin(RowVersionAdminMixin, ContainerChangedAdminMixin, admin.ModelAd
             # ``obj`` in step with the row for anything that reads it after
             # this point (the payload below carries no share fields).
             revoke_lapsed_share_links(board_ids=[obj.pk], actor_id=request.user.pk)
-            obj.refresh_from_db(fields=["share_token", "share_token_expires_at", "share_enabled_by"])
+            obj.refresh_from_db(fields=Board.SHARE_LINK_FIELDS)
         # No request in context: BoardSerializer.get_group_detail() reads
         # request.query_params (a DRF Request attribute) to resolve
         # ?expand=group, which the plain Django admin HttpRequest does not

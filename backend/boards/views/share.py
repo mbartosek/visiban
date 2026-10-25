@@ -106,13 +106,19 @@ class ShareBoardView(APIView):
     )
     def get(self, request, token):
         try:
-            token_uuid = uuid.UUID(token)
+            token_hash = Board.hash_share_token(uuid.UUID(token))
         except ValueError:
             raise Http404
+        # Resolved by the token's hash, as invite links are (#1880); the
+        # stored plaintext is never matched against the presented value.
+        # ``share_token__isnull=False`` is a liveness check, not a value
+        # match: a link whose token was cleared is gone even if a clear route
+        # ever left its hash behind.
         board = get_object_or_404(
             Board.objects.select_related("share_enabled_by", GROUP_ANCESTOR_SELECT_RELATED)
             .prefetch_related("columns", "swimlanes", "labels"),
-            share_token=token_uuid,
+            share_token_hash=token_hash,
+            share_token__isnull=False,
         )
         # A link lasts while the admin who enabled it keeps admin standing on
         # the board (#1865). Checked on every read, before the expiry branch,
