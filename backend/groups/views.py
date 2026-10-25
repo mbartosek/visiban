@@ -2127,6 +2127,22 @@ class JoinGroupView(APIView):
                     status=status.HTTP_410_GONE,
                 )
 
+            # A shareable link never grants admin (#1727); migration 0023
+            # revokes the ones minted before that (#1940). Refusing here as
+            # well keeps one that is reactivated or written by a script from
+            # redeeming. Same 404 as a revoked link, so it leaks nothing.
+            if (
+                link.delivery == GroupInviteLink.Delivery.LINK
+                and link.role == GroupInviteLink.Role.ADMIN
+            ):
+                logger.info(
+                    "Invite token redemption failed: shareable admin link. token=%s user_id=%s ip=%s outcome=failure",
+                    token_hint,
+                    request.user.pk,
+                    ip,
+                )
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+
             if link.is_expired:
                 logger.info(
                     "Invite token redemption failed: expired. token=%s user_id=%s ip=%s outcome=failure",

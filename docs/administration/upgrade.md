@@ -572,22 +572,27 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
       `null` (never expires) and values over 30 are refused with `400`. The form offers 1, 7 or
       30 days and no longer offers **Never**.
 
-    Emailed invites are unchanged. Links created before upgrading are not changed: an existing
-    admin link or never-expiring link keeps working until it is revoked. **Review existing links
-    and revoke the ones you no longer want.** Group admins see them in the group's
-    **Invite links** panel, where they show the **Admin** role or **Never** as their expiry. To
-    list them across the instance:
+    Emailed invites are unchanged. **Upgrading also cleans up links created earlier**
+    (migration `groups.0023`, #1940), so no operator step is needed. Only shareable links that are
+    still active and have not been used are touched:
+
+    - An existing **admin** link is **revoked**. It is not downgraded to member. To give someone
+      admin, [email them an invite](../features/groups.md#emailing-an-invite-link) or change
+      their role.
+    - An existing link with **no expiry** now expires **7 days after the upgrade**. Create a
+      fresh link if you need one beyond that, up to 30 days.
+
+    Links that already have an expiry keep it. People who already joined through a link keep
+    their role. To see what the upgrade changed, revoked links show as **Revoked** in a group's
+    **Invite links** panel. To list the revoked admin links across the instance:
 
     ```bash
     docker compose -f docker-compose.prod.yml run --rm backend \
       python manage.py shell -c "
-    from django.db.models import Q
     from groups.models import GroupInviteLink
-    links = GroupInviteLink.objects.filter(
-        delivery='link', is_active=True, used_at__isnull=True,
-    ).filter(Q(role='admin') | Q(expires_at__isnull=True))
-    for group_name, prefix, role, expires_at in links.values_list('group__name', 'prefix', 'role', 'expires_at'):
-        print(group_name, prefix, role, expires_at or 'never')
+    links = GroupInviteLink.objects.filter(delivery='link', role='admin', is_active=False, used_at__isnull=True)
+    for group_name, prefix in links.values_list('group__name', 'prefix'):
+        print(group_name, prefix)
     "
     ```
 
