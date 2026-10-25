@@ -403,6 +403,8 @@ class BoardFullMembersSchemaTests(TestCase):
             "current_user_role", "is_starred", "share_token", "share_token_expires_at", "capabilities",
             # Additive (#1289): archived cards cascade on board delete.
             "archived_card_count",
+            # Additive (#1935): "a share link is set", without the token.
+            "share_link_active",
         ])
         self.assertIsInstance(body["allowed_priorities"], list)
         self.assertEqual(body["current_user_role"], "admin")

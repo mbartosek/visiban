@@ -77,6 +77,8 @@ class BoardFullSerializerContractTests(TestCase):
             "enforce_wip_limits", "enforce_wip_hard", "enforce_weight_limits",
             "created_at", "updated_at", "current_user_role", "is_starred",
             "share_token", "share_token_expires_at", "capabilities",
+            # #1935: the Sharing tab reads this instead of the deprecated share_token.
+            "share_link_active",
         }
         missing = required - set(r.data.keys())
         self.assertFalse(missing, f"BoardFull response is missing fields: {missing}")
@@ -336,6 +338,7 @@ _BOARD_FULL_SPEC = {
     "share_token_expires_at": _FieldSpec((str,), nullable=True),
     "capabilities": _FieldSpec((dict,)),
     "archived_card_count": _FieldSpec((int,)),
+    "share_link_active": _FieldSpec((bool,), nullable=True),
 }
 
 
@@ -431,6 +434,7 @@ class BoardFullTypeContractTests(TestCase):
         # BoardFullSerializerContractTests above, which never sets a token.
         self.assertIsInstance(body["share_token"], str)
         self.assertIsInstance(body["share_token_expires_at"], str)
+        self.assertIs(body["share_link_active"], True)
 
     def test_board_full_owner_type_contract(self):
         body = self._get_full()

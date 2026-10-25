@@ -410,7 +410,7 @@ A read-only board snapshot: metadata, columns, swimlanes, up to 200 active cards
 | `labels` | array | `{id, name, color}` objects, one per label defined on the board. |
 
 !!! note
-    `board://{board_id}` deliberately omits every web-session-only field the REST board detail response carries — `share_token`, `capabilities`, `is_starred`, `members`, `current_user_role`. These have no meaning for an AI agent reading board context, and a share token in particular is a bearer credential that must never appear in agent-facing output.
+    `board://{board_id}` deliberately omits every web-session-only field the REST board detail response carries — `share_token` (deprecated on REST since 1.2), `share_token_expires_at`, `share_link_active`, `capabilities`, `is_starred`, `members`, `current_user_role`. These have no meaning for an AI agent reading board context, and a share token in particular is a bearer credential that must never appear in agent-facing output.
 
 ### `card://{card_id}`
 

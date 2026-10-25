@@ -629,9 +629,15 @@ Board admins can generate a public read-only link that lets anyone view the boar
 1. Open **Board Settings** and go to the **Sharing** tab.
 2. Toggle **Enable public share link** to the on position.
 3. Optionally change the **expiry** — choose 7 days, 30 days, 90 days, or **Never**. *(1.2+)* The tab pre-selects **30 days**; pick **Never** for a link that does not expire. (In 1.0 and 1.1 the pre-selected choice was no expiry. The API default is unchanged: a request without an expiry still creates a link that never expires — see the [API reference](../api/boards.md#post-apiv1boardsidshare).)
-4. A URL in the format `https://<host>/share/<token>` is displayed with a **Copy** button.
+4. A URL in the format `https://<host>/share/<token>` is displayed with a **Copy** button. *(1.2+)* Copy it now: the link is shown only this once. Click **Done** when you have it.
 
 Share that URL with anyone — recipients do not need a Visiban account.
+
+### Rotating a share link
+
+> **Added in 1.2** (#1935)
+
+When you open the **Sharing** tab later, it shows that a public share link is active and when it expires, but not the link itself. To get a link you can copy again, choose an expiry under **New link expires in** and click **Rotate link**. Rotating creates a new link, shows it once, and stops the previous link working straight away, so send the new one to anyone who still needs it. (In 1.0 and 1.1 the tab showed the current link every time it was opened.)
 
 > **Added in 1.1** — share link expiry options (#804)
 

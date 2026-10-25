@@ -188,6 +188,7 @@ function makeBoard(overrides: Partial<BoardFull> = {}): BoardFull {
     capabilities: { movement_export: false },
     share_token: null,
     share_token_expires_at: null,
+    share_link_active: false,
     ...overrides,
   }
 }

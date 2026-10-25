@@ -409,6 +409,104 @@ class ShareTokenInBoardFullTests(TestCase):
         self.assertIn("share_token", r.data)
         self.assertIsNone(r.data["share_token"])
 
+    def test_deprecated_share_token_is_still_populated_for_admins(self):
+        """#1935: deprecated in 1.2, not removed. Until 2.0 the field keeps its
+        name, type and value for admins (1.0 contract), so it still equals the
+        token the share action returned."""
+        token = self.admin_client.post(f"/api/v1/boards/{self.board.id}/share/").data["share_token"]
+        r = self.admin_client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.data["share_token"], token)
+
+
+class ShareLinkActiveFieldTests(TestCase):
+    """``share_link_active`` on /full/ (#1935): admins learn whether a link is set
+    without the token; every lower role gets null, as for ``share_token``."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username="admin1935", password="pass")
+        self.board = _make_board(self.admin)
+        self.member = _make_member(self.board, "member1935")
+        self.viewer = _make_member(self.board, "viewer1935", role=BoardMembership.Role.VIEWER)
+        self.site_admin = User.objects.create_user(
+            username="siteadmin1935", password="pass", can_access_all_content=True,
+        )
+
+    def _full(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        r = client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        return r.data
+
+    def _enable(self):
+        client = APIClient()
+        client.force_authenticate(self.admin)
+        r = client.post(f"/api/v1/boards/{self.board.id}/share/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        return r
+
+    def test_admin_sees_false_with_no_link(self):
+        self.assertIs(self._full(self.admin)["share_link_active"], False)
+
+    def test_admin_and_site_admin_see_true_with_a_link(self):
+        self._enable()
+        self.assertIs(self._full(self.admin)["share_link_active"], True)
+        self.assertIs(self._full(self.site_admin)["share_link_active"], True)
+
+    def test_lower_roles_see_null(self):
+        self._enable()
+        for user in (self.member, self.viewer):
+            with self.subTest(user=user.username):
+                self.assertIsNone(self._full(user)["share_link_active"])
+
+    def test_false_again_after_disable(self):
+        self._enable()
+        client = APIClient()
+        client.force_authenticate(self.admin)
+        client.delete(f"/api/v1/boards/{self.board.id}/share/")
+        self.assertIs(self._full(self.admin)["share_link_active"], False)
+
+    def test_create_response_still_returns_the_token(self):
+        """The token is returned in full by the response that creates or rotates
+        the link — the one place the SPA reads it."""
+        r = self._enable()
+        self.board.refresh_from_db()
+        self.assertEqual(r.data["share_token"], str(self.board.share_token))
+        self.assertTrue(r.data["share_url"].endswith(f"/api/share/{self.board.share_token}"))
+
+    def test_share_link_active_is_an_admin_only_payload_field(self):
+        """Event payloads never carry it, like the other admin-only board fields."""
+        from boards.broadcast import ADMIN_ONLY_BOARD_FIELDS, without_admin_only_board_fields
+
+        self.assertIn("share_link_active", ADMIN_ONLY_BOARD_FIELDS)
+        self.assertEqual(without_admin_only_board_fields({"id": 1, "share_link_active": True}), {"id": 1})
+
+
+class ShareTokenDeprecationSchemaTests(TestCase):
+    """The OpenAPI document marks ``BoardFull.share_token`` deprecated (#1935)
+    and declares ``share_link_active`` as a nullable boolean."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from drf_spectacular.generators import SchemaGenerator
+
+        cls.props = SchemaGenerator().get_schema(request=None, public=True)[
+            "components"]["schemas"]["BoardFull"]["properties"]
+
+    def test_share_token_is_marked_deprecated_with_unchanged_type(self):
+        prop = self.props["share_token"]
+        self.assertIs(prop.get("deprecated"), True)
+        self.assertEqual(prop.get("type"), "string")
+        self.assertIs(prop.get("nullable"), True)
+        self.assertIn("2.0", prop.get("description", ""))
+
+    def test_share_link_active_is_a_nullable_boolean(self):
+        prop = self.props["share_link_active"]
+        self.assertEqual(prop.get("type"), "boolean")
+        self.assertIs(prop.get("nullable"), True)
+        self.assertNotIn("deprecated", prop)
+
 
 class ShareLinkTokenThrottleTests(TestCase):
     """ShareLinkTokenThrottle is keyed on the URL token segment (#988)."""

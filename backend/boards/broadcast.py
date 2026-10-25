@@ -178,7 +178,12 @@ INTENTIONALLY_UNHANDLED_BOARD_EVENTS: dict[str, str] = {
 # REST (``/full/`` and the ``share`` response), never from a frame.
 # ``share_token_hash`` (#1880) is declared by no serializer at all; it is listed
 # so a payload built from the model's fields could not carry it either.
-ADMIN_ONLY_BOARD_FIELDS = frozenset({"share_token", "share_token_expires_at", "share_token_hash"})
+# ``share_link_active`` (#1935) is the admin-only "a link is set" flag on
+# ``/full/``; it is listed with the others so a frame cannot carry it either.
+# (Adding a key here only drops more from payloads; it never exposes anything.)
+ADMIN_ONLY_BOARD_FIELDS = frozenset({
+    "share_token", "share_token_expires_at", "share_token_hash", "share_link_active",
+})
 
 
 def without_admin_only_board_fields(payload):

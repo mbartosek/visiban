@@ -190,6 +190,7 @@ export const BOARD_FULL = {
   swimlane_custom_field_definitions: [],
   is_starred: false,
   share_token: null,
+  share_link_active: false,
   current_user_role: 'admin' as const,
   capabilities: { movement_export: true },
   created_at: '2026-01-01T00:00:00Z',

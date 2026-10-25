@@ -612,7 +612,7 @@ function makeBoard(defs: SwimlaneCustomFieldDefinition[], swimlanes: Swimlane[] 
     enforce_wip_limits: false, enforce_wip_hard: false, enforce_weight_limits: false,
     export_min_role: 'viewer', card_density: 'standard', show_wip_at_limit: false, show_row_chip_field_names: true,
     created_at: '', updated_at: '', current_user_role: 'admin', is_starred: false,
-    share_token: null, share_token_expires_at: null,
+    share_token: null, share_token_expires_at: null, share_link_active: false,
     // Fully typed, no `as unknown as` escape hatch: the double cast would
     // suppress exactly the serializer<->TS drift signal that made every other
     // BoardFull fixture in this directory flag the new field.

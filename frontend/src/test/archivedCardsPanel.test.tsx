@@ -35,6 +35,7 @@ const fakeBoard: BoardFull = {
   capabilities: { movement_export: false },
   share_token: null,
   share_token_expires_at: null,
+  share_link_active: false,
   custom_field_definitions: [],
   swimlane_custom_field_definitions: [],
 }

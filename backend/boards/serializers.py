@@ -3234,9 +3234,16 @@ class BoardFullSerializer(serializers.ModelSerializer):
     group_detail = serializers.SerializerMethodField()
     current_user_role = serializers.SerializerMethodField()
     is_starred = serializers.SerializerMethodField()
+    # Deprecated since 1.2 (#1935): kept with the same name, type and admin-only
+    # gating under the 1.0 contract, and removed in 2.0. Clients get the token
+    # from the share action's response, once, and read ``share_link_active``
+    # here instead.
     share_token = serializers.SerializerMethodField()
     share_token_expires_at = serializers.SerializerMethodField()
     capabilities = serializers.SerializerMethodField()
+    # Additive (#1935): whether a share link is set, without the token, so the
+    # settings modal can show that a link is active without reading the token.
+    share_link_active = serializers.SerializerMethodField()
     # Archived cards are excluded from ``cards`` above, but Card.board is
     # on_delete=CASCADE so deleting the board destroys them too. The settings
     # modal's Danger Zone reads this to require typed-name confirmation and to
@@ -3265,7 +3272,7 @@ class BoardFullSerializer(serializers.ModelSerializer):
             "cards", "labels", "members", "custom_field_definitions",
             "swimlane_custom_field_definitions", "staleness_threshold_days", "stale_warning_pct",
             "allowed_priorities", "enforce_wip_limits", "enforce_wip_hard", "enforce_weight_limits", "export_min_role", "card_density", "show_wip_at_limit", "show_row_chip_field_names", "created_at", "updated_at", "current_user_role", "is_starred", "share_token", "share_token_expires_at", "capabilities",
-            "archived_card_count",
+            "archived_card_count", "share_link_active",
         ]
         # `group` is read-only here: this serializer only renders /full/, and a
         # group change goes through BoardSerializer.validate_group or move-group.
@@ -3607,8 +3614,8 @@ class BoardFullSerializer(serializers.ModelSerializer):
     def _resolved_role(self, obj):
         """Return the current user's role, reading from context or resolving live.
 
-        Both get_share_token and get_share_token_expires_at need the role to
-        gate admin-only fields. Centralising the resolution here avoids two
+        get_share_token, get_share_token_expires_at and get_share_link_active
+        need the role to gate admin-only fields. Centralising the resolution here avoids two
         independent get_board_role() calls per /full/ response when role is
         absent from context.
         """
@@ -3620,12 +3627,27 @@ class BoardFullSerializer(serializers.ModelSerializer):
                 role = get_board_role(request.user, obj)
         return role
 
-    @extend_schema_field(serializers.CharField(allow_null=True))
+    @extend_schema_field({
+        "type": "string",
+        "nullable": True,
+        "deprecated": True,
+        "description": (
+            "Deprecated since 1.2; removed in 2.0. The share link token, for board "
+            "admins only (null for other roles). The share action's response "
+            "(POST /api/v1/boards/{id}/share/) returns the token when the link is "
+            "created or rotated; use share_link_active to tell whether a link is set."
+        ),
+    })
     def get_share_token(self, obj):
         """Return the share token only to board admins; return null for all other roles.
 
         The token is a secret credential — exposing it to members/viewers would
         let them share the board publicly without admin intent.
+
+        Deprecated since 1.2 (#1935). The 1.0 contract forbids removing or
+        retyping a response field in a minor release, so this keeps its name,
+        type and gating until 2.0. The token is meant to be shown once, in the
+        share action's response; the SPA no longer reads it here.
         """
         from .models import BoardMembership as BM
         from .permissions import SITE_ADMIN
@@ -3645,6 +3667,28 @@ class BoardFullSerializer(serializers.ModelSerializer):
         from .permissions import SITE_ADMIN
         if self._resolved_role(obj) in (BM.Role.ADMIN, SITE_ADMIN):
             return obj.share_token_expires_at.isoformat() if obj.share_token_expires_at else None
+        return None
+
+    @extend_schema_field(serializers.BooleanField(
+        allow_null=True,
+        help_text=(
+            "Whether the board has a share link set (it may have expired; see "
+            "share_token_expires_at). Board admins only; null for other roles."
+        ),
+    ))
+    def get_share_link_active(self, obj):
+        """Tell board admins whether a share link is set, without the token.
+
+        Same gating as get_share_token (null below admin, so a lower role learns
+        nothing it could not learn before). It replaces reading the deprecated
+        ``share_token`` field just to decide whether a link exists (#1935).
+        An expired link still reads ``true``: the token is still stored, and
+        the admin rotates or disables it from the settings modal.
+        """
+        from .models import BoardMembership as BM
+        from .permissions import SITE_ADMIN
+        if self._resolved_role(obj) in (BM.Role.ADMIN, SITE_ADMIN):
+            return obj.share_token is not None
         return None
 
     @extend_schema_field({"type": "object", "additionalProperties": {"type": "boolean"}})
