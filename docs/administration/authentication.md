@@ -87,7 +87,7 @@ A user without a password can set one in **Settings → Security**, but only wit
 
 > **Changed in 1.2** (#1932)
 
-The same five-minute provider sign-in applies when a user without a password adds or changes an email address, in **Settings → Profile** and on the backend's `/accounts/email/` page. An address on the account is one a password reset link can be sent to, so changing the addresses gets the same check as setting a first password. Outside the five minutes, Settings asks the user to sign out, sign in again with their provider, and change the address straight away. Users who have a password confirm it as before.
+The same five-minute provider sign-in applies when a user without a password adds or changes an email address, in **Settings → Profile** and on the backend's `/accounts/email/` page. Outside the five minutes, Settings asks the user to sign out, sign in again with their provider, and change the address straight away. Users who have a password confirm it as before.
 
 <a id="generic-oidc"></a>
 

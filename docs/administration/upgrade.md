@@ -849,7 +849,9 @@ touched — so it is zero-downtime and requires no operator action.
       `"code": "recent_login_required"`.
       The same applies to changing the email of an account without a password
       (`PATCH /api/v1/auth/me/`, `PATCH`/`PUT /api/v1/auth/user/`, and adding or making
-      an address primary on `/accounts/email/`, #1932).
+      an address primary on `/accounts/email/`, #1932). Addresses already on an account are
+      not changed by the upgrade; an operator who wants to review them can do so under
+      **Email addresses** in the Django admin.
       Accounts with a password are unaffected (see
       [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`

@@ -299,13 +299,10 @@ def email_change_requires_recent_login(request, user, requested_email) -> bool:
     """True when *request*'s session is too old to change *user*'s email (#1932).
 
     An account with no usable password has no current password to prove
-    (``email_change_requires_current_password``), and an address added to the
-    account is one password reset can send a link to. Without this check a
-    session cookie alone could attach an address, verify it, and reach a first
-    password through reset, which is the end state #1260 gates behind a recent
-    sign-in. So an email change on such an account needs the same proof as a
-    first password: a recent provider sign-in to this account, recorded in this
-    session (``session_recently_signed_in_by_provider``).
+    (``email_change_requires_current_password``), so an email change on such an
+    account needs the same proof as setting a first password (#1260): a recent
+    provider sign-in to this account, recorded in this session
+    (``session_recently_signed_in_by_provider``).
 
     The same "not a change" rule as ``email_change_requires_session``: the
     stored value sent back unchanged needs nothing. False whenever
