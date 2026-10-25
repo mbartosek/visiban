@@ -245,8 +245,13 @@ class CascadePreconditionTests(TransactionTestCase):
         self.assert_refused(entry_columns=self.columns, boards=self.boards)
 
     def test_neither_needs_no_transaction(self):
-        # Nothing to roll back into, so nothing to refuse.
-        self.assertIsNone(svc.lock_cards_for_cascade(self.cards))
+        # Nothing to roll back into, so nothing to refuse. The card lock is
+        # stubbed: on PostgreSQL its own select_for_update would raise
+        # TransactionManagementError outside a transaction, which is not the
+        # guard under test.
+        with patch.object(svc, "_lock_cascade_cards", return_value=set()) as lock:
+            self.assertIsNone(svc.lock_cards_for_cascade(self.cards))
+        lock.assert_called_once_with(self.cards)
 
 
 class DeleteBoardsLockedTests(TestCase):
