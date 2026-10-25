@@ -972,6 +972,11 @@ describe('CardDetail', () => {
       expect(checklistBoxes[0].disabled).toBe(false)
       expect(checklistBoxes[1].disabled).toBe(true)
       expect(checklistBoxes[2].disabled).toBe(true)
+      // The reason is in the accessible name, not only the unfocusable title
+      expect(
+        screen.getByRole('checkbox', { name: 'Legacy. Only the creator or a moderator can modify this item' }),
+      ).toBe(checklistBoxes[2])
+      expect(checklistBoxes[0]).not.toHaveAttribute('aria-label')
       expect(screen.getAllByTitle('Remove item')).toHaveLength(1)
     })
 

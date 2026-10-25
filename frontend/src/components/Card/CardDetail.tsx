@@ -1722,6 +1722,14 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                                   ? "Only the creator or a moderator can modify this item"
                                   : undefined
                             }
+                            // A disabled input is not focusable, so the title never
+                            // reaches keyboard or screen-reader users; fold the
+                            // reason into the accessible name (sub-pattern B).
+                            aria-label={
+                              canComment && !canModifyChecklistItem(item)
+                                ? `${item.text}. Only the creator or a moderator can modify this item`
+                                : undefined
+                            }
                             className={`w-3.5 h-3.5 rounded accent-primary shrink-0 ${canComment && canModifyChecklistItem(item) ? "cursor-pointer" : "cursor-default"}`}
                           />
                           <span className={`text-sm flex-1 ${item.is_checked ? "line-through text-fg-faint" : "text-fg-secondary"}`}>
