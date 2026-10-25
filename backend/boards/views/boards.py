@@ -486,7 +486,12 @@ class BoardViewSet(
 
     @extend_schema(
         summary="Enable the board's public share link",
-        description="Generates a fresh token, replacing any existing one. Admin only.",
+        description=(
+            "Generates a fresh token, replacing any existing one (this is also how a "
+            "link is rotated). Admin only. This response is where clients read the "
+            "token: show it to the admin now. The board detail field `share_token` is "
+            "deprecated since 1.2 and removed in 2.0."
+        ),
         methods=["POST"],
         request=inline_serializer(
             name="ShareBoard",
@@ -501,7 +506,10 @@ class BoardViewSet(
             200: inline_serializer(
                 name="ShareBoardResponse",
                 fields={
-                    "share_token": serializers.CharField(allow_null=True),
+                    "share_token": serializers.CharField(
+                        allow_null=True,
+                        help_text="The new share link token. Show it to the admin now.",
+                    ),
                     "share_url": serializers.CharField(allow_null=True),
                     "share_token_expires_at": serializers.DateTimeField(allow_null=True),
                 },
@@ -534,6 +542,10 @@ class BoardViewSet(
         POST  — generates a fresh UUID token (replaces any existing token).
         DELETE — clears the token, immediately invalidating any live share link.
         Both operations are admin-only; the token is a public credential.
+
+        The POST response is the one place clients are meant to read the token
+        (#1935): the SPA shows the link once, right after create or rotate, and
+        ``BoardFullSerializer.share_token`` is deprecated until its 2.0 removal.
         """
         from datetime import timedelta
         from django.utils import timezone

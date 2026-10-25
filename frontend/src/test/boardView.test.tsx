@@ -145,7 +145,10 @@ vi.mock('../components/Swimlane/AddSwimlaneModal', () => ({
   default: () => <div data-testid="add-swimlane-modal">Add Swimlane Modal</div>,
 }))
 // Captures the props BoardView hands the settings modal (#1290).
-let capturedSettingsProps: { currentUserIsSiteAdmin?: boolean; initialTab?: string } = {}
+let capturedSettingsProps: {
+  currentUserIsSiteAdmin?: boolean; initialTab?: string
+  onShareChanged?: (patch: { share_link_active: boolean | null; share_token_expires_at: string | null }) => void
+} = {}
 vi.mock('../components/Board/BoardSettingsModal', () => ({
   default: (props: { currentUserIsSiteAdmin?: boolean; initialTab?: string; onClose?: () => void; onManageLens?: () => void }) => {
     capturedSettingsProps = props
@@ -254,6 +257,7 @@ function makeBoard(overrides: Partial<BoardFull> = {}): BoardFull {
     capabilities: { movement_export: false },
     share_token: null,
     share_token_expires_at: null,
+    share_link_active: false,
     ...overrides,
   }
 }
@@ -492,6 +496,18 @@ describe('BoardView', () => {
     render(<BoardView {...defaultProps()} />)
     await userEvent.setup().click(screen.getByLabelText('Board settings'))
     expect(screen.getByTestId('settings-modal')).toBeInTheDocument()
+  })
+
+  it('merges the Sharing tab share-link state into board state (#1935)', async () => {
+    // board.updated frames never carry share fields, so the modal's callback is
+    // the only way a reopened modal learns the link was enabled or disabled.
+    const ctx = defaultContext({ board: makeBoard() })
+    mockBoardContextValue = ctx
+    render(<BoardView {...defaultProps()} />)
+    await userEvent.setup().click(screen.getByLabelText('Board settings'))
+    const patch = { share_link_active: true, share_token_expires_at: '2999-01-01T00:00:00Z' }
+    capturedSettingsProps.onShareChanged?.(patch)
+    expect(ctx.mergeBoardState).toHaveBeenCalledWith(patch)
   })
 
   it('passes show_row_chip_field_names down to every SwimlaneRow and follows a merged board.updated (#1418)', () => {

@@ -596,7 +596,7 @@ class BoardResourceTests(McpTestCase):
         board = _make_board(self.user, name="NoLeak")
         data = self._read_board(board.id)
         for leaky_field in (
-            "share_token", "share_token_expires_at", "capabilities",
+            "share_token", "share_token_expires_at", "share_link_active", "capabilities",
             "is_starred", "current_user_role", "members", "uid",
         ):
             self.assertNotIn(leaky_field, data)

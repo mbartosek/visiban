@@ -1597,6 +1597,15 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     and so does the link it replaced, until a board admin regenerates it under
     **Board Settings → Sharing**. A link such a pod revokes stays revoked.
 
+!!! note "The share link is shown once; `share_token` on board reads is deprecated"
+    From 1.2 the **Sharing** tab shows a board's public link only once, right after it is
+    created, and offers **Rotate link** for a link created earlier (#1935). Existing links keep
+    working; no action is needed. For API clients, `share_token` on
+    `GET /api/v1/boards/{id}/full/` is **deprecated** and will be removed in 2.0. It is still
+    returned unchanged in 1.2. Read the token from the `POST /api/v1/boards/{id}/share/` response
+    instead, and use the new `share_link_active` field to tell whether a link is set. See the
+    [Boards API](../api/boards.md#get-apiv1boardsidfull).
+
 ### Upgrading to 1.1.x
 
 !!! warning "Removed env-var aliases — rename before upgrading"

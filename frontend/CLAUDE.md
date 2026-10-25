@@ -1165,6 +1165,8 @@ When a token or secret is shown exactly once after creation (e.g. invite links, 
 2. Row collapses to prefix-only display after the user copies or clicks Done
 3. Never store the full token client-side after the reveal state is dismissed
 4. Use `transition-all duration-150` on the expanded row so it does not pop in
+5. **Focus and announcement (#1935).** When the reveal mounts because of an action whose trigger then unmounts (Create, Rotate, Generate), move focus to the Copy button, and give Copy `aria-describedby` pointing at the warning note so the one-time warning is read on arrival. When Done dismisses it, move focus to the next logical control (for example Rotate link), never `<body>`. The surface's status slot is `role="status" aria-live="polite" aria-atomic="true"` so create, rotate and copy results and failures are announced. Add `select-all` to the display field so the "copy it manually" fallback is one click.
+6. **A secret that exists but can no longer be shown (#1935).** Render a plain-language "is active" line, its expiry (`text-warning` once expired, with the word "Expired" so color is not the only signal), and a Rotate action. Put Rotate in the `ml-6 border-l-2 border-line pl-4` subordinate block under the toggle that enables the secret, grouped with any select that configures the replacement (described by the rotate helper, not by an unrelated helper). Rotate may skip a confirm only while revoking the same secret also has none, and its helper states the consequence ("the current link stops working") before the click. Reference: the Sharing tab in `BoardSettingsModal.tsx`.
 
 ## Admin offboarding modal
 

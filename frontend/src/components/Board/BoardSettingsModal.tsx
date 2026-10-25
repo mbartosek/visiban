@@ -80,6 +80,13 @@ interface Props {
    *  admin, so BoardView re-reads the board and the Members tab picks the
    *  flag up from it. */
   onMembersAdded?: () => void;
+  /** #1935 — called after the Sharing tab enables, rotates or disables the
+   *  share link, with the board fields that changed. The caller (BoardView)
+   *  merges them into board state, because board.updated frames never carry
+   *  share fields, so a reopened modal would otherwise seed itself from the
+   *  stale load-time values. Never carries the token: the link stays in this
+   *  component's state only. */
+  onShareChanged?: (patch: Pick<BoardFull, "share_link_active" | "share_token_expires_at">) => void;
 }
 
 const DEMO_SETTINGS_NOTICE_ID = "board-settings-demo-notice";
@@ -113,7 +120,7 @@ function RoleTooltip() {
   );
 }
 
-export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal, onMembersAdded }: Props) {
+export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal, onMembersAdded, onShareChanged }: Props) {
   const settingsInert = demoMode && isAdmin;
   const [tab, setTab] = useState<Tab>(initialTab ?? "members");
   // Focus the selected tab button only when a caller deep-linked a tab (#1458);
@@ -232,8 +239,14 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
     (currentRole != null &&
       EXPORT_ROLE_RANK[currentRole] >= (EXPORT_ROLE_RANK[exportMinRole] ?? EXPORT_ROLE_RANK.admin));
 
-  // Sharing tab state — token is initialized from the board payload (admin-only field).
-  const [shareToken, setShareToken] = useState<string | null>(board.share_token ?? null);
+  // Sharing tab state (#1935). Whether a link is set comes from the board
+  // payload's admin-only `share_link_active`; the link itself is never read
+  // from the board (its `share_token` field is deprecated). The full token
+  // exists only in `revealedShareToken`, set from the enable/rotate response
+  // and cleared when the admin clicks Done, disables the link, or closes the
+  // modal — the one-time reveal pattern in frontend/CLAUDE.md.
+  const [shareActive, setShareActive] = useState<boolean>(board.share_link_active === true);
+  const [revealedShareToken, setRevealedShareToken] = useState<string | null>(null);
   const [shareExpiresAt, setShareExpiresAt] = useState<string | null>(board.share_token_expires_at ?? null);
   // Selected TTL for the *next* enable action. Null = "never expires".
   // Pre-selects 30 days (#1865) so a link expires unless the admin
@@ -244,21 +257,84 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
   const [shareCopied, setShareCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 
-  const shareUrl = shareToken ? `${window.location.origin}/share/${shareToken}` : null;
+  const shareUrl = revealedShareToken ? `${window.location.origin}/share/${revealedShareToken}` : null;
+  // A link past its expiry is still set (the public page answers 410 Gone)
+  // until it is rotated or disabled, so say "Expired" rather than "Expires".
+  const shareExpired = shareExpiresAt !== null && new Date(shareExpiresAt).getTime() <= Date.now();
+  const shareExpiryLabel = shareExpiresAt
+    ? `${shareExpired ? "Expired" : "Expires"} ${new Date(shareExpiresAt).toLocaleString()}`
+    : "Never expires";
+  // The TTL picker: the expiry of the link about to be created (sharing off)
+  // or of the replacement Rotate link issues (link active, not on screen).
+  // Only one of the two renders at a time, so the id stays unique.
+  const renderShareTtlRow = (label: string, describedBy: string) => (
+    <div className="flex items-center justify-between gap-3 py-2 mb-3 self-stretch">
+      <label htmlFor="share-ttl-select" className="text-sm text-fg-secondary">
+        {label}
+      </label>
+      <SelectDropdown
+        id="share-ttl-select"
+        ariaDescribedBy={describedBy}
+        value={shareTtl === null ? "never" : String(shareTtl)}
+        onChange={(v) => setShareTtl(v === "never" ? null : (Number(v) as 7 | 30 | 90))}
+        options={[
+          { value: "never", label: "Never" },
+          { value: "7",     label: "7 days" },
+          { value: "30",    label: "30 days" },
+          { value: "90",    label: "90 days" },
+        ]}
+        disabled={shareLoading}
+        disabledReason="Updating sharing…"
+      />
+    </div>
+  );
+  // Focus follows the reveal so it never drops to <body>: when the reveal
+  // mounts (enable or rotate; Rotate link itself unmounts), focus goes to
+  // Copy, whose aria-describedby announces the one-time warning; when Done
+  // unmounts it, focus goes to Rotate link.
+  const rotateShareButtonRef = useRef<HTMLButtonElement>(null);
+  const copyShareButtonRef = useRef<HTMLButtonElement>(null);
+  const focusRotateAfterDismissRef = useRef(false);
+  const focusCopyAfterRevealRef = useRef(false);
+  useEffect(() => {
+    if (focusRotateAfterDismissRef.current && revealedShareToken === null) {
+      focusRotateAfterDismissRef.current = false;
+      rotateShareButtonRef.current?.focus();
+    }
+    if (focusCopyAfterRevealRef.current && revealedShareToken !== null) {
+      focusCopyAfterRevealRef.current = false;
+      copyShareButtonRef.current?.focus();
+    }
+  }, [revealedShareToken]);
 
-  const handleEnableShare = async () => {
+  // Enable and rotate are the same request: POST /share/ always issues a new
+  // token and the previous link stops working.
+  const handleEnableShare = async (failureMessage = "Failed to enable sharing. Please try again.") => {
     setShareLoading(true);
     setShareStatus(null);
     try {
       const data = await enableBoardSharing(board.id, shareTtl);
-      setShareToken(data.share_token);
+      focusCopyAfterRevealRef.current = true;
+      setShareActive(true);
+      setRevealedShareToken(data.share_token);
       setShareExpiresAt(data.share_token_expires_at);
+      setShareCopied(false);
       setShareStatus(null);
+      // Board state must learn the link is on (no frame carries it), or a
+      // reopened modal would show sharing off and a second enable would
+      // silently replace the link just handed out. The token is not passed.
+      onShareChanged?.({ share_link_active: true, share_token_expires_at: data.share_token_expires_at });
     } catch {
-      setShareStatus("Failed to enable sharing. Please try again.");
+      setShareStatus(failureMessage);
     } finally {
       setShareLoading(false);
     }
+  };
+
+  const handleDismissShareReveal = () => {
+    focusRotateAfterDismissRef.current = true;
+    setRevealedShareToken(null);
+    setShareCopied(false);
   };
 
   const handleDisableShare = async () => {
@@ -266,9 +342,11 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
     setShareStatus(null);
     try {
       await disableBoardSharing(board.id);
-      setShareToken(null);
+      setShareActive(false);
+      setRevealedShareToken(null);
       setShareExpiresAt(null);
       setShareStatus(null);
+      onShareChanged?.({ share_link_active: false, share_token_expires_at: null });
     } catch {
       setShareStatus("Failed to disable sharing. Please try again.");
     } finally {
@@ -1062,10 +1140,10 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                 <div className="flex items-center justify-between py-2 border-b border-line/60 mb-3">
                   <span className="text-sm text-fg">Enable public share link</span>
                   <Toggle
-                    checked={shareToken !== null}
+                    checked={shareActive}
                     disabled={shareLoading}
                     onChange={() => {
-                      if (shareToken !== null) {
+                      if (shareActive) {
                         // handleDisableShare manages its own loading/error state (shareStatus) and never rejects.
                         void handleDisableShare();
                       } else {
@@ -1077,67 +1155,110 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
                   />
                 </div>
 
-                {/* TTL selector — only shown while sharing is OFF, so admins choose
-                    expiry up-front. Once enabled, the chosen expiry is locked in
-                    until the link is disabled and re-enabled. */}
-                {shareToken === null && (
-                  <div className="flex items-center justify-between py-2 mb-3">
-                    <label htmlFor="share-ttl-select" className="text-sm text-fg-secondary">
-                      Expires in
-                    </label>
-                    <SelectDropdown
-                      id="share-ttl-select"
-                      ariaDescribedBy="share-ttl-help"
-                      value={shareTtl === null ? "never" : String(shareTtl)}
-                      onChange={(v) => setShareTtl(v === "never" ? null : (Number(v) as 7 | 30 | 90))}
-                      options={[
-                        { value: "never", label: "Never" },
-                        { value: "7",     label: "7 days" },
-                        { value: "30",    label: "30 days" },
-                        { value: "90",    label: "90 days" },
-                      ]}
-                      disabled={shareLoading}
-                      disabledReason="Updating sharing…"
-                    />
-                  </div>
-                )}
-                {shareToken === null && (
-                  <p id="share-ttl-help" className="text-xs text-fg-muted -mt-2 mb-3">
-                    The link turns off automatically if you lose admin access to this board.
-                  </p>
-                )}
-
-                {/* URL field — shown when enabled */}
-                {shareToken !== null && shareUrl && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="flex-1 text-xs bg-sunken border border-line rounded px-2 py-1.5 text-fg-tertiary truncate"
-                        title={shareUrl}
-                      >
-                        {shareUrl}
-                      </div>
+                {/* One-time reveal (#1935) — right after enable or rotate. The
+                    link is never fetched again, so this is the only chance to
+                    copy it. */}
+                {shareActive && shareUrl && (
+                  <div className="flex flex-col gap-2 transition-all duration-150" data-testid="share-link-reveal">
+                    <p className="text-xs text-warning" id="share-reveal-note">
+                      Copy this link now — it won't be shown again. If you lose it, rotate the link to get a new one.
+                    </p>
+                    <div
+                      className="font-mono text-xs bg-sunken border border-warning/50 rounded px-2 py-1.5 text-fg truncate select-all"
+                      title={shareUrl}
+                    >
+                      {shareUrl}
+                    </div>
+                    <div className="flex gap-2">
                       <button
+                        ref={copyShareButtonRef}
+                        type="button"
                         // handleCopyShareUrl manages its own copied/error state (shareStatus) and never rejects.
                         onClick={() => void handleCopyShareUrl()}
-                        className="text-xs text-fg-secondary hover:text-fg hover:bg-surface-hover px-2 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis shrink-0"
+                        aria-describedby="share-reveal-note"
+                        className="text-xs bg-button-primary text-on-primary px-3 py-1.5 rounded hover:bg-button-primary-hover transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis font-medium"
                       >
                         {shareCopied ? "Copied!" : "Copy"}
                       </button>
+                      <button
+                        type="button"
+                        onClick={handleDismissShareReveal}
+                        aria-label="Done, hide the share link"
+                        className="text-xs text-fg-secondary hover:text-fg hover:bg-surface-hover px-3 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
+                      >
+                        Done
+                      </button>
                     </div>
-                    {/* Expiry indicator — surfaces the TTL the admin chose at enable time
-                        so they don't have to remember it. */}
-                    <p className="text-xs text-fg-muted mt-2" data-testid="share-expiry-line">
-                      {shareExpiresAt
-                        ? `Expires ${new Date(shareExpiresAt).toLocaleString()}`
-                        : "Never expires"}
+                  </div>
+                )}
+
+                {/* Active link that is not on screen (the modal was opened
+                    later, or the admin clicked Done): say that it exists. */}
+                {shareActive && !shareUrl && (
+                  <p className="text-sm text-fg" data-testid="share-link-active">
+                    A public share link is active.
+                  </p>
+                )}
+
+                {/* Expiry indicator — the expiry of the link that is set now.
+                    A dead (expired) link is called out in the warning tone. */}
+                {shareActive && (
+                  <p
+                    className={`text-xs ${shareExpired ? "text-warning" : "text-fg-muted"} ${shareUrl ? "mt-2" : "mt-1 mb-3"}`}
+                    data-testid="share-expiry-line"
+                  >
+                    {shareExpiryLabel}
+                  </p>
+                )}
+
+                {/* Sharing OFF: expiry of the link about to be created. */}
+                {!shareActive && (
+                  <>
+                    {renderShareTtlRow("Expires in", "share-ttl-help")}
+                    <p id="share-ttl-help" className="text-xs text-fg-muted -mt-2 mb-3">
+                      The link turns off automatically if you lose admin access to this board.
                     </p>
                   </>
                 )}
 
-                {/* Status row — always reserve height */}
-                <p className="text-xs h-4 mt-2">
-                  {shareStatus && <span className="text-danger">{shareStatus}</span>}
+                {/* Active link not on screen: Rotate is the way to get a link to
+                    copy. It is only meaningful while the toggle is on, so it is a
+                    subordinate block, grouped with the select that sets the
+                    replacement link's expiry (an issued link's expiry is fixed).
+                    Disabling is the toggle above. */}
+                {shareActive && !shareUrl && (
+                  <>
+                    <p className="text-xs text-fg-muted mb-3">
+                      The link turns off automatically if you lose admin access to this board.
+                    </p>
+                    <div className="ml-6 border-l-2 border-line pl-4 flex flex-col items-start gap-2">
+                      <p className="text-xs text-fg-muted" id="share-rotate-help">
+                        The link is shown only once, when it is created. To get a link you can copy, rotate it: the current link stops working.
+                      </p>
+                      {renderShareTtlRow("New link expires in", "share-rotate-help")}
+                      <button
+                        ref={rotateShareButtonRef}
+                        type="button"
+                        disabled={shareLoading}
+                        // handleEnableShare manages its own loading/error state (shareStatus) and never rejects.
+                        onClick={() => void handleEnableShare("Failed to rotate the link. Please try again.")}
+                        aria-describedby="share-rotate-help"
+                        className="text-xs text-fg-secondary hover:text-fg hover:bg-surface-hover px-3 py-1.5 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Rotate link
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Status row — always reserve height; a live region so enable,
+                    rotate, disable and copy results are announced. */}
+                <p className="text-xs h-4 mt-2" role="status" aria-live="polite" aria-atomic="true">
+                  {shareStatus ? (
+                    <span className="text-danger">{shareStatus}</span>
+                  ) : shareCopied ? (
+                    <span className="text-success">Link copied.</span>
+                  ) : null}
                 </p>
               </section>
             </div>

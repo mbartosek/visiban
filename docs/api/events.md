@@ -194,10 +194,12 @@ Two consequences worth knowing:
   user's own sockets. Clients should not rely on it for star state: use
   `board.star_changed`, or read `GET /api/v1/boards/{id}/` for the caller's own
   value (#1559).
-- `share_token`, `share_token_expires_at` and `share_token_hash` (which no
-  serializer declares) are dropped from every payload for
-  every reader, whatever their role. Board admins read them over REST only
-  (`GET /api/v1/boards/{id}/full/` and the share action response).
+- `share_token`, `share_token_expires_at`, `share_link_active` (1.2+) and
+  `share_token_hash` (which no serializer declares) are dropped from every
+  payload for every reader, whatever their role. Board admins read them over
+  REST only (`GET /api/v1/boards/{id}/full/` and the share action response;
+  `share_token` on `/full/` is deprecated since 1.2, see
+  [Boards](boards.md#get-apiv1boardsidfull)).
 - `board.star_changed`, `saved_filter.created` and `saved_filter.deleted` rows
   are returned only to the user named in their `user_id`, matching the
   WebSocket, which delivers those frames only to that user's own sessions (#1677). Other readers' pages simply do not contain them; a page

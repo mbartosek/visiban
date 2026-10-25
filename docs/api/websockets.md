@@ -116,7 +116,7 @@ Clients should ignore unknown event types to remain forward-compatible with new 
 
 ### Board events
 
-Board and group `board.*` event payloads never carry the share-link fields (`share_token`, `share_token_expires_at`), and neither does the change feed. Board admins read them over REST from [`GET /api/v1/boards/{id}/full/`](boards.md) and from the share action response.
+Board and group `board.*` event payloads never carry the share-link fields (`share_token`, `share_token_expires_at`, and from 1.2 `share_link_active`), and neither does the change feed. Board admins read them over REST from [`GET /api/v1/boards/{id}/full/`](boards.md) and from the share action response (`share_token` on `/full/` is deprecated since 1.2; the share action response is where the token is meant to be read).
 
 | Event | Trigger | `data` shape |
 |---|---|---|

@@ -860,8 +860,19 @@ export interface BoardFull {
   updated_at: string;
   current_user_role: BoardOrSiteRole | null;
   capabilities: { movement_export: boolean; [key: string]: boolean };
+  /**
+   * @deprecated Since 1.2, removed in 2.0 (#1935). Do not read it: the share
+   * link is shown once, from the `enableBoardSharing` response
+   * (`ShareActionResponse.share_token`). Use `share_link_active` to tell
+   * whether a link is set. Kept here because the backend still sends it.
+   */
   share_token: string | null;
   share_token_expires_at: string | null;
+  /**
+   * #1935 — whether the board has a share link set (it may have expired; see
+   * `share_token_expires_at`). Admin-only: `null` for lower roles.
+   */
+  share_link_active: boolean | null;
   /**
    * Archived cards on the board (#1289). `cards` above is active-only, but
    * deleting the board cascades to archived cards too, so the settings modal's
@@ -1145,6 +1156,9 @@ export type AdminBoardInviteStatusFilter = "pending" | "used" | "expired" | "rev
  * On enable (POST), all three fields carry values. On disable (DELETE),
  * every field is null — the response is shaped identically (#1005) so the
  * caller does not need a discriminated union to read the result.
+ *
+ * The POST response is the only place the SPA reads the token (#1935): the
+ * Sharing tab shows the link once, then drops it from state.
  */
 export interface ShareActionResponse {
   share_token: string | null;
