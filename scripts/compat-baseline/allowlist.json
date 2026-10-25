@@ -2621,6 +2621,11 @@
    "reason": "verified doc-only vs v1.1.0 runtime (#1695): v1.1.0 BoardViewSet.share DELETE answered 200 (Response() default) with share_token/share_url/share_token_expires_at all null; the baseline's 204 was never served"
   },
   {
+   "key": "REMOVED_RESPONSE_STATUS DELETE /api/v1/admin/invite-links/{id}/ 204",
+   "issue": "#1912",
+   "reason": "verified doc-only vs v1.1.0 runtime (#1912): v1.1.0 AdminInviteLinkRevokeView.delete answered 200 with the InviteLinkSerializer body (400 on a repeat revoke); the baseline's 204 was drf-spectacular's DELETE default, never served. The 200/400 behavior is kept for 1.x"
+  },
+  {
    "key": "REMOVED_RESPONSE_STATUS POST /api/v1/admin/invite-links/ 200",
    "issue": "#1695",
    "reason": "verified doc-only vs v1.1.0 runtime (#1695): v1.1.0 AdminInviteLinkListCreateView.post returned InviteLinkCreateResponseSerializer with 201; the baseline's 200 was the APIView fallback"
