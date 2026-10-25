@@ -408,15 +408,15 @@ The job started as a one-module pilot on `boards/permissions.py` (!1176) and was
 
 ### Targets
 
-The list lives in one place, `TARGETS` in `backend/mutmut_config.py`. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are the `total` and excluded figures from the 2026-10-18 CI mutmut stats (pipeline 2960067085, main `6d440fb22`); they were first enumerated with mutmut 2.5.1 on `main` at `e8be1a22f` (116 / 246 / 46 / 1780), and pragma-excluded mutants are never generated, so they are listed apart. The roughly 115 `cards` mutants added since the 246 baseline are not yet measured for kill rate (the same situation as the `import_export` note below).
+The list lives in one place, `TARGETS` in `backend/mutmut_config.py`. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are the `total` and excluded figures from the 2026-10-25 CI mutmut stats (pipeline 2986276266, main `fd859446e`); they were first enumerated with mutmut 2.5.1 on `main` at `e8be1a22f` (116 / 246 / 46 / 1780), and pragma-excluded mutants are never generated, so they are listed apart. Kill rates for that run, and what #1930 changed, are in [2026-10-25 run below the floor](#2026-10-25-run-below-the-floor-1930).
 
 | Target | Code | Mutants scored | Excluded by pragma | Tests | Shards |
 |---|---|---:|---:|---|---:|
-| `permissions` | `boards/permissions.py` | 148 | 4 | the four RBAC files (`test_rbac`, `test_rbac_boundaries`, `test_explicit_permissions`, `test_permissions_unit_mutation_gaps`) | 3 |
-| `cards` | `boards/services/cards.py` | 361 | 0 | the 13 files of the 2026-10-09 whole-module re-measure (movement suites, view suites, both gap files) | 16 |
-| `card_movement` | `CardMovement` in `boards/models.py` only | 48 | 29 | the six movement-record files of the 2026-10-08 re-measure | 2 |
-| `import_export` | `boards/views/import_export.py`, whole module | 1786 | 2 | the 14 import/export files: the nine of the head run (#1502), the remainder run's (#1484), and `test_import_csv_custom_fields` for the #1449 code | 29 |
-| **Total** | | **2343** | **35** | | **50** |
+| `permissions` | `boards/permissions.py` | 172 | 4 | the four RBAC files (`test_rbac`, `test_rbac_boundaries`, `test_explicit_permissions`, `test_permissions_unit_mutation_gaps`) | 3 |
+| `cards` | `boards/services/cards.py` | 374 | 0 | the 13 files of the 2026-10-09 whole-module re-measure (movement suites, view suites, both gap files) | 16 |
+| `card_movement` | `CardMovement` in `boards/models.py` only | 70 | 41 | the six movement-record files of the 2026-10-08 re-measure | 2 |
+| `import_export` | `boards/views/import_export.py`, whole module | 1826 | 2 | 16 files: the nine of the head run (#1502), the remainder run's (#1484), `test_import_csv_custom_fields` for the #1449 code, and, last because only a mutant every other file let through reaches them, `test_import_history_attribution` and `test_import_export_schema_mutation_gaps` (#1930) | 29 |
+| **Total** | | **2442** | **47** | | **50** |
 
 The `CardMovement` range is computed from the code on every run (`ast`, the class's first to last line), never written down, so it follows the class when `models.py` changes. The mutants outside the range are registered by mutmut, skipped by the hook, and left out of every count by the export (`--line-range`).
 
@@ -497,6 +497,22 @@ About 145 `import_export` mutants (1780 now against 1635 measured) belong to cod
 - `backend-mutation-report` groups the stats files by target. `--expect-shards` gets `permissions=3,cards=16,...` from `python3 backend/mutmut_config.py expect-shards`; a missing shard, a missing target or an unexpected one is exit 2. Within a target, every shard registers the whole target's mutants (other shards' lines as `skipped`), so every shard's `total` must be equal and the shards' non-skipped mutants must add up to exactly that total; otherwise exit 2. The targets are then summed (each target's `total`, `excluded` and `phantom` once) into the merged score, which `MUTATION_MIN` gates. The log prints one line per target first, and names any target under the floor on its own (not gated).
 - The artifact `mutmut-cicd-stats.json` (30 days) has the merged counts and `score_adjusted` / `score_raw` at the top level, and `targets.<name>` with each target's counts and scores. On exit 2 it is still written, with a `not_measured` key giving the reason. A floor configuration error (for example `MUTATION_MIN=90`) exits 2 before anything is read, so no merged file is written for that run. Every stats and cache path the script reads or writes goes through the shared `scripts/_paths.py` containment helper (`resolve_within(cli_roots(), path)`, #1377): it must resolve under the repo checkout, the working directory or the system temp directory, or the script prints `CONFIG ERROR` and exits 2.
 - Dependency review for mutmut 2.5.1: BSD-3-Clause; dependencies click (BSD-3), glob2 (BSD), parso (MIT), pony (Apache-2.0), junit-xml (MIT), toml (MIT); no OSV advisories for any of them on 2026-10-04. 2.x rather than 3.x because 3.x copies the tree into a sandbox (needs `also_copy` bookkeeping for every file the suite reads), which does not suit a Django suite.
+
+### 2026-10-25 run below the floor (#1930)
+
+The scheduled run of 2026-10-25 (pipeline 2986276266, main `fd859446e`) scored a merged adjusted **89.8%**, under the 90% floor (it was 91.5% on 2026-10-21 and also failed on 2026-10-18). Nearly all the loss was code merged since the 2026-10-09 re-measures whose own tests are not in its target's test list: the broadcast visibility predicates (#1677, #1705, #1714) and the analytics panel `min_role` filter (#1826) in `permissions.py`, the container-delete peer helpers in `cards.py` (#1634), and the `created_at` restore helpers (#1906), the export's OpenAPI declaration (#1783) and the imported-movement attribution in the CSV export (#1675) in `import_export.py`.
+
+#1930 kills them with direct assertions (`test_permissions_unit_mutation_gaps.py`, `test_card_service_mutation_gaps.py`, `test_import_export_mutation_gaps.py`, and the new `test_import_export_schema_mutation_gaps.py`) and adds `test_import_history_attribution.py` to the `import_export` list. Survivor ids were read from each shard's `mutmut results` in the job logs; mutmut 2.5.1 numbers mutants the same way on the same code, so the ids map to diffs with `mutmut show` in a fresh copy. The changed lines were then re-run locally (mutmut 2.5.1, SQLite, throwaway copies, the target's full test list): all 172 `permissions` mutants (172 killed), the 32 `cards` mutants on the lines the new tests cover, and the 55 `import_export` mutants on lines 0-based 1049-1092, 2585-2625 and 3040-3050.
+
+| Target | 2026-10-25 CI: killed / survived / scored (adjusted) | Re-run locally (#1930) | Expected next run |
+|---|---|---|---|
+| `permissions` | 124 / 48 / 172 (72.1%) | 48 of the 48 survivors killed | 172 / 0 (100%) |
+| `cards` | 326 / 48 / 374 (87.2%) | 12 of 13 killed; `lock=True` in the `enforce_column_limits` signature survives (needs PostgreSQL, see [#1504](#postgresql-re-run-of-the-select_for_update-guards-1504)) | 338 / 36 (90.4%) |
+| `card_movement` | 54 / 16 / 70 (77.1%) | not re-run | 54 / 16 (77.1%) |
+| `import_export` | 1690 (2 by timeout) / 136 / 1826 (92.6%) | 48 of 49 killed | 1738 / 88 (95.2%) |
+| **Merged** | **2194 / 248 / 2442 (89.8%)** | **108 killed** | **2302 / 140 (94.3%)** |
+
+"Expected next run" adds the local kills to the CI counts; it is not a whole-module run, and the CI job (PostgreSQL) is the measurement. The one `import_export` mutant left in range is the `JSON export (?format=json).` description of the export's JSON media type: drf-spectacular emits one description per status code, taken from the first media type, so the generated document is unchanged (the same reason as the `403` survivors in the head table). It is left unmarked, like those. Not addressed by #1930, and tracked in #1931: the other 35 `cards` survivors (mostly in the lock helpers: `select_for_update(no_key=...)`, `lock=` and `flat=` arguments, the `lock_cards_for_cascade` guards and the two retry-attempt constants; also the two `CARD_MUTATION_HOOKS` failure-log arguments and the `-1` to `-2` clamp in the move position, which `max(0, ...)` makes equivalent; not triaged further) and the 16 `card_movement` survivors, plus the equivalent `import_export` description mutant above.
 
 ### The floor (decision, #1384)
 

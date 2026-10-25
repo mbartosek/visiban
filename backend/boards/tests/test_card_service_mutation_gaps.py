@@ -21,7 +21,7 @@ from boards.models import (
     Notification,
 )
 from boards.services import cards as svc
-from boards.services.errors import NotPermitted, WeightLimitExceeded
+from boards.services.errors import NotPermitted, WeightLimitExceeded, WipLimitExceeded
 from boards.signals import post_notification_created
 from boards.tests.conftest import (
     _make_board,
@@ -474,3 +474,180 @@ class WeightIncreaseLimitTests(UpdateCardGapBase):
         self.assertEqual(
             self._activities(), [(ET.WEIGHT_CHANGE, "1", "2", self.owner.pk)]
         )
+
+
+# ── #1930: code added after the 2026-10-09 whole-module re-measure ──────────
+#
+# The weekly mutation run of 2026-10-25 found these survived in the `cards`
+# target: the container-delete peer helpers (#1634) are exercised only by
+# test_container_delete_blocked_peers.py, outside the target's test list, and
+# the default arguments below had no direct test.
+
+
+def _blocks(blocker, blocked):
+    from boards.models import CardRelation
+
+    return CardRelation.objects.create(
+        from_card=blocker, to_card=blocked, relation_type=CardRelation.Type.BLOCKS,
+    )
+
+
+class BlockedPeersByBoardTests(TestCase):
+    def setUp(self):
+        self.owner = _make_user("bpb_owner")
+        self.board = _make_board(self.owner)
+        self.col = _make_column(self.board, "A", 0)
+        self.lane = _make_swimlane(self.board, "L", 0)
+        self.blocker = _make_card(self.col, self.lane, title="blocker", position=0)
+        self.inside = _make_card(self.col, self.lane, title="inside", position=1)
+        self.peer_b = _make_card(self.col, self.lane, title="peer b", position=2)
+        self.peer_a = _make_card(self.col, self.lane, title="peer a", position=3)
+
+    def _set(self, *cards):
+        return Card.objects.filter(pk__in=[c.pk for c in cards])
+
+    def test_active_blocker_lists_outside_peers_by_board_in_id_order(self):
+        _blocks(self.blocker, self.peer_a)
+        _blocks(self.blocker, self.peer_b)
+        _blocks(self.blocker, self.inside)
+        other_board = _make_board(self.owner, name="Other")
+        far = _make_card(
+            _make_column(other_board, "X", 0), _make_swimlane(other_board, "Y", 0), title="far",
+        )
+        _blocks(self.blocker, far)
+        self.assertEqual(
+            svc.blocked_peer_ids_by_board(self._set(self.blocker, self.inside)),
+            {
+                self.board.pk: sorted([self.peer_a.pk, self.peer_b.pk]),
+                other_board.pk: [far.pk],
+            },
+        )
+
+    def test_no_relation_gives_an_empty_mapping(self):
+        self.assertEqual(svc.blocked_peer_ids_by_board(self._set(self.blocker)), {})
+
+    def test_archived_blocker_is_skipped_by_default(self):
+        _blocks(self.blocker, self.peer_a)
+        Card.objects.filter(pk=self.blocker.pk).update(archived_at=datetime.datetime(
+            2026, 1, 1, tzinfo=datetime.timezone.utc,
+        ))
+        self.assertEqual(svc.blocked_peer_ids_by_board(self._set(self.blocker)), {})
+        self.assertEqual(
+            svc.blocked_peer_ids_by_board(self._set(self.blocker), active_blockers_only=False),
+            {self.board.pk: [self.peer_a.pk]},
+        )
+
+    def test_broadcast_renders_each_boards_peers_and_publishes_on_that_board(self):
+        rendered = []
+
+        def render_many(board_id, ids):
+            rendered.append((board_id, list(ids)))
+            return [{"id": pk, "board": board_id} for pk in ids]
+
+        with patch.object(svc, "_broadcast_after_commit") as publish:
+            svc.broadcast_blocked_peers_by_board(
+                {10: [1, 2], 20: [3]}, self.owner, render_many,
+            )
+        self.assertEqual(rendered, [(10, [1, 2]), (20, [3])])
+        self.assertEqual(
+            [c.args for c in publish.call_args_list],
+            [
+                (10, "card.updated", {"id": 1, "board": 10}, self.owner.id),
+                (10, "card.updated", {"id": 2, "board": 10}, self.owner.id),
+                (20, "card.updated", {"id": 3, "board": 20}, self.owner.id),
+            ],
+        )
+
+
+class ServiceDefaultArgumentTests(TestCase):
+    """``force`` defaults to off on every path, and ``check_weight=False`` skips weight."""
+
+    def setUp(self):
+        patcher = patch("boards.broadcast.broadcast_board_event")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.owner = _make_user("sda_owner")
+        self.board = _make_board(self.owner, enforce_wip_limits=True, enforce_weight_limits=True)
+        self.full = _make_column(self.board, "Full", 0, wip_limit=1, allow_card_creation=True)
+        self.heavy = _make_column(self.board, "Heavy", 1, weight_limit=2)
+        self.lane = _make_swimlane(self.board, "L", 0)
+        self.occupant = _make_card(self.full, self.lane, title="occupant", weight=1)
+        self.load = _make_card(self.heavy, self.lane, title="load", position=0, weight=2)
+        self.mover = _make_card(self.heavy, self.lane, title="mover", position=1, weight=1)
+
+    def test_enforce_column_limits_does_not_force_for_an_admin_by_default(self):
+        with self.assertRaises(WipLimitExceeded):
+            svc.enforce_column_limits(
+                board=self.board, column=self.full, card=self.mover, role="admin",
+            )
+
+    def test_check_weight_false_skips_the_weight_limit(self):
+        self.assertIsNone(svc.enforce_column_limits(
+            board=self.board, column=self.heavy, card=self.mover, role="admin",
+            check_wip=False, check_weight=False,
+        ))
+        with self.assertRaises(WeightLimitExceeded):
+            svc.enforce_column_limits(
+                board=self.board, column=self.heavy, card=self.mover, role="admin",
+                check_wip=False,
+            )
+
+    def test_create_card_does_not_force_for_an_admin_by_default(self):
+        with self.assertRaises(WipLimitExceeded):
+            svc.create_card(
+                actor=self.owner, board=self.board, column_id=self.full.pk,
+                swimlane_id=self.lane.pk,
+                save=lambda position: _make_card(self.full, self.lane, title="new", position=position),
+                render=_render,
+            )
+        self.assertFalse(Card.objects.filter(title="new").exists())
+
+    def test_unarchive_card_does_not_force_for_an_admin_by_default(self):
+        archived = _make_card(
+            self.full, self.lane, title="archived", position=1,
+            archived_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+        with self.assertRaises(WipLimitExceeded):
+            svc.unarchive_card(
+                actor=self.owner, board=self.board, card_id=archived.pk, render=_render,
+            )
+        self.assertIsNotNone(Card.objects.get(pk=archived.pk).archived_at)
+
+
+class AdoptLockedStateTests(TestCase):
+    def setUp(self):
+        self.owner = _make_user("als_owner")
+        self.board = _make_board(self.owner)
+        self.col_a = _make_column(self.board, "A", 0)
+        self.col_b = _make_column(self.board, "B", 1)
+        self.lane = _make_swimlane(self.board, "L", 0)
+        self.card = _make_card(self.col_a, self.lane, title="before")
+
+    def test_changed_fields_are_copied_and_a_moved_relation_cache_is_dropped(self):
+        stale = Card.objects.select_related("column", "swimlane").get(pk=self.card.pk)
+        Card.objects.filter(pk=self.card.pk).update(title="after", column=self.col_b)
+        locked = Card.objects.get(pk=self.card.pk)
+        svc._adopt_locked_state(stale, locked)
+        self.assertEqual(stale.title, "after")
+        self.assertEqual(stale.column_id, self.col_b.pk)
+        with self.assertNumQueries(1):
+            self.assertEqual(stale.column.name, "B")
+        # The swimlane did not move, so its cached object is kept.
+        with self.assertNumQueries(0):
+            self.assertEqual(stale.swimlane.name, "L")
+
+
+class DeleteCardArchivedUnderLockTests(TestCase):
+    def test_card_archived_after_the_callers_read_is_not_deleted(self):
+        from boards.services.errors import CardNotFound
+
+        owner = _make_user("dca_owner")
+        board = _make_board(owner)
+        card = _make_card(_make_column(board, "A", 0), _make_swimlane(board, "L", 0))
+        stale = Card.objects.get(pk=card.pk)
+        Card.objects.filter(pk=card.pk).update(
+            archived_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        )
+        with self.assertRaises(CardNotFound):
+            svc.delete_card(actor=owner, board=board, card=stale)
+        self.assertTrue(Card.objects.filter(pk=card.pk).exists())

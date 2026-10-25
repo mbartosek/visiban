@@ -98,6 +98,12 @@ _IMPORT_EXPORT_TESTS = (
     "test_export_controls.py",
     "test_export_edge_cases.py",
     "test_moderator_export.py",
+    # The imported-movement attribution in the CSV export (#1675, #1702), and the
+    # export's OpenAPI declaration (#1783). Last on purpose: generating the
+    # schema is the slowest step, and only a mutant every file above let
+    # through reaches them (#1930).
+    "test_import_history_attribution.py",
+    "test_import_export_schema_mutation_gaps.py",
 )
 
 # Shard counts come from the per-mutant cost in docs/development/mutation-testing.md
