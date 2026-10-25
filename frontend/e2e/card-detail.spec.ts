@@ -273,6 +273,34 @@ test.describe('card detail sheet — anchored (>= 1280px)', () => {
     await expect(page.getByRole('button', { name: 'Close' })).toBeFocused()
     await expect(first).toHaveAttribute('aria-current', 'true')
     await expect(page.getByTestId('card-sheet-notch')).toBeAttached()
+    // #1946: real-browser checks jsdom cannot make. The tail paints a visible brand color, the
+    // root stays overflow-visible so it can sit outside, and the inner wrapper clips with the
+    // border's inner radius (anchored only).
+    const tail = await page.getByTestId('card-sheet-notch').evaluate((el) => {
+      const root = el.parentElement!
+      const wrapper = el.nextElementSibling as HTMLElement
+      return {
+        fill: getComputedStyle(el).fill,
+        rootOverflow: getComputedStyle(root).overflow,
+        rootShadow: getComputedStyle(root).boxShadow,
+        rootBorder: getComputedStyle(root).borderTopColor,
+        wrapperRadius: getComputedStyle(wrapper).borderTopLeftRadius,
+        wrapperOverflow: getComputedStyle(wrapper).overflow,
+      }
+    })
+    // Right-side sheet only (asserted above): the tail sits on the sheet's left edge. The 7px SVG box
+    // spans 6px outside the border box to 1px inside it; the apex is 5px outside, 1px clear of the column.
+    const tailBox = (await page.getByTestId('card-sheet-notch').boundingBox())!
+    const dlg = (await dialog.boundingBox())!
+    expect(tailBox.x).toBeLessThan(dlg.x)
+    expect(tailBox.x + tailBox.width).toBeGreaterThan(dlg.x)
+    expect(Math.abs((tailBox.x + tailBox.width) - (dlg.x + 1))).toBeLessThanOrEqual(1.5)
+    expect(tail.fill).not.toMatch(/none|rgba\(0, 0, 0, 0\)/)
+    expect(tail.fill).toBe(tail.rootBorder)
+    expect(tail.rootOverflow).toBe('visible')
+    expect(tail.rootShadow).not.toBe('none')
+    expect(tail.wrapperRadius).toBe('7px')
+    expect(tail.wrapperOverflow).toBe('hidden')
 
     // 6px from the column's edge, 14px from the card's (cells pad by 8px).
     const cardBox = (await first.boundingBox())!

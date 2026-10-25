@@ -52,10 +52,15 @@ export interface SheetGeometry {
 }
 
 export interface SheetNotch {
-  /** Distance of the notch's center from the sheet's top edge. */
+  /** Distance of the notch's center from the sheet's top edge, in whole pixels. */
   y: number;
   /** True when the card's center is outside the notch's range (scrolled away): the notch is pinned at an end. */
   clamped: boolean;
+  /**
+   * Set only when clamped: which way the card lies from the sheet's range
+   * (`down` = below it). The clamped wedge's apex points that way (#1946).
+   */
+  direction?: "up" | "down";
 }
 
 export interface SheetPlacement {
@@ -80,7 +85,14 @@ export function computeNotch(cardCenterY: number, top: number, bottom: number, v
   const min = top + NOTCH_INSET;
   const max = viewportHeight - bottom - NOTCH_INSET;
   const y = Math.min(Math.max(cardCenterY, min), Math.max(min, max));
-  return { y: y - top, clamped: y !== cardCenterY };
+  // `clamped` and `direction` come from the unrounded values; only the
+  // reported position is rounded to whole pixels. Direction compares the
+  // unclamped center to the clamped one rather than to `y`'s position, which
+  // would be ambiguous on a sheet shorter than two insets.
+  const clamped = y !== cardCenterY;
+  return clamped
+    ? { y: Math.round(y - top), clamped, direction: cardCenterY > y ? "down" : "up" }
+    : { y: Math.round(y - top), clamped };
 }
 
 /**
@@ -123,7 +135,8 @@ export function computeCardSheetPlacement({ viewportWidth, viewportHeight, geome
 
 export function samePlacement(a: SheetPlacement, b: SheetPlacement): boolean {
   return a.mode === b.mode && a.side === b.side && a.left === b.left && a.top === b.top &&
-    a.bottom === b.bottom && a.notch?.y === b.notch?.y && a.notch?.clamped === b.notch?.clamped;
+    a.bottom === b.bottom && a.notch?.y === b.notch?.y && a.notch?.clamped === b.notch?.clamped &&
+    a.notch?.direction === b.notch?.direction;
 }
 
 /** `samePlacement` ignoring the notch: whether the sheet itself moved. */
@@ -288,7 +301,8 @@ export function useCardSheetPlacement(cardId: number, locationKey: string): Card
       if (placement.mode !== "anchored" || !cardEl?.isConnected) return;
       const r = cardEl.getBoundingClientRect();
       const notch = computeNotch(r.top + r.height / 2, placement.top, placement.bottom, window.innerHeight);
-      if (notch.y === placement.notch?.y && notch.clamped === placement.notch?.clamped) return;
+      if (notch.y === placement.notch?.y && notch.clamped === placement.notch?.clamped &&
+        notch.direction === placement.notch?.direction) return;
       setState((prev) => (prev.placement !== placement ? prev : { ...prev, placement: { ...placement, notch } }));
     };
 

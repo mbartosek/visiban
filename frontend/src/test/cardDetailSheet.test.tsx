@@ -160,14 +160,24 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     const notch = screen.getByTestId('card-sheet-notch')
     expect(notch).toHaveAttribute('aria-hidden', 'true')
     expect(notch).toHaveAttribute('data-clamped', 'false')
-    // #1937: solid brand-blue fill + border (>= 3:1 on the panel and the board in both themes).
-    expect(notch.className).toContain('bg-primary-emphasis')
-    expect(notch.className).toContain('border-primary-emphasis')
-    expect(notch.className).toContain('border-l-2')
-    expect(notch.className).not.toContain('bg-surface')
-    // Card center 310, sheet top 104: notch center 206, a 14px square.
-    expect(notch.style.top).toBe('199px')
-    expect(notch.style.left).toBe('-5px')
+    // #1946: a tail (isosceles triangle) in the brand blue, on a 1px brand-blue border.
+    expect(notch.tagName.toLowerCase()).toBe('svg')
+    expect(notch.getAttribute('class')).toContain('fill-primary-emphasis')
+    // Sheet right of the column: the tail sits on the sheet's LEFT edge, facing the card, unflipped.
+    expect(notch.getAttribute('class')).toContain('-left-[7px]')
+    expect(notch.getAttribute('class')).not.toContain('-scale-x-100')
+    expect(notch).not.toHaveAttribute('data-direction')
+    expect(notch.querySelector('path')).toHaveAttribute('d', 'M7 6L1 12L7 18Z')
+    expect(d.className).toContain('border-primary-emphasis')
+    expect(d.className).not.toContain('border-line')
+    // Card center 310, sheet top 104: tail center 206, top = center - 13.
+    expect(notch.style.top).toBe('193px')
+    // The tail is a direct child of the root, before the clip wrapper.
+    expect(notch.parentElement).toBe(d)
+    const wrapper = notch.nextElementSibling as HTMLElement
+    expect(wrapper.className).toContain('overflow-hidden')
+    expect(wrapper.className).toContain('rounded-[7px]')
+    expect(d.className).not.toContain('overflow-hidden')
     expect(screen.queryByTestId('card-detail-backdrop')).not.toBeInTheDocument()
   })
 
@@ -185,8 +195,10 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     render(<CardDetail {...defaultProps()} />)
     expect(dialog()).toHaveAttribute('data-sheet-side', 'left')
     expect(dialog().style.left).toBe(`${1000 - 6 - 540}px`)
-    expect(screen.getByTestId('card-sheet-notch').style.right).toBe('-5px')
-    expect(screen.getByTestId('card-sheet-notch').className).toContain('border-t-2')
+    const tail = screen.getByTestId('card-sheet-notch')
+    // Sheet left of the column: the tail sits on the sheet's RIGHT edge, mirrored.
+    expect(tail.getAttribute('class')).toContain('-right-[7px]')
+    expect(tail.getAttribute('class')).toContain('-scale-x-100')
   })
 
   it('docks at the right edge with the light backdrop when neither side fits', () => {
@@ -198,6 +210,11 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     expect(dialog().className).toContain('right-0')
     expect(dialog().className).toContain('border-l')
     expect(dialog().className).not.toContain('rounded-lg')
+    expect(dialog().className).toContain('border-line')
+    expect(dialog().className).not.toContain('border-primary-emphasis')
+    // A flush panel's clip wrapper has no radius (#1946).
+    expect((dialog().firstElementChild as HTMLElement).className).toContain('overflow-hidden')
+    expect((dialog().firstElementChild as HTMLElement).className).not.toContain('rounded-')
     expect(screen.getByTestId('card-detail-backdrop').className).toContain('bg-backdrop/20')
     expect(screen.queryByTestId('card-sheet-notch')).not.toBeInTheDocument()
   })
@@ -216,6 +233,8 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     render(<CardDetail {...props} />)
     expect(dialog()).toHaveAttribute('data-sheet-mode', 'fullscreen')
     expect(dialog().className).toContain('inset-0')
+    expect(dialog().className).not.toContain('border-primary-emphasis')
+    expect((dialog().firstElementChild as HTMLElement).className).not.toContain('rounded-')
     expect(screen.queryByTestId('card-detail-backdrop')).not.toBeInTheDocument()
     const back = screen.getByRole('button', { name: 'Back to board' })
     expect(back.className).toContain('h-11')
@@ -230,22 +249,29 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     expect(screen.queryByRole('button', { name: 'Back to board' })).not.toBeInTheDocument()
   })
 
-  it('uses the hover surface for a clamped notch when the card is scrolled away', () => {
+  it('draws a wedge pointing up when the card is scrolled above the sheet', () => {
     const { geo } = mountBoard()
     geo.cardTop = -400
     render(<CardDetail {...defaultProps()} />)
     const notch = screen.getByTestId('card-sheet-notch')
     expect(notch).toHaveAttribute('data-clamped', 'true')
-    expect(notch.className).toContain('bg-surface-hover')
-    // Same border as unclamped, but no solid fill: the hollow arrow is the "pinned" cue.
-    expect(notch.className).toContain('border-primary-emphasis')
-    expect(notch.className).not.toContain('bg-primary-emphasis')
+    expect(notch).toHaveAttribute('data-direction', 'up')
+    expect(notch.getAttribute('class')).toContain('fill-primary-emphasis')
+    expect(notch.querySelector('path')).toHaveAttribute('d', 'M7 6H1L7 18Z')
     // Pinned 28px below the sheet's top corner.
-    expect(notch.style.top).toBe(`${28 - 7}px`)
+    expect(notch.style.top).toBe(`${28 - 13}px`)
   })
-})
 
-describe('CardDetail sheet — no element, later element, Move (#1914)', () => {
+  it('draws a wedge pointing down when the card is scrolled below the sheet', () => {
+    const { geo } = mountBoard()
+    geo.cardTop = 5000
+    render(<CardDetail {...defaultProps()} />)
+    const notch = screen.getByTestId('card-sheet-notch')
+    expect(notch).toHaveAttribute('data-clamped', 'true')
+    expect(notch).toHaveAttribute('data-direction', 'down')
+    expect(notch.querySelector('path')).toHaveAttribute('d', 'M7 6L1 18H7Z')
+  })
+
   it('docks with no notch when the card has no board element (deep link, palette, filtered out)', () => {
     mountBoard({ withCard: false })
     render(<CardDetail {...defaultProps()} />)
@@ -317,18 +343,18 @@ describe('CardDetail sheet — no element, later element, Move (#1914)', () => {
     const { geo, scroll } = mountBoard()
     render(<CardDetail {...defaultProps()} />)
     const notchTop = () => screen.getByTestId('card-sheet-notch').style.top
-    expect(notchTop()).toBe('199px')
+    expect(notchTop()).toBe('193px')
 
     // A scroll inside the sheet's own body is not a board scroll.
     geo.cardTop = 380
     const body = dialog().querySelector('[aria-busy]') as HTMLElement
     fireEvent.scroll(body)
     await new Promise((r) => setTimeout(r, 200))
-    expect(notchTop()).toBe('199px')
+    expect(notchTop()).toBe('193px')
 
     // The board scrolls: the notch follows the card (it does not move the sheet).
     fireEvent.scroll(scroll)
-    await waitFor(() => expect(notchTop()).toBe('299px'))
+    await waitFor(() => expect(notchTop()).toBe('293px'))
     expect(dialog().style.top).toBe('104px')
 
     // Scroll-end: the board was scrolled sideways, the column moved right.

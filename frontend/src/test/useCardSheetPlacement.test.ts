@@ -107,11 +107,21 @@ describe('computeNotch (#1914, frame 3)', () => {
   })
 
   it('clamps 28px from the top corner when the card is scrolled above the sheet', () => {
-    expect(computeNotch(-50, 100, 12, VH)).toEqual({ y: NOTCH_INSET, clamped: true })
+    expect(computeNotch(-50, 100, 12, VH)).toEqual({ y: NOTCH_INSET, clamped: true, direction: 'up' })
   })
 
   it('clamps 28px from the bottom corner when the card is scrolled below it', () => {
-    expect(computeNotch(2000, 100, 12, VH)).toEqual({ y: VH - 12 - NOTCH_INSET - 100, clamped: true })
+    expect(computeNotch(2000, 100, 12, VH)).toEqual({ y: VH - 12 - NOTCH_INSET - 100, clamped: true, direction: 'down' })
+  })
+
+  it('rounds y to whole pixels but computes clamped on the unrounded value', () => {
+    expect(computeNotch(400.4, 100, 12, VH)).toEqual({ y: 300, clamped: false })
+    expect(computeNotch(128.2, 100.4, 12, VH)).toEqual({ y: 28, clamped: true, direction: 'up' })
+  })
+
+  it('takes direction from the unclamped center, even on a sheet under 56px tall', () => {
+    expect(computeNotch(5000, 100, VH - 140, VH)).toEqual({ y: NOTCH_INSET, clamped: true, direction: 'down' })
+    expect(computeNotch(-5, 100, VH - 140, VH)).toEqual({ y: NOTCH_INSET, clamped: true, direction: 'up' })
   })
 })
 
@@ -149,5 +159,12 @@ describe('classifyTransition (#1914)', () => {
     expect(sameFrame(anchoredRight, moved)).toBe(true)
     expect(samePlacement(anchoredRight, moved)).toBe(false)
     expect(classifyTransition(anchoredRight, moved, 'scroll')).toBe('none')
+  })
+
+  it('treats a changed clamp direction as a different placement (#1946)', () => {
+    const up: SheetPlacement = { ...anchoredRight, notch: { y: 28, clamped: true, direction: 'up' } }
+    const down: SheetPlacement = { ...anchoredRight, notch: { y: 28, clamped: true, direction: 'down' } }
+    expect(samePlacement(up, down)).toBe(false)
+    expect(samePlacement(up, { ...up, notch: { ...up.notch! } })).toBe(true)
   })
 })

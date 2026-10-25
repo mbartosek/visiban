@@ -1,6 +1,8 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import postcss from 'postcss'
+import tailwindcss from 'tailwindcss'
 
 // #1937: the card-sheet notch uses `primary-emphasis`; pin the >= 3:1 (WCAG 1.4.11) contrast that
 // frontend/CLAUDE.md claims against the panel (surface) and the board (sunken, canvas) in both
@@ -39,5 +41,20 @@ describe('card-sheet notch contrast (#1937)', () => {
     for (const surface of ['surface', 'surface-sunken', 'canvas']) {
       expect(ratio(emphasis(block), rgbOf(block, surface))).toBeGreaterThanOrEqual(3)
     }
+  })
+})
+
+// #1946: the tail is an SVG painted with `fill-primary-emphasis`; there is no other `fill-<token>`
+// in src, so prove Tailwind generates it (and the border utility) from the configured color.
+describe('card-sheet tail utilities (#1946)', () => {
+  it('generates fill-primary-emphasis and border-primary-emphasis', async () => {
+    const result = await postcss([
+      tailwindcss({
+        config: 'tailwind.config.js',
+        content: [{ raw: 'fill-primary-emphasis border-primary-emphasis', extension: 'html' }],
+      }),
+    ]).process('@tailwind utilities;', { from: undefined })
+    expect(result.css).toMatch(/\.fill-primary-emphasis\s*\{[^}]*fill:\s*rgb\(var\(--primary-emphasis\)/)
+    expect(result.css).toContain('.border-primary-emphasis')
   })
 })
