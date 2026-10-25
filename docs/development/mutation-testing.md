@@ -172,7 +172,7 @@ Second, separate set (a re-derivation, **not** the original six): mutmut 2.5.1 g
 
 | Mutant | SQLite, scoped files | PostgreSQL, `ConcurrentMoveLockTests` |
 |---|---|---|
-| `lock=True` to `lock=False` (`enforce_column_limits`) | **Survives** | Killed by `test_column_lock_serializes_moves_into_a_full_column` |
+| `lock=True` to `lock=False` (`enforce_column_limits`) | **Survives** (since killed on SQLite by a spy on `select_for_update`, #1931: [details](#remaining-cards-and-card_movement-survivors-1931)) | Killed by `test_column_lock_serializes_moves_into_a_full_column` |
 | `select_related` name mutants (2), card read replaced by `None`, `order_by("XXpkXX")` (2) | Killed (`FieldError` or `AttributeError` on any database) | Killed |
 
 | Hand-flipped guard | Killed by |
@@ -507,7 +507,7 @@ The scheduled run of 2026-10-25 (pipeline 2986276266, main `fd859446e`) scored a
 | Target | 2026-10-25 CI: killed / survived / scored (adjusted) | Re-run locally (#1930) | Expected next run |
 |---|---|---|---|
 | `permissions` | 124 / 48 / 172 (72.1%) | 48 of the 48 survivors killed | 172 / 0 (100%) |
-| `cards` | 326 / 48 / 374 (87.2%) | 12 of 13 killed; `lock=True` in the `enforce_column_limits` signature survives (needs PostgreSQL, see [#1504](#postgresql-re-run-of-the-select_for_update-guards-1504)) | 338 / 36 (90.4%) |
+| `cards` | 326 / 48 / 374 (87.2%) | 12 of 13 killed; `lock=True` in the `enforce_column_limits` signature survives (needs PostgreSQL, see [#1504](#postgresql-re-run-of-the-select_for_update-guards-1504)); killed since by a spy on SQLite in [#1931](#remaining-cards-and-card_movement-survivors-1931) | 338 / 36 (90.4%) |
 | `card_movement` | 54 / 16 / 70 (77.1%) | not re-run | 54 / 16 (77.1%) |
 | `import_export` | 1690 (2 by timeout) / 136 / 1826 (92.6%) | 48 of 49 killed | 1738 / 88 (95.2%) |
 | **Merged** | **2194 / 248 / 2442 (89.8%)** | **108 killed** | **2302 / 140 (94.3%)** |
@@ -528,13 +528,15 @@ The scheduled run of 2026-10-25 (pipeline 2986276266, main `fd859446e`) scored a
 | `lock_card_cell_entry` branches | Killed: the card row is locked first only when a card id is given, and `None` column ids are dropped. |
 | `lock_board_for_card_write` SQL dictionary (`"postgresql"` key and statement) | Killed with a mocked connection whose vendor is `postgresql`; the statement is asserted verbatim. |
 | `CARD_MUTATION_HOOKS` failure log (format string, `__qualname__`) | Killed by asserting the logged message for a named handler and, for a handler with no `__qualname__`, its `repr`. |
-| `-1` to `-2` move-position clamp | Equivalent: `max(0, ...)` turns any negative bound into 0. `# pragma: no mutate`, on a line of its own. |
-| `flat=True` in `create_card`'s column lock read, and in `_lock_cascade_boards` / `_lock_entry_columns` | Equivalent: the first is only tested for `None`, the others' `list(...)` result is discarded. `# pragma: no mutate`, each on a line of its own. |
+| `-1` to `-2` move-position clamp | Not equivalent as a whole line, so no pragma. The bound is now `0 if highest is None else highest + 1` (identical result under `max(0, ...)`, since any negative bound clamps to 0): the old `-1` to `-2` mutant no longer exists, and the new `0` to `1` mutant is killed by `MovePositionTests.test_a_huge_position_in_an_empty_cell_is_zero`. All 6 mutants on the line were killed locally. |
+| `flat=True` in `create_card`'s column lock read, and in `_lock_cascade_boards` / `_lock_entry_columns` | Equivalent: the first is only tested for `None`, the others' `list(...)` result is discarded. `# pragma: no mutate`, each on a line of its own (3 in total, the only pragmas in `cards.py`). |
 | `CardMovement`: `default` / `db_default` of `card_uid` and `card_title`, the `save()` guards (`or`, `is not None`, the board and snapshot fills) and the two exception messages | Killed in `test_movement_record_mutation_gaps.py`. |
 | `CardMovement`: `null=True` on `card`, `board` and `imported_from_username` | Killed by asserting the field declarations (the column constraint comes from the migrations, so the model argument is otherwise unobservable) and a row stored with NULLs. |
 | `import_export`: the JSON media type description | Accepted, not marked: drf-spectacular emits one description per status code from the first media type, so the generated document is unchanged (same reason as the `403` survivors in the head table). |
 
-Re-run result on the final code: `cards` 369 of 369 killed (5 excluded by pragma: the four above plus the existing one), `card_movement` 70 of 70 in range killed (41 excluded). Survivor ids were read with `mutmut results` and `mutmut show`. That puts the next `cards` run near 100% and takes the expected merged adjusted score to about 95%; the CI job (PostgreSQL) is the measurement. `MUTATION_MIN` is unchanged.
+Deviation from the issue text: #1931 expected the `lock=True` to `lock=False` mutant in the `enforce_column_limits` signature to need a PostgreSQL test. A spy on `select_for_update` kills it on SQLite instead. It pins the call arguments, not lock semantics; the queueing itself stays covered on PostgreSQL by `test_concurrent_moves.py` and `test_concurrent_lock_sites.py`.
+
+Re-run result on the final code (local, SQLite): `cards` 369 of 369 mutants killed with 3 excluded by the pragmas above, i.e. 100%; `card_movement` 70 of 70 in range killed (41 excluded). That is a local measurement; the weekly CI job on PostgreSQL is the measurement that counts, and no merged score is projected here. `MUTATION_MIN` is unchanged.
 
 ### The floor (decision, #1384)
 

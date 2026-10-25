@@ -1612,18 +1612,9 @@ def _move_card_attempt(
             board=board, column=target_column, swimlane=target_swimlane
         ).exclude(pk=card.pk)
         highest = target_cell.aggregate(m=Max("position"))["m"]
-        position = max(
-            0,
-            min(
-                position,
-                (
-                    # Any negative bound gives 0 after the max(0, ...) above.
-                    -1  # pragma: no mutate -- equivalent: -1 and -2 both clamp to 0 (#1931)
-                    if highest is None
-                    else highest + 1
-                ),
-            ),
-        )
+        # An empty cell caps at 0 (the same result as any negative bound under
+        # max(0, ...)); a bound of 1 would leave a gap, which a test pins (#1931).
+        position = max(0, min(position, 0 if highest is None else highest + 1))
 
         # Shift the (already locked) target cell to make room.
         target_cell.filter(position__gte=position).update(
