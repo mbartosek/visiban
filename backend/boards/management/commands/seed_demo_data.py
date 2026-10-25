@@ -596,7 +596,7 @@ class Command(BaseCommand):
             help=(
                 "Also seed the hosted-demo content (#1034, #1389, #1412): seven showcase "
                 "boards (Software Team, Property Management, Construction, Sales "
-                "Territory, Sales Territory (Overlay), Content Moderation, Logistics Exceptions) plus a site "
+                "Territory, Sales Territory (Overlay), Content Moderation, Logistics Exceptions) and a Trello import (#1908) plus a site "
                 "admin, the published visitor account and two member accounts. Passwords are read from "
                 "DEMO_LOGIN_PASSWORD / DEMO_ADMIN_PASSWORD / "
                 "DEMO_MEMBER_PASSWORD. Off by default — the default output "
