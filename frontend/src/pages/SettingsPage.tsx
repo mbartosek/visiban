@@ -818,7 +818,7 @@ function SecurityTab({
           />
         </label>
 
-        <p className="text-xs min-h-4">
+        <p className="text-xs h-4">
           {error && <span className="text-danger">{error}</span>}
           {saved && !error && <span className="text-success">{savedText}</span>}
         </p>
@@ -1023,7 +1023,7 @@ function AccessTokensTab({ user, isSiteAdmin = false }: { user?: UserDatePrefs |
               </p>
             )}
           </fieldset>
-          <p className="text-xs h-4">
+          <p className="text-xs min-h-4">
             {createError
               ? <span className="text-danger">{createError}</span>
               : <span className="text-fg-muted">Leave expiry blank for a non-expiring token (max 1 year if set).</span>

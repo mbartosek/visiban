@@ -19,7 +19,7 @@ In a browser, session-based login is used automatically — no token needed.
 
 1. Open your avatar menu (top-right) and select **Settings**.
 2. Go to **Access Tokens** in the left sidebar.
-3. Click **New token**.
+3. Use the **New token** form above the token list.
 4. Enter a descriptive name — for example, `deploy-script` or `ci-pipeline`.
 5. Optionally set an expiry date (see [Expiry](#expiry) below).
 6. Choose the token's [scopes](#scopes). `read` and `write` are pre-checked, so leaving them alone gives the default token. Tick `mcp:read` (and `mcp:write` for write tools) to make a token an MCP client can use, or untick `read` and `write` if the token is only for MCP. At least one scope is required. `admin` is offered to site administrators only.
