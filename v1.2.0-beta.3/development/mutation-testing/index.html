@@ -4899,7 +4899,7 @@
 <p>Tracked in #1384, ported from TruePPM's <code>api:mutation</code> and <code>scheduler:mutation</code>. It runs on the Weekly mutation testing schedule only (<code>MUTATION_TEST=true</code>, never on an MR or a <code>main</code> push; it started on the Nightly schedule and moved to its own weekly one after a manual run measured the cost, see <a href="#runner-load">Runner load</a>) and covers <strong>every module with a manual baseline on this page</strong>. The report job gates the <strong>merged adjusted</strong> score at <strong>90%</strong> (<code>MUTATION_MIN=0.90</code>). Until the follow-up on #1384 both jobs stay <code>allow_failure: true</code>, so a score under the floor is a yellow job, not a red pipeline; a follow-up makes <code>backend-mutation-report</code> blocking.</p>
 <p>The job started as a one-module pilot on <code>boards/permissions.py</code> (!1176) and was widened to all baselined modules by #1384.</p>
 <h3 id="targets">Targets<a class="headerlink" href="#targets" title="Permanent link">&para;</a></h3>
-<p>The list lives in one place, <code>TARGETS</code> in <code>backend/mutmut_config.py</code>. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are the <code>total</code> and excluded figures from the 2026-10-18 CI mutmut stats (pipeline 2960067085, main <code>6d440fb22</code>); they were first enumerated with mutmut 2.5.1 on <code>main</code> at <code>e8be1a22f</code> (116 / 246 / 46 / 1780), and pragma-excluded mutants are never generated, so they are listed apart. The roughly 115 <code>cards</code> mutants added since the 246 baseline are not yet measured for kill rate (the same situation as the <code>import_export</code> note below).</p>
+<p>The list lives in one place, <code>TARGETS</code> in <code>backend/mutmut_config.py</code>. Each target names its source file, the test files every mutant runs against, an optional class to restrict the run to, and its shard count. Mutant counts are the <code>total</code> and excluded figures from the 2026-10-25 CI mutmut stats (pipeline 2986276266, main <code>fd859446e</code>); they were first enumerated with mutmut 2.5.1 on <code>main</code> at <code>e8be1a22f</code> (116 / 246 / 46 / 1780), and pragma-excluded mutants are never generated, so they are listed apart. Kill rates for that run, and what #1930 changed, are in <a href="#2026-10-25-run-below-the-floor-1930">2026-10-25 run below the floor</a>.</p>
 <table>
 <thead>
 <tr>
@@ -4915,7 +4915,7 @@
 <tr>
 <td><code>permissions</code></td>
 <td><code>boards/permissions.py</code></td>
-<td style="text-align: right;">148</td>
+<td style="text-align: right;">172</td>
 <td style="text-align: right;">4</td>
 <td>the four RBAC files (<code>test_rbac</code>, <code>test_rbac_boundaries</code>, <code>test_explicit_permissions</code>, <code>test_permissions_unit_mutation_gaps</code>)</td>
 <td style="text-align: right;">3</td>
@@ -4923,7 +4923,7 @@
 <tr>
 <td><code>cards</code></td>
 <td><code>boards/services/cards.py</code></td>
-<td style="text-align: right;">361</td>
+<td style="text-align: right;">374</td>
 <td style="text-align: right;">0</td>
 <td>the 13 files of the 2026-10-09 whole-module re-measure (movement suites, view suites, both gap files)</td>
 <td style="text-align: right;">16</td>
@@ -4931,24 +4931,24 @@
 <tr>
 <td><code>card_movement</code></td>
 <td><code>CardMovement</code> in <code>boards/models.py</code> only</td>
-<td style="text-align: right;">48</td>
-<td style="text-align: right;">29</td>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;">41</td>
 <td>the six movement-record files of the 2026-10-08 re-measure</td>
 <td style="text-align: right;">2</td>
 </tr>
 <tr>
 <td><code>import_export</code></td>
 <td><code>boards/views/import_export.py</code>, whole module</td>
-<td style="text-align: right;">1786</td>
+<td style="text-align: right;">1826</td>
 <td style="text-align: right;">2</td>
-<td>the 14 import/export files: the nine of the head run (#1502), the remainder run's (#1484), and <code>test_import_csv_custom_fields</code> for the #1449 code</td>
+<td>16 files: the nine of the head run (#1502), the remainder run's (#1484), <code>test_import_csv_custom_fields</code> for the #1449 code, and, last because only a mutant every other file let through reaches them, <code>test_import_history_attribution</code> and <code>test_import_export_schema_mutation_gaps</code> (#1930)</td>
 <td style="text-align: right;">29</td>
 </tr>
 <tr>
 <td><strong>Total</strong></td>
 <td></td>
-<td style="text-align: right;"><strong>2343</strong></td>
-<td style="text-align: right;"><strong>35</strong></td>
+<td style="text-align: right;"><strong>2442</strong></td>
+<td style="text-align: right;"><strong>47</strong></td>
 <td></td>
 <td style="text-align: right;"><strong>50</strong></td>
 </tr>
@@ -5182,6 +5182,52 @@
 <li>The artifact <code>mutmut-cicd-stats.json</code> (30 days) has the merged counts and <code>score_adjusted</code> / <code>score_raw</code> at the top level, and <code>targets.&lt;name&gt;</code> with each target's counts and scores. On exit 2 it is still written, with a <code>not_measured</code> key giving the reason. A floor configuration error (for example <code>MUTATION_MIN=90</code>) exits 2 before anything is read, so no merged file is written for that run. Every stats and cache path the script reads or writes goes through the shared <code>scripts/_paths.py</code> containment helper (<code>resolve_within(cli_roots(), path)</code>, #1377): it must resolve under the repo checkout, the working directory or the system temp directory, or the script prints <code>CONFIG ERROR</code> and exits 2.</li>
 <li>Dependency review for mutmut 2.5.1: BSD-3-Clause; dependencies click (BSD-3), glob2 (BSD), parso (MIT), pony (Apache-2.0), junit-xml (MIT), toml (MIT); no OSV advisories for any of them on 2026-10-04. 2.x rather than 3.x because 3.x copies the tree into a sandbox (needs <code>also_copy</code> bookkeeping for every file the suite reads), which does not suit a Django suite.</li>
 </ul>
+<h3 id="2026-10-25-run-below-the-floor-1930">2026-10-25 run below the floor (#1930)<a class="headerlink" href="#2026-10-25-run-below-the-floor-1930" title="Permanent link">&para;</a></h3>
+<p>The scheduled run of 2026-10-25 (pipeline 2986276266, main <code>fd859446e</code>) scored a merged adjusted <strong>89.8%</strong>, under the 90% floor (it was 91.5% on 2026-10-21 and also failed on 2026-10-18). Nearly all the loss was code merged since the 2026-10-09 re-measures whose own tests are not in its target's test list: the broadcast visibility predicates (#1677, #1705, #1714) and the analytics panel <code>min_role</code> filter (#1826) in <code>permissions.py</code>, the container-delete peer helpers in <code>cards.py</code> (#1634), and the <code>created_at</code> restore helpers (#1906), the export's OpenAPI declaration (#1783) and the imported-movement attribution in the CSV export (#1675) in <code>import_export.py</code>.</p>
+<h1 id="1930-kills-them-with-direct-assertions-test_permissions_unit_mutation_gapspy-test_card_service_mutation_gapspy-test_import_export_mutation_gapspy-and-the-new-test_import_export_schema_mutation_gapspy-and-adds-test_import_history_attributionpy-to-the-import_export-list-survivor-ids-were-read-from-each-shards-mutmut-results-in-the-job-logs-mutmut-251-numbers-mutants-the-same-way-on-the-same-code-so-the-ids-map-to-diffs-with-mutmut-show-in-a-fresh-copy-the-changed-lines-were-then-re-run-locally-mutmut-251-sqlite-throwaway-copies-the-targets-full-test-list-all-172-permissions-mutants-172-killed-the-32-cards-mutants-on-the-lines-the-new-tests-cover-and-the-55-import_export-mutants-on-lines-0-based-1049-1092-2585-2625-and-3040-3050">1930 kills them with direct assertions (<code>test_permissions_unit_mutation_gaps.py</code>, <code>test_card_service_mutation_gaps.py</code>, <code>test_import_export_mutation_gaps.py</code>, and the new <code>test_import_export_schema_mutation_gaps.py</code>) and adds <code>test_import_history_attribution.py</code> to the <code>import_export</code> list. Survivor ids were read from each shard's <code>mutmut results</code> in the job logs; mutmut 2.5.1 numbers mutants the same way on the same code, so the ids map to diffs with <code>mutmut show</code> in a fresh copy. The changed lines were then re-run locally (mutmut 2.5.1, SQLite, throwaway copies, the target's full test list): all 172 <code>permissions</code> mutants (172 killed), the 32 <code>cards</code> mutants on the lines the new tests cover, and the 55 <code>import_export</code> mutants on lines 0-based 1049-1092, 2585-2625 and 3040-3050.<a class="headerlink" href="#1930-kills-them-with-direct-assertions-test_permissions_unit_mutation_gapspy-test_card_service_mutation_gapspy-test_import_export_mutation_gapspy-and-the-new-test_import_export_schema_mutation_gapspy-and-adds-test_import_history_attributionpy-to-the-import_export-list-survivor-ids-were-read-from-each-shards-mutmut-results-in-the-job-logs-mutmut-251-numbers-mutants-the-same-way-on-the-same-code-so-the-ids-map-to-diffs-with-mutmut-show-in-a-fresh-copy-the-changed-lines-were-then-re-run-locally-mutmut-251-sqlite-throwaway-copies-the-targets-full-test-list-all-172-permissions-mutants-172-killed-the-32-cards-mutants-on-the-lines-the-new-tests-cover-and-the-55-import_export-mutants-on-lines-0-based-1049-1092-2585-2625-and-3040-3050" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>2026-10-25 CI: killed / survived / scored (adjusted)</th>
+<th>Re-run locally (#1930)</th>
+<th>Expected next run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>permissions</code></td>
+<td>124 / 48 / 172 (72.1%)</td>
+<td>48 of the 48 survivors killed</td>
+<td>172 / 0 (100%)</td>
+</tr>
+<tr>
+<td><code>cards</code></td>
+<td>326 / 48 / 374 (87.2%)</td>
+<td>12 of 13 killed; <code>lock=True</code> in the <code>enforce_column_limits</code> signature survives (needs PostgreSQL, see <a href="#postgresql-re-run-of-the-select_for_update-guards-1504">#1504</a>)</td>
+<td>338 / 36 (90.4%)</td>
+</tr>
+<tr>
+<td><code>card_movement</code></td>
+<td>54 / 16 / 70 (77.1%)</td>
+<td>not re-run</td>
+<td>54 / 16 (77.1%)</td>
+</tr>
+<tr>
+<td><code>import_export</code></td>
+<td>1690 (2 by timeout) / 136 / 1826 (92.6%)</td>
+<td>48 of 49 killed</td>
+<td>1738 / 88 (95.2%)</td>
+</tr>
+<tr>
+<td><strong>Merged</strong></td>
+<td><strong>2194 / 248 / 2442 (89.8%)</strong></td>
+<td><strong>108 killed</strong></td>
+<td><strong>2302 / 140 (94.3%)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>"Expected next run" adds the local kills to the CI counts; it is not a whole-module run, and the CI job (PostgreSQL) is the measurement. The one <code>import_export</code> mutant left in range is the <code>JSON export (?format=json).</code> description of the export's JSON media type: drf-spectacular emits one description per status code, taken from the first media type, so the generated document is unchanged (the same reason as the <code>403</code> survivors in the head table). It is left unmarked, like those. Not addressed by #1930, and tracked in #1931: the other 35 <code>cards</code> survivors (mostly in the lock helpers: <code>select_for_update(no_key=...)</code>, <code>lock=</code> and <code>flat=</code> arguments, the <code>lock_cards_for_cascade</code> guards and the two retry-attempt constants; also the two <code>CARD_MUTATION_HOOKS</code> failure-log arguments and the <code>-1</code> to <code>-2</code> clamp in the move position, which <code>max(0, ...)</code> makes equivalent; not triaged further) and the 16 <code>card_movement</code> survivors, plus the equivalent <code>import_export</code> description mutant above.</p>
 <h3 id="the-floor-decision-1384">The floor (decision, #1384)<a class="headerlink" href="#the-floor-decision-1384" title="Permanent link">&para;</a></h3>
 <p><code>MUTATION_MIN=0.90</code>, set on <code>backend-mutation-report</code>, applied to the merged adjusted score over all four targets. The maintainer chose 90% up front. That overrides the earlier plan on #1384 of reading the floor off a week of observed nightly scores; the week of observation now decides when the job becomes blocking, not what the floor is. The baseline arithmetic above puts the expected score several points above it. The floor is a fraction (<code>0.90</code>, never <code>90</code>) and is never set to <code>0</code> as a placeholder.</p>
 <h3 id="maintainer-steps-and-what-comes-next">Maintainer steps and what comes next<a class="headerlink" href="#maintainer-steps-and-what-comes-next" title="Permanent link">&para;</a></h3>
