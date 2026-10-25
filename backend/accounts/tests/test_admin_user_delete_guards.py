@@ -428,10 +428,13 @@ class MutualSuperuserDeleteRaceTests(TransactionTestCase):
                 r = c.post(
                     reverse("admin:accounts_user_delete", args=[target.pk]),
                     {"post": "yes"},
-                    follow=True,
                 )
-                text = " ".join(str(m) for m in (r.context["messages"] if r.context else []))
-                outcomes.append((r.status_code, "was deleted successfully" in text))
+                # Read success off the redirect target, not r.context: the test
+                # client collects template contexts through a process-global
+                # signal, so a concurrent thread's render leaks its messages
+                # into this response and the loser looked like a winner.
+                deleted = r.status_code == 302 and r.url == reverse("admin:accounts_user_changelist")
+                outcomes.append((r.status_code, deleted))
             except Exception as exc:  # e.g. a deadlock abort surfacing as a 500
                 outcomes.append(("error", repr(exc)))
             finally:
