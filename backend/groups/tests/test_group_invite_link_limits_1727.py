@@ -237,3 +237,14 @@ class EmailedGroupInviteStillGrantsAdminTests(_Fixture, TestCase):
         self.assertEqual(joined.status_code, status.HTTP_201_CREATED, joined.content)
         membership = GroupMembership.objects.get(group=self.group, user=self.invitee)
         self.assertEqual(membership.role, GroupMembership.Role.ADMIN)
+
+    def test_emailed_admin_invite_still_previews(self):
+        # The #1940 preview refusal is for shareable links only (delivery=link).
+        r = self.client.post(
+            f"{self.url}send/", {"email": self.INVITED, "role": "admin"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED, r.content)
+        raw = TOKEN_RE.search(mail.outbox[0].body).group(0)
+        preview = APIClient().get(f"/api/v1/groups/join/{raw}/")
+        self.assertEqual(preview.status_code, status.HTTP_200_OK, preview.content)
+        self.assertEqual(preview.json()["role"], "admin")

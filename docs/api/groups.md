@@ -321,7 +321,7 @@ All fields are optional. `single_use` (boolean, default `false`) creates a link 
 | `role` | `member` (default), `collaborator` or `viewer`. *(1.2+)* `admin` is refused with `400`: a shareable link is a bearer credential, so admin is granted only by an [emailed invite](#post-apiv1groupsidinvite-linkssend), which is bound to one address. |
 | `expiry_days` | *(1.2+)* An integer from `1` to `30`; defaults to `7` when omitted. `null` and values over `30` are refused with `400`: a shareable link always expires. Before 1.2 any positive integer or `null` (never expires) was accepted. |
 
-Upgrading to 1.2 revokes unused shareable links that had the `admin` role and gives unused links with no expiry an expiry 7 days after the upgrade (#1940). Revoked links no longer appear in this list. A legacy member link that already expired more than 30 days out keeps that expiry.
+Upgrading to 1.2 revokes unused shareable links that had the `admin` role and gives unused links with no expiry an expiry 7 days after the upgrade (#1940). Revoked links no longer appear in this list. A legacy non-admin link (member, collaborator or viewer) that already expires more than 30 days out keeps that expiry.
 
 > **Added in 1.2**
 

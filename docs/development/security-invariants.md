@@ -578,6 +578,7 @@ bounds how long a leaked link is useful.
 | Board emailed invite (REST) | `boards/views/invites.py` `BoardInviteLinksMixin.invite_link_send` | `boards/serializers.py` `BoardInviteLinkEmailSerializer`: no `admin`; `expiry_days` over `BOARD_INVITE_EXPIRY_DAYS`, default 7 |
 | Group invite link create (REST) | `groups/views.py` `GroupViewSet.invite_links` (POST) | `groups/serializers.py` `GroupInviteLinkCreateSerializer`: `role` over `GROUP_INVITE_LINK_ROLE_CHOICES` (no `admin`); `expiry_days` an integer from 1 to `GROUP_INVITE_LINK_MAX_EXPIRY_DAYS` (30), default `GROUP_INVITE_LINK_DEFAULT_EXPIRY_DAYS` (7), `null` refused; the view always sets `expires_at`; `groups/models.py` `GroupInviteLink.generate` refuses `admin` on a shareable link (`delivery` `link`) for any other caller |
 | Group emailed invite (REST) | `groups/views.py` `GroupViewSet.invite_link_send` | `groups/serializers.py` `GroupInviteLinkEmailSerializer`: `expiry_days` from 1 to `GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS` (30), default 7; `admin` allowed, the invite being bound to its recipient (`GroupInviteLink.generate` refuses an emailed invite without an address) |
+| Group shareable admin link redemption (REST) | `groups/views.py` `JoinGroupView.get` (preview), `JoinGroupView.post` (join) | Both refuse a link with `delivery` `link` and role `admin` with `404`, the same as a revoked link, so one reactivated or written by a script grants nothing (#1940); an emailed admin invite still previews and joins. Migration `groups/0023` revokes the ones that existed at upgrade |
 | Changing an existing link | none | No route updates a board or group invite link: the group routes are `GET`/`POST` `invite-links/` and `DELETE` `invite-links/{link_id}/`, and the board routes are the same; `PATCH` and `PUT` answer `405`. Neither model is registered in the Django admin |
 | Seeded data | `boards/management/commands/seed_demo_data.py` (the demo group's link) | Created with the `member` role and a 30-day expiry |
 | MCP, WebSocket, import | none | No tool, consumer or import format creates an invite link |
@@ -589,8 +590,12 @@ site admin creates them.
 Coverage: `groups/tests/test_group_invite_link_limits_1727.py` (admin refused on
 a shareable group link and in `generate`, emailed invite still grants admin, explicit `null`,
 over-30, zero and negative expiry refused, omitted expiry defaults to 7 days,
-`PATCH`/`PUT` answer `405`, and a pre-existing admin link with no expiry still
-redeems), `groups/tests/test_groups.py`
+`PATCH`/`PUT` answer `405`, a pre-existing shareable admin link is refused at
+join and preview with `404`, and an emailed admin invite still previews and
+joins), `groups/tests/test_group_invite_legacy_link_revoke_1940.py` and
+`groups/tests/test_group_invite_legacy_link_revoke_executor_1940.py` (migration
+`groups/0023` revokes unused shareable admin links and caps never-expiring
+ones, directly and under `migrate`), `groups/tests/test_groups.py`
 (`test_all_invite_link_roles_can_be_created`),
 `boards/tests/test_board_invites.py` (the board create serializer),
 `boards/tests/test_seed_demo_data.py`
