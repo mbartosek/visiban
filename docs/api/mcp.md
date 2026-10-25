@@ -88,7 +88,7 @@ Authorization: Bearer vbn_0123456789abcdef0123456789abcdef01234567
 
     Both resolve the **same** Personal Access Token records, so a token that is revoked, expired, or dropped by a password change stops working for MCP at the same moment it stops working for the REST API.
 
-Create the token via the API, because the Access Tokens form in the web app cannot set scopes and a token made there is refused at `/mcp` (a UI scope selector is tracked in [#1934](https://gitlab.com/visiban/visiban/-/issues/1934)):
+In the web app, open Settings > Access Tokens, tick **mcp:read** (add **mcp:write** for write tools) and generate the token. A token made with only the default `read` and `write` scopes is refused at `/mcp`. Or create it via the API:
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/auth/tokens/ \

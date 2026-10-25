@@ -21,9 +21,7 @@ Any Streamable HTTP MCP client can connect: Claude Desktop, Claude.ai (via a rem
 
 ## Generating a Bearer token
 
-The MCP server reuses Visiban's existing [Personal Access Token](personal-access-tokens.md) system — there's no separate "API Tokens" screen in Django admin. Create one through the API, because the web form cannot set scopes (a UI scope selector is tracked in [#1934](https://gitlab.com/visiban/visiban/-/issues/1934)):
-
-The web app's **Settings**, **Access Tokens** screen creates tokens with the default `read` and `write` scopes only, and it has no scope picker, so a token made there is refused at `/mcp`. Create the MCP token through the API instead, with `mcp:read` (plus `mcp:write` only if you want the agent to create, move, update, or archive cards):
+The MCP server reuses Visiban's existing [Personal Access Token](personal-access-tokens.md) system — there's no separate "API Tokens" screen in Django admin. In **Settings > Access Tokens**, tick **mcp:read** (plus `mcp:write` only if you want the agent to create, move, update, or archive cards) before generating the token; the default `read` and `write` scopes alone are refused at `/mcp`. To do the same through the API:
 
 1. Log in to get a session token: `POST /api/v1/auth/login/` with your username and password.
 2. Create the token:
