@@ -44,6 +44,35 @@ export function pruneStaleLabelIds(filters: FilterState, labels: { id: number }[
 }
 
 /**
+ * Drop custom-field filter entries (and their visible-control ids) whose field
+ * no longer exists on the board (#1928). Same shape as pruneStaleLabelIds: a
+ * persisted/saved filter naming a deleted field matches no card and
+ * FilterBar renders no chip for it. Returns the same object when nothing is
+ * stale so callers can detect a change by identity.
+ */
+export function pruneStaleCustomFields(filters: FilterState, definitions: { id: number }[]): FilterState {
+  const keys = Object.keys(filters.customFields);
+  if (keys.length === 0 && filters.visibleCustomFieldFilterIds.length === 0) return filters;
+  const live = new Set(definitions.map((d) => d.id));
+  const staleKey = keys.some((k) => !live.has(Number(k)));
+  const staleVisible = filters.visibleCustomFieldFilterIds.some((id) => !live.has(id));
+  if (!staleKey && !staleVisible) return filters;
+  return {
+    ...filters,
+    customFields: Object.fromEntries(Object.entries(filters.customFields).filter(([k]) => live.has(Number(k)))),
+    visibleCustomFieldFilterIds: filters.visibleCustomFieldFilterIds.filter((id) => live.has(id)),
+  };
+}
+
+/** Both stale-reference prunes (labels #1888, custom fields #1928) for a board. */
+export function pruneStaleFilters(
+  filters: FilterState,
+  board: { labels: { id: number }[]; custom_field_definitions: { id: number }[] },
+): FilterState {
+  return pruneStaleCustomFields(pruneStaleLabelIds(filters, board.labels), board.custom_field_definitions);
+}
+
+/**
  * Pure client-side card filter. Applies assignee, label, priority, due-date,
  * and optional full-text search filters to a list of cards.
  *

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../utils/filterCards";
+import { filterCards, hasActiveClientFilters, pruneStaleCustomFields, pruneStaleFilters, pruneStaleLabelIds } from "../utils/filterCards";
 import { EMPTY_FILTER } from "../components/Board/FilterBar";
 import type { Card } from "../types";
 
@@ -200,5 +200,44 @@ describe("pruneStaleLabelIds (#1888)", () => {
     const f = { ...EMPTY_FILTER, labelIds: [9] };
     expect(filterCards(cards, f)).toEqual([]);
     expect(filterCards(cards, pruneStaleLabelIds(f, []))).toEqual([1, 2]);
+  });
+});
+
+describe("pruneStaleCustomFields (#1928)", () => {
+  const f = {
+    ...EMPTY_FILTER,
+    customFields: { 5: { kind: "text" as const, query: "x" }, 9: { kind: "text" as const, query: "y" } },
+    visibleCustomFieldFilterIds: [5, 9],
+  };
+
+  it("drops entries and visible ids for deleted fields and keeps live ones", () => {
+    const pruned = pruneStaleCustomFields(f, [{ id: 5 }]);
+    expect(Object.keys(pruned.customFields)).toEqual(["5"]);
+    expect(pruned.visibleCustomFieldFilterIds).toEqual([5]);
+    expect(pruned).not.toBe(f);
+  });
+
+  it("prunes a stale visible id even when no filter value is set", () => {
+    const g = { ...EMPTY_FILTER, visibleCustomFieldFilterIds: [9] };
+    expect(pruneStaleCustomFields(g, []).visibleCustomFieldFilterIds).toEqual([]);
+  });
+
+  it("returns the same object when nothing is stale", () => {
+    expect(pruneStaleCustomFields(f, [{ id: 5 }, { id: 9 }])).toBe(f);
+    expect(pruneStaleCustomFields(EMPTY_FILTER, [])).toBe(EMPTY_FILTER);
+  });
+
+  it("a filter on a deleted field no longer hides every card; a live one still filters", () => {
+    const cards = [makeCard({ id: 1 }), makeCard({ id: 2, custom_field_values: [{ field_definition: 5, value: "x" }] })];
+    expect(filterCards(cards, f)).toEqual([]);
+    expect(filterCards(cards, pruneStaleCustomFields(f, []))).toEqual([1, 2]);
+    expect(filterCards(cards, pruneStaleCustomFields({ ...f, customFields: { 5: f.customFields[5] } }, [{ id: 5 }]))).toEqual([2]);
+  });
+
+  it("pruneStaleFilters applies both label and custom-field pruning", () => {
+    const g = { ...f, labelIds: [1, 2] };
+    const out = pruneStaleFilters(g, { labels: [{ id: 1 }], custom_field_definitions: [{ id: 9 }] });
+    expect(out.labelIds).toEqual([1]);
+    expect(Object.keys(out.customFields)).toEqual(["9"]);
   });
 });

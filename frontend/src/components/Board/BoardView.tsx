@@ -80,7 +80,7 @@ import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { MENU_ITEM_FOCUS_RING } from "../Common/menuItemFocusRing";
 import { buildGridOverlayState } from "../../gridOverlays/slot";
 import GridOverlayLegend from "./GridOverlay/GridOverlayLegend";
-import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../../utils/filterCards";
+import { filterCards, hasActiveClientFilters, pruneStaleFilters } from "../../utils/filterCards";
 import ModalWrapper from "../shared/ModalWrapper";
 import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
@@ -939,9 +939,10 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   const [filters, setFiltersState] = useState(initialFilters);
   // setFilters accepts only a resolved value (it syncs to localStorage and
   // URL params), so palette-event handlers registered with a narrow dep array
-  // read the latest filter state through this ref.
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
+  // read the latest filter state through this ref. It holds the pruned
+  // (effective) filters so a handler that spreads them into a write cannot
+  // copy a deleted label/field reference back to the URL or storage (#1928).
+  const effectiveFiltersRef = useRef(filters);
 
   // Sync filter changes to both localStorage and URL params.
   const setFilters = useCallback((next: typeof filters) => {
@@ -1322,7 +1323,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
     };
     const filterMyCards = () => {
       if (!currentUser) return;
-      setFilters({ ...filtersRef.current, assigneeIds: [currentUser.id] });
+      setFilters({ ...effectiveFiltersRef.current, assigneeIds: [currentUser.id] });
       setShowFilters(true);
     };
     const showHistory = () => setView("history");
@@ -1406,13 +1407,20 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // Memoized (#1147): this used to be a bare IIFE that allocated a fresh Set on every
   // render whenever a filter was active, which silently defeated any downstream useMemo
   // keyed on it — including the grid overlay's per-cell map.
-  // A label filter naming a label that no longer exists on the board (deleted
+  // A label or custom-field (#1928) filter naming one that no longer exists on the board (deleted
   // here or by another session; saved/persisted/URL filters can carry one)
   // would match no card and show no chip to dismiss (#1888). Ignore such ids
   // as a derived value only; they are never written back to the URL or
   // persisted state (BoardView stays mounted across a board switch with the
   // previous board's filters, so a write-back would copy them to the new board).
-  const effectiveFilters = useMemo(() => pruneStaleLabelIds(filters, board.labels), [filters, board.labels]);
+  const boardLabels = board.labels;
+  const boardCustomFieldDefs = board.custom_field_definitions;
+  const effectiveFilters = useMemo(
+    () => pruneStaleFilters(filters, { labels: boardLabels, custom_field_definitions: boardCustomFieldDefs }),
+    [filters, boardLabels, boardCustomFieldDefs],
+  );
+
+  effectiveFiltersRef.current = effectiveFilters;
 
   const filteredCardIds: Set<number> | null = useMemo(() => {
     const filters = effectiveFilters;
