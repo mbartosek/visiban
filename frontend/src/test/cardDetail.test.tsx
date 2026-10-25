@@ -729,7 +729,7 @@ describe('CardDetail', () => {
     })
 
     it('outside demo mode a plain member still sees neither Archive nor Delete on others\' cards', () => {
-      render(<CardDetail {...demoProps()} currentUser={{ ...visitor, demo_mode: false }} />)
+      render(<CardDetail {...demoProps()} currentUser={visitor} />, { wrapper: flagsWrapper({ demo_mode: false }) })
       expect(screen.queryByText('Archive card')).not.toBeInTheDocument()
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
       expect(screen.getByRole('combobox')).toBeDisabled()
