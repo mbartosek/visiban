@@ -1891,7 +1891,7 @@ class CardActivitySerializer(serializers.ModelSerializer):
 class CardChecklistSerializer(serializers.ModelSerializer):
     # allow_null=True (#1139): created_by is a SET_NULL FK with null=True, and
     # rows predating its migration carry null outright — the view layer reads
-    # that as "no ownership restriction". Same declared-nested-field gap as
+    # that as moderator-only (#1943). Same declared-nested-field gap as
     # CardCommentSerializer.author; schema-only, the field is read_only.
     created_by = BoardUserSerializer(read_only=True, allow_null=True)
 

@@ -5,7 +5,7 @@ Covers:
 - collaborators may only edit/delete items they created
 - collaborators cannot edit/delete items created by others
 - admins and moderators can edit/delete any item
-- null created_by (pre-migration rows) is unrestricted for backward compat
+- null created_by (pre-migration rows, deleted accounts) is moderator-only (#1943)
 """
 from unittest.mock import patch
 
@@ -159,14 +159,52 @@ class ChecklistOwnershipGateTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.text, "Moderator edit")
 
-    @patch(PATCH_BROADCAST)
-    def test_null_created_by_is_unrestricted(self, _):
-        """Pre-migration items with null created_by must not be blocked for any collaborator."""
+    def test_null_created_by_collab_cannot_delete(self):
+        """#1943: a NULL creator fails closed, like comments and attachments."""
         item = CardChecklist.objects.create(card=self.card, text="Legacy", position=0)
-        # created_by is None — backward-compat: any collaborator+ may edit/delete
         self.client.force_authenticate(self.collab)
         r = self.client.delete(self._item_url(item.pk))
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(CardChecklist.objects.filter(pk=item.pk).exists())
+
+    def test_null_created_by_collab_cannot_patch(self):
+        item = CardChecklist.objects.create(card=self.card, text="Legacy", position=0)
+        self.client.force_authenticate(self.collab)
+        r = self.client.patch(self._item_url(item.pk), {"text": "Hacked"})
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        item.refresh_from_db()
+        self.assertEqual(item.text, "Legacy")
+
+    @patch(PATCH_BROADCAST)
+    def test_null_created_by_admin_can_patch_and_delete(self, _):
+        item = CardChecklist.objects.create(card=self.card, text="Legacy", position=0)
+        self.client.force_authenticate(self.owner)
+        r = self.client.patch(self._item_url(item.pk), {"text": "Admin edit"})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        r = self.client.delete(self._item_url(item.pk))
         self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+
+    @patch(PATCH_BROADCAST)
+    def test_null_created_by_moderator_can_patch_and_delete(self, _):
+        item = CardChecklist.objects.create(card=self.card, text="Legacy", position=0)
+        self.client.force_authenticate(self._make_moderator("moderator3"))
+        r = self.client.patch(self._item_url(item.pk), {"text": "Mod edit"})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        r = self.client.delete(self._item_url(item.pk))
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+
+    @patch(PATCH_BROADCAST)
+    def test_deleted_creator_account_becomes_moderator_only(self, _):
+        """Deleting the creator's account SET_NULLs created_by; the item must
+        not become editable by every collaborator."""
+        gone = User.objects.create_user(username="gone", password="pass")
+        item = _make_item(self.card, gone)
+        gone.delete()
+        item.refresh_from_db()
+        self.assertIsNone(item.created_by_id)
+        self.client.force_authenticate(self.collab)
+        r = self.client.delete(self._item_url(item.pk))
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch(PATCH_BROADCAST)
     def test_collab_can_reorder_items_created_by_others(self, _):
