@@ -552,3 +552,50 @@ class ShareLinkTokenThrottleTests(TestCase):
         # bound holds when an attacker rotates source IPs.
         self.assertIn(ShareLinkThrottle, ShareBoardView.throttle_classes)
         self.assertIn(ShareLinkTokenThrottle, ShareBoardView.throttle_classes)
+
+
+class ShareFieldsWithoutRecordedEnablerTests(TestCase):
+    """A link with no recorded enabler never resolves (#1939), so /full/ reports
+    it as no link: ``share_link_active`` false, ``share_token`` and its expiry
+    null. Lower roles still get null; re-enabling reports the new link."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username="admin1939", password="pass")
+        self.board = _make_board(self.admin)
+        self.member = _make_member(self.board, "member1939")
+        self.client_admin = APIClient()
+        self.client_admin.force_authenticate(self.admin)
+        r = self.client_admin.post(
+            f"/api/v1/boards/{self.board.id}/share/", {"expires_in_days": 7}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.token = r.data["share_token"]
+        Board.objects.filter(pk=self.board.pk).update(share_enabled_by=None)
+
+    def _full(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        r = client.get(f"/api/v1/boards/{self.board.id}/full/")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        return r.data
+
+    def test_admin_sees_no_link(self):
+        body = self._full(self.admin)
+        self.assertIs(body["share_link_active"], False)
+        self.assertIsNone(body["share_token"])
+        self.assertIsNone(body["share_token_expires_at"])
+
+    def test_lower_roles_still_see_null(self):
+        body = self._full(self.member)
+        self.assertIsNone(body["share_link_active"])
+        self.assertIsNone(body["share_token"])
+        self.assertIsNone(body["share_token_expires_at"])
+
+    def test_turning_sharing_on_reports_the_new_link(self):
+        r = self.client_admin.post(f"/api/v1/boards/{self.board.id}/share/", {}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(r.data["share_token"], self.token)
+        body = self._full(self.admin)
+        self.assertIs(body["share_link_active"], True)
+        self.assertEqual(body["share_token"], r.data["share_token"])
+        self.assertEqual(APIClient().get(f"/api/share/{r.data['share_token']}/").status_code, status.HTTP_200_OK)

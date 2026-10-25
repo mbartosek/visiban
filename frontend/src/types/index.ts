@@ -870,7 +870,8 @@ export interface BoardFull {
   share_token_expires_at: string | null;
   /**
    * #1935 — whether the board has a share link set (it may have expired; see
-   * `share_token_expires_at`). Admin-only: `null` for lower roles.
+   * `share_token_expires_at`). `false` for a stored link with no recorded
+   * enabler, which does not resolve (#1939). Admin-only: `null` for lower roles.
    */
   share_link_active: boolean | null;
   /**

@@ -25,7 +25,9 @@ class ShareLinkRateLimitTests(TestCase):
         )
         # Enable share token so the endpoint has something to serve
         self.board.issue_share_token()
-        self.board.save(update_fields=["share_token", "share_token_hash"])
+        # A link resolves only with a recorded enabler who has standing (#1939).
+        self.board.share_enabled_by = self.owner
+        self.board.save(update_fields=["share_token", "share_token_hash", "share_enabled_by"])
         self.url = f"/api/share/{self.board.share_token}/"
         self.client = APIClient()
 
@@ -136,7 +138,9 @@ class ShareLinkTokenThrottleKeyTests(TestCase):
         owner = User.objects.create_user(username="owner_1530", password="pass")
         board = Board.objects.create(name="B", owner=owner)
         board.issue_share_token()
-        board.save(update_fields=["share_token", "share_token_hash"])
+        # The owner is an admin by ownership; recorded as the enabler (#1939).
+        board.share_enabled_by = owner
+        board.save(update_fields=["share_token", "share_token_hash", "share_enabled_by"])
         client = APIClient()
         self.assertEqual(
             client.get(f"/api/share/{board.share_token}/").status_code, 200

@@ -663,7 +663,9 @@ For the changes listed above, the **Sharing** tab shows sharing as off once the 
 
 The public page also checks this every time it is opened, so the link never stays usable after the admin's role ends, however that happens.
 
-Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.
+Another board admin can turn sharing back on, which creates a new link.
+
+A link turned on before the enabler was recorded (for example under 1.1, or 1.2.0-beta.3 and earlier) has no recorded admin, so it stops working at the upgrade to 1.2 (#1939). The **Sharing** tab shows sharing as off on such a board. A board admin restores sharing by turning **Enable public share link** on, which creates a new link and shows it once; the old URL does not come back. See the [upgrade notes](../administration/upgrade.md#upgrading-to-12x).
 
 ### What the public view shows
 

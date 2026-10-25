@@ -18,8 +18,12 @@ Two halves, the same shape invite links use for their creator:
   Sharing tab shows sharing as off and a later return of the standing does not
   bring the old link back.
 
-Links whose ``share_enabled_by`` is NULL (enabled before the field existed)
-are left alone by both.
+A link whose ``share_enabled_by`` is NULL (one enabled before the field
+existed) has no enabler whose standing could keep it (#1939):
+``share_enabler_has_standing(None, board)`` is False, so the public view
+refuses it and clears it with ``include_unrecorded=True``. The access-change
+sweeps, scoped by enabler or by board, leave such links to the view. A board
+admin who enables sharing again issues a new link that records them.
 """
 
 from django.contrib.auth import get_user_model
@@ -43,7 +47,7 @@ def share_enabler_has_standing(user, board):
     return get_board_role(user, board) in SHARE_ADMIN_ROLES
 
 
-def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
+def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None, include_unrecorded=False):
     """Clear the share links whose enabler no longer has standing on the board.
 
     Scope the check with *enabler* (a user or user pk: every board whose link
@@ -52,6 +56,10 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
     change is written, so the standing is judged on the new state and the
     revocation commits or rolls back with it. Returns the ids of the boards
     whose link was cleared, in pk order.
+
+    *include_unrecorded* also clears, within the scope, links with no recorded
+    enabler; they have no standing (module docstring). Only meaningful with
+    *board_ids*: an *enabler* scope never matches them.
 
     Each clear is a conditional UPDATE that matches only while the board still
     carries the link that was judged (same enabler, same token), so a link an
@@ -68,7 +76,9 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
     if enabler is None and board_ids is None:
         raise ValueError("revoke_lapsed_share_links needs an enabler or board_ids")
 
-    qs = Board.objects.filter(share_enabled_by__isnull=False, share_token__isnull=False)
+    qs = Board.objects.filter(share_token__isnull=False)
+    if not include_unrecorded:
+        qs = qs.filter(share_enabled_by__isnull=False)
     if enabler is not None:
         qs = qs.filter(share_enabled_by=getattr(enabler, "pk", enabler))
     if board_ids is not None:
@@ -85,10 +95,11 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
         by_enabler.setdefault(board.share_enabled_by_id, []).append(board)
     # A fresh read of each enabler: the caller's instance may predate the
     # change it just wrote (a flag cleared through update(), for instance).
-    users = get_user_model().objects.in_bulk(list(by_enabler))
+    users = get_user_model().objects.in_bulk([uid for uid in by_enabler if uid is not None])
 
     lapsed = []
     for user_id, user_boards in by_enabler.items():
+        # No recorded enabler (user_id None, include_unrecorded) lapses here too.
         user = users.get(user_id)
         if user is None or not user.is_active:
             lapsed.extend(user_boards)
@@ -103,7 +114,11 @@ def revoke_lapsed_share_links(*, enabler=None, board_ids=None, actor_id=None):
 
 
 def _clear_lapsed(lapsed, actor_id):
-    """Clear each judged link that is still in place; record board.updated per clear."""
+    """Clear each judged link that is still in place; record board.updated per clear.
+
+    ``share_enabled_by_id=None`` in the match below is an IS NULL test, so an
+    unrecorded link is cleared only while it is still unrecorded.
+    """
     from .. import broadcast as _broadcast
     from ..serializers import BoardSerializer
 

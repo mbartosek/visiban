@@ -147,7 +147,9 @@ class BoardEventPayloadHelperTests(TestCase):
         from boards.serializers import BoardFullSerializer
 
         self.board.share_token = uuid.uuid4()
-        self.board.save(update_fields=["share_token"])
+        # A link reads as set only with a recorded enabler (#1939).
+        self.board.share_enabled_by = self.admin
+        self.board.save(update_fields=["share_token", "share_enabled_by"])
         data = dict(BoardFullSerializer(self.board, context={"role": BoardMembership.Role.ADMIN}).data)
         self.assertTrue(data["share_token"], "precondition: the admin payload carries the field")
         return data

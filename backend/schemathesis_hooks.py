@@ -335,11 +335,18 @@ def _mint_public_tokens(board, ids):
 
     if board.share_token is None:
         # Token and hash together: the share view resolves by the hash (#1880).
+        # The owner is recorded as the enabler: a link with no recorded
+        # enabler does not resolve (#1939).
         token = uuid.uuid4()
         Board.objects.filter(pk=board.pk, share_token__isnull=True).update(
             share_token=token, share_token_hash=Board.hash_share_token(token),
+            share_enabled_by=owner,
         )
-        board.refresh_from_db(fields=["share_token", "share_token_hash"])
+        board.refresh_from_db(fields=["share_token", "share_token_hash", "share_enabled_by"])
+    elif board.share_enabled_by_id is None:
+        # A reused token from a database seeded before the enabler was
+        # recorded: record the owner so the fixture link resolves (#1939).
+        Board.objects.filter(pk=board.pk, share_enabled_by__isnull=True).update(share_enabled_by=owner)
     ids["share_token"] = str(board.share_token) if board.share_token else None
 
 

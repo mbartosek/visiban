@@ -112,7 +112,7 @@ Search for a new owner per board (any existing member — a direct board member 
 has access through group membership both count) and confirm; deactivation and the ownership
 transfers happen together, atomically. Deactivating the account also revokes any invite links
 the departing user created — site invite links and, *(1.2+)*, the pending board invites they
-emailed (each board's admins see those invites move to **Revoked**) and their active, unused group invite links (each affected group's admins see them move to **Revoked**). Consumed single-use links are left as they are. *(1.2+)* It also turns off any public board share link the user turned on (links turned on before 1.2 are not affected); see [Board sharing](../features/board.md#when-a-share-link-ends-automatically).
+emailed (each board's admins see those invites move to **Revoked**) and their active, unused group invite links (each affected group's admins see them move to **Revoked**). Consumed single-use links are left as they are. *(1.2+)* It also turns off any public board share link the user turned on (links turned on before the enabler was recorded (for example under 1.1, or 1.2.0-beta.3 and earlier) record no admin and stop working at the upgrade instead; see the [upgrade notes](upgrade.md#upgrading-to-12x)); see [Board sharing](../features/board.md#when-a-share-link-ends-automatically).
 
 #### Make admin / Demote admin
 
