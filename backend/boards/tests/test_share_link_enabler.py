@@ -71,6 +71,8 @@ class _ShareFixtures(TestCase):
         board = board or self.board
         board.refresh_from_db()
         self.assertIsNone(board.share_token)
+        # The hash the link resolves by is cleared with it on every route (#1880).
+        self.assertIsNone(board.share_token_hash)
         self.assertIsNone(board.share_token_expires_at)
         self.assertIsNone(board.share_enabled_by_id)
 

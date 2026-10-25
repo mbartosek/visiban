@@ -535,7 +535,6 @@ class BoardViewSet(
         DELETE — clears the token, immediately invalidating any live share link.
         Both operations are admin-only; the token is a public credential.
         """
-        import uuid as _uuid
         from datetime import timedelta
         from django.utils import timezone
         board, role = get_board_for_user(pk, request.user)
@@ -591,12 +590,14 @@ class BoardViewSet(
                             status=status.HTTP_400_BAD_REQUEST,
                         )
                     expires_at = timezone.now() + timedelta(days=days)
-                board.share_token = _uuid.uuid4()
+                # The token and its hash are written together (#1880): the
+                # public view resolves the link by the hash.
+                board.issue_share_token()
                 board.share_token_expires_at = expires_at
                 # The link lasts while this admin keeps admin standing on the
                 # board (#1865, boards/services/share_links.py).
                 board.share_enabled_by = request.user
-                board.save(update_fields=["share_token", "share_token_expires_at", "share_enabled_by"])
+                board.save(update_fields=Board.SHARE_LINK_FIELDS)
                 share_url = request.build_absolute_uri(f"/api/share/{board.share_token}")
                 response_data = {
                     "share_token": str(board.share_token),
@@ -606,10 +607,8 @@ class BoardViewSet(
             else:
                 # DELETE — clear both the token and the TTL so re-enabling
                 # starts from a clean "never expires" default.
-                board.share_token = None
-                board.share_token_expires_at = None
-                board.share_enabled_by = None
-                board.save(update_fields=["share_token", "share_token_expires_at", "share_enabled_by"])
+                board.clear_share_link()
+                board.save(update_fields=Board.SHARE_LINK_FIELDS)
                 # share_url is included as null on DELETE so the response
                 # shape matches POST and the TS ShareActionResponse interface
                 # does not need a discriminated union (#1005).

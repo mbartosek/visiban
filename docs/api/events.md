@@ -194,7 +194,8 @@ Two consequences worth knowing:
   user's own sockets. Clients should not rely on it for star state: use
   `board.star_changed`, or read `GET /api/v1/boards/{id}/` for the caller's own
   value (#1559).
-- `share_token` and `share_token_expires_at` are dropped from every payload for
+- `share_token`, `share_token_expires_at` and `share_token_hash` (which no
+  serializer declares) are dropped from every payload for
   every reader, whatever their role. Board admins read them over REST only
   (`GET /api/v1/boards/{id}/full/` and the share action response).
 - `board.star_changed`, `saved_filter.created` and `saved_filter.deleted` rows

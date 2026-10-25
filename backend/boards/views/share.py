@@ -1,5 +1,6 @@
 """ShareBoardView — public read-only board access via share token."""
 
+import hmac
 import uuid
 
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
@@ -45,8 +46,8 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
     catches CGNAT/proxy-pool abuse that would otherwise bypass the per-IP
     limit.
 
-    Keyed on the token segment from the URL (passed via ``view.kwargs``).
-    The throttle silently no-ops when no token is in scope.
+    Keyed on the hash of the token segment from the URL (passed via
+    ``view.kwargs``). The throttle silently no-ops when no token is in scope.
     """
 
     scope = "share_link_token"
@@ -55,14 +56,18 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
         token = (view.kwargs or {}).get("token")
         if not token:
             return None
-        # Key on the canonical UUID, not the raw segment: uuid.UUID() accepts
+        # Key on the hash of the canonical UUID, not the raw segment: uuid.UUID() accepts
         # several spellings of one value (uppercase, no hyphens, braces,
         # urn:uuid:), and each would otherwise get its own bucket and
         # multiply the per-token limit (#1530).  A non-UUID segment returns
         # None so it mints no cache key at all (the view answers it with 404);
-        # the per-IP ShareLinkThrottle still applies to it.
+        # the per-IP ShareLinkThrottle still applies to it.  The key holds the
+        # token's hash, never the token itself (#1880): the cache is a store
+        # like the database, and the hash is what links are resolved by.
+        # hash_share_token canonicalizes first, so the spellings above still
+        # share one bucket.
         try:
-            ident = str(uuid.UUID(token))
+            ident = Board.hash_share_token(token)
         except (ValueError, AttributeError, TypeError):
             return None
         return self.cache_format % {
@@ -106,14 +111,29 @@ class ShareBoardView(APIView):
     )
     def get(self, request, token):
         try:
-            token_uuid = uuid.UUID(token)
+            token_hash = Board.hash_share_token(uuid.UUID(token))
         except ValueError:
             raise Http404
+        # Resolved by the token's hash, as invite links are (#1880); the
+        # stored plaintext is never matched against the presented value.
+        # ``share_token__isnull=False`` is a liveness check, not a value
+        # match: a link whose token was cleared is gone even if a clear route
+        # ever left its hash behind.
         board = get_object_or_404(
             Board.objects.select_related("share_enabled_by", GROUP_ANCESTOR_SELECT_RELATED)
             .prefetch_related("columns", "swimlanes", "labels"),
-            share_token=token_uuid,
+            share_token_hash=token_hash,
+            share_token__isnull=False,
         )
+        # The row's own hash must still be the hash of the row's own token.
+        # A writer that changes the token without the hash (a backend of the
+        # previous release during a rolling upgrade rotates or re-enables a
+        # link without knowing about the hash) leaves a stale pair; it answers
+        # 404 rather than letting the previous token keep resolving. This
+        # compares two stored values; the presented token is matched only by
+        # the hash lookup above.
+        if not hmac.compare_digest(board.share_token_hash, Board.hash_share_token(board.share_token)):
+            raise Http404
         # A link lasts while the admin who enabled it keeps admin standing on
         # the board (#1865). Checked on every read, before the expiry branch,
         # so a lapsed link answers like a revoked one. The board is cleared

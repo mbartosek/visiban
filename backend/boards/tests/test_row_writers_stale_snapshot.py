@@ -766,7 +766,9 @@ class BoardAdminSaveTests(TestCase):
         request.user = staff
         stale = Board.objects.get(pk=board.pk)  # read before the other change
         token = uuid.uuid4()
-        Board.objects.filter(pk=board.pk).update(share_token=token)
+        Board.objects.filter(pk=board.pk).update(
+            share_token=token, share_token_hash=Board.hash_share_token(token),
+        )
         form_class = model_admin.get_form(request, stale, change=True)
         # Model fields only: the hidden row_version is not a Board attribute,
         # and a submission without it skips the rendered-state check.
@@ -784,6 +786,8 @@ class BoardAdminSaveTests(TestCase):
         board.refresh_from_db()
         self.assertEqual(board.name, "After")
         self.assertEqual(board.share_token, token)
+        # The hash is a non-form field too, so the save keeps it (#1880).
+        self.assertEqual(board.share_token_hash, Board.hash_share_token(token))
 
 
 class SwimlanePatchVsDefinitionDeleteTests(_RaceBase):

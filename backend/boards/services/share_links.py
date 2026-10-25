@@ -109,16 +109,20 @@ def _clear_lapsed(lapsed, actor_id):
 
     revoked = []
     for board in sorted(lapsed, key=lambda b: b.pk):
+        # Clears the hash with the token (#1880). Keywords spelled out (the
+        # columns of Board.SHARE_LINK_CLEARED): the group-placement entry-point
+        # check reads update() keywords statically.
         updated = Board.objects.filter(
             pk=board.pk,
             share_enabled_by_id=board.share_enabled_by_id,
             share_token=board.share_token,
-        ).update(share_token=None, share_token_expires_at=None, share_enabled_by=None)
+        ).update(
+            share_token=None, share_token_hash=None, share_token_expires_at=None,
+            share_enabled_by=None,
+        )
         if not updated:
             continue
-        board.share_token = None
-        board.share_token_expires_at = None
-        board.share_enabled_by = None
+        board.clear_share_link()
         revoked.append(board.pk)
         _broadcast.record_board_event(
             board.pk, _broadcast.EVT_BOARD_UPDATED, BoardSerializer(board).data,

@@ -260,6 +260,8 @@ class PublicTokenAndOwnershipFixtureTests(TestCase):
         self.assertEqual(GroupInviteLink.lookup_by_token(ids["group_join_token"]).group_id, group.id)
         board.refresh_from_db()
         self.assertEqual(ids["share_token"], str(board.share_token))
+        # The share view resolves by hash (#1880), so the fixture must set it.
+        self.assertEqual(board.share_token_hash, board.hash_share_token(ids["share_token"]))
 
     def test_reload_does_not_accumulate_fixture_links_or_rotate_share_token(self):
         from boards.models import BoardInviteLink

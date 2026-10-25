@@ -24,9 +24,8 @@ class ShareLinkRateLimitTests(TestCase):
             board=self.board, user=self.owner, role=BoardMembership.Role.ADMIN
         )
         # Enable share token so the endpoint has something to serve
-        import uuid
-        self.board.share_token = uuid.uuid4()
-        self.board.save(update_fields=["share_token"])
+        self.board.issue_share_token()
+        self.board.save(update_fields=["share_token", "share_token_hash"])
         self.url = f"/api/share/{self.board.share_token}/"
         self.client = APIClient()
 
@@ -116,17 +115,28 @@ class ShareLinkTokenThrottleKeyTests(TestCase):
         ):
             self.assertEqual(self._key(variant), canonical, variant)
 
+    def test_cache_key_holds_the_hash_not_the_token(self):
+        """#1880: no spelling of the token is written to the cache."""
+        import uuid
+
+        from boards.models import Board
+
+        u = uuid.uuid4()
+        for spelling in (str(u), str(u).upper(), u.hex):
+            key = self._key(spelling)
+            self.assertIn(Board.hash_share_token(u), key)
+            for form in (str(u), str(u).upper(), u.hex, u.hex.upper()):
+                self.assertNotIn(form, key)
+
     def test_non_uuid_token_mints_no_cache_key(self):
         self.assertIsNone(self._key("not-a-uuid"))
         self.assertIsNone(self._key("x" * 5000))
 
     def test_valid_token_still_served_and_junk_still_404(self):
-        import uuid
-
         owner = User.objects.create_user(username="owner_1530", password="pass")
         board = Board.objects.create(name="B", owner=owner)
-        board.share_token = uuid.uuid4()
-        board.save(update_fields=["share_token"])
+        board.issue_share_token()
+        board.save(update_fields=["share_token", "share_token_hash"])
         client = APIClient()
         self.assertEqual(
             client.get(f"/api/share/{board.share_token}/").status_code, 200

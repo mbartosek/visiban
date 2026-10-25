@@ -334,8 +334,12 @@ def _mint_public_tokens(board, ids):
         )
 
     if board.share_token is None:
-        Board.objects.filter(pk=board.pk, share_token__isnull=True).update(share_token=uuid.uuid4())
-        board.refresh_from_db(fields=["share_token"])
+        # Token and hash together: the share view resolves by the hash (#1880).
+        token = uuid.uuid4()
+        Board.objects.filter(pk=board.pk, share_token__isnull=True).update(
+            share_token=token, share_token_hash=Board.hash_share_token(token),
+        )
+        board.refresh_from_db(fields=["share_token", "share_token_hash"])
     ids["share_token"] = str(board.share_token) if board.share_token else None
 
 

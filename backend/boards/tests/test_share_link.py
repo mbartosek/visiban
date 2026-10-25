@@ -429,8 +429,11 @@ class ShareLinkTokenThrottleTests(TestCase):
         self.assertIsNotNone(key_a)
         self.assertIsNotNone(key_b)
         self.assertNotEqual(key_a, key_b)
-        self.assertIn("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", key_a)
-        self.assertIn("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", key_b)
+        # Keyed on the token's hash, never the token (#1880).
+        self.assertIn(Board.hash_share_token("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), key_a)
+        self.assertIn(Board.hash_share_token("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), key_b)
+        self.assertNotIn("aaaaaaaa", key_a)
+        self.assertNotIn("bbbbbbbb", key_b)
         self.assertIn("share_link_token", key_a)
 
     def test_get_cache_key_returns_none_when_no_token(self):
