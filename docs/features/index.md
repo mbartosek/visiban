@@ -176,7 +176,7 @@ Tokens created from 1.2 onward carry explicit **scopes** (`read`, `write`, `admi
 
 Connect Claude Desktop, Copilot, or any [Model Context Protocol](https://spec.modelcontextprotocol.io)-compatible AI agent to Visiban so it can read your boards and, with a suitably scoped token, create, move, update, and archive cards. Authenticates with the same Personal Access Token used elsewhere in the API. Off by default; operators enable it with `MCP_SERVER_ENABLED=true`.
 
-→ [MCP Server](mcp-server.md)
+→ [MCP Server](mcp-server.md) · [Ask your agent about the demo data](mcp-demo-walkthrough.md)
 
 ---
 

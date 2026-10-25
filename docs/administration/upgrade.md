@@ -850,7 +850,8 @@ touched — so it is zero-downtime and requires no operator action.
       [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
-      upgrade — create a new token with `mcp:read` to reconnect it.
+      upgrade — create a new token with `mcp:read` through the API
+      (`POST /api/v1/auth/tokens/` with `"scopes": ["mcp:read"]`) to reconnect it.
       The MCP server is also **off by default**: `/mcp` returns `404` until an operator sets
       `MCP_SERVER_ENABLED=true` on the backend. Request throttles are tunable with
       `MCP_THROTTLE_READ_RATE` (default `300/min`), `MCP_THROTTLE_COMPUTE_RATE` (default

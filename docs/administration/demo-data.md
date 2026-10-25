@@ -116,7 +116,7 @@ It creates, alongside the normal demo board:
 
     An eighth board, **Product Roadmap (Trello import)**, is a Trello export, imported ([#1908](https://gitlab.com/visiban/visiban/-/issues/1908)): the command feeds the Trello export under `backend/boards/tests/fixtures/` through the real [Trello importer](../features/trello-import.md), so the board carries genuine **import provenance**: each comment keeps the Trello author's name as text and starts "(imported from Trello)", and the cards keep their exported creation dates. It is created last, after every other board, so the Sales Territory (Overlay) board stays at `/boards/6`. The importer deliberately writes no movement or activity history, so the seed adds what the API would have written (a creation movement per card, an archive movement for the archived card, and an activity for each value a card holds), credited to the importing admin, and the board passes the same history check as the others. Unlike the other boards, its dates are **not** moved to the reset day: the cards keep the export's historical dates, so they read as old. The board's shape is the importer's test fixture (`backend/boards/tests/fixtures/trello_export.json`), so editing that fixture changes the demo. The accounts seated on the other showcase boards are seated here too, the visitor as a plain member.
 
-    Not on the hosted demo yet: an MCP connection with a scoped personal access token ([#1907](https://gitlab.com/visiban/visiban/-/issues/1907)).
+    Not on the hosted demo, by design: an MCP connection. The demo mints no tokens, so [ask your own agent](../features/mcp-demo-walkthrough.md) on a local instance instead.
 
     **Excluded: an Issue Board Lens board** ([#1908](https://gitlab.com/visiban/visiban/-/issues/1908)). The Lens derives its Backlog / To Do / Doing / Review / Done columns from the branches and merge requests of a live public repository, so showing it needs `GIT_LENS_ENABLED` and a live public repo on the demo deployment, which is a deployment-config decision outside the seed. The seed does not create one.
 
@@ -228,6 +228,10 @@ These cannot be expressed in values, and no CI job can verify them:
 - **Kubernetes 1.27 or later**, for the CronJob `timeZone` field.
 
 The runbook for try.visiban.com itself, including the deployment record, is [Hosted Demo](../maintainers/demo-deploy.md).
+
+## Ask your own agent about the demo data
+
+The hosted demo deliberately does not expose MCP or mint tokens: publishing a credential on a public site is a security decision we chose not to make ([#1907](https://gitlab.com/visiban/visiban/-/issues/1907)). To point your own agent at the generic demo board (the hosted showcase boards need `--demo-site`, whose `DEMO_MODE` fence blocks creating tokens), follow [Ask Your Own Agent About the Demo Data](../features/mcp-demo-walkthrough.md), a local walkthrough with a read-only `mcp:read` token.
 
 ## Demo data and real data
 
