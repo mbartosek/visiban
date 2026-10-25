@@ -163,8 +163,9 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     // #1946: a tail (isosceles triangle) in the brand blue, on a 1px brand-blue border.
     expect(notch.tagName.toLowerCase()).toBe('svg')
     expect(notch.getAttribute('class')).toContain('fill-primary-emphasis')
-    expect(notch.getAttribute('class')).toContain('-right-[7px]')
-    expect(notch.getAttribute('class')).toContain('-scale-x-100')
+    // Sheet right of the column: the tail sits on the sheet's LEFT edge, facing the card, unflipped.
+    expect(notch.getAttribute('class')).toContain('-left-[7px]')
+    expect(notch.getAttribute('class')).not.toContain('-scale-x-100')
     expect(notch).not.toHaveAttribute('data-direction')
     expect(notch.querySelector('path')).toHaveAttribute('d', 'M7 6L1 12L7 18Z')
     expect(d.className).toContain('border-primary-emphasis')
@@ -195,8 +196,9 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     expect(dialog()).toHaveAttribute('data-sheet-side', 'left')
     expect(dialog().style.left).toBe(`${1000 - 6 - 540}px`)
     const tail = screen.getByTestId('card-sheet-notch')
-    expect(tail.getAttribute('class')).toContain('-left-[7px]')
-    expect(tail.getAttribute('class')).not.toContain('-scale-x-100')
+    // Sheet left of the column: the tail sits on the sheet's RIGHT edge, mirrored.
+    expect(tail.getAttribute('class')).toContain('-right-[7px]')
+    expect(tail.getAttribute('class')).toContain('-scale-x-100')
   })
 
   it('docks at the right edge with the light backdrop when neither side fits', () => {

@@ -1174,7 +1174,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             data-clamped={notch.clamped ? "true" : "false"}
             data-direction={notch.clamped ? notch.direction : undefined}
             className={`pointer-events-none absolute z-20 fill-primary-emphasis ${
-              placement.side === "right" ? "-right-[7px] -scale-x-100" : "-left-[7px]"
+              placement.side === "right" ? "-left-[7px]" : "-right-[7px] -scale-x-100"
             }`}
             style={{ top: notch.y - 13 }}
           >

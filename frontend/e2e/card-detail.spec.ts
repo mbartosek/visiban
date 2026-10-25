@@ -288,6 +288,13 @@ test.describe('card detail sheet — anchored (>= 1280px)', () => {
         wrapperOverflow: getComputedStyle(wrapper).overflow,
       }
     })
+    // The tail straddles the sheet edge nearest the card: its base 1px inside, its apex 6px outside.
+    const tailBox = (await page.getByTestId('card-sheet-notch').boundingBox())!
+    const dlg = (await dialog.boundingBox())!
+    const edge = (await dialog.getAttribute('data-sheet-side')) === 'right' ? dlg.x : dlg.x + dlg.width
+    expect(tailBox.x).toBeLessThan(edge)
+    expect(tailBox.x + tailBox.width).toBeGreaterThan(edge)
+    expect(Math.abs((tailBox.x + tailBox.width) - (edge + 1))).toBeLessThanOrEqual(1.5)
     expect(tail.fill).not.toMatch(/none|rgba\(0, 0, 0, 0\)/)
     expect(tail.fill).toBe(tail.rootBorder)
     expect(tail.rootOverflow).toBe('visible')
