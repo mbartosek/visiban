@@ -1183,6 +1183,17 @@ class BoardViewSet(
                 # when the request did not name one.
                 if role_supplied:
                     membership.role = member_role
+                elif is_moderator and membership.role in (
+                    BoardMembership.Role.COLLABORATOR,
+                    BoardMembership.Role.VIEWER,
+                ):
+                    # Same refusal as the pre-lock check, applied to the row
+                    # that appeared meanwhile. Nothing has been written yet,
+                    # so returning here leaves no partial change.
+                    return Response(
+                        {"detail": "Moderator entitlement can only be granted to members or admins."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 if is_moderator is not None:
                     membership.is_moderator = is_moderator
                 # Clear moderator flag when demoting to collaborator/viewer

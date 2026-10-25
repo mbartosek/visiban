@@ -96,6 +96,59 @@ class MembersRoleValidationTests(TestCase):
         m = BoardMembership.objects.get(board=self.board, user=self.target)
         self.assertEqual(m.role, BoardMembership.Role.MEMBER)
 
+    def _post_with_row_created_during_lock(self, role, payload):
+        """POST while a row for the target appears just as the board lock is taken."""
+        from unittest import mock
+
+        from boards.views import boards as boards_views
+
+        real_lock = boards_views.lock_board_row_or_404
+
+        def lock_then_create(*args, **kwargs):
+            result = real_lock(*args, **kwargs)
+            BoardMembership.objects.create(board=self.board, user=self.target, role=role)
+            return result
+
+        with mock.patch.object(boards_views, "lock_board_row_or_404", side_effect=lock_then_create):
+            return self._post(payload)
+
+    def test_race_row_without_role_keeps_stored_role(self):
+        for role in (BoardMembership.Role.VIEWER, BoardMembership.Role.COLLABORATOR):
+            with self.subTest(role=role):
+                BoardMembership.objects.filter(board=self.board, user=self.target).delete()
+                r = self._post_with_row_created_during_lock(role, {"user_id": self.target.id})
+                self.assertEqual(r.status_code, status.HTTP_200_OK)
+                m = BoardMembership.objects.get(board=self.board, user=self.target)
+                self.assertEqual(m.role, role)
+
+    def test_race_row_without_role_refuses_moderator_for_viewer_or_collaborator(self):
+        for role in (BoardMembership.Role.VIEWER, BoardMembership.Role.COLLABORATOR):
+            with self.subTest(role=role):
+                BoardMembership.objects.filter(board=self.board, user=self.target).delete()
+                r = self._post_with_row_created_during_lock(
+                    role, {"user_id": self.target.id, "is_moderator": True}
+                )
+                self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+                m = BoardMembership.objects.get(board=self.board, user=self.target)
+                self.assertEqual(m.role, role)
+                self.assertFalse(m.is_moderator)
+
+    def test_race_row_with_explicit_role_still_updates(self):
+        r = self._post_with_row_created_during_lock(
+            BoardMembership.Role.VIEWER, {"user_id": self.target.id, "role": "member"}
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        m = BoardMembership.objects.get(board=self.board, user=self.target)
+        self.assertEqual(m.role, BoardMembership.Role.MEMBER)
+
+    def test_omitted_role_on_site_admin_membership_is_refused_for_non_site_admin(self):
+        sa = User.objects.create_user(username="sa1941", password="pass", is_site_admin=True)
+        BoardMembership.objects.create(board=self.board, user=sa, role=BoardMembership.Role.ADMIN)
+        r = self._post({"user_id": sa.id})
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        m = BoardMembership.objects.get(board=self.board, user=sa)
+        self.assertEqual(m.role, BoardMembership.Role.ADMIN)
+
     def test_members_accepts_valid_role(self):
         r = self._post({"user_id": self.target.id, "role": "viewer"})
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
