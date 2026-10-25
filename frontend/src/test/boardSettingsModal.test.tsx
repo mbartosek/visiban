@@ -1475,8 +1475,26 @@ describe('BoardSettingsModal — Sharing tab', () => {
     expect(screen.getByRole('button', { name: 'Rotate link' })).toHaveAccessibleDescription(
       'The link is shown only once, when it is created. To get a link you can copy, rotate it: the current link stops working.',
     )
-    // The picker now sets the expiry of the replacement link.
-    expect(screen.getByRole('combobox', { name: /New link expires in/ })).toHaveTextContent('30 days')
+    // The picker now sets the expiry of the replacement link, and is described
+    // by the rotate helper, not by the sharing-off helper.
+    const ttl = screen.getByRole('combobox', { name: /New link expires in/ })
+    expect(ttl).toHaveTextContent('30 days')
+    expect(ttl).toHaveAccessibleDescription(
+      'The link is shown only once, when it is created. To get a link you can copy, rotate it: the current link stops working.',
+    )
+  })
+
+  it('enabling moves focus to Copy, which announces the one-time warning', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    render(<BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} initialTab="sharing" />)
+
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+
+    const copy = await screen.findByRole('button', { name: 'Copy' })
+    await waitFor(() => expect(copy).toHaveFocus())
+    expect(copy).toHaveAccessibleDescription(
+      "Copy this link now — it won't be shown again. If you lose it, rotate the link to get a new one.",
+    )
   })
 
   it('reads link state from share_link_active, not from the deprecated share_token', () => {
@@ -1495,6 +1513,7 @@ describe('BoardSettingsModal — Sharing tab', () => {
       />,
     )
     expect(screen.getByTestId('share-expiry-line').textContent).toMatch(/^Expires /)
+    expect(screen.getByTestId('share-expiry-line')).toHaveClass('text-fg-muted')
     unmount()
     render(
       <BoardSettingsModal
@@ -1503,6 +1522,8 @@ describe('BoardSettingsModal — Sharing tab', () => {
       />,
     )
     expect(screen.getByTestId('share-expiry-line').textContent).toMatch(/^Expired /)
+    // A dead link is called out in the warning tone, not muted like a live one.
+    expect(screen.getByTestId('share-expiry-line')).toHaveClass('text-warning')
   })
 
   it('Rotate link issues a new link with the chosen expiry and reveals it once', async () => {
@@ -1523,6 +1544,8 @@ describe('BoardSettingsModal — Sharing tab', () => {
     expect(screen.getByText(/Copy this link now — it won't be shown again\./)).toBeInTheDocument()
     expect(screen.queryByText('A public share link is active.')).toBeNull()
     expect(screen.getByTestId('share-expiry-line').textContent).toMatch(/^Expires /)
+    // Rotate link unmounted with the reveal; focus lands on Copy, not <body>.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toHaveFocus())
   })
 
   it('shows an error when rotating fails, and keeps the link active', async () => {
@@ -1533,6 +1556,9 @@ describe('BoardSettingsModal — Sharing tab', () => {
     await user.click(screen.getByRole('button', { name: 'Rotate link' }))
 
     expect(await screen.findByText('Failed to rotate the link. Please try again.')).toBeInTheDocument()
+    // Announced: the status slot is a polite live region.
+    expect(screen.getByText('Failed to rotate the link. Please try again.').closest('[role="status"]'))
+      .toHaveAttribute('aria-live', 'polite')
     expect(screen.getByText('A public share link is active.')).toBeInTheDocument()
   })
 
@@ -1562,6 +1588,8 @@ describe('BoardSettingsModal — Sharing tab', () => {
 
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/abc-token-123`)
     expect(await screen.findByRole('button', { name: 'Copied!' })).toBeInTheDocument()
+    // The result is also announced through the status live region.
+    expect(screen.getByText('Link copied.').closest('[role="status"]')).toHaveAttribute('aria-live', 'polite')
   })
 
   it('disabling share calls disableBoardSharing and clears the active state', async () => {

@@ -382,7 +382,9 @@ channels and the feed, `invite`, swimlane re-filtering, and a check that every
 `boards/tests/test_actor_scoped_event_fields.py` (`is_starred` per recipient on
 both channels for each write path, and in the feed for every reader role),
 `boards/tests/test_board_events.py` `ReadSideStrippingTests` (including the
-shared-helper identity check), `boards/tests/test_consumer_role_refresh.py`, and
+shared-helper identity check), `boards/tests/test_share_link.py`
+`ShareLinkActiveFieldTests` (`share_link_active` is in `ADMIN_ONLY_BOARD_FIELDS`
+and null below admin on `/full/`), `boards/tests/test_consumer_role_refresh.py`, and
 `boards/tests/test_member_site_admin_flag.py`.
 
 ## Rule 9: Role writers validate against the model enum, and role readers fail closed
@@ -460,7 +462,7 @@ fails closed.
 | WebSocket (group) | `groups/consumers.py` `_user_can_access_group_id`, `GroupConsumer._board_visible` | Calls `groups/models.py` `user_has_group_access`, the predicate REST `_require_group_member` uses, at connect and at every periodic re-check. A `board.created` or `board.updated` frame, which carries a full board, is forwarded only to a subscriber on whom `get_board_role` resolves a role for that board, the predicate of REST board detail and `BoardConsumer` (#1829); the verdict is cached per board for the access re-check window. `board.deleted` (identifiers only: `board_uid`, and `board_id` on a move-out) is accepted as ungated, since access cannot be resolved for a deleted board and a client needs it to drop a listed row |
 | WebSocket (board) | `boards/consumers.py` `BoardConsumer`, `_lookup_role` | Role from `boards/permissions.py` `get_board_role`, the helper REST uses; per-recipient field gating is Rule 8 |
 | MCP (access) | `mcp_server/tools.py` `_resolve_board`, `list_boards` | `_resolve_board` takes the role from `get_board_role`, and a missing board and an inaccessible board are answered alike (Rule 7). `list_boards` starts from `boards/views/_helpers.py` `get_accessible_boards_queryset`, the queryset `BoardViewSet.get_queryset` uses; the role comes from the shared `get_board_roles`, and a board with no resolved role is omitted. `mcp_server/tests/test_mcp.py` covers the listing |
-| MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, capabilities, members, current role) are absent; users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
+| MCP (output) | `mcp_server/tools.py` `board_snapshot`, `_serialize_user`, `_swimlanes_payload`, `_serialize_card` | Explicit allow-list shapes, not `BoardFullSerializer`; web-session-only fields (share token, share-link expiry and `share_link_active`, capabilities, members, current role) are absent (`test_mcp.py` `test_web_only_fields_are_never_exposed`); users carry only the REST user fields and no email; admin-only swimlane fields are included for admin roles only |
 | Change feed and board export | `boards/serializers.py` `BoardEventSerializer.to_representation`; `boards/views/import_export.py` `BoardImportExportMixin.export` | Rule 8 rows: per-reader field gating with the reader's role |
 
 Coverage: `mcp_server/tests/test_mcp.py` (`UserFieldParityTests`, which pins

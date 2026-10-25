@@ -47,6 +47,7 @@ const fakeBoard = {
   updated_at: '',
   current_user_role: 'admin' as const,
   share_token: null,
+  share_link_active: false,
 } as unknown as BoardFull
 
 function makeMovement(overrides: Partial<CardMovement> = {}): CardMovement {
