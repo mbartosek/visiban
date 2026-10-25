@@ -121,3 +121,20 @@ class SessionRecentlySignedInHelperTests(TestCase):
         self.user.save()
         request = RequestFactory().post("/api/v1/auth/change-password/")
         self.assertFalse(credentials.first_password_requires_recent_login(request, self.user))
+
+
+class RecentLoginRefusalSchemaTests(TestCase):
+    """The 403 with ``code`` is in the OpenAPI contract on both routes (#1260)."""
+
+    def test_both_routes_declare_the_403_with_an_optional_code(self):
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        for path in ("/api/v1/auth/change-password/", "/api/v1/auth/password/change/"):
+            with self.subTest(path=path):
+                body = schema["paths"][path]["post"]["responses"]["403"]["content"][
+                    "application/json"
+                ]["schema"]
+                component = schema["components"]["schemas"][body["$ref"].rsplit("/", 1)[-1]]
+                self.assertEqual(set(component["properties"]), {"detail", "code"})
+                self.assertEqual(component["required"], ["detail"])

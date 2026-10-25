@@ -708,6 +708,34 @@ def _reissued_auth_token(request) -> dict:
 
 # One component shared by both password-change routes so their documented
 # responses cannot drift apart.
+# The 403 both password-change routes can answer (#1260). Declared so the
+# ``code`` the SPA acts on is part of the contract; without it the schema hook
+# (visiban.schema_hooks.add_standard_error_responses) documents the generic
+# ``{"detail": ...}`` only. ``code`` is optional: only the recent-login refusal
+# sets it, while a token caller setting a first password (#1609) and a scope
+# refusal answer ``detail`` alone.
+_PASSWORD_CHANGE_FORBIDDEN_RESPONSE = OpenApiResponse(
+    description=(
+        "Refused. Setting a first password on an account with no usable password "
+        "needs an interactive session (token callers are refused) holding a recent "
+        "provider sign-in to the account; without one the body carries "
+        '``"code": "recent_login_required"``.'
+    ),
+    response=inline_serializer(
+        name="PasswordChangeForbidden",
+        fields={
+            "detail": serializers.CharField(),
+            "code": serializers.CharField(
+                required=False,
+                help_text=(
+                    "``recent_login_required`` when the session has no recent provider "
+                    "sign-in to the account. Absent on other refusals."
+                ),
+            ),
+        },
+    ),
+)
+
 _PASSWORD_CHANGE_RESPONSE = inline_serializer(
     name="PasswordChangeResponse",
     fields={
@@ -769,7 +797,7 @@ class ChangePasswordView(APIView):
                 "new_password": serializers.CharField(),
             },
         ),
-        responses={200: _PASSWORD_CHANGE_RESPONSE},
+        responses={200: _PASSWORD_CHANGE_RESPONSE, 403: _PASSWORD_CHANGE_FORBIDDEN_RESPONSE},
     )
     def post(self, request):
         body = require_json_object(request)
@@ -1254,6 +1282,7 @@ class TokenRevokingPasswordChangeView(DjRestAuthPasswordChangeView):
     @extend_schema(
         responses={
             200: _PASSWORD_CHANGE_RESPONSE,
+            403: _PASSWORD_CHANGE_FORBIDDEN_RESPONSE,
         },
     )
     def post(self, request, *args, **kwargs):

@@ -157,14 +157,21 @@ def session_recently_signed_in_by_provider(request, user) -> bool:
 
     Only a ``socialaccount`` record counts, and only when its provider and uid
     are an identity linked to *user*: an account with no usable password can
-    only sign in through a provider. allauth writes a record before the login
-    completes, so a sign-in to some other account that stopped part way (for
-    example at email verification) can leave its record in the session of the
-    user already signed in; matching the identity keeps that from counting.
+    only sign in through a provider. The records belong to the session, not
+    to an account: allauth's provider flow signs a signed-in user out before
+    it writes one, but a record written while the session was anonymous (for
+    example by a provider sign-in that stopped part way) is kept when the
+    session then signs in by another route, such as the REST login, because
+    Django keeps session data across a login. Matching the identity keeps such
+    a record from counting for a different account.
 
-    Fails closed: a session with no records (one created before this rule, or
-    by a REST API login, which records none) or with only older records is
-    not recent.
+    Fails closed: a session with no provider sign-in record within the window
+    is not recent. That includes a session signed in some other way (a REST
+    login, a password login or a test ``force_login``, none of which writes a
+    ``socialaccount`` record) and one whose provider sign-in is older than the
+    window. A session signed in through a provider before this rule shipped
+    has the same record (allauth has always written it) and passes while it
+    is inside the window.
     """
     from allauth.account import app_settings as account_settings
     from allauth.account.authentication import get_authentication_records

@@ -255,7 +255,8 @@ class _FirstPasswordSessionOnlyCases:
         self.assertTrue(self.user.check_password(NEW))
 
     def test_session_with_no_sign_in_record_is_refused(self):
-        # A session created before #1260 (or by force_login) holds no record:
+        # A session signed in without a provider (here force_login; a REST or
+        # password login is the same) holds no socialaccount record:
         # fail closed, so the owner signs in again.
         client = APIClient()
         client.force_login(self.user)
@@ -282,7 +283,8 @@ class _FirstPasswordSessionOnlyCases:
 
     def test_recent_sign_in_to_another_accounts_identity_is_refused(self):
         # A record for an identity that is not linked to this account (for
-        # example one left by someone else's sign-in that stopped part way)
+        # example one written while the session was anonymous and kept through a
+        # later sign-in by another route)
         # does not count.
         other = User.objects.create_user(username="otherid", email="otherid@example.com")
         provider, uid = link_identity(other, "github")

@@ -845,7 +845,7 @@ touched — so it is zero-downtime and requires no operator action.
       a password, `POST /api/v1/auth/change-password/` and `POST /api/v1/auth/password/change/`
       set a first password only when the session signed in through one of the account's
       providers in the last five minutes; otherwise they answer `403` with
-      `"code": "recent_login_required"`. Sessions from before the upgrade count as not recent.
+      `"code": "recent_login_required"`.
       Accounts with a password are unaffected (see
       [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
