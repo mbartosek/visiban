@@ -1047,7 +1047,8 @@ class BoardViewSet(
         summary="Add a member to the board, or update an existing member's role",
         description=(
             "Creates a new BoardMembership (201) if `user_id` is not yet a board member, "
-            "or updates their role/moderator flag on an existing membership (200). Admin only."
+            "or updates their role/moderator flag on an existing membership (200). "
+            "When `role` is omitted, a new membership gets `member` and an existing one keeps its current role. Admin only."
         ),
         request=inline_serializer(
             name="AddOrUpdateMember",
@@ -1085,6 +1086,9 @@ class BoardViewSet(
             # Missing user_id keeps its existing 404; a present but non-integer
             # one must be a 400, not a ValueError out of the pk lookup (#1669).
             user_id = coerce_int_id(user_id, "user_id")
+        # An omitted role means "leave the role alone" on an existing
+        # membership and "member" on a new one; resolved after the lookup below.
+        role_supplied = "role" in body
         member_role = body.get("role", BoardMembership.Role.MEMBER)
         # Validate at the boundary: only stored membership roles are accepted,
         # and only as strings (an unhashable value must not reach the lookup).
@@ -1118,6 +1122,10 @@ class BoardViewSet(
             and not request.user.is_site_admin
         ):
             raise PermissionDenied("Cannot modify a site admin's board membership.")
+        if not role_supplied and existing is not None:
+            # Keep the stored role so a request that only touches the
+            # moderator flag cannot change what the member can do.
+            member_role = existing.role
         raw_mod = body.get("is_moderator")
         # Normalize: None means "not provided", else coerce to bool.
         # Multipart forms send "false"/"true" as strings.
@@ -1171,11 +1179,25 @@ class BoardViewSet(
                 # floor, must hold on this path too (#1706).
                 if target_user.is_site_admin and not request.user.is_site_admin:
                     raise PermissionDenied("Cannot modify a site admin's board membership.")
-                membership.role = member_role
+                # A row created while this request waited keeps its stored role
+                # when the request did not name one.
+                if role_supplied:
+                    membership.role = member_role
+                elif is_moderator and membership.role in (
+                    BoardMembership.Role.COLLABORATOR,
+                    BoardMembership.Role.VIEWER,
+                ):
+                    # Same refusal as the pre-lock check, applied to the row
+                    # that appeared meanwhile. Nothing has been written yet,
+                    # so returning here leaves no partial change.
+                    return Response(
+                        {"detail": "Moderator entitlement can only be granted to members or admins."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 if is_moderator is not None:
                     membership.is_moderator = is_moderator
                 # Clear moderator flag when demoting to collaborator/viewer
-                if member_role in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.VIEWER):
+                if membership.role in (BoardMembership.Role.COLLABORATOR, BoardMembership.Role.VIEWER):
                     membership.is_moderator = False
                 membership.save()
             # A board admin moved to a lower role stops holding a share link
