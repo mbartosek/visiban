@@ -110,9 +110,12 @@ def first_password_requires_session(request, user) -> bool:
 # Stable error code for the SPA (``{"detail": ..., "code": ...}``): it tells
 # the user to sign in again rather than showing a generic failure.
 FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE = "recent_login_required"
+# The reset pointer is for a session with no provider to sign in again with
+# (an account without a linked identity): a reset link proves the mailbox.
 FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE = (
     "To set a password, sign out, sign in again with your sign-in provider, "
-    "and then set the password within a few minutes."
+    "and then set the password within a few minutes. If you can't sign in with "
+    'a provider, use "Forgot password?" on the sign-in page instead.'
 )
 
 

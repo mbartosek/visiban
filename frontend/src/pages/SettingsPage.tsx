@@ -752,7 +752,7 @@ function SecurityTab({
           ? "Too many attempts. Please wait before trying again."
           : response?.data?.code === "recent_login_required"
           ? // #1260: a first password needs a recent provider sign-in in this session.
-            "To set a password, sign out, sign in again with your sign-in provider, and then set the password within a few minutes."
+            'To set a password, sign out, sign in again with your sign-in provider, and then set the password within a few minutes. If you can\'t sign in with a provider, use "Forgot password?" on the sign-in page instead.'
           : hasPw
           ? "Failed to change password. Check your current password and try again."
           : "Failed to set password. Please try again."
