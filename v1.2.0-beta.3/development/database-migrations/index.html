@@ -4470,7 +4470,15 @@ constraint to it, which is a catalog-only operation:</p>
 <a id="__codelineno-5-44" name="__codelineno-5-44" href="#__codelineno-5-44"></a>    <span class="p">]</span>
 </code></pre></div>
 <p>Migration <code>0030_card_trigram_search_indexes</code> uses this same <code>SeparateDatabaseAndState</code> shape
-for its GIN indexes; read it for a worked example already in the tree.</p>
+for its GIN indexes; read it for a worked example already in the tree.
+When the uniqueness only has to hold for non-null values, a <em>partial</em> <code>UniqueConstraint</code>
+(<code>condition=Q(col__isnull=False)</code>) is simpler: Django implements it as a unique index on
+every backend, so the <code>ALTER TABLE ... ADD CONSTRAINT ... USING INDEX</code> step drops out.
+<code>boards/0089_board_share_token_hash_uniq</code> is the worked example. It also drops a leftover
+index of the same name before the build, because a failed <code>CREATE INDEX CONCURRENTLY</code> leaves
+an <code>INVALID</code> index that <code>IF NOT EXISTS</code> would skip. On SQLite it calls
+<code>schema_editor.add_constraint</code> / <code>remove_constraint</code>, so test databases there enforce the
+constraint and can still migrate backward.</p>
 <hr />
 <h2 id="adding-a-foreign-key">Adding a foreign key<a class="headerlink" href="#adding-a-foreign-key" title="Permanent link">&para;</a></h2>
 <p>A foreign key is a constraint, and PostgreSQL validates a constraint — scanning the

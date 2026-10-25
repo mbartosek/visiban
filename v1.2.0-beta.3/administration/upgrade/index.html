@@ -5848,6 +5848,17 @@ is still accepted. Scripts that reorder this way must switch to
 <a href="../../api/boards/#columns">Columns API</a>, the <a href="../../api/boards/#swimlanes">Swimlanes API</a>,
 and the <a href="../../api/cards/">checklist item reference</a>.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Public share links are now looked up by a hash of their token</p>
+<p>Board share links are now resolved by a SHA-256 hash of the share token, as invite links
+already are (#1880). Migrations <code>boards/0087</code>–<code>0089</code> add the hash column, fill it in for every
+existing share link, and build its unique index concurrently. Share links created before the
+upgrade keep working, and no action is needed. During a rolling upgrade, a backend pod still
+on the previous version writes the token without its hash. A share link that such a pod
+creates, regenerates or re-enables after migration <code>0088</code> has run answers <code>404 Not Found</code>,
+and so does the link it replaced, until a board admin regenerates it under
+<strong>Board Settings → Sharing</strong>. A link such a pod revokes stays revoked.</p>
+</div>
 <h3 id="upgrading-to-11x">Upgrading to 1.1.x<a class="headerlink" href="#upgrading-to-11x" title="Permanent link">&para;</a></h3>
 <div class="admonition warning">
 <p class="admonition-title">Removed env-var aliases — rename before upgrading</p>

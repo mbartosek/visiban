@@ -4361,7 +4361,8 @@ for both surfaces.</p>
   user's own sockets. Clients should not rely on it for star state: use
   <code>board.star_changed</code>, or read <code>GET /api/v1/boards/{id}/</code> for the caller's own
   value (#1559).</li>
-<li><code>share_token</code> and <code>share_token_expires_at</code> are dropped from every payload for
+<li><code>share_token</code>, <code>share_token_expires_at</code> and <code>share_token_hash</code> (which no
+  serializer declares) are dropped from every payload for
   every reader, whatever their role. Board admins read them over REST only
   (<code>GET /api/v1/boards/{id}/full/</code> and the share action response).</li>
 <li><code>board.star_changed</code>, <code>saved_filter.created</code> and <code>saved_filter.deleted</code> rows
