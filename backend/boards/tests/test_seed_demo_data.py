@@ -1827,7 +1827,11 @@ class DemoSiteTrelloBoardTests(TestCase):
 
         self.assertEqual(BOARDS[-1], {"name": TRELLO, "trello": "trello_export.json"})
         self.assertEqual(Board.objects.latest("pk").name, TRELLO)
-        self.assertEqual(Board.objects.get(name=OVERLAY).pk, 6)
+        # A TestCase never resets the sequences, so the absolute pk (6) is only
+        # provable after reset_database (test_overlay_board_keeps_its_url);
+        # here assert the relative order the pk contract rests on.
+        names = list(Board.objects.order_by("pk").values_list("name", flat=True))
+        self.assertEqual(names.index(OVERLAY), 5)
 
     def test_the_board_is_the_export(self):
         import json
