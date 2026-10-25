@@ -858,9 +858,10 @@ GROUP_INVITE_LINK_ROLE_CHOICES = [
 class GroupInviteLinkCreateSerializer(serializers.Serializer):
     """Validates input for creating a new shareable GroupInviteLink.
 
-    Validated at creation only (#1727): links minted before the admin and
-    lifetime limits keep their stored role and ``expires_at`` and redeem as
-    before. There is no update endpoint for a link, so nothing can raise an
+    Validated at creation only (#1727). Links minted before the admin and
+    lifetime limits were handled once, by migration 0023 (#1940): unused admin
+    links were revoked and unused never-expiring ones got a 7-day expiry; a
+    legacy link already expiring later keeps that expiry. There is no update endpoint for a link, so nothing can raise an
     existing link's role or clear its expiry.
     """
 

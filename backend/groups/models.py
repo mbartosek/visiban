@@ -548,7 +548,8 @@ class GroupInviteLink(models.Model):
         # credential, and a group admin is board admin across the subtree.
         # The create serializer refuses it first; this keeps any other caller
         # (a management command, a future endpoint) from minting one. Rows
-        # minted before #1727 are untouched and still redeem.
+        # minted before #1727 are revoked by migration 0023 (#1940), and the
+        # join view refuses a shareable admin link even if one is reactivated.
         if delivery == cls.Delivery.LINK and role == cls.Role.ADMIN:
             raise ValueError("A shareable group invite link cannot grant admin.")
         raw = cls.GROUP_INVITE_PREFIX + secrets.token_hex(20)

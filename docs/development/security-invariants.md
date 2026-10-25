@@ -559,9 +559,11 @@ board or a group, cannot grant the `admin` role and has an expiry of at most 30
 days. A request for `admin` or for no expiry is refused with `400`, not
 narrowed. An emailed invite also always expires (at most 30 days); on a group
 it may grant `admin`, because it is bound to one recipient address (#1678). The
-limits are checked when a link is created. Links created before a limit applied
-keep their stored role and expiry until they are revoked or expire (#1727: no
-data migration; the upgrade guide tells admins to review them).
+limits are checked when a link is created. Group links created before the limits
+applied were handled once by migration `groups/0023` (#1940): unused shareable
+admin links were revoked and unused never-expiring ones were given a 7-day
+expiry. A legacy link already expiring more than 30 days out keeps its expiry,
+and `JoinGroupView` refuses any shareable admin link (#1727, #1940).
 
 **Why.** A shareable link is a bearer credential: it can be forwarded or pasted
 anywhere, and whoever holds it gets its grant. A group admin is board admin on

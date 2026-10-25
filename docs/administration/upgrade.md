@@ -583,8 +583,10 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
       fresh link if you need one beyond that, up to 30 days.
 
     Links that already have an expiry keep it. People who already joined through a link keep
-    their role. To see what the upgrade changed, revoked links show as **Revoked** in a group's
-    **Invite links** panel. To list the revoked admin links across the instance:
+    their role. A link that already expires more than 30 days out keeps that expiry and can outlive
+    the 30-day cap on new links; the upgrade only caps links with no expiry. Revoked links do not
+    appear in a group's **Invite links** panel. To list the revoked admin links across the
+    instance:
 
     ```bash
     docker compose -f docker-compose.prod.yml run --rm backend \
