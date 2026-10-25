@@ -186,6 +186,7 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     expect(dialog()).toHaveAttribute('data-sheet-side', 'left')
     expect(dialog().style.left).toBe(`${1000 - 6 - 540}px`)
     expect(screen.getByTestId('card-sheet-notch').style.right).toBe('-5px')
+    expect(screen.getByTestId('card-sheet-notch').className).toContain('border-t-2')
   })
 
   it('docks at the right edge with the light backdrop when neither side fits', () => {
