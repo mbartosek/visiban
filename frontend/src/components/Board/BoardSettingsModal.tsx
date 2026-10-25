@@ -80,6 +80,13 @@ interface Props {
    *  admin, so BoardView re-reads the board and the Members tab picks the
    *  flag up from it. */
   onMembersAdded?: () => void;
+  /** #1935 — called after the Sharing tab enables, rotates or disables the
+   *  share link, with the board fields that changed. The caller (BoardView)
+   *  merges them into board state, because board.updated frames never carry
+   *  share fields, so a reopened modal would otherwise seed itself from the
+   *  stale load-time values. Never carries the token: the link stays in this
+   *  component's state only. */
+  onShareChanged?: (patch: Pick<BoardFull, "share_link_active" | "share_token_expires_at">) => void;
 }
 
 const DEMO_SETTINGS_NOTICE_ID = "board-settings-demo-notice";
@@ -113,7 +120,7 @@ function RoleTooltip() {
   );
 }
 
-export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal, onMembersAdded }: Props) {
+export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab, onBoardDeleted, viewPrefs, onToggleHiddenColumn, onToggleHiddenSwimlane, onUpdateBoardSettings, cardDensityOverride = null, onSetCardDensityOverride, gitLensEnabled = false, lensConnection = null, onManageLens, onFieldsUpdated, onSwimlaneFieldsUpdated, demoMode = false, currentUserIsSiteAdmin = false, inviteReloadSignal, onMembersAdded, onShareChanged }: Props) {
   const settingsInert = demoMode && isAdmin;
   const [tab, setTab] = useState<Tab>(initialTab ?? "members");
   // Focus the selected tab button only when a caller deep-linked a tab (#1458);
@@ -313,6 +320,10 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
       setShareExpiresAt(data.share_token_expires_at);
       setShareCopied(false);
       setShareStatus(null);
+      // Board state must learn the link is on (no frame carries it), or a
+      // reopened modal would show sharing off and a second enable would
+      // silently replace the link just handed out. The token is not passed.
+      onShareChanged?.({ share_link_active: true, share_token_expires_at: data.share_token_expires_at });
     } catch {
       setShareStatus(failureMessage);
     } finally {
@@ -335,6 +346,7 @@ export default function BoardSettingsModal({ board, isAdmin, onClose, initialTab
       setRevealedShareToken(null);
       setShareExpiresAt(null);
       setShareStatus(null);
+      onShareChanged?.({ share_link_active: false, share_token_expires_at: null });
     } catch {
       setShareStatus("Failed to disable sharing. Please try again.");
     } finally {

@@ -3683,7 +3683,9 @@ class BoardFullSerializer(serializers.ModelSerializer):
         nothing it could not learn before). It replaces reading the deprecated
         ``share_token`` field just to decide whether a link exists (#1935).
         An expired link still reads ``true``: the token is still stored, and
-        the admin rotates or disables it from the settings modal.
+        the admin rotates or disables it from the settings modal. When the
+        stored token is removed in 2.0 (#1936), derive this from
+        ``share_token_hash`` instead.
         """
         from .models import BoardMembership as BM
         from .permissions import SITE_ADMIN

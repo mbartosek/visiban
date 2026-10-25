@@ -2711,6 +2711,8 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           currentUserIsSiteAdmin={currentUser?.is_site_admin === true}
           inviteReloadSignal={inviteReloadSignal}
           onMembersAdded={reloadForMemberFlag}
+          // #1935: share-link state (never the token) back into board state.
+          onShareChanged={mergeBoardState}
         />
       )}
 

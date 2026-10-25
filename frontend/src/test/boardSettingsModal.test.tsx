@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import BoardSettingsModal from '../components/Board/BoardSettingsModal'
 import type { BoardFull, User } from '../types'
 
@@ -1670,6 +1671,85 @@ describe('BoardSettingsModal — Sharing tab', () => {
 
     expect(await screen.findByText('Failed to copy link. Please copy it manually.')).toBeInTheDocument()
     expect(screen.queryByText('Copied!')).not.toBeInTheDocument()
+  })
+
+  // #1935 — board.updated frames never carry share fields, so the modal must
+  // push link state back to the board owner or a reopened modal shows the
+  // load-time state. The harness plays BoardView: it owns board state and
+  // merges the callback's patch, then remounts the modal like a reopen.
+  function ShareStateHarness({ initial }: { initial: BoardFull }) {
+    const [board, setBoard] = useState<BoardFull>(initial)
+    const [open, setOpen] = useState(true)
+    return (
+      <>
+        <button type="button" onClick={() => setOpen((o) => !o)}>toggle-settings-1935</button>
+        <pre data-testid="board-state-1935">{JSON.stringify(board)}</pre>
+        {open && (
+          <BoardSettingsModal
+            board={board} isAdmin={true} onClose={() => setOpen(false)} initialTab="sharing"
+            onShareChanged={(patch) => setBoard((b) => ({ ...b, ...patch }))}
+          />
+        )}
+      </>
+    )
+  }
+
+  const reopen = () => {
+    fireEvent.click(screen.getByText('toggle-settings-1935'))
+    fireEvent.click(screen.getByText('toggle-settings-1935'))
+  }
+
+  it('enable → close → reopen shows the link as active, and never stores the token in board state', async () => {
+    mockEnableBoardSharing.mockResolvedValue({
+      share_token: 'abc-token-123',
+      share_url: 'http://localhost/share/abc-token-123',
+      share_token_expires_at: '2999-04-28T00:00:00Z',
+    })
+    const user = (await import('@testing-library/user-event')).default.setup()
+    render(<ShareStateHarness initial={fakeBoard} />)
+
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+    expect(await screen.findByText(/abc-token-123/, { selector: 'div' })).toBeInTheDocument()
+
+    reopen()
+
+    expect(screen.getByRole('switch', { name: 'Enable public share link' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('A public share link is active.')).toBeInTheDocument()
+    expect(screen.getByTestId('share-expiry-line').textContent).toMatch(/^Expires /)
+    // The link itself is gone after the reopen, and board state never held it.
+    expect(screen.getByTestId('board-state-1935').textContent).not.toContain('abc-token-123')
+    expect(document.body.innerHTML).not.toContain('abc-token-123')
+  })
+
+  it('disable → close → reopen shows sharing off', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    render(<ShareStateHarness initial={{ ...boardWithActiveLink, share_token_expires_at: '2999-01-01T00:00:00Z' }} />)
+
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+    await waitFor(() => expect(mockDisableBoardSharing).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(screen.queryByText('A public share link is active.')).toBeNull())
+
+    reopen()
+
+    expect(screen.getByRole('switch', { name: 'Enable public share link' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('A public share link is active.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Rotate link' })).toBeNull()
+    expect(screen.queryByTestId('share-expiry-line')).toBeNull()
+  })
+
+  it('reports share state to the board owner only on success, without the token', async () => {
+    const onShareChanged = vi.fn()
+    mockEnableBoardSharing.mockRejectedValueOnce(new Error('network error'))
+    const user = (await import('@testing-library/user-event')).default.setup()
+    render(<BoardSettingsModal board={fakeBoard} isAdmin={true} onClose={vi.fn()} initialTab="sharing" onShareChanged={onShareChanged} />)
+
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+    expect(await screen.findByText('Failed to enable sharing. Please try again.')).toBeInTheDocument()
+    expect(onShareChanged).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('switch', { name: 'Enable public share link' }))
+    await waitFor(() => expect(onShareChanged).toHaveBeenCalledWith({ share_link_active: true, share_token_expires_at: null }))
+    expect(JSON.stringify(onShareChanged.mock.calls)).not.toContain('abc-token-123')
   })
 
   it('does not show Sharing tab content for non-admin even if navigated directly', () => {
