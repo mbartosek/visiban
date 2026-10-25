@@ -83,6 +83,7 @@ nav:
     - Appearance: features/appearance.md
     - Personal Access Tokens: features/personal-access-tokens.md
     - MCP Server: features/mcp-server.md
+    - Ask Your Agent About the Demo: features/mcp-demo-walkthrough.md
     - Board Permissions: features/permissions.md
     - Feature Toggles: features/feature-toggles.md
     - Issue Board Lens: features/issue-board-lens.md

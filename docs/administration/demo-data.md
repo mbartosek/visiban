@@ -229,6 +229,10 @@ These cannot be expressed in values, and no CI job can verify them:
 
 The runbook for try.visiban.com itself, including the deployment record, is [Hosted Demo](../maintainers/demo-deploy.md).
 
+## Ask your own agent about the demo data
+
+The hosted demo deliberately does not expose MCP or mint tokens: publishing a credential on a public site is a security decision we chose not to make ([#1907](https://gitlab.com/visiban/visiban/-/issues/1907)). To point your own agent at the same data, follow [Ask Your Own Agent About the Demo Data](../features/mcp-demo-walkthrough.md), a local walkthrough with a read-only `mcp:read` token.
+
 ## Demo data and real data
 
 Demo records carry no special marker. A demo card looks identical to a real card at the database level — same fields, same UID format, same `archived_at` behavior. This means:
