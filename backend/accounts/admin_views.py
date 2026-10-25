@@ -1460,10 +1460,29 @@ class AdminInviteLinkSendView(APIView):
 
 
 class AdminInviteLinkRevokeView(APIView):
-    """DELETE /api/admin/invite-links/{pk}/ — revoke an invite link."""
+    """DELETE /api/admin/invite-links/{pk}/ — revoke an invite link.
+
+    Deliberately NOT aligned with the rest of the revoke family (board-scoped,
+    group-scoped and ``admin/board-invite-links``: 204 / 404 on a repeat / 400
+    on a used link). This route has answered 200 with the revoked link and 400
+    on a repeat revoke since 1.1, and changing a shipped status code is a
+    breaking change for 1.x clients, so the divergence is permanent for 1.x
+    (#1912, decided over #1867). drf-spectacular defaults a DELETE to 204, so
+    the real responses are declared explicitly to keep the schema honest.
+    """
     permission_classes = _ADMIN_PERMISSIONS
 
-    @extend_schema(responses=InviteLinkSerializer)
+    @extend_schema(
+        responses={
+            200: InviteLinkSerializer,
+            400: inline_serializer(
+                name="AdminInviteLinkRevokeRefused", fields={"detail": drf_serializers.CharField()},
+            ),
+            404: inline_serializer(
+                name="AdminInviteLinkNotFound", fields={"detail": drf_serializers.CharField()},
+            ),
+        },
+    )
     def delete(self, request, pk):
         try:
             link = InviteLink.objects.select_related("created_by").get(pk=pk)

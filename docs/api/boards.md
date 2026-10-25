@@ -1399,6 +1399,8 @@ Revoke a pending invite, emailed or shareable. Requires board admin; any board a
 
 The [site-admin board-invite revoke](admin.md#delete-apiv1adminboard-invite-linksid) behaves identically: `204` on success, `400` for a used invite, `404` for an unknown or already-revoked one.
 
+The one exception in the invite family is the site invite-link revoke, [`DELETE /api/v1/admin/invite-links/{id}/`](admin.md#delete-apiv1admininvite-linksid): it keeps its 1.1 contract (`200` with the revoked link, `400` on a repeat revoke) for all of 1.x (#1912).
+
 Creating, sending and revoking publish `invite_link.created` / `invite_link.revoked` on the board's [WebSocket channel](websockets.md#invite-events-since-12) with just `{ "id": <int> }`.
 
 ### `GET /api/v1/boards/join/{token}/`

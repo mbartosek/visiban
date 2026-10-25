@@ -700,6 +700,9 @@ The server mints a link with `single_use: true` and `delivery: "email"` and send
 
 Revoke an invite link immediately. The link can no longer be used for registration.
 
+!!! note "Differs from the other revoke endpoints"
+    This route deliberately keeps its 1.1 contract: `200 OK` with the revoked link and `400` on a repeat revoke. The board-scoped, group-scoped and [`admin/board-invite-links`](#delete-apiv1adminboard-invite-linksid) revokes answer `204` with no body, `404` on a repeat revoke and `400` for a used invite. The two conventions stay different for all of 1.x because changing a shipped status code would break 1.1 clients (#1912).
+
 **Permission:** `IsSiteAdmin`.
 
 **Response** `200 OK` — the updated link object with `status: "revoked"`.
@@ -818,5 +821,5 @@ Revoke any board's invite, emailed or shareable. Sets `revoked_at` and `revoked_
 | `403 Forbidden` | `{"detail": "You must be a site administrator to perform this action."}` | Not a site admin. Checked before the lookup, so a non-admin gets `403` even for an id that does not exist. |
 | `404 Not Found` | `{"detail": "Invite not found."}` | No invite with that id, or it is already revoked (a revoked row is hidden, so a repeat revoke is `404`). |
 
-This endpoint behaves exactly like the [board-scoped revoke](boards.md#delete-apiv1boardsidinvite-linkslink_id): `204` on success, `400` for a used invite, `404` for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered `200` with the row and `400` for a repeat revoke. The separate site invite-link revoke (`DELETE /api/v1/admin/invite-links/{id}/`) keeps its 1.1 behavior (`200` with a body, `400` on a repeat revoke), which differs from this family; that is tracked in #1912.
+This endpoint behaves exactly like the [board-scoped revoke](boards.md#delete-apiv1boardsidinvite-linkslink_id): `204` on success, `400` for a used invite, `404` for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered `200` with the row and `400` for a repeat revoke. The separate site invite-link revoke (`DELETE /api/v1/admin/invite-links/{id}/`) keeps its 1.1 behavior (`200` with a body, `400` on a repeat revoke), which differs from this family on purpose and stays that way for all of 1.x (#1912).
 

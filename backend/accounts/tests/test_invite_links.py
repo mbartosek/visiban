@@ -956,3 +956,37 @@ class SiteInviteEffectiveStatusAndCapTests(TestCase):
         self.assertEqual(self._statuses()[link.pk], "revoked")
         User.objects.filter(pk=self.creator.pk).update(is_site_admin=True)
         self.assertEqual(self._statuses()[link.pk], "pending")
+
+
+class AdminInviteLinkRevokeContractTests(TestCase):
+    """The site revoke deliberately stays 200/400 for 1.x (#1912).
+
+    drf-spectacular defaults a DELETE to 204, which is what the v1.1.0 baseline
+    recorded and the runtime never served; pin the real contract in the schema.
+    """
+
+    _PATH = "/api/v1/admin/invite-links/{id}/"
+
+    def test_repeat_revoke_is_400_with_detail_body(self):
+        admin = make_admin()
+        client = APIClient()
+        client.force_authenticate(admin)
+        link, _ = InviteLink.generate(created_by=admin)
+        first = client.delete(f"/api/v1/admin/invite-links/{link.pk}/")
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.json()["id"], link.pk)
+        again = client.delete(f"/api/v1/admin/invite-links/{link.pk}/")
+        self.assertEqual(again.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("detail", again.json())
+
+    def test_schema_declares_200_400_404_and_not_204(self):
+        from drf_spectacular.generators import SchemaGenerator
+
+        schema = SchemaGenerator().get_schema(request=None, public=True)
+        responses = schema["paths"][self._PATH]["delete"]["responses"]
+        self.assertIn("200", responses)
+        self.assertIn("400", responses)
+        self.assertIn("404", responses)
+        self.assertNotIn("204", responses)
+        ref = responses["200"]["content"]["application/json"]["schema"]["$ref"]
+        self.assertTrue(ref.endswith("/InviteLink"))
