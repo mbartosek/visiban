@@ -1,5 +1,6 @@
 """ShareBoardView — public read-only board access via share token."""
 
+import hmac
 import uuid
 
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
@@ -120,6 +121,15 @@ class ShareBoardView(APIView):
             share_token_hash=token_hash,
             share_token__isnull=False,
         )
+        # The row's own hash must still be the hash of the row's own token.
+        # A writer that changes the token without the hash (a backend of the
+        # previous release during a rolling upgrade rotates or re-enables a
+        # link without knowing about the hash) leaves a stale pair; it answers
+        # 404 rather than letting the previous token keep resolving. This
+        # compares two stored values; the presented token is matched only by
+        # the hash lookup above.
+        if not hmac.compare_digest(board.share_token_hash, Board.hash_share_token(board.share_token)):
+            raise Http404
         # A link lasts while the admin who enabled it keeps admin standing on
         # the board (#1865). Checked on every read, before the expiry branch,
         # so a lapsed link answers like a revoked one. The board is cleared

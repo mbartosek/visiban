@@ -1585,10 +1585,11 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     Board share links are now resolved by a SHA-256 hash of the share token, as invite links
     already are (#1880). Migrations `boards/0087`–`0089` add the hash column, fill it in for every
     existing share link, and build its unique index concurrently. Share links created before the
-    upgrade keep working, and no action is needed. During a rolling upgrade, a share link
-    created by a backend pod still on the previous version, after migration `0088` has run,
-    has no hash and answers `404 Not Found` until a board admin regenerates it under
-    **Board Settings → Sharing**.
+    upgrade keep working, and no action is needed. During a rolling upgrade, a backend pod still
+    on the previous version writes the token without its hash. A share link that such a pod
+    creates, regenerates or re-enables after migration `0088` has run answers `404 Not Found`,
+    and so does the link it replaced, until a board admin regenerates it under
+    **Board Settings → Sharing**. A link such a pod revokes stays revoked.
 
 ### Upgrading to 1.1.x
 

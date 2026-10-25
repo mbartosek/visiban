@@ -107,14 +107,41 @@ class ShareLinkResolvedByHashTests(TestCase):
         for spelling in (str(token).upper(), token.hex):
             self.assertEqual(self.public(spelling).status_code, status.HTTP_200_OK, spelling)
 
-    def test_lookup_uses_the_hash_not_the_plaintext(self):
-        """Swap the plaintext under an unchanged hash: the original token
-        still resolves and the new plaintext value does not."""
+    def test_lookup_filters_on_the_hash_not_the_plaintext(self):
+        """The board query matches the presented token by its hash; the
+        stored token column is never compared with the presented value."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
         token = self.enable()
-        other = uuid.uuid4()
-        Board.objects.filter(pk=self.board.pk).update(share_token=other)
-        self.assertEqual(self.public(token).status_code, status.HTTP_200_OK)
-        self.assertEqual(self.public(other).status_code, status.HTTP_404_NOT_FOUND)
+        token_hash = Board.hash_share_token(token)
+        with CaptureQueriesContext(connection) as ctx:
+            self.assertEqual(self.public(token).status_code, status.HTTP_200_OK)
+        lookups = [q["sql"] for q in ctx.captured_queries if token_hash in q["sql"]]
+        self.assertEqual(len(lookups), 1, lookups)
+        self.assertIn('"share_token_hash" =', lookups[0])
+        for q in ctx.captured_queries:
+            for spelling in (str(token), uuid.UUID(token).hex):
+                self.assertNotIn(spelling, q["sql"])
+
+    def test_token_changed_without_its_hash_does_not_resolve(self):
+        """A stale pair (token rotated by a writer that left the old hash, as
+        a previous-release backend does during a rolling upgrade) fails
+        closed: neither the old nor the new token resolves."""
+        old = self.enable()
+        new = uuid.uuid4()
+        Board.objects.filter(pk=self.board.pk).update(share_token=new)
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.public(new).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_link_cleared_then_reenabled_without_hash_keeps_old_token_dead(self):
+        """Clear and re-enable by a writer that never touches the hash: the
+        revoked token does not come back."""
+        old = self.enable()
+        Board.objects.filter(pk=self.board.pk).update(share_token=None)
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
+        Board.objects.filter(pk=self.board.pk).update(share_token=uuid.uuid4())
+        self.assertEqual(self.public(old).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_plaintext_without_a_hash_does_not_resolve(self):
         token = self.enable()
