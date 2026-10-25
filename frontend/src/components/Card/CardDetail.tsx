@@ -1165,9 +1165,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             aria-hidden="true"
             data-testid="card-sheet-notch"
             data-clamped={notch.clamped ? "true" : "false"}
-            className={`pointer-events-none absolute z-10 w-[14px] h-[14px] rotate-45 border-line ${
-              notch.clamped ? "bg-surface-hover" : "bg-surface"
-            } ${placement.side === "right" ? "border-l border-b" : "border-t border-r"}`}
+            className={`pointer-events-none absolute z-10 w-[14px] h-[14px] rotate-45 border-primary-emphasis ${
+              notch.clamped ? "bg-surface-hover" : "bg-primary-emphasis"
+            } ${placement.side === "right" ? "border-l-2 border-b-2" : "border-t-2 border-r-2"}`}
             style={{ top: notch.y - 7, ...(placement.side === "right" ? { left: -5 } : { right: -5 }) }}
           />
         )}
