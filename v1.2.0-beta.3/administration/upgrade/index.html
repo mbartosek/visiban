@@ -5073,6 +5073,13 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   second <strong>Connect</strong> click in Settings is needed. These pages are served by the backend and are unbranded. Accounts without a password are not asked; their primary address receives a
   short fixed-text notice when a provider is connected. Signing in with a provider is
   unaffected (see <a href="../authentication/#connected-accounts-and-email-collisions">Connected accounts</a>).</li>
+<li><strong>Setting a first password needs a recent provider sign-in.</strong> On an account without
+  a password, <code>POST /api/v1/auth/change-password/</code> and <code>POST /api/v1/auth/password/change/</code>
+  set a first password only when the session signed in through one of the account's
+  providers in the last five minutes; otherwise they answer <code>403</code> with
+  <code>"code": "recent_login_required"</code>.
+  Accounts with a password are unaffected (see
+  <a href="../authentication/#connected-accounts-and-email-collisions">Connected accounts</a>).</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
   scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
   upgrade — create a new token with <code>mcp:read</code> to reconnect it.
