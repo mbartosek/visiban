@@ -840,6 +840,8 @@
       
         
       
+        
+      
     
     
     
@@ -1433,6 +1435,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/mcp-demo-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Your Agent About the Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/permissions/" class="md-nav__link">
         
   
@@ -1542,7 +1572,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_25" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1564,14 +1594,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_25" id="__nav_3_25_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_24">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_25">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3500,6 +3530,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#ask-your-own-agent-about-the-demo-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ask your own agent about the demo data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#demo-data-and-real-data" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4329,7 +4370,7 @@ board — This is CI-only, used by the
 </ul>
 <p>Every card on every demo board, the generic demo board included, has a <strong>complete history</strong> (#1889). Its first movement is its creation, each move starts where the previous one ended, a lost deal never passes through Won, and everything it holds is backed by the entry the API writes when a person makes that change: a <code>+Label</code> activity for each label, an assignee, priority, weight and due-date change for each value set, a checklist-item added (and checked) entry for each item, a comment-added entry at each comment's time, and an archive movement for each archived card. Custom-field values and attachments have no card activity in Visiban yet (<a href="https://gitlab.com/visiban/visiban/-/issues/1909">#1909</a>), so none is seeded for them.</p>
 <p>An eighth board, <strong>Product Roadmap (Trello import)</strong>, is a Trello export, imported (<a href="https://gitlab.com/visiban/visiban/-/issues/1908">#1908</a>): the command feeds the Trello export under <code>backend/boards/tests/fixtures/</code> through the real <a href="../../features/trello-import/">Trello importer</a>, so the board carries genuine <strong>import provenance</strong>: each comment keeps the Trello author's name as text and starts "(imported from Trello)", and the cards keep their exported creation dates. It is created last, after every other board, so the Sales Territory (Overlay) board stays at <code>/boards/6</code>. The importer deliberately writes no movement or activity history, so the seed adds what the API would have written (a creation movement per card, an archive movement for the archived card, and an activity for each value a card holds), credited to the importing admin, and the board passes the same history check as the others. Unlike the other boards, its dates are <strong>not</strong> moved to the reset day: the cards keep the export's historical dates, so they read as old. The board's shape is the importer's test fixture (<code>backend/boards/tests/fixtures/trello_export.json</code>), so editing that fixture changes the demo. The accounts seated on the other showcase boards are seated here too, the visitor as a plain member.</p>
-<p>Not on the hosted demo yet: an MCP connection with a scoped personal access token (<a href="https://gitlab.com/visiban/visiban/-/issues/1907">#1907</a>).</p>
+<p>Not on the hosted demo, by design: an MCP connection. The demo mints no tokens, so <a href="../../features/mcp-demo-walkthrough/">ask your own agent</a> on a local instance instead.</p>
 <p><strong>Excluded: an Issue Board Lens board</strong> (<a href="https://gitlab.com/visiban/visiban/-/issues/1908">#1908</a>). The Lens derives its Backlog / To Do / Doing / Review / Done columns from the branches and merge requests of a live public repository, so showing it needs <code>GIT_LENS_ENABLED</code> and a live public repo on the demo deployment, which is a deployment-config decision outside the seed. The seed does not create one.</p>
 <p>Every link (merge requests, permit portals, CRM records, tracking pages) points at a fictional <code>*.example.com</code> address. The links are decorative; they do not imply an integration. All names, companies and accounts are fictional.
 - <strong>saved filters</strong> for the published visitor (#1889): Urgent and high, and Overdue, on Software Team; Coverage gaps and Exec escalations on Sales Territory (Overlay); Due this week on Logistics Exceptions. Saved filters are private to their owner, and the demo fence refuses creating one, so these are the visitor's whole list until the next reset
@@ -4474,6 +4515,8 @@ board — This is CI-only, used by the
 <li><strong>Kubernetes 1.27 or later</strong>, for the CronJob <code>timeZone</code> field.</li>
 </ul>
 <p>The runbook for try.visiban.com itself, including the deployment record, is <a href="../../maintainers/demo-deploy/">Hosted Demo</a>.</p>
+<h2 id="ask-your-own-agent-about-the-demo-data">Ask your own agent about the demo data<a class="headerlink" href="#ask-your-own-agent-about-the-demo-data" title="Permanent link">&para;</a></h2>
+<p>The hosted demo deliberately does not expose MCP or mint tokens: publishing a credential on a public site is a security decision we chose not to make (<a href="https://gitlab.com/visiban/visiban/-/issues/1907">#1907</a>). To point your own agent at the generic demo board (the hosted showcase boards need <code>--demo-site</code>, whose <code>DEMO_MODE</code> fence blocks creating tokens), follow <a href="../../features/mcp-demo-walkthrough/">Ask Your Own Agent About the Demo Data</a>, a local walkthrough with a read-only <code>mcp:read</code> token.</p>
 <h2 id="demo-data-and-real-data">Demo data and real data<a class="headerlink" href="#demo-data-and-real-data" title="Permanent link">&para;</a></h2>
 <p>Demo records carry no special marker. A demo card looks identical to a real card at the database level — same fields, same UID format, same <code>archived_at</code> behavior. This means:</p>
 <ul>

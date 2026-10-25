@@ -840,6 +840,8 @@
       
         
       
+        
+      
     
     
     
@@ -1433,6 +1435,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/mcp-demo-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Your Agent About the Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/permissions/" class="md-nav__link">
         
   
@@ -1542,7 +1572,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_25" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1564,14 +1594,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_25" id="__nav_3_25_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_24">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_25">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5082,7 +5112,8 @@ unlike the other 1.2 migrations, what it enables changes real request-time behav
   <a href="../authentication/#connected-accounts-and-email-collisions">Connected accounts</a>).</li>
 <li><strong>Existing tokens are refused by the MCP server</strong>, which now requires the <code>mcp:read</code>
   scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
-  upgrade — create a new token with <code>mcp:read</code> to reconnect it.
+  upgrade — create a new token with <code>mcp:read</code> through the API
+  (<code>POST /api/v1/auth/tokens/</code> with <code>"scopes": ["mcp:read"]</code>) to reconnect it.
   The MCP server is also <strong>off by default</strong>: <code>/mcp</code> returns <code>404</code> until an operator sets
   <code>MCP_SERVER_ENABLED=true</code> on the backend. Request throttles are tunable with
   <code>MCP_THROTTLE_READ_RATE</code> (default <code>300/min</code>), <code>MCP_THROTTLE_COMPUTE_RATE</code> (default

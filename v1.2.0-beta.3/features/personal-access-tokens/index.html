@@ -842,6 +842,8 @@
       
         
       
+        
+      
     
     
     
@@ -1623,6 +1625,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../mcp-demo-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Your Agent About the Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../permissions/" class="md-nav__link">
         
   
@@ -1735,7 +1765,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_25" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1757,14 +1787,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="">
+              <label class="md-nav__link " for="__nav_3_25" id="__nav_3_25_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_24">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_25">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -4101,6 +4131,7 @@
 <li>Optionally set an expiry date (see <a href="#expiry">Expiry</a> below).</li>
 <li>Click <strong>Create token</strong>.</li>
 </ol>
+<p>Tokens created this way get the default <code>read</code> and <code>write</code> scopes. To choose other scopes, such as <code>mcp:read</code>, create the token with <code>POST /api/v1/auth/tokens/</code> and a <code>scopes</code> list; see <a href="#scopes">Scopes</a>. A UI scope selector is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1934">#1934</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Copy your token now</p>
 <p>The full token value is shown <strong>only once</strong> — immediately after creation. Once you navigate away, Visiban stores only a secure hash and cannot show the token again. Copy it to a password manager or secret store before leaving the page.</p>
@@ -4158,7 +4189,7 @@
 <p>A token created without specific scopes gets <code>read</code> and <code>write</code> — enough for the scripting and CI use cases PATs were built for, and nothing more. <code>admin</code> and the <code>mcp:*</code> scopes must always be requested explicitly.</p>
 <h3 id="tokens-created-before-12">Tokens created before 1.2<a class="headerlink" href="#tokens-created-before-12" title="Permanent link">&para;</a></h3>
 <p>Tokens that already existed when your instance upgraded to 1.2 have <strong>no scopes recorded</strong>. They keep working exactly as before across the whole REST API, including the admin endpoints if you're a site administrator — upgrading doesn't break a running integration.</p>
-<p>They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with <code>mcp:read</code>.</p>
+<p>They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with <code>mcp:read</code> through the API (<code>POST /api/v1/auth/tokens/</code> with <code>"scopes": ["mcp:read"]</code>; see <a href="../mcp-server/#generating-a-bearer-token">MCP Server</a>).</p>
 <p>Replace pre-1.2 tokens with scoped ones as you rotate them.</p>
 <h3 id="what-a-scope-cannot-do">What a scope cannot do<a class="headerlink" href="#what-a-scope-cannot-do" title="Permanent link">&para;</a></h3>
 <p>Scopes are a ceiling, never a floor — they narrow a token's authority and never widen it. Every request is still subject to the same board membership and role checks as a browser session. A token scoped <code>admin</code> on a non-administrator account reaches nothing new.</p>

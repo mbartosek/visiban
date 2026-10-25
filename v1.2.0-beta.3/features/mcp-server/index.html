@@ -16,7 +16,7 @@
         <link rel="prev" href="../personal-access-tokens/">
       
       
-        <link rel="next" href="../permissions/">
+        <link rel="next" href="../mcp-demo-walkthrough/">
       
       
         
@@ -842,6 +842,8 @@
       
         
       
+        
+      
     
     
     
@@ -1595,6 +1597,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../mcp-demo-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Your Agent About the Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../permissions/" class="md-nav__link">
         
   
@@ -1707,7 +1737,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_25" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1729,14 +1759,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="">
+              <label class="md-nav__link " for="__nav_3_25" id="__nav_3_25_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_24">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_25">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -4069,16 +4099,21 @@
 <li>An MCP-compatible AI client — Claude Desktop, or any client supporting the Streamable HTTP transport</li>
 </ul>
 <h2 id="generating-a-bearer-token">Generating a Bearer token<a class="headerlink" href="#generating-a-bearer-token" title="Permanent link">&para;</a></h2>
-<p>The MCP server reuses Visiban's existing <a href="../personal-access-tokens/">Personal Access Token</a> system — there's no separate "API Tokens" screen in Django admin. Generate one from your own account settings:</p>
+<p>The MCP server reuses Visiban's existing <a href="../personal-access-tokens/">Personal Access Token</a> system — there's no separate "API Tokens" screen in Django admin. Create one through the API, because the web form cannot set scopes (a UI scope selector is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1934">#1934</a>):</p>
+<p>The web app's <strong>Settings</strong>, <strong>Access Tokens</strong> screen creates tokens with the default <code>read</code> and <code>write</code> scopes only, and it has no scope picker, so a token made there is refused at <code>/mcp</code>. Create the MCP token through the API instead, with <code>mcp:read</code> (plus <code>mcp:write</code> only if you want the agent to create, move, update, or archive cards):</p>
 <ol>
-<li>Open your avatar menu (top-right) and select <strong>Settings</strong>.</li>
-<li>Go to <strong>Access Tokens</strong> in the left sidebar.</li>
-<li>Click <strong>New token</strong>.</li>
-<li>Enter a descriptive name — for example, <code>claude-desktop</code>.</li>
-<li>Select scopes: <strong><code>mcp:read</code></strong> is required to open an MCP session at all. Also select <strong><code>mcp:write</code></strong> if you want the agent to create, move, update, or archive cards — read-only agents can omit it.</li>
-<li>Optionally set an expiry date.</li>
-<li>Click <strong>Create token</strong>.</li>
+<li>Log in to get a session token: <code>POST /api/v1/auth/login/</code> with your username and password.</li>
+<li>
+<p>Create the token:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/api/v1/auth/tokens/<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Token &lt;your-session-token&gt;"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"name": "claude-desktop", "scopes": ["mcp:read"]}'</span>
+</code></pre></div>
+<p>Add <code>"mcp:write"</code> to <code>scopes</code> for a read-write agent. Optionally add an <code>expires_at</code> date.</p>
+</li>
 </ol>
+<p>For a read-only worked example against demo data, see <a href="../mcp-demo-walkthrough/">Ask Your Own Agent About the Demo Data</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Copy your token now</p>
 <p>The full token value is shown <strong>only once</strong>, immediately after creation. Copy it to a password manager or secret store before navigating away.</p>
@@ -4087,15 +4122,15 @@
 <p>The <code>must_change_password</code> and <code>must_change_username</code> account flags apply to MCP as well as the REST API: while either is set on the token's account, <code>/mcp</code> returns <code>403</code> until the user resolves it in the web app.</p>
 <h2 id="connecting-claude-desktop">Connecting Claude Desktop<a class="headerlink" href="#connecting-claude-desktop" title="Permanent link">&para;</a></h2>
 <p>Add a <code>visiban</code> entry to Claude Desktop's <code>claude_desktop_config.json</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"visiban"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"streamable-http"</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://&lt;your-visiban-host&gt;/mcp"</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">"headers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Authorization"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bearer &lt;your-token&gt;"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"mcpServers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"visiban"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"streamable-http"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://&lt;your-visiban-host&gt;/mcp"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">"headers"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Authorization"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bearer &lt;your-token&gt;"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
 </code></pre></div>
 <p>Replace <code>&lt;your-visiban-host&gt;</code> with your instance's hostname and <code>&lt;your-token&gt;</code> with the token you copied. Restart Claude Desktop after saving the file.</p>
 <p>Once connected, Claude Desktop shows Visiban as an active MCP server with a green status indicator. The server's details list:</p>
@@ -4197,24 +4232,24 @@
 <h2 id="self-hosted-docker-compose-deployment-notes">Self-hosted / Docker Compose deployment notes<a class="headerlink" href="#self-hosted-docker-compose-deployment-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The <code>/mcp</code> endpoint is served on the same port as the Django app — no additional container, process, or ingress rule needed. If you terminate TLS behind a reverse proxy, disable response buffering on the <code>/mcp</code> location (the bundled Nginx templates and Helm chart already do this).</li>
-<li>Set <code>MCP_SERVER_ENABLED=true</code> on the backend service and restart it — off by default, so <code>/mcp</code> 404s until it's set.</li>
+<li>Set <code>MCP_SERVER_ENABLED=true</code> on the backend service and recreate it (<code>docker compose up -d backend</code>; a plain <code>restart</code> does not re-read <code>.env</code>) — off by default, so <code>/mcp</code> 404s until it's set.</li>
 <li><strong><code>ALLOWED_HOSTS</code> / <code>MCP_ALLOWED_HOSTS</code></strong> guard DNS rebinding and apply to every client, browser-based or not: the <code>Host</code> header of a request to <code>/mcp</code> must match one of these. If <code>ALLOWED_HOSTS</code> is <code>*</code> (a common self-hosting shortcut), set <code>MCP_ALLOWED_HOSTS</code> explicitly to the hostname(s) clients reach <code>/mcp</code> on — a wildcard can't serve as the rebinding allowlist.</li>
 <li><strong><code>CORS_ALLOWED_ORIGINS</code></strong> only matters for a <em>browser-based</em> MCP client (for example, a custom web agent, or a future Claude.ai in-browser connector) — it controls whether a browser is allowed to read the response. A native desktop app like Claude Desktop is not subject to CORS, so this setting has no effect on it.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># docker-compose.yml</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">services</span><span class="p">:</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">backend</span><span class="p">:</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">MCP_SERVER_ENABLED</span><span class="p">:</span><span class="w"> </span><span class="s">"true"</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="c1"># Only needed if ALLOWED_HOSTS is "*":</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="c1"># MCP_ALLOWED_HOSTS: visiban.example.com</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># docker-compose.yml</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">services</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">backend</span><span class="p">:</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">MCP_SERVER_ENABLED</span><span class="p">:</span><span class="w"> </span><span class="s">"true"</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="c1"># Only needed if ALLOWED_HOSTS is "*":</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="c1"># MCP_ALLOWED_HOSTS: visiban.example.com</span>
 </code></pre></div>
 <h2 id="verifying-with-mcp-inspector">Verifying with MCP Inspector<a class="headerlink" href="#verifying-with-mcp-inspector" title="Permanent link">&para;</a></h2>
 <p>Before wiring up an AI client, confirm the server itself is reachable with the reference <a href="https://github.com/modelcontextprotocol/inspector">MCP Inspector</a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># Connect to: http://localhost:8000/mcp</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Transport: Streamable HTTP</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Add header: Authorization: Bearer &lt;token&gt;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>npx<span class="w"> </span>@modelcontextprotocol/inspector
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># Connect to: http://localhost:8000/mcp</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Transport: Streamable HTTP</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Add header: Authorization: Bearer &lt;token&gt;</span>
 </code></pre></div>
 <p>The Inspector should list the server and its tools/resources exactly as described above. If the connection fails, check the backend logs — <code>401</code> means the token or scope is wrong; <code>404</code> means <code>MCP_SERVER_ENABLED</code> isn't set.</p>
 <h2 id="upgrade-path-to-enterprise">Upgrade path to enterprise<a class="headerlink" href="#upgrade-path-to-enterprise" title="Permanent link">&para;</a></h2>

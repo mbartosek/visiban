@@ -840,6 +840,8 @@
       
         
       
+        
+      
     
     
     
@@ -1433,6 +1435,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../features/mcp-demo-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Your Agent About the Demo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../features/permissions/" class="md-nav__link">
         
   
@@ -1542,7 +1572,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_24" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_25" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -1564,14 +1594,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_3_24" id="__nav_3_24_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_3_25" id="__nav_3_25_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_24_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_24">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_25">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -4404,7 +4434,7 @@
 <p>The REST API uses the <code>Token</code> scheme (see <a href="../authentication/">Authentication</a>). <code>/mcp</code> uses <code>Bearer</code> because the MCP specification mandates it. The two schemes are not interchangeable: the REST API rejects <code>Bearer</code>, and <code>/mcp</code> rejects <code>Token</code>.</p>
 <p>Both resolve the <strong>same</strong> Personal Access Token records, so a token that is revoked, expired, or dropped by a password change stops working for MCP at the same moment it stops working for the REST API.</p>
 </div>
-<p>Create a token from <strong>Profile → Access Tokens</strong>, or via the API:</p>
+<p>Create the token via the API, because the Access Tokens form in the web app cannot set scopes and a token made there is refused at <code>/mcp</code> (a UI scope selector is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1934">#1934</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8000/api/v1/auth/tokens/<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Authorization: Token &lt;your-session-token&gt;"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">"Content-Type: application/json"</span><span class="w"> </span><span class="se">\</span>
