@@ -4619,7 +4619,7 @@
 <tbody>
 <tr>
 <td><code>lock=True</code> to <code>lock=False</code> (<code>enforce_column_limits</code>)</td>
-<td><strong>Survives</strong></td>
+<td><strong>Survives</strong> (since killed on SQLite by a spy on <code>select_for_update</code>, #1931: <a href="#remaining-cards-and-card_movement-survivors-1931">details</a>)</td>
 <td>Killed by <code>test_column_lock_serializes_moves_into_a_full_column</code></td>
 </tr>
 <tr>
@@ -5221,7 +5221,7 @@
 <th>Target</th>
 <th>2026-10-25 CI: killed / survived / scored (adjusted)</th>
 <th>Re-run locally (#1930)</th>
-<th>Expected next run</th>
+<th>Expected next run (a #1930-only projection, superseded by the #1931 section below)</th>
 </tr>
 </thead>
 <tbody>
@@ -5234,7 +5234,7 @@
 <tr>
 <td><code>cards</code></td>
 <td>326 / 48 / 374 (87.2%)</td>
-<td>12 of 13 killed; <code>lock=True</code> in the <code>enforce_column_limits</code> signature survives (needs PostgreSQL, see <a href="#postgresql-re-run-of-the-select_for_update-guards-1504">#1504</a>)</td>
+<td>12 of 13 killed; <code>lock=True</code> in the <code>enforce_column_limits</code> signature survives (needs PostgreSQL, see <a href="#postgresql-re-run-of-the-select_for_update-guards-1504">#1504</a>); killed since by a spy on SQLite in <a href="#remaining-cards-and-card_movement-survivors-1931">#1931</a></td>
 <td>338 / 36 (90.4%)</td>
 </tr>
 <tr>
@@ -5257,7 +5257,73 @@
 </tr>
 </tbody>
 </table>
-<p>"Expected next run" adds the local kills to the CI counts; it is not a whole-module run, and the CI job (PostgreSQL) is the measurement. The one <code>import_export</code> mutant left in range is the <code>JSON export (?format=json).</code> description of the export's JSON media type: drf-spectacular emits one description per status code, taken from the first media type, so the generated document is unchanged (the same reason as the <code>403</code> survivors in the head table). It is left unmarked, like those. Not addressed by #1930, and tracked in #1931: the other 35 <code>cards</code> survivors (mostly in the lock helpers: <code>select_for_update(no_key=...)</code>, <code>lock=</code> and <code>flat=</code> arguments, the <code>lock_cards_for_cascade</code> guards and the two retry-attempt constants; also the two <code>CARD_MUTATION_HOOKS</code> failure-log arguments and the <code>-1</code> to <code>-2</code> clamp in the move position, which <code>max(0, ...)</code> makes equivalent; not triaged further) and the 16 <code>card_movement</code> survivors, plus the equivalent <code>import_export</code> description mutant above.</p>
+<p>"Expected next run" adds the local kills to the CI counts; it is not a whole-module run, and the CI job (PostgreSQL) is the measurement. The one <code>import_export</code> mutant left in range is the <code>JSON export (?format=json).</code> description of the export's JSON media type: drf-spectacular emits one description per status code, taken from the first media type, so the generated document is unchanged (the same reason as the <code>403</code> survivors in the head table). It is left unmarked, like those. Triaged in #1931 (see the next section; kept here as the record of what #1930 left): the other 35 <code>cards</code> survivors (mostly in the lock helpers: <code>select_for_update(no_key=...)</code>, <code>lock=</code> and <code>flat=</code> arguments, the <code>lock_cards_for_cascade</code> guards and the two retry-attempt constants; also the two <code>CARD_MUTATION_HOOKS</code> failure-log arguments and the <code>-1</code> to <code>-2</code> clamp in the move position; not triaged by #1930) and the 16 <code>card_movement</code> survivors, plus the equivalent <code>import_export</code> description mutant above.</p>
+<h3 id="remaining-cards-and-card_movement-survivors-1931">Remaining <code>cards</code> and <code>card_movement</code> survivors (#1931)<a class="headerlink" href="#remaining-cards-and-card_movement-survivors-1931" title="Permanent link">&para;</a></h3>
+<h1 id="1930-left-35-cards-survivors-and-16-card_movement-survivors-untriaged-1931-re-ran-both-targets-locally-exactly-as-ci-does-python-mutmut_configpy-run-for-the-16-cards-and-2-card_movement-shards-mutmut-251-sqlite-throwaway-copies-of-backend-and-triaged-every-survivor-the-first-local-run-at-a-machine-load-of-100-also-reported-40-suspicious-cards-mutants-in-update_card-they-were-timeouts-and-every-one-was-killed-when-the-run-was-repeated-at-normal-load-so-a-suspicious-count-on-a-loaded-machine-is-not-a-survivor-list">1930 left 35 <code>cards</code> survivors and 16 <code>card_movement</code> survivors untriaged. #1931 re-ran both targets locally exactly as CI does (<code>python mutmut_config.py run</code> for the 16 <code>cards</code> and 2 <code>card_movement</code> shards, mutmut 2.5.1, SQLite, throwaway copies of <code>backend/</code>) and triaged every survivor. The first local run, at a machine load of 100+, also reported 40 <code>suspicious</code> <code>cards</code> mutants in <code>update_card</code>; they were timeouts, and every one was killed when the run was repeated at normal load, so a <code>suspicious</code> count on a loaded machine is not a survivor list.<a class="headerlink" href="#1930-left-35-cards-survivors-and-16-card_movement-survivors-untriaged-1931-re-ran-both-targets-locally-exactly-as-ci-does-python-mutmut_configpy-run-for-the-16-cards-and-2-card_movement-shards-mutmut-251-sqlite-throwaway-copies-of-backend-and-triaged-every-survivor-the-first-local-run-at-a-machine-load-of-100-also-reported-40-suspicious-cards-mutants-in-update_card-they-were-timeouts-and-every-one-was-killed-when-the-run-was-repeated-at-normal-load-so-a-suspicious-count-on-a-loaded-machine-is-not-a-survivor-list" title="Permanent link">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Resolution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>select_for_update(no_key=...)</code> and <code>of=("self",)</code> arguments (<code>enforce_column_limits</code>, <code>create_card</code>, <code>_lock_move_columns</code>, <code>_lock_move_cells</code>, <code>lock_card_row</code>, <code>lock_card_for_write</code>, the three cascade lock statements)</td>
+<td>Killed on SQLite by <code>test_card_lock_mutation_gaps.py</code>: a spy wraps <code>QuerySet.select_for_update</code> and asserts the model and keyword arguments of each call, in order. SQLite ignores the clause, so the call itself is what is observed; the queueing it buys stays pinned on PostgreSQL by <code>test_concurrent_moves.py</code> and <code>test_concurrent_lock_sites.py</code>.</td>
+</tr>
+<tr>
+<td><code>lock=</code> arguments (<code>lock=True</code> in the <code>enforce_column_limits</code> signature, <code>lock=False</code> in <code>create_card</code> and <code>move_card</code>)</td>
+<td>Killed by the same spy: the default takes exactly one column lock, and the two callers that already hold it take none. No PostgreSQL test is needed.</td>
+</tr>
+<tr>
+<td><code>lock_cards_for_cascade</code> guards and <code>delete_boards_locked</code></td>
+<td>Killed: all four combinations of <code>entry_columns</code> / <code>boards</code> outside a transaction (<code>TransactionTestCase</code>) with the exact <code>RuntimeError</code> text, the three branches' lock order, <code>delete_boards_locked</code> deleting only the given boards, and the retry (<code>continue</code>) and its bound.</td>
+</tr>
+<tr>
+<td><code>_CASCADE_LOCK_ATTEMPTS</code>, <code>_MOVE_LOCK_ATTEMPTS</code> constants</td>
+<td>Killed by asserting the attempt count: the loop gives up after exactly three attempts and a retry that succeeds returns its result.</td>
+</tr>
+<tr>
+<td><code>values_list(..., flat=True)</code> on the pk sets the cascade compares</td>
+<td>Killed by asserting the helpers return plain pks (<code>_lock_cascade_cards</code>, <code>_cascade_card_pks</code>, <code>delete_boards_locked</code>'s board pks).</td>
+</tr>
+<tr>
+<td><code>lock_card_cell_entry</code> branches</td>
+<td>Killed: the card row is locked first only when a card id is given, and <code>None</code> column ids are dropped.</td>
+</tr>
+<tr>
+<td><code>lock_board_for_card_write</code> SQL dictionary (<code>"postgresql"</code> key and statement)</td>
+<td>Killed with a mocked connection whose vendor is <code>postgresql</code>; the statement is asserted verbatim.</td>
+</tr>
+<tr>
+<td><code>CARD_MUTATION_HOOKS</code> failure log (format string, <code>__qualname__</code>)</td>
+<td>Killed by asserting the logged message for a named handler and, for a handler with no <code>__qualname__</code>, its <code>repr</code>.</td>
+</tr>
+<tr>
+<td><code>-1</code> to <code>-2</code> move-position clamp</td>
+<td>Not equivalent as a whole line, so no pragma. The bound is now <code>0 if highest is None else highest + 1</code> (identical result under <code>max(0, ...)</code>, since any negative bound clamps to 0): the old <code>-1</code> to <code>-2</code> mutant no longer exists, and the new <code>0</code> to <code>1</code> mutant is killed by <code>MovePositionTests.test_a_huge_position_in_an_empty_cell_is_zero</code>. All 6 mutants on the line were killed locally.</td>
+</tr>
+<tr>
+<td><code>flat=True</code> in <code>create_card</code>'s column lock read, and in <code>_lock_cascade_boards</code> / <code>_lock_entry_columns</code></td>
+<td>Equivalent: the first is only tested for <code>None</code>, the others' <code>list(...)</code> result is discarded. <code># pragma: no mutate</code>, each on a line of its own (3 in total, the only pragmas in <code>cards.py</code>).</td>
+</tr>
+<tr>
+<td><code>CardMovement</code>: <code>default</code> / <code>db_default</code> of <code>card_uid</code> and <code>card_title</code>, the <code>save()</code> guards (<code>or</code>, <code>is not None</code>, the board and snapshot fills) and the two exception messages</td>
+<td>Killed in <code>test_movement_record_mutation_gaps.py</code>.</td>
+</tr>
+<tr>
+<td><code>CardMovement</code>: <code>null=True</code> on <code>card</code>, <code>board</code> and <code>imported_from_username</code></td>
+<td>Killed by asserting the field declarations (the column constraint comes from the migrations, so the model argument is otherwise unobservable) and a row stored with NULLs.</td>
+</tr>
+<tr>
+<td><code>import_export</code>: the JSON media type description</td>
+<td>Accepted, not marked: drf-spectacular emits one description per status code from the first media type, so the generated document is unchanged (same reason as the <code>403</code> survivors in the head table).</td>
+</tr>
+</tbody>
+</table>
+<p>Deviation from the issue text: #1931 expected the <code>lock=True</code> to <code>lock=False</code> mutant in the <code>enforce_column_limits</code> signature to need a PostgreSQL test. A spy on <code>select_for_update</code> kills it on SQLite instead. It pins the call arguments, not lock semantics; the queueing itself stays covered on PostgreSQL by <code>test_concurrent_moves.py</code> and <code>test_concurrent_lock_sites.py</code>.</p>
+<p>Re-run result on the final code (local, SQLite): <code>cards</code> 369 of 369 mutants killed with 3 excluded by the pragmas above, i.e. 100%; <code>card_movement</code> 70 of 70 in range killed (41 excluded). That is a local measurement; the weekly CI job on PostgreSQL is the measurement that counts, and no merged score is projected here. <code>MUTATION_MIN</code> is unchanged.</p>
 <h3 id="the-floor-decision-1384">The floor (decision, #1384)<a class="headerlink" href="#the-floor-decision-1384" title="Permanent link">&para;</a></h3>
 <p><code>MUTATION_MIN=0.90</code>, set on <code>backend-mutation-report</code>, applied to the merged adjusted score over all four targets. The maintainer chose 90% up front. That overrides the earlier plan on #1384 of reading the floor off a week of observed nightly scores; the week of observation now decides when the job becomes blocking, not what the floor is. The baseline arithmetic above puts the expected score several points above it. The floor is a fraction (<code>0.90</code>, never <code>90</code>) and is never set to <code>0</code> as a placeholder.</p>
 <h3 id="maintainer-steps-and-what-comes-next">Maintainer steps and what comes next<a class="headerlink" href="#maintainer-steps-and-what-comes-next" title="Permanent link">&para;</a></h3>
