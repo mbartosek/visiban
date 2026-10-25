@@ -1594,11 +1594,11 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     [Columns API](../api/boards.md#columns), the [Swimlanes API](../api/boards.md#swimlanes),
     and the [checklist item reference](../api/cards.md).
 
-!!! warning "Share links enabled before upgrading to 1.2.0 must be turned on again"
+!!! warning "Share links with no recorded enabling admin must be turned on again"
     From 1.2 a board's public share link records the board admin who enabled it, and lasts only
-    while that account is active and still an admin of the board (#1865). A link enabled before
-    upgrading to 1.2.0, including one enabled on a 1.2 pre-release, has no recorded admin, so
-    from the upgrade on it no longer opens: visitors get `404 Not Found` and the same "This
+    while that account is active and still an admin of the board (#1865). A link enabled
+    before the enabler was recorded (for example under 1.1, or 1.2.0-beta.3 and earlier) has no
+    recorded admin, so from the upgrade on it no longer opens: visitors get `404 Not Found` and the same "This
     board is no longer shared" page as for a link that was turned off (#1939). No admin is
     filled in for these links at upgrade. The **Sharing** tab shows sharing as off on such a
     board (and `share_link_active` reads `false`), and the first time the old link is opened it
@@ -1631,7 +1631,7 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
     Board share links are now resolved by a SHA-256 hash of the share token, as invite links
     already are (#1880). Migrations `boards/0087`–`0089` add the hash column, fill it in for every
     existing share link, and build its unique index concurrently. This change needs no action for
-    links created before the upgrade (but see the note above on links enabled before upgrading to 1.2.0). During a rolling upgrade, a backend pod still
+    links created before the upgrade (but see the note above on links enabled before the enabler was recorded). During a rolling upgrade, a backend pod still
     on the previous version writes the token without its hash. A share link that such a pod
     creates, regenerates or re-enables after migration `0088` has run answers `404 Not Found`,
     and so does the link it replaced, until a board admin regenerates it under
@@ -1640,8 +1640,8 @@ migration touches `boards` or `cards`, and an instance that leaves `GIT_LENS_ENA
 !!! note "The share link is shown once; `share_token` on board reads is deprecated"
     From 1.2 the **Sharing** tab shows a board's public link only once, right after it is
     created, and offers **Rotate link** for a link created earlier (#1935). This needs no action:
-    links that record the admin who enabled them keep working (a link enabled before upgrading
-    to 1.2.0 must be turned on again; see the note above). For API clients, `share_token` on
+    links that record the admin who enabled them keep working (a link enabled before the
+    enabler was recorded must be turned on again; see the note above). For API clients, `share_token` on
     `GET /api/v1/boards/{id}/full/` is **deprecated** and will be removed in 2.0. It is still
     returned in 1.2, except that a link with no recorded admin reads as no link (`null`). Read the token from the `POST /api/v1/boards/{id}/share/` response
     instead, and use the new `share_link_active` field to tell whether a link is set. See the
