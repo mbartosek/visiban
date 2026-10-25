@@ -4385,7 +4385,7 @@ re-checks.</p>
 <tr>
 <td>Group invite links</td>
 <td><code>groups/invite_registration.py</code> <code>_sender_still_admits</code>; <code>groups/views.py</code> <code>sender_is_group_admin</code>, <code>_revoke_lapsed_admin_invite_links</code>; <code>groups/views.py</code> <code>_revoke_lapsed_subtree_invite_links</code> (re-parent); <code>groups/models.py</code> <code>revoke_invite_links_of_deleted_creator</code> (user delete); <code>accounts/admin_views.py</code> <code>AdminUserDeactivateView._revoke_group_invite_links</code></td>
-<td>Sender standing is evaluated at preview and redemption through <code>visiban.authorization.invite_creator_is_valid</code> (the group rule is <code>sender_is_group_admin</code>), and at registration also <code>sender_may_admit_accounts</code>; links are revoked when the sender is deactivated (including from the Django admin user form, <code>VisibanUserAdmin.save_model</code>), deleted, or their admin rights lapse (including by the group being re-parented; links lapsed before #1513 are backfilled by migration <code>groups/0017</code>) (<code>_revoke_lapsed_admin_invite_links</code> is revocation housekeeping, not the access decision; see <a href="../authorization-entry-points/#advisory-copies-of-the-creator-rule">advisory copies</a>)</td>
+<td>Sender standing is evaluated at preview and redemption through <code>visiban.authorization.invite_creator_is_valid</code> (the group rule is <code>sender_is_group_admin</code>), and at registration also <code>sender_may_admit_accounts</code>; links are revoked when the sender is deactivated (including from the Django admin user form, <code>VisibanUserAdmin.save_model</code>), deleted, or their admin rights lapse (including by the group being re-parented; links lapsed before #1513 are backfilled by migration <code>groups/0017</code>; shareable admin links minted before #1727 are revoked by migration <code>groups/0023</code>, and <code>JoinGroupView</code> refuses any shareable admin link, #1940) (<code>_revoke_lapsed_admin_invite_links</code> is revocation housekeeping, not the access decision; see <a href="../authorization-entry-points/#advisory-copies-of-the-creator-rule">advisory copies</a>)</td>
 </tr>
 <tr>
 <td>JSON, CSV and Trello import</td>
@@ -5298,9 +5298,11 @@ board or a group, cannot grant the <code>admin</code> role and has an expiry of 
 days. A request for <code>admin</code> or for no expiry is refused with <code>400</code>, not
 narrowed. An emailed invite also always expires (at most 30 days); on a group
 it may grant <code>admin</code>, because it is bound to one recipient address (#1678). The
-limits are checked when a link is created. Links created before a limit applied
-keep their stored role and expiry until they are revoked or expire (#1727: no
-data migration; the upgrade guide tells admins to review them).</p>
+limits are checked when a link is created. Group links created before the limits
+applied were handled once by migration <code>groups/0023</code> (#1940): unused shareable
+admin links were revoked and unused never-expiring ones were given a 7-day
+expiry. A legacy link already expiring more than 30 days out keeps its expiry,
+and <code>JoinGroupView</code> refuses any shareable admin link (#1727, #1940).</p>
 <p><strong>Why.</strong> A shareable link is a bearer credential: it can be forwarded or pasted
 anywhere, and whoever holds it gets its grant. A group admin is board admin on
 every board in the group's subtree, so an admin link that never expires is a
@@ -5337,6 +5339,11 @@ bounds how long a leaked link is useful.</p>
 <td><code>groups/serializers.py</code> <code>GroupInviteLinkEmailSerializer</code>: <code>expiry_days</code> from 1 to <code>GROUP_INVITE_EMAIL_MAX_EXPIRY_DAYS</code> (30), default 7; <code>admin</code> allowed, the invite being bound to its recipient (<code>GroupInviteLink.generate</code> refuses an emailed invite without an address)</td>
 </tr>
 <tr>
+<td>Group shareable admin link redemption (REST)</td>
+<td><code>groups/views.py</code> <code>JoinGroupView.get</code> (preview), <code>JoinGroupView.post</code> (join)</td>
+<td>Both refuse a link with <code>delivery</code> <code>link</code> and role <code>admin</code> with <code>404</code>, the same as a revoked link, so one reactivated or written by a script grants nothing (#1940); an emailed admin invite still previews and joins. Migration <code>groups/0023</code> revokes the ones that existed at upgrade</td>
+</tr>
+<tr>
 <td>Changing an existing link</td>
 <td>none</td>
 <td>No route updates a board or group invite link: the group routes are <code>GET</code>/<code>POST</code> <code>invite-links/</code> and <code>DELETE</code> <code>invite-links/{link_id}/</code>, and the board routes are the same; <code>PATCH</code> and <code>PUT</code> answer <code>405</code>. Neither model is registered in the Django admin</td>
@@ -5359,8 +5366,12 @@ site admin creates them.</p>
 <p>Coverage: <code>groups/tests/test_group_invite_link_limits_1727.py</code> (admin refused on
 a shareable group link and in <code>generate</code>, emailed invite still grants admin, explicit <code>null</code>,
 over-30, zero and negative expiry refused, omitted expiry defaults to 7 days,
-<code>PATCH</code>/<code>PUT</code> answer <code>405</code>, and a pre-existing admin link with no expiry still
-redeems), <code>groups/tests/test_groups.py</code>
+<code>PATCH</code>/<code>PUT</code> answer <code>405</code>, a pre-existing shareable admin link is refused at
+join and preview with <code>404</code>, and an emailed admin invite still previews and
+joins), <code>groups/tests/test_group_invite_legacy_link_revoke_1940.py</code> and
+<code>groups/tests/test_group_invite_legacy_link_revoke_executor_1940.py</code> (migration
+<code>groups/0023</code> revokes unused shareable admin links and caps never-expiring
+ones, directly and under <code>migrate</code>), <code>groups/tests/test_groups.py</code>
 (<code>test_all_invite_link_roles_can_be_created</code>),
 <code>boards/tests/test_board_invites.py</code> (the board create serializer),
 <code>boards/tests/test_seed_demo_data.py</code>

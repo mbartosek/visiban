@@ -4829,21 +4829,28 @@ follows the same rule as board invite links:</p>
   <code>null</code> (never expires) and values over 30 are refused with <code>400</code>. The form offers 1, 7 or
   30 days and no longer offers <strong>Never</strong>.</li>
 </ul>
-<p>Emailed invites are unchanged. Links created before upgrading are not changed: an existing
-admin link or never-expiring link keeps working until it is revoked. <strong>Review existing links
-and revoke the ones you no longer want.</strong> Group admins see them in the group's
-<strong>Invite links</strong> panel, where they show the <strong>Admin</strong> role or <strong>Never</strong> as their expiry. To
-list them across the instance:</p>
+<p>Emailed invites are unchanged. <strong>Upgrading also cleans up links created earlier</strong>
+(migration <code>groups.0023</code>, #1940), so no operator step is needed. Only shareable links that are
+still active and have not been used are touched:</p>
+<ul>
+<li>An existing <strong>admin</strong> link is <strong>revoked</strong>. It is not downgraded to member. To give someone
+  admin, <a href="../../features/groups/#emailing-an-invite-link">email them an invite</a> or change
+  their role.</li>
+<li>An existing link with <strong>no expiry</strong> now expires <strong>7 days after the upgrade</strong>. Create a
+  fresh link if you need one beyond that, up to 30 days.</li>
+</ul>
+<p>Links that already have an expiry keep it. People who already joined through a link keep
+their role. A link that already expires more than 30 days out keeps that expiry and can outlive
+the 30-day cap on new links; the upgrade only caps links with no expiry. Revoked links do not
+appear in a group's <strong>Invite links</strong> panel. To list the revoked admin links across the
+instance:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>shell<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="s2">from django.db.models import Q</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">from groups.models import GroupInviteLink</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">links = GroupInviteLink.objects.filter(</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="s2">    delivery='link', is_active=True, used_at__isnull=True,</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="s2">).filter(Q(role='admin') | Q(expires_at__isnull=True))</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="s2">for group_name, prefix, role, expires_at in links.values_list('group__name', 'prefix', 'role', 'expires_at'):</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="s2">    print(group_name, prefix, role, expires_at or 'never')</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="s2">"</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="s2">from groups.models import GroupInviteLink</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">links = GroupInviteLink.objects.filter(delivery='link', role='admin', is_active=False, used_at__isnull=True)</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="s2">for group_name, prefix in links.values_list('group__name', 'prefix'):</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="s2">    print(group_name, prefix)</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="s2">"</span>
 </code></pre></div>
 <p><strong>Check any script or integration</strong> that creates group invite links with <code>role: "admin"</code>,
 <code>expiry_days: null</code> or <code>expiry_days</code> over 30 (#1727).</p>

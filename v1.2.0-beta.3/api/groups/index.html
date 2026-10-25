@@ -4951,7 +4951,7 @@
 </tr>
 </tbody>
 </table>
-<p>Links created before 1.2 keep their stored role and expiry, so a list response can still show <code>role: "admin"</code> or <code>expires_at: null</code> for one of them until it is revoked (#1727).</p>
+<p>Upgrading to 1.2 revokes unused shareable links that had the <code>admin</code> role and gives unused links with no expiry an expiry 7 days after the upgrade (#1940). Revoked links no longer appear in this list. A legacy non-admin link (member, collaborator or viewer) that already expires more than 30 days out keeps that expiry.</p>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
@@ -5027,7 +5027,7 @@
 <tr>
 <td><code>role</code></td>
 <td>string</td>
-<td>Role granted on redemption: <code>admin</code> / <code>member</code> / <code>collaborator</code> / <code>viewer</code>. <code>admin</code> appears only on emailed links and on shareable links created before 1.2.</td>
+<td>Role granted on redemption: <code>admin</code> / <code>member</code> / <code>collaborator</code> / <code>viewer</code>. <code>admin</code> appears only on emailed links: a shareable link never grants admin (<em>(1.2+)</em> upgrade revokes the ones created earlier, #1940).</td>
 </tr>
 <tr>
 <td><code>is_active</code></td>
@@ -5042,7 +5042,7 @@
 <tr>
 <td><code>expires_at</code></td>
 <td>string / null</td>
-<td>ISO 8601 expiry; <code>null</code> means never expires, which only a link created before 1.2 can have.</td>
+<td>ISO 8601 expiry; <code>null</code> means never expires. Every link created in 1.2+ has an expiry, and upgrade gives unused legacy links one (#1940).</td>
 </tr>
 <tr>
 <td><code>created_at</code></td>
@@ -5323,6 +5323,7 @@
 <p><strong>Disclosure:</strong> <code>can_register</code> is visible to anyone holding the token, and its value can narrow down whether the site is closed, whether the link is an emailed single-use invite, and whether its sender still has admin rights. This is accepted under the token-as-capability model of this endpoint (#801): a token holder could learn the same thing by attempting registration with it. No reason, registration mode, delivery type or sender is ever returned.</p>
 <p><code>can_register</code> is present only on <code>200</code> responses, never on <code>404</code> / <code>410</code> bodies. A member previewing their own consumed single-use invite (below) gets <code>can_register: false</code> in <code>"invite_only"</code> mode. Site invite links (<code>vbnl_</code>) are out of scope: they are not group tokens, and the SPA routes them to the registration form without calling this endpoint.</p>
 <p><strong>Errors:</strong> <code>404 Not Found</code> (invalid or revoked token, or, <em>(1.2+)</em> the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is <code>404</code> even if it is also expired or consumed. A link with a live creator still answers <code>410</code> for expired or consumed, so the two cases remain distinguishable to a token holder), <code>410 Gone</code> — <code>{"detail": "This invite link has expired."}</code> (past its expiry) or <code>{"detail": "This invite link has already been used."}</code> (single-use link already consumed)</p>
+<p><em>(1.2+, #1940)</em> A shareable (<code>delivery: "link"</code>) link with the <code>admin</code> role answers <code>404</code>, the same as a revoked link, and never previews or grants admin. Upgrade revokes the ones created before 1.2; this also covers one reactivated afterward. Emailed admin invites are unaffected.</p>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
@@ -5354,6 +5355,7 @@
 <p><strong>Status:</strong> <code>201 Created</code> on first join; <code>200 OK</code> if the caller was already a member (existing role preserved, no downgrade).</p>
 <p><strong>Note:</strong> Existing memberships are not downgraded — if you already hold a higher role than the link's role, your current role is preserved.</p>
 <p><strong>Errors:</strong> <code>401 Unauthorized</code> (not authenticated), <code>404 Not Found</code> (invalid or revoked token, or, <em>(1.2+)</em> the link's creator is no longer an active admin of the group — deactivated, removed, demoted or deleted — the same response, with no reason given, reported the same way whatever the link's other state: a link with a gone creator is <code>404</code> even if it is also expired or consumed. A link with a live creator still answers <code>410</code> for expired or consumed, so the two cases remain distinguishable to a token holder), <code>410 Gone</code> — <code>{"detail": "This invite link has expired."}</code> (past its expiry) or <code>{"detail": "This invite link has already been used."}</code> (single-use link already consumed by someone who is not a member)</p>
+<p><em>(1.2+, #1940)</em> A shareable (<code>delivery: "link"</code>) link with the <code>admin</code> role answers <code>404</code> and nothing is written, the same as a revoked link. Emailed admin invites are unaffected.</p>
 <blockquote>
 <p><strong>Added in 1.2</strong></p>
 </blockquote>
