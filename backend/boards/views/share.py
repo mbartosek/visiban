@@ -56,7 +56,7 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
         token = (view.kwargs or {}).get("token")
         if not token:
             return None
-        # Key on the canonical UUID, not the raw segment: uuid.UUID() accepts
+        # Key on the hash of the canonical UUID, not the raw segment: uuid.UUID() accepts
         # several spellings of one value (uppercase, no hyphens, braces,
         # urn:uuid:), and each would otherwise get its own bucket and
         # multiply the per-token limit (#1530).  A non-UUID segment returns
