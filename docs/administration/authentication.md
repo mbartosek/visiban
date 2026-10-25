@@ -85,6 +85,10 @@ A user who has a password is asked to enter it again before a new provider is co
 
 A user without a password can set one in **Settings → Security**, but only within five minutes of signing in to Visiban with one of their connected providers (allauth's `ACCOUNT_REAUTHENTICATION_TIMEOUT`, default 300 seconds). After that, Settings asks them to sign out, sign in again with their provider, and set the password straight away; a user with no provider to sign in with is pointed to **Forgot password?** instead. The upgrade itself changes nothing here: a provider sign-in made shortly before the upgrade still counts while it is inside the five minutes. This keeps a copied browser session from being turned into a lasting password. Users who already have a password change it with their current password as before, and a password reset link still sets a first password without this step.
 
+> **Changed in 1.2** (#1932)
+
+The same five-minute provider sign-in applies when a user without a password adds or changes an email address, in **Settings → Profile** and on the backend's `/accounts/email/` page. An address on the account is one a password reset link can be sent to, so changing the addresses gets the same check as setting a first password. Outside the five minutes, Settings asks the user to sign out, sign in again with their provider, and change the address straight away. Users who have a password confirm it as before.
+
 <a id="generic-oidc"></a>
 
 ## Generic OIDC <span style="background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px;">BETA</span>

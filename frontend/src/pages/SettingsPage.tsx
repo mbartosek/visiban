@@ -157,6 +157,10 @@ function ProfileTab({ user, onUserUpdated, from }: { user: User; onUserUpdated: 
         setError(
           typeof usernameError === "string"
             ? usernameError
+            : data?.code === "recent_login_required"
+            ? // #1932: on an account without a password, an email change needs a
+              // recent provider sign-in in this session (the #1260 rule).
+              'To change your email address, sign out, sign in again with your sign-in provider, and then change it within a few minutes. If you can\'t sign in with a provider, use "Forgot password?" on the sign-in page to set a password first.'
             : "Failed to save changes. Please try again.",
         );
         if (emailNeedsPassword) emailPasswordRef.current?.focus();

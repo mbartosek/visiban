@@ -1820,8 +1820,12 @@ class VisibanEmailView(AllauthEmailView):
         asking: ``ReauthenticationRequired`` is turned into a redirect to
         ``/accounts/reauthenticate/`` by ``AccountMiddleware`` and the action
         resumes once the password is confirmed. An account with no usable
-        password has no reauthentication method, and allauth treats it as
-        recently authenticated, matching the API's exemption.
+        password has no reauthentication method (allauth would treat it as
+        always recent), so it needs a recent provider sign-in to the account
+        recorded in this session instead, the same rule as the API
+        (``accounts.credentials.email_change_requires_recent_login``, #1932);
+        without one the action is refused with an error message and nothing is
+        added or changed.
 
         Not enabled through ``ACCOUNT_REAUTHENTICATION_REQUIRED``, which would
         also change other allauth flows; this gates only the two actions on
@@ -1829,14 +1833,20 @@ class VisibanEmailView(AllauthEmailView):
         rule, in ``accounts.adapter.SocialRegistrationAdapter.pre_social_login``
         (``_require_recent_authentication``).
         """
-        if ("action_add" in request.POST or "action_primary" in request.POST) and (
-            request.user.has_usable_password()
-        ):
-            from allauth.account.internal.flows.reauthentication import (
-                raise_if_reauthentication_required,
-            )
+        if "action_add" in request.POST or "action_primary" in request.POST:
+            if request.user.has_usable_password():
+                from allauth.account.internal.flows.reauthentication import (
+                    raise_if_reauthentication_required,
+                )
 
-            raise_if_reauthentication_required(request)
+                raise_if_reauthentication_required(request)
+            elif not credentials.session_recently_signed_in_by_provider(request, request.user):
+                get_adapter(request).add_message(
+                    request,
+                    messages.ERROR,
+                    message=credentials.EMAIL_CHANGE_RECENT_LOGIN_REQUIRED_MESSAGE,
+                )
+                return HttpResponseRedirect(self.get_success_url())
         return super().post(request, *args, **kwargs)
 
     def _action_primary(self, request, *args, **kwargs):

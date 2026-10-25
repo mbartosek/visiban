@@ -79,6 +79,9 @@ class AddressNoticeTests(TestCase):
         self.user = _make_account()
         self.client = Client()
         self.client.force_login(self.user)
+        # An email change on an account without a password needs a recent
+        # provider sign-in in the session (#1932).
+        sign_in_through_provider(self.client, self.user)
 
     def _add_on_manage_page(self, email=NEW):
         with self.captureOnCommitCallbacks(execute=True):
@@ -146,6 +149,7 @@ class AddressNoticeTests(TestCase):
         other = _make_account(username="other", email="other@old.example")
         client = Client()
         client.force_login(other)
+        sign_in_through_provider(client, other)
         with self.captureOnCommitCallbacks(execute=True):
             client.post("/accounts/email/", {"email": "o@new.example", "action_add": ""})
         self.assertEqual(
@@ -175,6 +179,7 @@ class AddressNoticeTests(TestCase):
     def test_notice_failure_does_not_roll_back_the_pending_change(self):
         client = APIClient()
         client.force_login(self.user)
+        sign_in_through_provider(client, self.user)
         with patch(
             "accounts.no_password_notices.notify_primary_of_address_change",
             side_effect=RuntimeError("boom"),
@@ -215,6 +220,7 @@ class AddressNoticeTests(TestCase):
     def test_pending_change_notifies_on_request_and_confirm_that_moves_email_sends_only_previous_notice(self):
         client = APIClient()
         client.force_login(self.user)
+        sign_in_through_provider(client, self.user)
         with self.captureOnCommitCallbacks(execute=True):
             r = client.patch("/api/v1/auth/me/", {"email": NEW}, format="json")
         self.assertEqual(r.status_code, status.HTTP_200_OK)
@@ -249,6 +255,7 @@ class AddressNoticeTests(TestCase):
                 user = _make_account(username=f"direct{mode}", email=f"d{mode}@old.example")
                 client = APIClient()
                 client.force_login(user)
+                sign_in_through_provider(client, user)
                 mail.outbox = []
                 with self.captureOnCommitCallbacks(execute=True):
                     r = client.patch(

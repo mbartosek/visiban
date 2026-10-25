@@ -8,7 +8,9 @@ change" row):
   carry the correct ``current_password`` (400 with a ``current_password``
   field error otherwise), checked before any other email validation and
   against the same failed-attempt budget as login. Accounts without a usable
-  password are not asked. Requests that leave the email alone need nothing.
+  password are not asked; they need a recent provider sign-in instead (#1932,
+  ``test_email_change_recent_login.py``). Requests that leave the email alone
+  need nothing.
 - allauth's ``/accounts/email/`` page: "Add" and "Make Primary" need a recent
   reauthentication for an account with a usable password.
 - Whatever route moved ``User.email``, the previous address gets a notice
@@ -29,6 +31,7 @@ from accounts import credentials
 from accounts.authentication import SCOPE_READ, SCOPE_WRITE
 from accounts.models import PersonalAccessToken, User
 from accounts.tests.email_change_helpers import reauthenticate
+from accounts.tests.provider_sign_in_helpers import sign_in_through_provider
 
 PROFILE_ENDPOINTS = ("/api/v1/auth/me/", "/api/v1/auth/user/")
 VERIFICATION_MODES = ("mandatory", "optional", "none")
@@ -249,7 +252,11 @@ class EmailChangeCurrentPasswordTests(TestCase):
 
 
 class EmailChangeWithoutPasswordAccountTests(TestCase):
-    """An account that signs in through an identity provider only is not asked."""
+    """An account that signs in through an identity provider only is not asked.
+
+    It needs a recent provider sign-in instead (#1932), covered in
+    ``test_email_change_recent_login.py``; this session has one.
+    """
 
     def setUp(self):
         cache.clear()
@@ -258,6 +265,7 @@ class EmailChangeWithoutPasswordAccountTests(TestCase):
         self.user.save()
         self.client = APIClient()
         self.client.force_login(self.user)
+        sign_in_through_provider(self.client, self.user)
 
     def test_change_needs_no_password_when_not_mandatory(self):
         for mode in ("optional", "none"):
@@ -469,6 +477,9 @@ class ManageEmailPageReauthTests(TestCase):
         sso.save()
         client = Client()
         client.force_login(sso)
+        # It needs a recent provider sign-in instead (#1932,
+        # test_email_change_recent_login.py), never the password page.
+        sign_in_through_provider(client, sso)
         r = client.post("/accounts/email/", {"email": NEW, "action_add": ""})
         self.assertNotIn("/accounts/reauthenticate/", r.get("Location", ""))
         self.assertTrue(EmailAddress.objects.filter(user=sso, email=NEW).exists())
