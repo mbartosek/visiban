@@ -161,15 +161,16 @@ vi.mock('../components/Board/BoardSettingsModal', () => ({
 // Capture props passed into FilterBar so tests can assert on `scope` and `onScopeChange`
 // without rendering the real component (kept mocked to avoid touching dropdown/avatar
 // dependencies here — FilterBar has its own dedicated suite).
-let capturedFilterBarProps: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[] } } = {}
+let capturedFilterBarProps: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } } = {}
 vi.mock('../components/Board/FilterBar', () => ({
-  default: (props: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[] } }) => {
+  default: (props: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } }) => {
     capturedFilterBarProps = props
     return <div data-testid="filter-bar" data-scope={props.scope}>FilterBar</div>
   },
   EMPTY_FILTER: { search: '', assigneeIds: [], labelIds: [], priorities: [], dueDate: null, customFields: {}, visibleCustomFieldFilterIds: [] },
   countActiveFilters: () => 0,
-  isCustomFieldFilterActive: () => false,
+  // Real enough for the #1928 tests: only a non-empty text query counts as active.
+  isCustomFieldFilterActive: (v: { kind: string; query?: string }) => v.kind === 'text' && !!v.query,
 }))
 vi.mock('../components/Board/KeyboardShortcutsOverlay', () => ({
   default: ({ onClose }: { onClose: () => void }) => <div data-testid="shortcuts-overlay"><button onClick={onClose}>Close Shortcuts</button></div>,
@@ -761,6 +762,74 @@ describe('BoardView', () => {
       rerender(<BoardView {...defaultProps()} />)
       expect(localStorage.getItem('board:2:filters')).toBeNull()
       expect(localStorage.getItem('board:1:filters')).toBeNull()
+    })
+  })
+
+  describe('#1928 — custom-field filter naming a deleted field', () => {
+    const card = {
+      id: 1, uid: 'carduid00001', column: 10, swimlane: 20, title: 'Card One',
+      description: '', priority: 'medium' as const, assignee: null,
+      labels: [], due_date: null, weight: 1, position: 0, created_by: { id: 1, username: 'user1', display_name: 'User 1', avatar_url: '' },
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      last_moved_at: null, attachment_count: 0, checklist_total: 0,
+      checklist_done: 0, is_stale: false, archived_at: null, version: 1,
+      custom_field_values: [],
+      blocker_count: 0, external_ref: null,
+    }
+    const liveDef = {
+      id: 5, uid: 'cfuid0000005', name: 'Live', field_type: 'text', choices: [], position: 0,
+      show_on_card: false, is_required: false,
+    } as unknown as BoardFull['custom_field_definitions'][number]
+    const seed = (customFields: Record<number, unknown>) =>
+      localStorage.setItem('board:1:filters', JSON.stringify({
+        search: '', assigneeIds: [], labelIds: [], priorities: [], dueDate: null,
+        customFields, visibleCustomFieldFilterIds: Object.keys(customFields).map(Number),
+      }))
+
+    it('ignores a persisted filter on a deleted field: cards show, FilterBar sees it pruned, storage untouched', () => {
+      seed({ 77: { kind: 'text', query: 'zzz' } })
+      const before = localStorage.getItem('board:1:filters')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      capturedFilterBarProps = {}
+      render(<BoardView {...defaultProps()} />)
+      fireEvent.keyDown(document, { key: 'f' })
+      expect(screen.queryByText('No cards match the active filters.')).not.toBeInTheDocument()
+      expect(capturedFilterBarProps.filters?.customFields).toEqual({})
+      expect(capturedFilterBarProps.filters?.visibleCustomFieldFilterIds).toEqual([])
+      expect(localStorage.getItem('board:1:filters')).toBe(before)
+    })
+
+    it('still filters by a custom field that exists on the board', () => {
+      seed({ 5: { kind: 'text', query: 'zzz' } })
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card], custom_field_definitions: [liveDef] }) })
+      render(<BoardView {...defaultProps()} />)
+      expect(screen.getByText('No cards match the active filters.')).toBeInTheDocument()
+    })
+
+    it('the "my cards" palette event does not write deleted label/field references back to storage', () => {
+      localStorage.setItem('board:1:filters', JSON.stringify({
+        search: '', assigneeIds: [], labelIds: [999], priorities: [], dueDate: null,
+        customFields: { 77: { kind: 'text', query: 'zzz' } }, visibleCustomFieldFilterIds: [77],
+      }))
+      mockBoardContextValue = defaultContext({ board: makeBoard({ cards: [card] }) })
+      render(<BoardView {...defaultProps()} currentUser={{ id: 7 } as never} />)
+      act(() => { window.dispatchEvent(new CustomEvent('visiban:filter-my-cards')) })
+      const saved = JSON.parse(localStorage.getItem('board:1:filters') ?? '{}')
+      expect(saved.assigneeIds).toEqual([7])
+      expect(saved.labelIds).toEqual([])
+      expect(saved.customFields).toEqual({})
+      expect(saved.visibleCustomFieldFilterIds).toEqual([])
+    })
+
+    it('persists nothing under either board key on a board switch', () => {
+      seed({ 5: { kind: 'text', query: 'zzz' } })
+      mockBoardContextValue = defaultContext({ board: makeBoard({ id: 1, custom_field_definitions: [liveDef] }) })
+      const { rerender } = render(<BoardView {...defaultProps()} />)
+      const before = localStorage.getItem('board:1:filters')
+      mockBoardContextValue = defaultContext({ board: makeBoard({ id: 2, uid: 'boarduid0002', custom_field_definitions: [] }) })
+      rerender(<BoardView {...defaultProps()} />)
+      expect(localStorage.getItem('board:2:filters')).toBeNull()
+      expect(localStorage.getItem('board:1:filters')).toBe(before)
     })
   })
 
