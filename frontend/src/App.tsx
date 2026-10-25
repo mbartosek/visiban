@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useEscapeStack } from "./hooks/useEscapeStack";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
+import { useInstanceFlagsState } from "./hooks/useInstanceFlagsState";
+import { InstanceFlagsContext, useInstanceFlags } from "./contexts/InstanceFlagsContext";
 import { BoardProvider, useBoardContext } from "./contexts/BoardContext";
 import { ThemeServerSync } from "./context/ThemeServerSync";
 import LoginPage from "./components/Auth/LoginPage";
@@ -33,7 +35,12 @@ import { joinGroup } from "./api/groups";
 import { DEMO_STAR_REASON } from "./constants/demoCopy";
 
 export default function App() {
-  const { user, loading, logout, updateUser } = useAuth();
+  const { user, loading: authLoading, logout, updateUser } = useAuth();
+  const { flags, loaded: flagsLoaded } = useInstanceFlagsState(user !== null);
+  // Hold the shell until site-config settles (#1913) so the first paint already
+  // knows about maintenance and demo mode: ThemeServerSync would otherwise fire
+  // a demo-fenced PATCH before it learned the instance is a demo.
+  const loading = authLoading || (user !== null && !flagsLoaded);
   const navigate = useNavigate();
   const [starVersion, setStarVersion] = useState(0);
   const handleStarToggled = useCallback(() => setStarVersion((v) => v + 1), []);
@@ -126,7 +133,7 @@ export default function App() {
   const forcedChangePending = !!user && (user.must_change_password || user.must_change_username);
 
   return (
-    <>
+    <InstanceFlagsContext.Provider value={flags}>
     {user?.must_change_password && (
       <ForceChangePasswordModal user={user} onChanged={updateUser} />
     )}
@@ -170,23 +177,23 @@ export default function App() {
                       mobile nav, outside any scroll container — it must never
                       scroll away. Spans the content column, not the viewport,
                       matching the other full-width banners. */}
-                  {user.maintenance_mode && (
+                  {flags.maintenance_mode && (
                     <MaintenanceBanner
-                      message={user.maintenance_message ?? ""}
+                      message={flags.maintenance_message}
                       isSiteAdmin={user.is_site_admin}
                     />
                   )}
                   {/* Hosted-demo bar (#1179). Same slot convention as the
                       maintenance notice; the two are mutually exclusive
                       deployment states (one Helm values file), so no guard. */}
-                  {user.demo_mode && user.demo_next_reset_at && (
-                    <DemoModeBar nextResetAt={user.demo_next_reset_at} />
+                  {flags.demo_mode && flags.demo_next_reset_at && (
+                    <DemoModeBar nextResetAt={flags.demo_next_reset_at} />
                   )}
                   {/* Fallback for any demo refusal that still reaches the API
                       (#1179). Mounted at the shell, not beside the board-only
                       MoveBlockedToast, so a refusal on the dashboard or the
                       settings page explains itself too. */}
-                  {user.demo_mode && <DemoWriteBlockedToast />}
+                  {flags.demo_mode && <DemoWriteBlockedToast />}
                   {/* Mobile navigation bar — visible below lg breakpoint only */}
                   <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-sunken border-b border-line shrink-0">
                     <button
@@ -212,7 +219,7 @@ export default function App() {
         <Route path="*" element={<LoginPage onLogin={handleLogin} />} />
       )}
     </Routes>
-    </>
+    </InstanceFlagsContext.Provider>
   );
 }
 
@@ -271,7 +278,7 @@ function BoardPage({ user, onLogout, onUserUpdated, onStarToggled }: {
   // the fallback toast was the visitor's only explanation. Refuse up front
   // like the other card/board controls in frontend/CLAUDE.md § Hosted demo
   // surfaces, rather than letting the click round-trip to a 403.
-  const demoMode = user.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
 
   const [isStarred, setIsStarred] = useState(false);
   const [starLoading, setStarLoading] = useState(false);

@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 import type { User } from '../types'
+import { useInstanceFlagsState } from '../hooks/useInstanceFlagsState'
+import { DEFAULT_INSTANCE_FLAGS, type InstanceFlags } from '../contexts/InstanceFlagsContext'
 
 // A dedicated test file (rather than adding to app.test.tsx) because that
 // file's Navbar mock is a bare stub that drops the `breadcrumb` prop — its
@@ -14,6 +16,10 @@ import type { User } from '../types'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+}))
+
+vi.mock('../hooks/useInstanceFlagsState', () => ({
+  useInstanceFlagsState: vi.fn(),
 }))
 
 vi.mock('../contexts/BoardContext', () => {
@@ -107,7 +113,10 @@ const fakeBoard = {
   is_starred: false,
 }
 
-function renderBoardPage(user: User) {
+const mockUseInstanceFlagsState = useInstanceFlagsState as ReturnType<typeof vi.fn>
+
+function renderBoardPage(user: User, flags: Partial<InstanceFlags> = {}) {
+  mockUseInstanceFlagsState.mockReturnValue({ flags: { ...DEFAULT_INSTANCE_FLAGS, ...flags }, loaded: true })
   mockUseAuth.mockReturnValue({ user, loading: false, logout: vi.fn(), updateUser: vi.fn() })
   mockUseBoardContext.mockReturnValue({
     board: fakeBoard, loading: false, error: null,
@@ -133,7 +142,7 @@ describe('BoardPage star button — hosted demo (#1193)', () => {
 
   it('in demo mode, the star button is aria-disabled, keyboard-reachable, explains why, and never calls the API', async () => {
     const user = userEvent.setup()
-    renderBoardPage({ ...fakeUser, demo_mode: true })
+    renderBoardPage(fakeUser, { demo_mode: true })
     const btn = screen.getByRole('button', { name: /Star board/ })
     expect(btn).toHaveAttribute('aria-disabled', 'true')
     expect(btn).not.toBeDisabled()

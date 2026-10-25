@@ -82,6 +82,7 @@ import { buildGridOverlayState } from "../../gridOverlays/slot";
 import GridOverlayLegend from "./GridOverlay/GridOverlayLegend";
 import { filterCards, hasActiveClientFilters, pruneStaleLabelIds } from "../../utils/filterCards";
 import ModalWrapper from "../shared/ModalWrapper";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface Props {
   onBoardDeleted?: () => void;
@@ -260,6 +261,8 @@ const ReplayTourIcon = (
 const MEMBER_ECHO_MS = 2000;
 
 export default function BoardView({ onBoardDeleted, userTimezone = "", userDateFormat = "MM/DD/YYYY", userTimeFormat = "12h", closeEditorOnEnter = false, currentUser = null, onUserUpdated }: Props) {
+  // #1913: instance flags come from site-config, not the deprecated User copies.
+  const { maintenance_mode: maintenanceMode, demo_mode: demoMode } = useInstanceFlags();
   const {
     board: boardOrNull,
     moveCard: onMoveCard,
@@ -352,7 +355,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // Site admins are exempt server-side and so are exempt here; their writes
   // genuinely still succeed.
   const blockedByMaintenance =
-    (currentUser?.maintenance_mode ?? false) && !(currentUser?.is_site_admin ?? false);
+    maintenanceMode && !(currentUser?.is_site_admin ?? false);
   const canEdit =
     !blockedByMaintenance && (isAdmin || board.current_user_role === "member");
   // #843 — mirror of the backend per-board export gate. Owner / site_admin
@@ -2696,7 +2699,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
           onManageLens={() => { closeSettings(); setShowLensModal(true); }}
           onFieldsUpdated={onCustomFieldDefinitionsApplied}
           onSwimlaneFieldsUpdated={onSwimlaneFieldDefinitionsApplied}
-          demoMode={currentUser?.demo_mode === true}
+          demoMode={demoMode}
           currentUserIsSiteAdmin={currentUser?.is_site_admin === true}
           inviteReloadSignal={inviteReloadSignal}
           onMembersAdded={reloadForMemberFlag}

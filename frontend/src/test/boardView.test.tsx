@@ -216,6 +216,7 @@ vi.mock('../api/cards', () => ({
 import { getCardStatus } from '../api/cards'
 import { getLensConnection } from '../api/gitLens'
 import { LENS_ONLY_BOARD_TOOLTIP } from '../components/Board/lensTabState'
+import { flagsWrapper } from './instanceFlagsWrapper'
 const mockedGetCardStatus = vi.mocked(getCardStatus)
 
 const fakeUser: User = {
@@ -1998,14 +1999,14 @@ describe('BoardView', () => {
     })
 
     it('canEdit turns false for a board admin while the instance is in maintenance mode', () => {
-      const blockedAdmin = { ...fakeUser, maintenance_mode: true, is_site_admin: false }
-      render(<BoardView currentUser={blockedAdmin} />)
+      const blockedAdmin = { ...fakeUser, is_site_admin: false }
+      render(<BoardView currentUser={blockedAdmin} />, { wrapper: flagsWrapper({ maintenance_mode: true }) })
       expect(screen.getByTestId('swim-20')).toHaveAttribute('data-can-edit', 'false')
     })
 
     it('site admins stay canEdit=true during maintenance mode (mirrors the server-side exemption)', () => {
-      const exemptSiteAdmin = { ...fakeUser, maintenance_mode: true, is_site_admin: true }
-      render(<BoardView currentUser={exemptSiteAdmin} />)
+      const exemptSiteAdmin = { ...fakeUser, is_site_admin: true }
+      render(<BoardView currentUser={exemptSiteAdmin} />, { wrapper: flagsWrapper({ maintenance_mode: true }) })
       expect(screen.getByTestId('swim-20')).toHaveAttribute('data-can-edit', 'true')
     })
 

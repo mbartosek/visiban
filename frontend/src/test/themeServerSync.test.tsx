@@ -10,6 +10,7 @@ vi.mock('../api/auth', () => ({
 }))
 
 import { updateCurrentUser } from '../api/auth'
+import { flagsWrapper } from './instanceFlagsWrapper'
 
 const mockUpdateCurrentUser = updateCurrentUser as ReturnType<typeof vi.fn>
 
@@ -204,8 +205,8 @@ describe('ThemeServerSync', () => {
       render(
         <ThemeProvider>
           <ThemeServerSync user={user} onUserUpdated={onUserUpdated} />
-        </ThemeProvider>
-      )
+        </ThemeProvider>,
+        { wrapper: flagsWrapper({ demo_mode: true }) })
 
       await act(async () => {
         await Promise.resolve()
@@ -300,13 +301,14 @@ describe('ThemeServerSync', () => {
   describe('hosted demo (#1193)', () => {
     it('does not PATCH on first-login client-wins sync', async () => {
       localStorage.setItem(STORAGE_KEY, 'light')
-      const user = { ...makeUser('system'), demo_mode: true }
+      const user = makeUser('system')
       const onUserUpdated = vi.fn()
 
       render(
         <ThemeProvider>
           <ThemeServerSync user={user} onUserUpdated={onUserUpdated} />
-        </ThemeProvider>
+        </ThemeProvider>,
+        { wrapper: flagsWrapper({ demo_mode: true }) }
       )
 
       await act(async () => {
@@ -322,14 +324,15 @@ describe('ThemeServerSync', () => {
     it('does not PATCH on an in-session theme change', async () => {
       localStorage.setItem(STORAGE_KEY, 'dark')
       localStorage.setItem(SYNC_SENTINEL_KEY, '1')
-      const user = { ...makeUser('dark'), demo_mode: true }
+      const user = makeUser('dark')
       const onUserUpdated = vi.fn()
 
       const { getByTestId } = render(
         <ThemeProvider>
           <ThemeServerSync user={user} onUserUpdated={onUserUpdated} />
           <ChangeTheme to="light" />
-        </ThemeProvider>
+        </ThemeProvider>,
+        { wrapper: flagsWrapper({ demo_mode: true }) }
       )
 
       await act(async () => {
@@ -345,7 +348,7 @@ describe('ThemeServerSync', () => {
 
     it('outside demo mode, still PATCHes as before (no regression)', async () => {
       localStorage.setItem(STORAGE_KEY, 'light')
-      const user = { ...makeUser('system'), demo_mode: false }
+      const user = makeUser('system')
       mockUpdateCurrentUser.mockResolvedValue({ ...user, theme: 'light' })
       const onUserUpdated = vi.fn()
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { updateCurrentUser } from "../api/auth";
+import { useInstanceFlags } from "../contexts/InstanceFlagsContext";
 import type { User } from "../types";
 import { migrateLegacyKey } from "../utils/migrateLegacyKey";
 import { LEGACY_STORAGE_KEY, STORAGE_KEY, useTheme } from "./ThemeContext";
@@ -41,6 +42,8 @@ export function ThemeServerSync({
   onUserUpdated: (u: User) => void;
 }) {
   const { preference, setPreference } = useTheme();
+  // #1913: instance flag from site-config, not the deprecated User.demo_mode.
+  const { demo_mode: demoMode } = useInstanceFlags();
   // Track the last value we PATCHed (or observed as sync'd) so the in-session
   // branch below does not fire a spurious or duplicate PATCH. Seeded to the
   // initial preference on first render so the first commit is a no-op unless
@@ -86,7 +89,7 @@ export function ThemeServerSync({
         // completion save (seed_demo_data seeds the visitor's tour complete
         // so that save never fires at all; this one can't be avoided that way
         // since every visitor's browser starts with no sentinel).
-        if (localTheme !== serverTheme && user.demo_mode !== true) {
+        if (localTheme !== serverTheme && !demoMode) {
           lastServerPushRef.current = localTheme;
           updateCurrentUser({ theme: localTheme })
             .then((updated) => onUserUpdated(updated))
@@ -110,7 +113,7 @@ export function ThemeServerSync({
     lastServerPushRef.current = preference;
     // Hosted demo (#1193): same skip as the initial sync above — an in-session
     // theme toggle still applies locally, it just never reaches the server.
-    if (user.demo_mode !== true) {
+    if (!demoMode) {
       updateCurrentUser({ theme: preference })
         .then((updated) => onUserUpdated(updated))
         .catch(() => {

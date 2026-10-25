@@ -2,7 +2,7 @@ import { useDemoCountdown } from "../../hooks/useDemoCountdown";
 import { formatClockTime } from "../../utils/date";
 
 interface DemoModeBarProps {
-  /** Next reset instant, ISO 8601 UTC, from the server (`User.demo_next_reset_at`). */
+  /** Next reset instant, ISO 8601 UTC, from the server (`SiteConfig.demo_next_reset_at`). */
   nextResetAt: string;
 }
 

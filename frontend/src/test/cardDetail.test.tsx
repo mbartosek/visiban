@@ -71,6 +71,7 @@ vi.mock('../components/Card/RichTextEditor', () => ({
 }))
 
 import { updateCard, getCardComments, getCardAttachments, getChecklist, updateChecklistItem, deleteChecklistItem, getCardRelations, addCardComment, addChecklistItem } from '../api/cards'
+import { flagsWrapper } from './instanceFlagsWrapper'
 
 const mockUpdateCard = updateCard as ReturnType<typeof vi.fn>
 const mockGetCardRelations = getCardRelations as ReturnType<typeof vi.fn>
@@ -527,10 +528,10 @@ describe('CardDetail', () => {
   })
 
   describe('hosted demo (#1179)', () => {
-    const demoUser = { ...fakeUser, demo_mode: true, demo_next_reset_at: '2026-09-27T13:00:00Z' }
+    const demoUser = fakeUser
 
     it('upload shows the demo reason, taking precedence over uploads-disabled', () => {
-      render(<CardDetail {...defaultProps()} currentUser={{ ...demoUser, uploads_enabled: false }} />)
+      render(<CardDetail {...defaultProps()} currentUser={{ ...demoUser, uploads_enabled: false }} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       const el = screen.getByRole('button', { name: '+ Upload' })
       expect(el).toHaveAttribute('aria-disabled', 'true')
       expect(el).toHaveAccessibleDescription('This is a shared demo — file uploads are off here.')
@@ -539,7 +540,7 @@ describe('CardDetail', () => {
 
     it('comment submit is aria-disabled, keyboard-reachable, explains why, and keeps typed text', async () => {
       const user = userEvent.setup()
-      render(<CardDetail {...defaultProps()} currentUser={demoUser} />)
+      render(<CardDetail {...defaultProps()} currentUser={demoUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       const textarea = screen.getByTestId('mention-textarea')
       await user.type(textarea, 'draft thought')
       const submit = screen.getByRole('button', { name: 'Comment' })
@@ -561,7 +562,7 @@ describe('CardDetail', () => {
         { id: 1, author: demoUser, body: 'Hello world', created_at: new Date().toISOString(), updated_at: '' },
       ])
       const user = userEvent.setup()
-      render(<CardDetail {...defaultProps()} currentUser={demoUser} />)
+      render(<CardDetail {...defaultProps()} currentUser={demoUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       const del = await screen.findByRole('button', { name: /Delete comment/ })
       expect(del).toHaveAttribute('aria-disabled', 'true')
       expect(del).not.toBeDisabled()
@@ -580,7 +581,7 @@ describe('CardDetail', () => {
         { id: 1, filename: 'design.png', size: 2048, url: '/files/1', uploaded_by: demoUser, uploaded_at: '2026-01-01' },
       ])
       const user = userEvent.setup()
-      render(<CardDetail {...defaultProps()} currentUser={demoUser} />)
+      render(<CardDetail {...defaultProps()} currentUser={demoUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       const del = await screen.findByRole('button', { name: /Delete attachment design\.png/ })
       expect(del).toHaveAttribute('aria-disabled', 'true')
       expect(del).not.toBeDisabled()
@@ -594,7 +595,7 @@ describe('CardDetail', () => {
     it('#1193: Add relation is aria-disabled up front, with a visible reason line, and never opens the picker', async () => {
       const { addCardRelation } = await import('../api/cards')
       const user = userEvent.setup()
-      render(<CardDetail {...defaultProps()} currentUser={demoUser} />)
+      render(<CardDetail {...defaultProps()} currentUser={demoUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       const addRelation = await screen.findByRole('button', { name: '+ Add relation' })
       expect(addRelation).toHaveAttribute('aria-disabled', 'true')
       expect(addRelation).not.toBeDisabled()
@@ -690,7 +691,7 @@ describe('CardDetail', () => {
   })
 
   describe('hosted demo visitor on a card someone else created (#1179)', () => {
-    const visitor: User = { ...fakeUser, id: 99, username: 'visitor', demo_mode: true, demo_next_reset_at: '2026-09-27T13:00:00Z' }
+    const visitor: User = { ...fakeUser, id: 99, username: 'visitor' }
     const demoProps = (role: 'member' | 'collaborator' = 'member') => {
       const props = defaultProps()
       props.board = makeBoard({
@@ -705,7 +706,7 @@ describe('CardDetail', () => {
 
     // #1914 (design frame 7): the demo footer note replaces Archive and Delete.
     it('shows an enabled assignee picker, and the demo footer note in place of Archive and Delete', () => {
-      render(<CardDetail {...demoProps()} currentUser={visitor} />)
+      render(<CardDetail {...demoProps()} currentUser={visitor} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
       expect(screen.getByTestId('card-demo-footer')).toHaveTextContent("This is a shared demo — cards can't be archived or deleted here.")
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
@@ -716,14 +717,14 @@ describe('CardDetail', () => {
     it('hides Archive and Delete in demo mode even on a card the visitor created', () => {
       const props = demoProps()
       props.card = makeCard({ created_by: { id: 99, username: 'visitor', display_name: 'Visitor', avatar_url: '' } })
-      render(<CardDetail {...props} currentUser={visitor} />)
+      render(<CardDetail {...props} currentUser={visitor} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       expect(screen.queryByRole('button', { name: 'Archive card' })).not.toBeInTheDocument()
       expect(screen.getByTestId('card-demo-footer')).toBeInTheDocument()
       expect(screen.queryByText('Delete card')).not.toBeInTheDocument()
     })
 
     it('does not widen a collaborator', () => {
-      render(<CardDetail {...demoProps('collaborator')} currentUser={visitor} />)
+      render(<CardDetail {...demoProps('collaborator')} currentUser={visitor} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       expect(screen.queryByText('Archive card')).not.toBeInTheDocument()
     })
 

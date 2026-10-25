@@ -13,6 +13,8 @@ vi.mock('../api/notifications', () => ({
 }))
 
 import { getUnreadCount, listNotifications, markAllRead, markRead } from '../api/notifications'
+import { flagsWrapper } from './instanceFlagsWrapper'
+import type { InstanceFlags } from '../contexts/InstanceFlagsContext'
 
 const mockGetUnreadCount = getUnreadCount as ReturnType<typeof vi.fn>
 const mockListNotifications = listNotifications as ReturnType<typeof vi.fn>
@@ -31,7 +33,7 @@ const fakeUser: User = {
   must_change_password: false, must_change_username: false,
 }
 
-function renderNavbar(props: Partial<React.ComponentProps<typeof Navbar>> = {}) {
+function renderNavbar(props: Partial<React.ComponentProps<typeof Navbar>> = {}, flags: Partial<InstanceFlags> = {}) {
   return render(
     <MemoryRouter>
       <Navbar
@@ -40,7 +42,8 @@ function renderNavbar(props: Partial<React.ComponentProps<typeof Navbar>> = {}) 
         onUserUpdated={vi.fn()}
         {...props}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
+    { wrapper: flagsWrapper(flags) }
   )
 }
 
@@ -52,7 +55,7 @@ function LocationDisplay() {
   return <div data-testid="location-display">{location.pathname}{location.search}</div>
 }
 
-function renderNavbarWithRoutes(props: Partial<React.ComponentProps<typeof Navbar>> = {}) {
+function renderNavbarWithRoutes(props: Partial<React.ComponentProps<typeof Navbar>> = {}, flags: Partial<InstanceFlags> = {}) {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <Navbar
@@ -64,7 +67,8 @@ function renderNavbarWithRoutes(props: Partial<React.ComponentProps<typeof Navba
       <Routes>
         <Route path="*" element={<LocationDisplay />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
+    { wrapper: flagsWrapper(flags) }
   )
 }
 
@@ -261,7 +265,7 @@ describe('Navbar — global search entry (#852 / #869)', () => {
 })
 
 describe('Navbar — hosted demo (#1193)', () => {
-  const demoUser: User = { ...fakeUser, demo_mode: true }
+  const demoUser: User = fakeUser
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -273,7 +277,7 @@ describe('Navbar — hosted demo (#1193)', () => {
 
   it('"Mark all read" is aria-disabled, keyboard-reachable, explains why, and does not call the API', async () => {
     const user = userEvent.setup()
-    renderNavbar({ user: demoUser })
+    renderNavbar({ user: demoUser }, { demo_mode: true })
     await user.click(screen.getByTitle('Notifications'))
     const markAll = await screen.findByRole('button', { name: /Mark all read/ })
     expect(markAll).toHaveAttribute('aria-disabled', 'true')
@@ -287,7 +291,7 @@ describe('Navbar — hosted demo (#1193)', () => {
 
   it('clicking an unread notification still navigates but skips the mark-read call (background save, not a control the visitor clicked)', async () => {
     const user = userEvent.setup()
-    renderNavbarWithRoutes({ user: demoUser })
+    renderNavbarWithRoutes({ user: demoUser }, { demo_mode: true })
     expect(screen.getByTestId('location-display')).toHaveTextContent('/')
     await user.click(screen.getByTitle('Notifications'))
     const item = await screen.findByText('moved a card')

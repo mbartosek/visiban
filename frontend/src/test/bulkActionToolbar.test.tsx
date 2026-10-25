@@ -12,6 +12,7 @@ vi.mock('../api/cards', () => ({
 }))
 
 import { moveCard, updateCard, deleteCard, archiveCard } from '../api/cards'
+import { flagsWrapper } from './instanceFlagsWrapper'
 const mockMoveCard = moveCard as ReturnType<typeof vi.fn>
 const mockUpdateCard = updateCard as ReturnType<typeof vi.fn>
 const mockDeleteCard = deleteCard as ReturnType<typeof vi.fn>
@@ -664,7 +665,6 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
   const visitor = {
     id: 99, username: 'visitor', email: '', first_name: '', last_name: '', avatar_url: '',
     display_name: 'Visitor', is_site_admin: false, must_change_password: false, must_change_username: false,
-    demo_mode: true,
   }
   const memberBoard = (): BoardFull => ({
     ...makeBoard(),
@@ -686,7 +686,8 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
         onCardsArchived={onCardsArchived}
         onClearSelection={vi.fn()}
         currentUser={visitor}
-      />
+      />,
+      { wrapper: flagsWrapper({ demo_mode: true }) }
     )
     await userEvent.setup().click(screen.getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(mockArchiveCard).toHaveBeenCalledTimes(2))
@@ -704,7 +705,8 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
         onCardsArchived={vi.fn()}
         onClearSelection={vi.fn()}
         currentUser={visitor}
-      />
+      />,
+      { wrapper: flagsWrapper({ demo_mode: true }) }
     )
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
     expect(screen.queryByText(/You can only delete cards you created/)).not.toBeInTheDocument()
@@ -720,7 +722,7 @@ describe('BulkActionToolbar — hosted demo visitor (#1179)', () => {
         onCardsDeleted={vi.fn()}
         onCardsArchived={vi.fn()}
         onClearSelection={vi.fn()}
-        currentUser={{ ...visitor, demo_mode: false }}
+        currentUser={visitor}
       />
     )
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()

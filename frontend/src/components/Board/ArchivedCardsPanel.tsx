@@ -6,6 +6,7 @@ import { getArchivedCards } from "../../api/cards";
 import { unarchiveCard } from "../../api/cards";
 import { formatDate } from "../../utils/date";
 import { limitBlockedMessage } from "./moveBlockedMessages";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface Props {
   board: BoardFull;
@@ -94,6 +95,7 @@ export default function ArchivedCardsPanel({ board, onClose, onUnarchived, curre
     }
   };
 
+  const { demo_mode: demoMode } = useInstanceFlags();
   const role = board.current_user_role;
   const isModerator = board.members.some(
     (m) => currentUser != null && m.user.id === currentUser.id && m.is_moderator,
@@ -104,7 +106,7 @@ export default function ArchivedCardsPanel({ board, onClose, onUnarchived, curre
   // Display heuristic only; the server stays the authority.
   const canModifyOthersContent =
     role === "admin" || role === "site_admin" || isModerator ||
-    (currentUser?.demo_mode === true && role === "member");
+    (demoMode && role === "member");
   const canUnarchive = (card: Card) =>
     (role === "site_admin" || role === "admin" || role === "member") &&
     ((currentUser != null && card.created_by?.id === currentUser.id) || canModifyOthersContent);

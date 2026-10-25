@@ -12,6 +12,7 @@ import { useRecentBoardsPref } from "../../hooks/useRecentBoardsPref";
 import Spinner from "../Common/Spinner";
 import { migrateLegacyKey } from "../../utils/migrateLegacyKey";
 import { DEMO_NEW_BOARD_REASON, DEMO_NEW_GROUP_REASON } from "../../constants/demoCopy";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface Props {
   user: User;
@@ -35,7 +36,7 @@ function saveGroupsExpanded(ids: Set<number>): void {
 }
 
 export default function AppSidebar({ user, starVersion = 0, mobileOpen = false, onMobileClose }: Props) {
-  const demoMode = user.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
   const location = useLocation();
   const navigate = useNavigate();
 

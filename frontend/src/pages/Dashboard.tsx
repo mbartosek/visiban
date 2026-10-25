@@ -16,6 +16,7 @@ import type { Board, Group, ImportOptions, User } from "../types";
 import { hasImportSkips } from "../utils/importSummary";
 import Spinner from "../components/Common/Spinner";
 import { DEMO_IMPORT_REASON, DEMO_NEW_BOARD_REASON } from "../constants/demoCopy";
+import { useInstanceFlags } from "../contexts/InstanceFlagsContext";
 
 interface Props {
   user: User;
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export default function Dashboard({ user, onLogout, onUserUpdated }: Props) {
-  const demoMode = user.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
   const navigate = useNavigate();
   const [boards, setBoards] = useState<Board[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);

@@ -6,6 +6,7 @@ import UserMenu from "./UserMenu";
 import { formatShortcut } from "../../utils/platform";
 import { useNavbarSearchLabel } from "../../hooks/useNavbarSearchLabel";
 import { DEMO_MARK_READ_REASON } from "../../constants/demoCopy";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface BreadcrumbItem {
   label: string;
@@ -23,7 +24,7 @@ interface Props {
 
 export default function Navbar({ user, breadcrumb, onLogout }: Props) {
   // Hosted demo (#1193): mark-read is not on DEMO_ALLOWED_WRITES.
-  const demoMode = user.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showBell, setShowBell] = useState(false);

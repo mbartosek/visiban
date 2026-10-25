@@ -108,7 +108,7 @@ export interface User {
    *
    * @deprecated read from site-config (`SiteConfig.maintenance_mode`, GET /api/v1/auth/site-config/).
    * Still sent for the 1.x contract (#1872); removal needs a major version.
-   * The bundled UI still reads it until #1913.
+   * The bundled UI reads site-config instead (#1913).
    */
   maintenance_mode?: boolean;
   /**
@@ -119,7 +119,7 @@ export interface User {
    *
    * @deprecated read from site-config (`SiteConfig.maintenance_message`, GET /api/v1/auth/site-config/).
    * Still sent for the 1.x contract (#1872); removal needs a major version.
-   * The bundled UI still reads it until #1913.
+   * The bundled UI reads site-config instead (#1913).
    */
   maintenance_message?: string;
   /**
@@ -129,7 +129,7 @@ export interface User {
    *
    * @deprecated read from site-config (`SiteConfig.demo_mode`, GET /api/v1/auth/site-config/).
    * Still sent for the 1.x contract (#1872); removal needs a major version.
-   * The bundled UI still reads it until #1913.
+   * The bundled UI reads site-config instead (#1913).
    */
   demo_mode?: boolean;
   /**
@@ -139,7 +139,7 @@ export interface User {
    *
    * @deprecated read from site-config (`SiteConfig.demo_next_reset_at`, GET /api/v1/auth/site-config/).
    * Still sent for the 1.x contract (#1872); removal needs a major version.
-   * The bundled UI still reads it until #1913.
+   * The bundled UI reads site-config instead (#1913).
    */
   demo_next_reset_at?: string | null;
   /**
