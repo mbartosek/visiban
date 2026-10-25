@@ -38,6 +38,7 @@ vi.mock('../components/Card/RichTextEditor', () => ({
 }))
 
 import { getCardComments, getCardAttachments, getChecklist } from '../api/cards'
+import { flagsWrapper } from './instanceFlagsWrapper'
 
 const fakeUser: User = {
   id: 1, username: 'jdoe', email: 'j@example.com', first_name: 'Jane',
@@ -615,7 +616,7 @@ describe('CardDetail sheet — loading (#1914, frame 6)', () => {
 
 describe('CardDetail sheet — shared demo and long content (#1914, frames 5 and 7)', () => {
   it('shows the demo note at the top of the body and makes the PR/MR link read-only with its own reason', () => {
-    render(<CardDetail {...defaultProps()} currentUser={{ ...fakeUser, demo_mode: true }} />)
+    render(<CardDetail {...defaultProps()} currentUser={fakeUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
     expect(screen.getByText(DEMO_CARD_DETAIL_NOTE)).toBeInTheDocument()
     const add = screen.getByRole('button', { name: '+ Link a pull or merge request' })
     expect(add).toHaveAttribute('aria-disabled', 'true')
@@ -632,7 +633,7 @@ describe('CardDetail sheet — shared demo and long content (#1914, frames 5 and
 
   it('hides Edit and Remove on an existing PR/MR link in the demo', () => {
     const card = makeCard({ external_ref: { url: 'https://github.com/o/r/pull/1', provider: 'github', ref: 'o/r#1' } })
-    render(<CardDetail {...defaultProps()} card={card} currentUser={{ ...fakeUser, demo_mode: true }} />)
+    render(<CardDetail {...defaultProps()} card={card} currentUser={fakeUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
     expect(screen.getByText('o/r#1')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit pull or merge request link' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove pull or merge request link' })).not.toBeInTheDocument()

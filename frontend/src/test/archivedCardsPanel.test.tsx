@@ -13,6 +13,7 @@ vi.mock('../api/cards', () => ({
 }))
 
 import { getArchivedCards, unarchiveCard } from '../api/cards'
+import { flagsWrapper } from './instanceFlagsWrapper'
 const mockGetArchivedCards = getArchivedCards as ReturnType<typeof vi.fn>
 const mockUnarchiveCard = unarchiveCard as ReturnType<typeof vi.fn>
 
@@ -159,7 +160,7 @@ describe('ArchivedCardsPanel', () => {
 
     it('a demo member can restore a card someone else archived', async () => {
       mockGetArchivedCards.mockResolvedValue(makePage([archivedCard]))
-      render(<ArchivedCardsPanel board={memberBoard} onClose={vi.fn()} onUnarchived={vi.fn()} currentUser={{ ...visitor, demo_mode: true }} />)
+      render(<ArchivedCardsPanel board={memberBoard} onClose={vi.fn()} onUnarchived={vi.fn()} currentUser={visitor} />, { wrapper: flagsWrapper({ demo_mode: true }) })
       await waitFor(() => screen.getByText('Old feature'))
       expect(screen.getByText('Unarchive')).toBeInTheDocument()
     })

@@ -89,63 +89,6 @@ describe('useAuth', () => {
   })
 })
 
-describe('useAuth — maintenance mode (#783)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('flips the in-memory user into maintenance mode on the event', async () => {
-    // The session bootstrapped before the operator turned maintenance mode on,
-    // so the cached user still says it is off and no banner is showing.
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, maintenance_mode: false })
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-    expect(result.current.user?.maintenance_mode).toBe(false)
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('auth:maintenanceBlocked', { detail: { message: 'Back by 14:00 UTC.' } }),
-      )
-    })
-
-    expect(result.current.user?.maintenance_mode).toBe(true)
-    expect(result.current.user?.maintenance_message).toBe('Back by 14:00 UTC.')
-  })
-
-  it('leaves an already-flagged user untouched', async () => {
-    // Guards against a rejected-write storm overwriting the notice repeatedly.
-    mockGetCurrentUser.mockResolvedValue({
-      ...fakeUser,
-      maintenance_mode: true,
-      maintenance_message: 'Original notice.',
-    })
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('auth:maintenanceBlocked', { detail: { message: 'Different notice.' } }),
-      )
-    })
-
-    expect(result.current.user?.maintenance_message).toBe('Original notice.')
-  })
-
-  it('does nothing when there is no signed-in user', async () => {
-    mockGetCurrentUser.mockRejectedValue(new Error('401'))
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.loading).toBe(false))
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('auth:maintenanceBlocked', { detail: { message: 'Notice.' } }),
-      )
-    })
-
-    expect(result.current.user).toBeNull()
-  })
-})
-
 describe('useAuth — current-user resync on tab focus (#783)', () => {
   let origVisibilityState: PropertyDescriptor | undefined
 
@@ -188,102 +131,17 @@ describe('useAuth — current-user resync on tab focus (#783)', () => {
     expect(sessionStorage.getItem('returnTo')).toBe('/join/vbnl_token')
     sessionStorage.clear()
   })
-
-  it('only merges the maintenance fields, never the whole user', async () => {
-    // A wholesale replace would revert an optimistic profile edit whose PATCH
-    // is still in flight when a tab focus lands.
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, maintenance_mode: false })
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    act(() => {
-      result.current.updateUser((u) => (u ? { ...u, display_name: 'Optimistic' } : u))
-    })
-
-    mockGetCurrentUser.mockResolvedValue({
-      ...fakeUser,
-      display_name: 'Stale From Server',
-      maintenance_mode: true,
-      maintenance_message: 'Back soon.',
-    })
-    setVisibility('visible')
-
-    await waitFor(() => expect(result.current.user?.maintenance_mode).toBe(true))
-    expect(result.current.user?.display_name).toBe('Optimistic')
-    expect(result.current.user?.maintenance_message).toBe('Back soon.')
-  })
-
-  it('refetches the current user when the tab becomes visible', async () => {
-    // This is what lets the maintenance banner disappear once an admin turns
-    // maintenance mode back off — nothing pushes that state to an open tab.
-    mockGetCurrentUser.mockResolvedValue(fakeUser)
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    setVisibility('visible')
-    await waitFor(() => expect(mockGetCurrentUser).toHaveBeenCalledTimes(2))
-  })
-
-  it('throttles rapid tab switching to a single refetch', async () => {
-    // Without the shared throttle every alt-tab would fire a request, and this
-    // hook is mounted at the app root for the whole session.
-    mockGetCurrentUser.mockResolvedValue(fakeUser)
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    setVisibility('visible')
-    setVisibility('hidden')
-    setVisibility('visible')
-    setVisibility('hidden')
-    setVisibility('visible')
-
-    await waitFor(() => expect(mockGetCurrentUser).toHaveBeenCalledTimes(2))
-    expect(mockGetCurrentUser).toHaveBeenCalledTimes(2)
-  })
-
-  it('ignores the event when the tab is being hidden', async () => {
-    mockGetCurrentUser.mockResolvedValue(fakeUser)
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    setVisibility('hidden')
-    expect(mockGetCurrentUser).toHaveBeenCalledTimes(1)
-  })
-
-  it('a failed refetch does not sign the user out', async () => {
-    mockGetCurrentUser.mockResolvedValue(fakeUser)
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-
-    mockGetCurrentUser.mockRejectedValueOnce(new Error('network'))
-    setVisibility('visible')
-    await waitFor(() => expect(mockGetCurrentUser).toHaveBeenCalledTimes(2))
-
-    expect(result.current.user).not.toBeNull()
-  })
 })
 
-describe('useAuth — hosted demo (#1179)', () => {
+describe('useAuth — logout (#1179)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
   })
 
-  it('stashes the next reset instant for a demo user, and clears it for a non-demo user', async () => {
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, demo_mode: true, demo_next_reset_at: '2026-09-27T13:00:00Z' })
-    const { result, unmount } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-    expect(sessionStorage.getItem('demo_next_reset_at')).toBe('2026-09-27T13:00:00Z')
-    unmount()
-
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, demo_mode: false, demo_next_reset_at: null })
-    const second = renderHook(() => useAuth())
-    await waitFor(() => expect(second.result.current.user).not.toBeNull())
-    expect(sessionStorage.getItem('demo_next_reset_at')).toBeNull()
-  })
-
   it('a deliberate logout forgets the stashed reset instant', async () => {
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, demo_mode: true, demo_next_reset_at: '2026-09-27T13:00:00Z' })
+    sessionStorage.setItem('demo_next_reset_at', '2026-09-27T13:00:00Z')
+    mockGetCurrentUser.mockResolvedValue(fakeUser)
     mockLogout.mockResolvedValue(undefined)
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.user).not.toBeNull())
@@ -291,14 +149,4 @@ describe('useAuth — hosted demo (#1179)', () => {
     expect(sessionStorage.getItem('demo_next_reset_at')).toBeNull()
   })
 
-  it('the tab-focus resync merges the demo fields too', async () => {
-    Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true, configurable: true })
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, demo_mode: false, demo_next_reset_at: null })
-    const { result } = renderHook(() => useAuth())
-    await waitFor(() => expect(result.current.user).not.toBeNull())
-    mockGetCurrentUser.mockResolvedValue({ ...fakeUser, demo_mode: true, demo_next_reset_at: '2026-09-27T14:00:00Z' })
-    document.dispatchEvent(new Event('visibilitychange'))
-    await waitFor(() => expect(result.current.user?.demo_mode).toBe(true))
-    expect(result.current.user?.demo_next_reset_at).toBe('2026-09-27T14:00:00Z')
-  })
 })

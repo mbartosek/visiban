@@ -4,9 +4,15 @@ import { render, screen, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import App from '../App'
 import type { User } from '../types'
+import { useInstanceFlagsState } from '../hooks/useInstanceFlagsState'
+import { DEFAULT_INSTANCE_FLAGS, type InstanceFlags } from '../contexts/InstanceFlagsContext'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+}))
+
+vi.mock('../hooks/useInstanceFlagsState', () => ({
+  useInstanceFlagsState: vi.fn(),
 }))
 
 vi.mock('../contexts/BoardContext', () => {
@@ -97,6 +103,13 @@ import { joinBoard } from '../api/boards'
 import { joinGroup } from '../api/groups'
 import { useBoardContext } from '../contexts/BoardContext'
 const mockUseAuth = useAuth as ReturnType<typeof vi.fn>
+const mockUseInstanceFlagsState = useInstanceFlagsState as ReturnType<typeof vi.fn>
+// App reads instance flags from site-config via this hook (#1913); stub it so
+// each test states the flags it needs instead of mocking the network.
+function setFlags(flags: Partial<InstanceFlags> = {}) {
+  mockUseInstanceFlagsState.mockReturnValue({ flags: { ...DEFAULT_INSTANCE_FLAGS, ...flags }, loaded: true })
+}
+setFlags()
 const mockUseBoardContext = useBoardContext as ReturnType<typeof vi.fn>
 
 const fakeUser: User = {
@@ -122,6 +135,7 @@ const defaultBoardHook = {
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setFlags()
     sessionStorage.clear()
     mockUseBoardContext.mockReturnValue(defaultBoardHook)
   })
@@ -378,13 +392,15 @@ describe('App', () => {
 describe('App — maintenance banner (#783)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setFlags()
   })
 
   it('shows the notice to a signed-in user while maintenance mode is on', () => {
     mockUseAuth.mockReturnValue({
-      user: { ...fakeUser, maintenance_mode: true, maintenance_message: 'Back by 14:00 UTC.' },
+      user: fakeUser,
       loading: false, logout: vi.fn(), updateUser: vi.fn(),
     })
+    setFlags({ maintenance_mode: true, maintenance_message: 'Back by 14:00 UTC.' })
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
     expect(screen.getByText('Maintenance mode is active.')).toBeInTheDocument()
     expect(screen.getByText('Back by 14:00 UTC.')).toBeInTheDocument()
@@ -403,11 +419,10 @@ describe('App — maintenance banner (#783)', () => {
       user: {
         ...fakeUser,
         is_site_admin: true,
-        maintenance_mode: true,
-        maintenance_message: 'Back by 14:00 UTC.',
       },
       loading: false, logout: vi.fn(), updateUser: vi.fn(),
     })
+    setFlags({ maintenance_mode: true, maintenance_message: 'Back by 14:00 UTC.' })
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
     expect(screen.getByText('Maintenance mode is active.')).toBeInTheDocument()
     expect(screen.getByText('You have full access as a site admin.')).toBeInTheDocument()
@@ -420,16 +435,46 @@ describe('App — maintenance banner (#783)', () => {
   })
 })
 
+describe('App — instance flags load gate (#1913)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setFlags()
+  })
+
+  it('holds the signed-in shell on the loading screen until site-config settles', () => {
+    mockUseAuth.mockReturnValue({ user: fakeUser, loading: false, logout: vi.fn(), updateUser: vi.fn() })
+    mockUseInstanceFlagsState.mockReturnValue({ flags: DEFAULT_INSTANCE_FLAGS, loaded: false })
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(screen.queryByTestId('navbar')).not.toBeInTheDocument()
+  })
+
+  it('does not hold the login page for site-config', () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: false, logout: vi.fn(), updateUser: vi.fn() })
+    mockUseInstanceFlagsState.mockReturnValue({ flags: DEFAULT_INSTANCE_FLAGS, loaded: false })
+    render(<MemoryRouter><App /></MemoryRouter>)
+    expect(screen.getByTestId('login-page')).toBeInTheDocument()
+  })
+
+  it('passes the signed-in state to the flags hook', () => {
+    mockUseAuth.mockReturnValue({ user: fakeUser, loading: false, logout: vi.fn(), updateUser: vi.fn() })
+    render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
+    expect(mockUseInstanceFlagsState).toHaveBeenCalledWith(true)
+  })
+})
+
 describe('App — hosted demo shell (#1179)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setFlags()
   })
 
   it('mounts the demo bar and the fallback toast listener for a demo user', () => {
     mockUseAuth.mockReturnValue({
-      user: { ...fakeUser, demo_mode: true, demo_next_reset_at: new Date(Date.now() + 30 * 60_000).toISOString() },
+      user: fakeUser,
       loading: false, logout: vi.fn(), updateUser: vi.fn(),
     })
+    setFlags({ demo_mode: true, demo_next_reset_at: new Date(Date.now() + 30 * 60_000).toISOString() })
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>)
     expect(screen.getByTestId('demo-mode-bar')).toHaveTextContent('Shared demo')
     act(() => {
@@ -460,6 +505,7 @@ describe('App — pending invite after OAuth (#1444)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    setFlags()
     sessionStorage.clear()
     mockUseBoardContext.mockReturnValue(defaultBoardHook)
     mockUseAuth.mockReturnValue({ user: fakeUser, loading: false, logout: vi.fn(), updateUser: vi.fn() })

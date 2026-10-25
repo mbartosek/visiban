@@ -23,7 +23,7 @@ const DEMO_SITE_CONFIG = {
   demo_reset_schedule: '0 * * * *',
   demo_next_reset_at: NEXT_RESET_ISO,
 }
-const VISITOR = { ...USER, id: 9, username: 'visitor', display_name: 'Demo Visitor', demo_mode: true, demo_next_reset_at: NEXT_RESET_ISO }
+const VISITOR = { ...USER, id: 9, username: 'visitor', display_name: 'Demo Visitor' }
 // The fixture's role is irrelevant here: the API is mocked, and the fence is
 // role-independent by design.
 const BOARD = BOARD_FULL

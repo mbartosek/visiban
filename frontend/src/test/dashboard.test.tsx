@@ -46,6 +46,7 @@ vi.mock('../api/auth', () => ({
 import { listBoards, deleteBoard, createBoard, importBoard, previewTrelloImport, confirmTrelloImport } from '../api/boards'
 import { listGroups } from '../api/groups'
 import type { TrelloImportPreview } from '../types'
+import { flagsWrapper } from './instanceFlagsWrapper'
 
 const mockListBoards = listBoards as ReturnType<typeof vi.fn>
 const mockListGroups = listGroups as ReturnType<typeof vi.fn>
@@ -338,8 +339,9 @@ describe('Dashboard — hosted demo (#1179)', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <Dashboard user={{ ...fakeUser, demo_mode: true }} onLogout={vi.fn()} onUserUpdated={vi.fn()} />
-      </MemoryRouter>
+        <Dashboard user={fakeUser} onLogout={vi.fn()} onUserUpdated={vi.fn()} />
+      </MemoryRouter>,
+      { wrapper: flagsWrapper({ demo_mode: true }) }
     )
     const newBoard = await screen.findByRole('button', { name: /^New board\./ })
     expect(newBoard).toHaveAttribute('aria-disabled', 'true')

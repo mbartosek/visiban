@@ -689,7 +689,7 @@ All of them except `uploads_enabled` also appear on `site-config`: `git_lens_ena
 
     `git_lens_enabled` is **not** deprecated on `/auth/user/`. It is a frozen 1.x field there (#1666), and `site-config` carries the same value.
 
-    The bundled web app still reads the `/auth/user/` copies. Moving it to `site-config` is tracked in [#1913](https://gitlab.com/visiban/visiban/-/issues/1913).
+    The bundled web app reads these four from `site-config` (#1913) and no longer reads the `/auth/user/` copies. Third-party clients should do the same.
 
 ### `GET /api/v1/auth/me/`
 Returns the authenticated user's profile.

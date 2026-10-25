@@ -33,6 +33,7 @@ import type { MoveOutcome } from "../../hooks/useBoard";
 import { withCustomFieldValue } from "../../utils/customFieldValue";
 import { importedNote } from "../../utils/importedHistory";
 import { DEMO_COMMENT_REASON, DEMO_UPLOAD_REASON, DEMO_DELETE_COMMENT_REASON, DEMO_DELETE_ATTACHMENT_REASON, DEMO_CARD_DETAIL_NOTE, DEMO_EXTERNAL_REF_REASON, DEMO_CARD_FOOTER_NOTE } from "../../constants/demoCopy";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface Props {
   card: Card;
@@ -1048,7 +1049,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // those controls are aria-disabled up front with the reason — never native
   // `disabled`, which would drop them from the tab order and hide the reason
   // from keyboard users. Copy uses the fixed demo lead (frontend/CLAUDE.md).
-  const demoMode = currentUser?.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
   const uploadsBlockedReason = demoMode
     ? DEMO_UPLOAD_REASON
     : currentUser?.uploads_enabled === false

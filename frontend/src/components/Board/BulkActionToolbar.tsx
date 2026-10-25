@@ -7,6 +7,7 @@ import { moveCard, updateCard, deleteCard, archiveCard } from "../../api/cards";
 import { failureReason } from "../../utils/moveFailure";
 import ModalWrapper from "../shared/ModalWrapper";
 import { MENU_ITEM_FOCUS_RING } from "../Common/menuItemFocusRing";
+import { useInstanceFlags } from "../../contexts/InstanceFlagsContext";
 
 interface Props {
   board: BoardFull;
@@ -63,7 +64,7 @@ export default function BulkActionToolbar({ board, selectedCardIds, onCardsUpdat
   // shown), but card delete is not on DEMO_ALLOWED_WRITES — and in demo mode
   // the Delete button (and so this note) is not rendered at all.
   const canModifyAll = role === "admin" || role === "site_admin" || isModerator;
-  const demoMode = currentUser?.demo_mode === true;
+  const demoMode = useInstanceFlags().demo_mode;
   const othersCards = currentUser
     ? selectedCards.filter((c) => c.created_by?.id !== currentUser.id)
     : selectedCards;

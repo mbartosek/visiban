@@ -78,6 +78,7 @@ vi.mock('../components/Group/CreateGroupModal', () => ({
 
 import { listGroups, listStarredGroups } from '../api/groups'
 import { listBoards, listStarredBoards, createBoard } from '../api/boards'
+import { flagsWrapper } from './instanceFlagsWrapper'
 
 describe('AppSidebar', () => {
   beforeEach(() => {
@@ -759,7 +760,7 @@ describe('AppSidebar — hosted demo (#1179)', () => {
 
   it('New board and New group are aria-disabled, focusable, carry the reason, and open nothing', async () => {
     const user = userEvent.setup()
-    render(<AppSidebar user={{ ...fakeUser, demo_mode: true }} />)
+    render(<AppSidebar user={fakeUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
     const newBoard = screen.getByRole('button', { name: /^New board\./ })
     expect(newBoard).toHaveAttribute('aria-disabled', 'true')
     expect(newBoard).not.toBeDisabled()
