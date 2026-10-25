@@ -46,8 +46,8 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
     catches CGNAT/proxy-pool abuse that would otherwise bypass the per-IP
     limit.
 
-    Keyed on the token segment from the URL (passed via ``view.kwargs``).
-    The throttle silently no-ops when no token is in scope.
+    Keyed on the hash of the token segment from the URL (passed via
+    ``view.kwargs``). The throttle silently no-ops when no token is in scope.
     """
 
     scope = "share_link_token"
@@ -61,9 +61,13 @@ class ShareLinkTokenThrottle(SimpleRateThrottle):
         # urn:uuid:), and each would otherwise get its own bucket and
         # multiply the per-token limit (#1530).  A non-UUID segment returns
         # None so it mints no cache key at all (the view answers it with 404);
-        # the per-IP ShareLinkThrottle still applies to it.
+        # the per-IP ShareLinkThrottle still applies to it.  The key holds the
+        # token's hash, never the token itself (#1880): the cache is a store
+        # like the database, and the hash is what links are resolved by.
+        # hash_share_token canonicalizes first, so the spellings above still
+        # share one bucket.
         try:
-            ident = str(uuid.UUID(token))
+            ident = Board.hash_share_token(token)
         except (ValueError, AttributeError, TypeError):
             return None
         return self.cache_format % {

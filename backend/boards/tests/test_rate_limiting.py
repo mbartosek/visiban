@@ -115,6 +115,19 @@ class ShareLinkTokenThrottleKeyTests(TestCase):
         ):
             self.assertEqual(self._key(variant), canonical, variant)
 
+    def test_cache_key_holds_the_hash_not_the_token(self):
+        """#1880: no spelling of the token is written to the cache."""
+        import uuid
+
+        from boards.models import Board
+
+        u = uuid.uuid4()
+        for spelling in (str(u), str(u).upper(), u.hex):
+            key = self._key(spelling)
+            self.assertIn(Board.hash_share_token(u), key)
+            for form in (str(u), str(u).upper(), u.hex, u.hex.upper()):
+                self.assertNotIn(form, key)
+
     def test_non_uuid_token_mints_no_cache_key(self):
         self.assertIsNone(self._key("not-a-uuid"))
         self.assertIsNone(self._key("x" * 5000))
