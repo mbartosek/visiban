@@ -5408,7 +5408,7 @@ session (see above), so a token client reports the condition to the account owne
 <p class="admonition-title">Deprecated in 1.2: read instance flags from <code>site-config</code></p>
 <p><code>maintenance_mode</code>, <code>maintenance_message</code>, <code>demo_mode</code>, and <code>demo_next_reset_at</code> on <code>/auth/user/</code> and <code>/auth/me/</code> are <strong>deprecated</strong> (#1872). Read them from <a href="#get-apiv1authsite-config"><code>GET /api/v1/auth/site-config/</code></a>. The OpenAPI schema marks the <code>/auth/user/</code> copies <code>deprecated: true</code>. They are still returned, with unchanged values, for the whole 1.x line. Removal needs a major version.</p>
 <p><code>git_lens_enabled</code> is <strong>not</strong> deprecated on <code>/auth/user/</code>. It is a frozen 1.x field there (#1666), and <code>site-config</code> carries the same value.</p>
-<p>The bundled web app still reads the <code>/auth/user/</code> copies. Moving it to <code>site-config</code> is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1913">#1913</a>.</p>
+<p>The bundled web app reads these four from <code>site-config</code> (#1913) and no longer reads the <code>/auth/user/</code> copies. Third-party clients should do the same.</p>
 </div>
 <h3 id="get-apiv1authme"><code>GET /api/v1/auth/me/</code><a class="headerlink" href="#get-apiv1authme" title="Permanent link">&para;</a></h3>
 <p>Returns the authenticated user's profile.</p>
