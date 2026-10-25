@@ -5,7 +5,7 @@ group admin inherits board admin on every board in the subtree, so the link
 create endpoint refuses ``admin`` and refuses a never-expiring lifetime, the
 same rule board invite links follow. Emailed invites, which are bound to one
 recipient address (#1678), still grant admin. Validation is at creation only:
-links minted before the change keep working until they expire or are revoked.
+links minted before the change are revoked or capped by migration 0023 (#1940).
 """
 import re
 from datetime import timedelta
@@ -164,7 +164,7 @@ class GroupInviteLinkNoUpdatePathTests(_Fixture, TestCase):
 
 
 class PreExistingGroupInviteLinkTests(_Fixture, TestCase):
-    """Links minted before #1727 are not touched: no migration, they still redeem."""
+    """A pre-#1727 admin link no longer redeems; migration 0023 revokes it (#1940)."""
 
     def setUp(self):
         self.make_group()
@@ -181,12 +181,18 @@ class PreExistingGroupInviteLinkTests(_Fixture, TestCase):
         link.refresh_from_db()
         return link, raw
 
-    def test_existing_admin_never_expiring_link_still_redeems(self):
+    def test_active_shareable_admin_link_is_refused_at_redemption(self):
+        # Defense in depth for #1940: even a still-active row (reactivated, or
+        # written by a script) must not grant admin, and nothing is written.
         link, raw = self.legacy_admin_link()
         r = self.join(raw, self.joiner)
-        self.assertEqual(r.status_code, status.HTTP_201_CREATED, r.content)
-        membership = GroupMembership.objects.get(group=self.group, user=self.joiner)
-        self.assertEqual(membership.role, GroupMembership.Role.ADMIN)
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND, r.content)
+        self.assertFalse(GroupMembership.objects.filter(group=self.group, user=self.joiner).exists())
+
+    def test_preview_of_shareable_admin_link_is_not_found(self):
+        _link, raw = self.legacy_admin_link()
+        r = self.client.get(f"/api/v1/groups/join/{raw}/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND, r.content)
 
     def test_existing_link_still_lists_with_its_admin_role_and_no_expiry(self):
         link, _raw = self.legacy_admin_link()
@@ -231,3 +237,14 @@ class EmailedGroupInviteStillGrantsAdminTests(_Fixture, TestCase):
         self.assertEqual(joined.status_code, status.HTTP_201_CREATED, joined.content)
         membership = GroupMembership.objects.get(group=self.group, user=self.invitee)
         self.assertEqual(membership.role, GroupMembership.Role.ADMIN)
+
+    def test_emailed_admin_invite_still_previews(self):
+        # The #1940 preview refusal is for shareable links only (delivery=link).
+        r = self.client.post(
+            f"{self.url}send/", {"email": self.INVITED, "role": "admin"}, format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED, r.content)
+        raw = TOKEN_RE.search(mail.outbox[0].body).group(0)
+        preview = APIClient().get(f"/api/v1/groups/join/{raw}/")
+        self.assertEqual(preview.status_code, status.HTTP_200_OK, preview.content)
+        self.assertEqual(preview.json()["role"], "admin")

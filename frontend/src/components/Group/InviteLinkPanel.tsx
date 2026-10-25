@@ -133,7 +133,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS = INVITE_STATUS_STYLES;
 
 // A shareable link always expires (#439 board, #1727 group): no "Never".
-// Rows minted before #1727 can still have no expiry and render "Never" below.
+// Migration 0023 (#1940) gave legacy never-expiring rows an expiry; "Never" below is a defensive fallback.
 const EXPIRY_OPTIONS: { label: string; value: LinkExpiryDays }[] = [
   { label: "1 day", value: 1 },
   { label: "7 days", value: 7 },

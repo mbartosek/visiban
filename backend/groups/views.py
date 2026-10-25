@@ -1992,6 +1992,15 @@ class JoinGroupView(APIView):
         if not is_member_of_used and not invite_creator_is_valid(link):
             logger.info("Invite token lookup failed: creator not admin. token=%s ip=%s", token_hint, ip)
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        # A shareable admin link no longer redeems (#1727, #1940), so the
+        # preview answers like a revoked link rather than offering a join that
+        # the POST would refuse.
+        if (
+            link.delivery == GroupInviteLink.Delivery.LINK
+            and link.role == GroupInviteLink.Role.ADMIN
+        ):
+            logger.info("Invite token lookup failed: shareable admin link. token=%s ip=%s", token_hint, ip)
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         # Residual distinction accepted: with a live creator an expired or
         # consumed link still answers 410, so "creator gone" (404) is
         # distinguishable from "creator live, link expired/used". The SPA
@@ -2126,6 +2135,22 @@ class JoinGroupView(APIView):
                     {"detail": "This invite link has already been used."},
                     status=status.HTTP_410_GONE,
                 )
+
+            # A shareable link never grants admin (#1727); migration 0023
+            # revokes the ones minted before that (#1940). Refusing here as
+            # well keeps one that is reactivated or written by a script from
+            # redeeming. Same 404 as a revoked link, so it leaks nothing.
+            if (
+                link.delivery == GroupInviteLink.Delivery.LINK
+                and link.role == GroupInviteLink.Role.ADMIN
+            ):
+                logger.info(
+                    "Invite token redemption failed: shareable admin link. token=%s user_id=%s ip=%s outcome=failure",
+                    token_hint,
+                    request.user.pk,
+                    ip,
+                )
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
 
             if link.is_expired:
                 logger.info(
