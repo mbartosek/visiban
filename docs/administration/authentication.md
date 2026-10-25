@@ -81,6 +81,10 @@ Users manage their providers in **Settings → Security → Connected accounts**
 
 A user who has a password is asked to enter it again before a new provider is connected, unless they confirmed it, or signed in with a provider, in the last five minutes. In the Visiban app this takes three steps on pages served by the backend, which are unbranded: the user confirms the password, clicks **Continue** on the page that follows, and then goes through the provider a second time. No second **Connect** click in Settings is needed. Signing in to the app with a username and password does not count as a recent confirmation, so a user who has just signed in that way is still asked once. A user without a password isn't asked; instead, their primary email address receives a notice that a sign-in provider was connected. Signing in with a provider is not affected.
 
+> **Changed in 1.2** (#1260)
+
+A user without a password can set one in **Settings → Security**, but only within five minutes of signing in to Visiban with one of their connected providers (allauth's `ACCOUNT_REAUTHENTICATION_TIMEOUT`, default 300 seconds). After that, Settings asks them to sign out, sign in again with their provider, and set the password straight away. Sessions that were signed in before the upgrade count as not recent, so those users sign in again once. This keeps a copied browser session from being turned into a lasting password. Users who already have a password change it with their current password as before, and a password reset link still sets a first password without this step.
+
 <a id="generic-oidc"></a>
 
 ## Generic OIDC <span style="background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px;">BETA</span>

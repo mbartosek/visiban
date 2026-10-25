@@ -20,6 +20,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import InviteLink, PersonalAccessToken, User
+from accounts.tests.provider_sign_in_helpers import sign_in_through_provider
 from accounts.tests.test_invite_links import make_admin, set_invite_only, set_open
 
 CURRENT = "Current-Passw0rd!"  # gitleaks:allow -- test-only fixture password, not a credential
@@ -106,6 +107,8 @@ class DjRestAuthPasswordChangeOldPasswordTests(APITestCase):
         social.set_unusable_password()
         social.save()
         self.client.force_login(social)
+        # A first password needs a recent provider sign-in (#1260).
+        sign_in_through_provider(self.client, social)
         r = self.client.post(DJ_URL, _dj_body(TWELVE))
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         social.refresh_from_db()

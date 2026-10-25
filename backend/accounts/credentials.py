@@ -17,6 +17,8 @@ any stored row.
 
 from __future__ import annotations
 
+import time
+
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.authentication import SessionAuthentication
@@ -103,6 +105,88 @@ def first_password_requires_session(request, user) -> bool:
     if user.has_usable_password():
         return False
     return not request_is_interactive_session(request)
+
+
+# Stable error code for the SPA (``{"detail": ..., "code": ...}``): it tells
+# the user to sign in again rather than showing a generic failure.
+FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE = "recent_login_required"
+FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE = (
+    "To set a password, sign out, sign in again with your sign-in provider, "
+    "and then set the password within a few minutes."
+)
+
+
+def first_password_requires_recent_login(request, user) -> bool:
+    """True when *request*'s session is too old to set *user*'s first password (#1260).
+
+    An account with no usable password has no current password to prove, so
+    without this check a stolen session cookie alone could set one and keep
+    access after the session ends. The owner settled the rule: a first
+    password needs a recent sign-in to this account, recorded in this session
+    (``session_recently_signed_in_by_provider``). Run after
+    ``first_password_requires_session``, which refuses token callers first.
+    False whenever ``user.has_usable_password()`` is true: those accounts prove
+    their current password instead.
+    """
+    if user.has_usable_password():
+        return False
+    return not session_recently_signed_in_by_provider(request, user)
+
+
+def session_recently_signed_in_by_provider(request, user) -> bool:
+    """True when this session holds a recent provider sign-in to *user*'s own account.
+
+    The source is allauth's per-session authentication records
+    (``allauth.account.authentication.get_authentication_records``), which its
+    social-login flow writes into the session at sign-in time. Not
+    ``user.last_login``: that column is per user, so a fresh sign-in on the
+    owner's other device would make a stolen, older cookie look recent.
+
+    allauth's own ``did_recently_authenticate`` is not used, because it treats
+    an account with no password or MFA as always recently authenticated (it
+    has no way to reauthenticate one), which is exactly the account this rule
+    is for. The window is allauth's ``ACCOUNT_REAUTHENTICATION_TIMEOUT``
+    (default 300 seconds), the same "recent" the registry already uses for
+    email changes and provider connects, so there is one setting for it and
+    no new environment variable. Five minutes is enough to sign in and fill
+    the form, and short enough that a cookie copied from an idle session is
+    not usable for this.
+
+    Only a ``socialaccount`` record counts, and only when its provider and uid
+    are an identity linked to *user*: an account with no usable password can
+    only sign in through a provider. allauth writes a record before the login
+    completes, so a sign-in to some other account that stopped part way (for
+    example at email verification) can leave its record in the session of the
+    user already signed in; matching the identity keeps that from counting.
+
+    Fails closed: a session with no records (one created before this rule, or
+    by a REST API login, which records none) or with only older records is
+    not recent.
+    """
+    from allauth.account import app_settings as account_settings
+    from allauth.account.authentication import get_authentication_records
+    from allauth.socialaccount.models import SocialAccount
+
+    if getattr(request, "session", None) is None:
+        return False
+    cutoff = time.time() - account_settings.REAUTHENTICATION_TIMEOUT
+    recent = set()
+    for record in get_authentication_records(request):
+        if not isinstance(record, dict) or record.get("method") != "socialaccount":
+            continue
+        at = record.get("at")
+        if not isinstance(at, (int, float)) or at < cutoff:
+            continue
+        recent.add((record.get("provider"), str(record.get("uid"))))
+    if not recent:
+        return False
+    linked = {
+        (provider, str(uid))
+        for provider, uid in SocialAccount.objects.filter(user_id=user.pk).values_list(
+            "provider", "uid"
+        )
+    }
+    return not recent.isdisjoint(linked)
 
 
 def request_is_interactive_session(request) -> bool:

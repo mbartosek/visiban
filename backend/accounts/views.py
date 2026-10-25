@@ -817,6 +817,16 @@ class ChangePasswordView(APIView):
                     {"detail": credentials.FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+            # #1260: and only from a session that signed in to this account
+            # through its provider recently, so a copied cookie alone cannot.
+            if credentials.first_password_requires_recent_login(request, user):
+                return Response(
+                    {
+                        "detail": credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE,
+                        "code": credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             # Social-only accounts have no usable password — skip the current
             # password check so they can set one for the first time.
             if user.has_usable_password():

@@ -451,7 +451,9 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
     ``ChangePasswordView``: they have no current password to prove, and this is
     how they set their first one. That exemption applies to an interactive
     session only: a request authenticated with any token credential is
-    refused with 403 (#1609, ``accounts.credentials.first_password_requires_session``).
+    refused with 403 (#1609, ``accounts.credentials.first_password_requires_session``),
+    and so is a session without a recent provider sign-in to the account
+    (#1260, ``accounts.credentials.first_password_requires_recent_login``).
     """
 
     def __init__(self, *args, **kwargs):
@@ -508,6 +510,18 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
             self.request, self.user
         ):
             raise PermissionDenied(credentials_module.FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE)
+        # #1260: the session must also hold a recent provider sign-in to this
+        # account. A dict detail renders as ``{"detail": ..., "code": ...}``,
+        # the same body ChangePasswordView returns.
+        if self.user is not None and credentials_module.first_password_requires_recent_login(
+            self.request, self.user
+        ):
+            raise PermissionDenied(
+                {
+                    "detail": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE,
+                    "code": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                }
+            )
         return super().validate(attrs)
 
     def save(self):

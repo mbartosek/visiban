@@ -10,15 +10,23 @@ allauth's change and set paths and the Django admin's own-password path are
 covered in ``test_forced_change_html_surfaces.py``.
 """
 
+import time
 from unittest import mock
 
+from allauth.account.internal.flows.login import AUTHENTICATION_METHODS_SESSION_KEY
 from django.core.cache import cache
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from accounts import credentials
 from accounts.models import PersonalAccessToken, User
+from accounts.tests.provider_sign_in_helpers import (
+    link_identity,
+    record_provider_sign_in,
+    sign_in_through_provider,
+)
 
 CURRENT = "Current-Passw0rd!"  # gitleaks:allow -- test-only fixture password, not a credential
 NEW = "Brand-New-Passw0rd!"  # gitleaks:allow -- test-only fixture password, not a credential
@@ -156,7 +164,11 @@ class ReissueAuthTokenTests(APITestCase):
 
 
 class _FirstPasswordSessionOnlyCases:
-    """An account with no usable password sets a first password from a session only (#1609)."""
+    """An account with no usable password sets a first password from a session only (#1609).
+
+    And only from a session holding a recent provider sign-in to the account,
+    within ``ACCOUNT_REAUTHENTICATION_TIMEOUT`` (#1260).
+    """
 
     url = None
 
@@ -224,15 +236,115 @@ class _FirstPasswordSessionOnlyCases:
         self.user.refresh_from_db()
         self.assertFalse(self.user.has_usable_password())
 
-    def test_session_caller_sets_first_password(self):
+    def _assert_recent_login_refusal(self, r):
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.data["code"], credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE)
+        self.assertEqual(r.data["detail"], credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_usable_password())
+
+    def test_session_with_recent_provider_sign_in_sets_first_password(self):
         client = APIClient()
         client.force_login(self.user)
+        sign_in_through_provider(client, self.user)
 
         r = client.post(self.url, self.body(), format="json")
 
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password(NEW))
+
+    def test_session_with_no_sign_in_record_is_refused(self):
+        # A session created before #1260 (or by force_login) holds no record:
+        # fail closed, so the owner signs in again.
+        client = APIClient()
+        client.force_login(self.user)
+        link_identity(self.user)
+
+        self._assert_recent_login_refusal(client.post(self.url, self.body(), format="json"))
+
+    def test_session_with_stale_sign_in_is_refused(self):
+        client = APIClient()
+        client.force_login(self.user)
+        sign_in_through_provider(client, self.user, seconds_ago=301)
+
+        self._assert_recent_login_refusal(client.post(self.url, self.body(), format="json"))
+
+    @override_settings(ACCOUNT_REAUTHENTICATION_TIMEOUT=900)
+    def test_window_follows_reauthentication_timeout(self):
+        client = APIClient()
+        client.force_login(self.user)
+        sign_in_through_provider(client, self.user, seconds_ago=600)
+
+        r = client.post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+    def test_recent_sign_in_to_another_accounts_identity_is_refused(self):
+        # A record for an identity that is not linked to this account (for
+        # example one left by someone else's sign-in that stopped part way)
+        # does not count.
+        other = User.objects.create_user(username="otherid", email="otherid@example.com")
+        provider, uid = link_identity(other, "github")
+        link_identity(self.user, "google")
+        client = APIClient()
+        client.force_login(self.user)
+        record_provider_sign_in(client, provider, uid)
+
+        self._assert_recent_login_refusal(client.post(self.url, self.body(), format="json"))
+
+    def test_non_provider_record_does_not_count(self):
+        client = APIClient()
+        client.force_login(self.user)
+        link_identity(self.user)
+        session = client.session
+        session[AUTHENTICATION_METHODS_SESSION_KEY] = [
+            {"method": "password", "at": time.time(), "username": "firstpw"},
+            {"method": "socialaccount", "at": "not-a-time", "provider": "google", "uid": f"google-{self.user.pk}"},
+        ]
+        session.save()
+
+        self._assert_recent_login_refusal(client.post(self.url, self.body(), format="json"))
+
+    def test_older_record_alongside_a_recent_one_still_passes(self):
+        client = APIClient()
+        client.force_login(self.user)
+        sign_in_through_provider(client, self.user, seconds_ago=3600)
+        sign_in_through_provider(client, self.user)
+
+        r = client.post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+    def test_pat_with_recent_session_record_is_still_refused_as_token(self):
+        # The token refusal (#1609) comes first and is unchanged: a recent
+        # sign-in in the session does not let a token caller through.
+        _, raw = PersonalAccessToken.generate(self.user, "cli")
+        client = APIClient()
+        client.force_login(self.user)
+        sign_in_through_provider(client, self.user)
+        client.credentials(HTTP_AUTHORIZATION=f"Token {raw}")
+
+        r = client.post(self.url, self.body(), format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(r.data["detail"], credentials.FIRST_PASSWORD_SESSION_REQUIRED_MESSAGE)
+        self.assertNotIn("code", r.data)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_usable_password())
+
+    def test_session_with_usable_password_needs_no_sign_in_record(self):
+        user = User.objects.create_user(username="haspw2", email="haspw2@example.com", password=CURRENT)
+        client = APIClient()
+        client.force_login(user)
+        body = self.body()
+        body[self.current_field] = CURRENT
+
+        r = client.post(self.url, body, format="json")
+
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password(NEW))
 
     def test_pat_caller_with_usable_password_is_unchanged(self):
         user = User.objects.create_user(username="haspw", email="haspw@example.com", password=CURRENT)
