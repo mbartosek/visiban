@@ -21,8 +21,32 @@ export const register = (email: string, password1: string, password2: string, in
 export const getAuthProviders = () =>
   client.get<{ google: boolean; github: boolean; gitlab: boolean; oidc: boolean; oidc_name: string | null }>("/api/v1/auth/providers/").then((r) => r.data);
 
-export const getSiteConfig = () =>
-  client.get<SiteConfig>("/api/v1/auth/site-config/").then((r) => r.data);
+// #1913: the signed-in app and the login page both read site-config on load.
+// Anonymous requests share a per-IP throttle (and demo visitors share one
+// bucket behind the tunnel), so calls within this window share one request.
+// `fresh` bypasses it for deliberate refreshes (tab focus).
+const SITE_CONFIG_SHARE_MS = 5_000;
+let siteConfigShared: { at: number; promise: Promise<SiteConfig> } | null = null;
+
+export const getSiteConfig = (opts: { fresh?: boolean } = {}): Promise<SiteConfig> => {
+  const now = Date.now();
+  if (!opts.fresh && siteConfigShared && now - siteConfigShared.at < SITE_CONFIG_SHARE_MS) {
+    return siteConfigShared.promise;
+  }
+  const promise = client.get<SiteConfig>("/api/v1/auth/site-config/").then((r) => r.data);
+  const entry = { at: now, promise };
+  siteConfigShared = entry;
+  // A failed request must not be replayed to the next caller.
+  promise.catch(() => {
+    if (siteConfigShared === entry) siteConfigShared = null;
+  });
+  return promise;
+};
+
+/** Test hook: forget the shared site-config request. */
+export const resetSiteConfigShare = () => {
+  siteConfigShared = null;
+};
 
 export const changePassword = (current_password: string, new_password: string) =>
   client.post<{ detail: string; key?: string }>("/api/v1/auth/change-password/", { current_password, new_password }).then((r) => r.data);

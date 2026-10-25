@@ -31,9 +31,9 @@ export function useInstanceFlagsState(signedIn: boolean) {
   const [loaded, setLoaded] = useState(false);
   const lastFetchRef = useRef(0);
 
-  const fetchFlags = useCallback(() => {
+  const fetchFlags = useCallback((fresh = false) => {
     lastFetchRef.current = Date.now();
-    return getSiteConfig()
+    return getSiteConfig({ fresh })
       .then((config) => setFlags(pickFlags(config)))
       // Swallowed deliberately: a failed refresh must not break the app; the
       // server still enforces maintenance and the demo fence on every write.
@@ -41,8 +41,9 @@ export function useInstanceFlagsState(signedIn: boolean) {
       .finally(() => setLoaded(true));
   }, []);
 
-  // Bootstrap, and again on sign-in so a long-open login page does not hand
-  // the session a stale demo reset instant.
+  // Bootstrap, and again on sign-in when the last fetch is old, so a long-open
+  // login page is less likely to start the session on a stale demo reset
+  // instant. Shares one request with the login page's own read (getSiteConfig).
   useEffect(() => {
     if (Date.now() - lastFetchRef.current < FRESH_MS && lastFetchRef.current !== 0) return;
     void fetchFlags();
@@ -85,7 +86,7 @@ export function useInstanceFlagsState(signedIn: boolean) {
   }, [signedIn]);
   const refresh = useCallback(() => {
     if (!signedInRef.current) return;
-    void fetchFlags();
+    void fetchFlags(true);
   }, [fetchFlags]);
   useVisibilityResync(refresh);
 

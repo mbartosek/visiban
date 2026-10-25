@@ -73,7 +73,7 @@ ways:
 
 - **It tries to write.** The `503` response tells the client immediately, and the banner
   appears at that point.
-- **It regains focus.** Coming back to a tab re-checks the current user, throttled to at most
+- **It regains focus.** Coming back to a tab re-checks the instance settings (`/auth/site-config/`), throttled to at most
   once every 30 seconds, so a tab that was in the background picks up the change on refocus.
 
 A user who is idling on an open tab — not writing, not switching away — will not see the

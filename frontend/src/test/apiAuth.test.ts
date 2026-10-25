@@ -10,7 +10,7 @@ vi.mock('../api/client', () => ({
 }))
 
 import client from '../api/client'
-import { getCurrentUser, getVersion, updateCurrentUser, logout, login, register, getAuthProviders, changePassword, getSiteConfig, listTokens, createToken, revokeToken, getAdminInviteLinks, createAdminInviteLink, revokeAdminInviteLink, getAdminBoardInviteLinks, revokeAdminBoardInviteLink, deactivateAdminUser, clearAdminUserLockout, verifyEmail, cancelPendingEmailChange, resendPendingEmailConfirmation, listConnectedAccounts, disconnectAccount, dismissPendingConnect, completeTour, resetTour, updateDefaultBoard, searchUsers } from '../api/auth'
+import { getCurrentUser, getVersion, updateCurrentUser, logout, login, register, getAuthProviders, changePassword, getSiteConfig, resetSiteConfigShare, listTokens, createToken, revokeToken, getAdminInviteLinks, createAdminInviteLink, revokeAdminInviteLink, getAdminBoardInviteLinks, revokeAdminBoardInviteLink, deactivateAdminUser, clearAdminUserLockout, verifyEmail, cancelPendingEmailChange, resendPendingEmailConfirmation, listConnectedAccounts, disconnectAccount, dismissPendingConnect, completeTour, resetTour, updateDefaultBoard, searchUsers } from '../api/auth'
 
 const mockGet = client.get as ReturnType<typeof vi.fn>
 const mockPost = client.post as ReturnType<typeof vi.fn>
@@ -18,7 +18,7 @@ const mockPatch = client.patch as ReturnType<typeof vi.fn>
 const mockDelete = client.delete as ReturnType<typeof vi.fn>
 
 describe('auth API', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => { vi.clearAllMocks(); resetSiteConfigShare() })
 
   it('getCurrentUser calls GET /api/auth/user/', async () => {
     const user = { id: 1, username: 'jdoe' }
@@ -315,5 +315,45 @@ describe('searchUsers', () => {
     mockGet.mockResolvedValue({ data: [] })
     await searchUsers('first last')
     expect(mockGet).toHaveBeenCalledWith('/api/v1/users/?search=first%20last')
+  })
+})
+
+describe('getSiteConfig request sharing (#1913)', () => {
+  beforeEach(() => { vi.clearAllMocks(); resetSiteConfigShare(); vi.useRealTimers() })
+
+  it('calls within the window share one request (login page + app bootstrap)', async () => {
+    mockGet.mockResolvedValue({ data: { registration_open: true } })
+    const [a, b] = await Promise.all([getSiteConfig(), getSiteConfig()])
+    await getSiteConfig()
+    expect(mockGet).toHaveBeenCalledTimes(1)
+    expect(a).toBe(b)
+  })
+
+  it('fresh bypasses the shared request', async () => {
+    mockGet.mockResolvedValue({ data: { registration_open: true } })
+    await getSiteConfig()
+    await getSiteConfig({ fresh: true })
+    expect(mockGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('requests again once the window has passed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      mockGet.mockResolvedValue({ data: { registration_open: true } })
+      await getSiteConfig()
+      vi.setSystemTime(Date.now() + 6_000)
+      await getSiteConfig()
+      expect(mockGet).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not replay a failed request to the next caller', async () => {
+    mockGet.mockRejectedValueOnce(new Error('network'))
+    await expect(getSiteConfig()).rejects.toThrow('network')
+    mockGet.mockResolvedValue({ data: { registration_open: true } })
+    await expect(getSiteConfig()).resolves.toEqual({ registration_open: true })
+    expect(mockGet).toHaveBeenCalledTimes(2)
   })
 })
