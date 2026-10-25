@@ -778,7 +778,7 @@ class SeedDemoSiteTests(TestCase):
     def test_seeds_exactly_seven_boards_with_at_least_fifteen_cards_each(self):
         _seed(demo_site=True)
         seeded = set(Board.objects.exclude(name=BOARD_NAME).values_list("name", flat=True))
-        self.assertEqual(seeded, set(self.BOARD_NAMES))
+        self.assertEqual(seeded, set(self.BOARD_NAMES) | {"Product Roadmap (Trello import)"})
         for name in self.BOARD_NAMES:
             board = Board.objects.get(name=name)
             self.assertEqual(board.cards.count(), self.spec_card_count(name), name)
@@ -876,7 +876,7 @@ class SeedDemoSiteTests(TestCase):
         )
         self.assertFalse(Board.objects.filter(owner=visitor).exists())
         boards = Board.objects.all()
-        self.assertEqual(boards.count(), 8)  # the demo board + the seven demo-site boards
+        self.assertEqual(boards.count(), 9)  # the demo board + the eight demo-site boards
         for board in boards:
             membership = BoardMembership.objects.get(board=board, user=visitor)
             self.assertEqual(membership.role, BoardMembership.Role.MEMBER, board.name)
@@ -986,7 +986,7 @@ class SeedDemoSiteTests(TestCase):
         _seed(demo_site=True, wipe=True)
         self.assertFalse(Board.objects.filter(name__in=RETIRED_BOARD_NAMES).exists())
         self.assertEqual(
-            set(Board.objects.exclude(name=BOARD_NAME).values_list("name", flat=True)), set(self.BOARD_NAMES)
+            set(Board.objects.exclude(name=BOARD_NAME).values_list("name", flat=True)), set(self.BOARD_NAMES) | {"Product Roadmap (Trello import)"}
         )
 
     def test_without_flag_no_demo_site_content(self):
@@ -1603,6 +1603,7 @@ class SeedResetDatabaseTests(TransactionTestCase):
 #    accounts for its state; the overlay board's URL never moves ────────────
 
 OVERLAY = "Sales Territory (Overlay)"
+TRELLO = "Product Roadmap (Trello import)"
 
 
 def _sample(slug):
@@ -1636,10 +1637,10 @@ class DemoSiteHistoryReconciliationTests(TestCase):
         from boards.tests.history_reconciliation import board_history_problems
 
         boards = Board.objects.order_by("id")
-        self.assertEqual(boards.count(), 8)
+        self.assertEqual(boards.count(), 9)
         for board in boards:
             with self.subTest(board.name):
-                self.assertEqual(board_history_problems(board, imported=board.name == OVERLAY), {})
+                self.assertEqual(board_history_problems(board, imported=board.name in (OVERLAY, TRELLO)), {})
 
     def test_the_trail_is_not_vacuous(self):
         """Each kind of state the reconciler checks is actually present, so a
@@ -1800,6 +1801,7 @@ class OverlayBoardUrlTests(TransactionTestCase):
     EXPECTED = [
         (1, BOARD_NAME), (2, "Software Team"), (3, "Property Management"), (4, "Construction"),
         (5, "Sales Territory"), (6, OVERLAY), (7, "Content Moderation"), (8, "Logistics Exceptions"),
+        (9, TRELLO),  # appended last (#1908), so the overlay board stays /boards/6
     ]
 
     def test_overlay_board_keeps_its_url(self):
@@ -1808,6 +1810,78 @@ class OverlayBoardUrlTests(TransactionTestCase):
             _seed(demo_site=True, wipe=True, force=True, reset_database=True)
             self.assertEqual(list(Board.objects.order_by("pk").values_list("pk", "name")), self.EXPECTED)
             self.assertEqual(f"/boards/{Board.objects.get(name=OVERLAY).pk}", "/boards/6")
+
+
+@override_settings(**_DEMO_SITE_SETTINGS)
+class DemoSiteTrelloBoardTests(TestCase):
+    """#1908: a Trello-imported board, made by the real Trello importer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _seed(demo_site=True)
+        cls.board = Board.objects.get(name=TRELLO)
+        cls.admin = User.objects.get(username="admin")
+
+    def test_the_board_is_last_and_the_overlay_board_did_not_move(self):
+        from boards.management.commands._demo_site_data import BOARDS
+
+        self.assertEqual(BOARDS[-1], {"name": TRELLO, "trello": "trello_export.json"})
+        self.assertEqual(Board.objects.latest("pk").name, TRELLO)
+        self.assertEqual(Board.objects.get(name=OVERLAY).pk, 6)
+
+    def test_the_board_is_the_export(self):
+        import json
+        from pathlib import Path
+
+        data = json.loads((Path(__file__).parent / "fixtures" / "trello_export.json").read_text())
+        self.assertEqual(
+            list(self.board.columns.order_by("position").values_list("name", flat=True)),
+            [lst["name"] for lst in sorted(data["lists"], key=lambda x: x["pos"]) if not lst["closed"]],
+        )
+        self.assertEqual(self.board.cards.count(), 3)
+
+    def test_it_carries_trello_import_provenance(self):
+        comments = CardComment.objects.filter(card__board=self.board)
+        self.assertTrue(comments.exists())
+        for comment in comments:
+            self.assertTrue(comment.imported_from_username)
+            self.assertTrue(comment.body.startswith("(imported from Trello)\n\n"))
+        self.assertEqual({c.author_id for c in comments}, {self.admin.pk})
+
+    def test_the_visitor_and_every_demo_account_are_seated_as_the_other_showcase_boards_do(self):
+        hand_built = {m.user_id: m.role for m in BoardMembership.objects.filter(board__name="Software Team")}
+        trello = {m.user_id: m.role for m in BoardMembership.objects.filter(board=self.board)}
+        self.assertEqual(trello[self.admin.pk], BoardMembership.Role.ADMIN)
+        visitor = User.objects.get(username="visitor")
+        self.assertEqual(trello[visitor.pk], BoardMembership.Role.MEMBER)
+        self.assertEqual(trello, hand_built)
+
+    def test_it_passes_the_history_reconciler(self):
+        from boards.tests.history_reconciliation import board_history_problems
+
+        self.assertEqual(board_history_problems(self.board, imported=True), {})
+
+    def test_the_reconciler_is_not_vacuous_for_this_board(self):
+        """The import writes no history, so the seed's completion is what the reconciler reads."""
+        from boards.models import CardActivity
+
+        self.assertEqual(CardMovement.objects.filter(card__board=self.board, notes="Card created").count(), 3)
+        self.assertTrue(CardMovement.objects.filter(card__board=self.board, movement_type="archived").exists())
+        kinds = set(CardActivity.objects.filter(card__board=self.board).values_list("event_type", flat=True))
+        self.assertIn("comment_added", kinds)
+        self.assertTrue(
+            CardActivity.objects.filter(card__board=self.board, event_type="comment_added")
+            .exclude(imported_from_username__in=[None, ""]).exists()
+        )
+
+    def test_the_import_announces_the_board_in_the_change_feed(self):
+        from boards.models import BoardEvent
+
+        self.assertTrue(BoardEvent.objects.filter(board_id=self.board.pk, event="board.created").exists())
+
+    def test_wipe_reseed_recreates_it_once(self):
+        _seed(demo_site=True, wipe=True)
+        self.assertEqual(Board.objects.filter(name=TRELLO).count(), 1)
 
 
 @override_settings(**_DEMO_SITE_SETTINGS)
@@ -1822,7 +1896,7 @@ class SeedWipeChangeFeedTests(TestCase):
         _seed(demo_site=True, wipe=True)
         existing = set(Board.objects.values_list("pk", flat=True))
         gone = before - existing
-        self.assertEqual(len(gone), 8)
+        self.assertEqual(len(gone), 9)
         for board_id in gone:
             self.assertEqual(
                 BoardEvent.objects.filter(board_id=board_id, event="board.deleted").count(), 1, board_id,
