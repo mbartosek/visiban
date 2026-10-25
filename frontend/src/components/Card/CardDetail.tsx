@@ -1126,7 +1126,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   // board toolbar, rounded and elevated. Docked: full height at the right
   // edge, square with a left border. Full-screen: the whole viewport.
   const panelModeClass = anchored
-    ? "rounded-lg border border-line shadow-2xl"
+    ? "rounded-lg border border-primary-emphasis shadow-2xl"
     : fullscreen
       ? "inset-0"
       : "top-0 bottom-0 right-0 w-[540px] border-l border-line shadow-2xl";
@@ -1155,22 +1155,35 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
         data-sheet-mode={placement.mode}
         data-sheet-side={anchored ? placement.side ?? undefined : undefined}
         style={panelStyle}
-        className={`fixed z-50 bg-surface flex flex-col outline-none ${panelModeClass}`}
+        className={`fixed z-50 bg-surface outline-none ${panelModeClass}`}
       >
-        {/* Notch: points at the card, tracks its center as the board scrolls
-            and pins near a corner when the card is scrolled away (frame 3).
+        {/* Notch (#1946): a speech-bubble tail on the sheet's outer edge. A
+            child of the root, which is overflow-visible so the tail can sit
+            outside it; the clip moves to the wrapper below. Tracking: an
+            isosceles triangle. Clamped: a right-triangle wedge whose apex
+            points toward the card, so shape alone shows direction.
             Decorative: the card's 2px border and aria-current carry the link. */}
         {notch && (
-          <div
+          <svg
             aria-hidden="true"
+            focusable="false"
+            width={7}
+            height={24}
+            viewBox="0 0 7 24"
             data-testid="card-sheet-notch"
             data-clamped={notch.clamped ? "true" : "false"}
-            className={`pointer-events-none absolute z-10 w-[14px] h-[14px] rotate-45 border-primary-emphasis ${
-              notch.clamped ? "bg-surface-hover" : "bg-primary-emphasis"
-            } ${placement.side === "right" ? "border-l-2 border-b-2" : "border-t-2 border-r-2"}`}
-            style={{ top: notch.y - 7, ...(placement.side === "right" ? { left: -5 } : { right: -5 }) }}
-          />
+            data-direction={notch.clamped ? notch.direction : undefined}
+            className={`pointer-events-none absolute z-20 fill-primary-emphasis ${
+              placement.side === "right" ? "-right-[7px] -scale-x-100" : "-left-[7px]"
+            }`}
+            style={{ top: notch.y - 13 }}
+          >
+            <path d={notch.clamped ? (notch.direction === "up" ? "M7 6H1L7 18Z" : "M7 6L1 18H7Z") : "M7 6L1 12L7 18Z"} />
+          </svg>
         )}
+        {/* Clip wrapper: rounds the content to the border's inner radius when
+            anchored only (a docked or full-screen panel is flush and square). */}
+        <div className={`flex h-full flex-col overflow-hidden ${anchored ? "rounded-[7px]" : ""}`}>
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 border-b border-line">
           {fullscreen && (
@@ -1287,7 +1300,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
               role="tab"
               aria-selected={tab === t}
               onClick={() => setTab(t)}
-              className={`px-5 py-2.5 font-medium capitalize transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded ${
+              className={`px-5 py-2.5 font-medium capitalize transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-emphasis rounded ${
                 tab === t ? "border-b-2 border-info text-info" : "text-fg-muted hover:text-fg-secondary"
               }`}
             >
@@ -2100,6 +2113,7 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Delete / Archive confirmation overlay */}
