@@ -890,6 +890,15 @@ BOARDS = [
         ],
         "external_refs": {},
     },
+    # Appended AFTER every other board (#1908): the overlay board's id is its
+    # position in this list (see the note above it), so a new board goes last.
+    # Imported through the real Trello importer from the test suite's export,
+    # which ships in both images (Dockerfile and Dockerfile.prod COPY the whole
+    # backend/ tree and .dockerignore does not exclude tests/).
+    {
+        "name": "Product Roadmap (Trello import)",
+        "trello": "trello_export.json",
+    },
 ]
 
 #: The published visitor's saved filters (#1889): (board_name, filter name,

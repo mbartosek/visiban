@@ -62,7 +62,8 @@ Usage:
 
     python manage.py seed_demo_data --force --wipe --demo-site
         Hosted demo instance (#1034, try.visiban.com). In addition to the
-        normal demo board, seeds seven showcase boards, each with a different
+        normal demo board, seeds seven showcase boards (plus a Trello import
+        board, #1908), each with a different
         swimlane entity (#1389, #1412): Software Team, Property Management,
         Construction, Sales Territory, Sales Territory (Overlay), Content
         Moderation and Logistics Exceptions (16-20 cards each, with comments, assignees, labels,
@@ -596,7 +597,7 @@ class Command(BaseCommand):
             help=(
                 "Also seed the hosted-demo content (#1034, #1389, #1412): seven showcase "
                 "boards (Software Team, Property Management, Construction, Sales "
-                "Territory, Sales Territory (Overlay), Content Moderation, Logistics Exceptions) plus a site "
+                "Territory, Sales Territory (Overlay), Content Moderation, Logistics Exceptions) and a Trello import (#1908) plus a site "
                 "admin, the published visitor account and two member accounts. Passwords are read from "
                 "DEMO_LOGIN_PASSWORD / DEMO_ADMIN_PASSWORD / "
                 "DEMO_MEMBER_PASSWORD. Off by default — the default output "
@@ -918,6 +919,8 @@ class Command(BaseCommand):
                 continue
             if "sample" in spec:
                 board, cards = self._import_demo_site_sample(spec, users)
+            elif "trello" in spec:
+                board, cards = self._import_demo_site_trello(spec, users)
             else:
                 board, cards = self._create_demo_site_board(spec, users)
             seeded[spec["name"]] = (board, cards)
@@ -1156,6 +1159,80 @@ class Command(BaseCommand):
         # cards are already dated to the start of their own history.
         cards = {card.title: card for card in board.cards.order_by("id")}
         return board, cards
+
+    def _import_demo_site_trello(self, spec, users):
+        """Create a demo board by importing a Trello export (#1908).
+
+        Goes through the real Trello importer (``import_trello``), so the
+        board carries genuine import provenance: the Trello author's name kept
+        as text on each comment, ``(imported from Trello)`` bodies, restored
+        ``created_at`` dates. The view body is called directly, past DRF's
+        dispatch, for the same reason as the sample import: this is the seed,
+        not a request, and must not spend the demo admin's import throttle.
+
+        The export lives at ``boards/tests/fixtures/``. Both the release and
+        production images ``COPY . .`` the backend tree and ``.dockerignore``
+        does not exclude ``tests/``, so it is present at seed time.
+        """
+        from pathlib import Path
+
+        from boards.views.boards import BoardViewSet
+
+        admin = users["admin"]
+        # Coupled to the importer's test fixture on purpose: editing it changes
+        # the demo board (test_the_board_is_the_export pins its shape).
+        fixture = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / spec["trello"]
+        django_request = APIRequestFactory().post(
+            "/api/v1/boards/import/trello/?confirm=true",
+            {
+                "file": SimpleUploadedFile(fixture.name, fixture.read_bytes(), content_type="application/json"),
+                "name": spec["name"],
+            },
+            format="multipart",
+        )
+        force_authenticate(django_request, user=admin)
+        view = BoardViewSet(action_map={"post": "import_trello"}, format_kwarg=None, args=(), kwargs={})
+        request = view.initialize_request(django_request)
+        view.request = request
+        response = view.import_trello(request)
+        if response.status_code != 201:
+            raise CommandError(f"Importing the Trello export {spec['trello']!r} failed: {response.data}")
+        board = Board.objects.get(pk=response.data["board"]["id"])
+
+        # The importer made the admin the board's admin; seat everyone else the
+        # demo seats on a showcase board, so the visitor can open it.
+        for key, user in users.items():
+            BoardMembership.objects.get_or_create(board=board, user=user, defaults=self._demo_site_membership(key))
+
+        self._complete_trello_history(board, admin)
+        return board, {card.title: card for card in board.cards.order_by("id")}
+
+    def _complete_trello_history(self, board, admin):
+        """Give each imported card the history the Trello importer does not write.
+
+        The importer bulk-creates cards, comments and checklists and writes no
+        movements or activity on purpose (it must not notify or fire card
+        hooks), so a Trello board is, as imported, a set of cards with nothing
+        recording how they came to be. The demo holds every card to the
+        history reconciler (#1889), so the seed writes the same rows the API
+        would have: a creation movement at the card's restored ``created_at``,
+        an archive movement for an archived card, and an activity for each
+        value the card holds, all credited to the importing admin, the way
+        the sample import credits its history. Each comment's activity keeps the Trello
+        author's name as import provenance, as the comment does.
+        """
+        cards = board.cards.select_related("column", "swimlane", "assignee", "created_by")
+        now = timezone.now()
+        for card in cards.order_by("id"):
+            record_creation(card, column=card.column, swimlane=card.swimlane, actor=admin, at=card.created_at)
+            if card.archived_at:
+                at = max(card.archived_at, card.created_at + datetime.timedelta(hours=1))
+                record_archive(card, actor=admin, at=min(at, now - datetime.timedelta(seconds=30)))
+            write_activity_trail(card, actors=[admin])
+            comments = card.comments.order_by("created_at", "id")
+            events = card.activities.filter(event_type="comment_added").order_by("created_at", "id")
+            for event, comment in zip(events, comments):
+                CardActivity.objects.filter(pk=event.pk).update(imported_from_username=comment.imported_from_username)
 
     @staticmethod
     def _demo_site_anchor():
