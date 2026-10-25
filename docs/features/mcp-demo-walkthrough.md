@@ -2,10 +2,10 @@
 
 > **Added in 1.2**
 
-This walkthrough points your own AI agent at a **local** Visiban instance loaded with the demo data, using a read-only token, so you can ask it questions about a realistic board. It takes about ten minutes. For the full MCP reference, see [MCP Server](mcp-server.md).
+This walkthrough points your own AI agent at a **local** Visiban instance loaded with the generic "Visiban Demo Board" from `seed_demo_data`, using a read-only token, so you can ask it questions about a realistic board. It takes about ten minutes. For the full MCP reference, see [MCP Server](mcp-server.md).
 
 !!! note "Why this runs locally and not on try.visiban.com"
-    The hosted demo does not expose MCP and does not let visitors create tokens. This is by design: publishing a credential on a public site is a security decision we chose not to make. The steps below give you the same experience on your own machine, where the token is yours alone.
+    The hosted demo does not expose MCP and does not let visitors create tokens. This is by design: publishing a credential on a public site is a security decision we chose not to make. The steps below give you the same kind of experience on your own machine, with the generic demo board rather than the hosted showcase boards (those need `--demo-site`, which requires `DEMO_MODE=true`, and that mode blocks creating tokens), where the token is yours alone.
 
 ## 1. Start a local instance
 
@@ -109,7 +109,7 @@ Then try to break the read-only promise, to see the guardrail: "Create a card ca
 
 | Symptom | Likely cause |
 |---|---|
-| `404` from `/mcp` | `MCP_SERVER_ENABLED` is not `true`; restart the backend after editing `.env` |
+| `404` from `/mcp` | `MCP_SERVER_ENABLED` is not `true`; recreate the backend with `docker compose up -d backend` after editing `.env` (`docker compose restart` does not re-read it) |
 | `401` | Token mistyped, or it lacks `mcp:read` |
 | `403` | The account still has to change its password in the web app |
 | `seed_demo_data` refuses to run | `DEBUG` is not `true` in `.env`; see the [production guard](../administration/demo-data.md#production-guard) |
