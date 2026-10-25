@@ -665,7 +665,7 @@ The public page also checks this every time it is opened, so the link never stay
 
 Another board admin can turn sharing back on, which creates a new link.
 
-A link turned on before 1.2 has no recorded admin, so it stops working when the instance is upgraded to 1.2 (#1939). A board admin restores sharing by turning **Enable public share link** on in the **Sharing** tab (off and back on if the tab still shows it on), which creates a new link; the old URL does not come back. See the [upgrade notes](../administration/upgrade.md#upgrading-to-12x).
+A link turned on before the instance was upgraded to 1.2.0, including one turned on under a 1.2 pre-release, has no recorded admin, so it stops working at the upgrade (#1939). The **Sharing** tab shows sharing as off on such a board. A board admin restores sharing by turning **Enable public share link** on, which creates a new link and shows it once; the old URL does not come back. See the [upgrade notes](../administration/upgrade.md#upgrading-to-12x).
 
 ### What the public view shows
 

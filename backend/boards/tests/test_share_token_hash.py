@@ -4,7 +4,8 @@
 the invite models' ``token_hash``. The public view resolves a link by that
 hash only; the plaintext column remains for the admin-only API fields and is
 never matched against a presented token. Migration 0088 backfills the hash
-for links enabled before the column existed, so those keep working.
+for links enabled before the column existed, so they resolve by the hash; a
+link also needs a recorded enabler to resolve (#1939).
 """
 
 import hashlib
@@ -224,7 +225,7 @@ class NoSerializerExposesTheHashTests(TestCase):
 
 
 class BackfillMigrationTests(TestCase):
-    """0088 hashes links enabled before the column existed, so they keep working."""
+    """0088 hashes links enabled before the column existed, so they resolve by the hash."""
 
     def setUp(self):
         self.owner = User.objects.create_user(username="hash_backfill", password="pass")

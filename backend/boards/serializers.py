@@ -3652,7 +3652,7 @@ class BoardFullSerializer(serializers.ModelSerializer):
         from .models import BoardMembership as BM
         from .permissions import SITE_ADMIN
         if self._resolved_role(obj) in (BM.Role.ADMIN, SITE_ADMIN):
-            return str(obj.share_token) if obj.share_token else None
+            return str(obj.share_token) if self._has_live_share_link(obj) else None
         return None
 
     @extend_schema_field(serializers.DateTimeField(allow_null=True))
@@ -3666,14 +3666,17 @@ class BoardFullSerializer(serializers.ModelSerializer):
         from .models import BoardMembership as BM
         from .permissions import SITE_ADMIN
         if self._resolved_role(obj) in (BM.Role.ADMIN, SITE_ADMIN):
-            return obj.share_token_expires_at.isoformat() if obj.share_token_expires_at else None
+            if not self._has_live_share_link(obj) or obj.share_token_expires_at is None:
+                return None
+            return obj.share_token_expires_at.isoformat()
         return None
 
     @extend_schema_field(serializers.BooleanField(
         allow_null=True,
         help_text=(
             "Whether the board has a share link set (it may have expired; see "
-            "share_token_expires_at). Board admins only; null for other roles."
+            "share_token_expires_at). False for a link with no recorded enabler, "
+            "which does not resolve. Board admins only; null for other roles."
         ),
     ))
     def get_share_link_active(self, obj):
@@ -3683,15 +3686,28 @@ class BoardFullSerializer(serializers.ModelSerializer):
         nothing it could not learn before). It replaces reading the deprecated
         ``share_token`` field just to decide whether a link exists (#1935).
         An expired link still reads ``true``: the token is still stored, and
-        the admin rotates or disables it from the settings modal. When the
+        the admin rotates or disables it from the settings modal. A link with
+        no recorded enabler reads ``false`` (#1939, ``_has_live_share_link``). When the
         stored token is removed in 2.0 (#1936), derive this from
         ``share_token_hash`` instead.
         """
         from .models import BoardMembership as BM
         from .permissions import SITE_ADMIN
         if self._resolved_role(obj) in (BM.Role.ADMIN, SITE_ADMIN):
-            return obj.share_token is not None
+            return self._has_live_share_link(obj)
         return None
+
+    @staticmethod
+    def _has_live_share_link(obj):
+        """True when the board has a share link that can resolve.
+
+        A link with no recorded enabler never resolves (#1939, see
+        ``boards/services/share_links.py``), so the three share fields report
+        it as no link: the Sharing tab then shows sharing as off, and turning
+        it on issues a new link that records the admin. Same answer as after
+        the public view clears such a link on its first read.
+        """
+        return obj.share_token is not None and obj.share_enabled_by_id is not None
 
     @extend_schema_field({"type": "object", "additionalProperties": {"type": "boolean"}})
     def get_capabilities(self, obj):

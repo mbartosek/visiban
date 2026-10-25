@@ -365,6 +365,8 @@ class BoardFullTypeContractTests(TestCase):
         # Admin gets to see the share token/expiry fields non-null below.
         self.board.share_token = uuid.uuid4()
         self.board.share_token_expires_at = timezone.now() + datetime.timedelta(days=7)
+        # A link reads as set only with a recorded enabler (#1939).
+        self.board.share_enabled_by = self.owner
         self.board.save()
 
         self.column_with_limits = Column.objects.create(
