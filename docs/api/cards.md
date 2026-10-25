@@ -873,7 +873,7 @@ All checklist endpoints (`GET`, `POST`, `PATCH`, `POST .../reorder/`) return che
 | `text` | string | Item text |
 | `is_checked` | boolean | Whether the item is checked |
 | `position` | integer | Sort order within the checklist (0-based); update via `reorder/` only — a `PATCH` that changes `position` returns `400 Bad Request` (since 1.2, #1292). Echoing the current value back is accepted. |
-| `created_by` | object / null | User who added the item — `{ id, username, display_name, avatar_url }`. `null` for items created before this field was added (migration 0044). |
+| `created_by` | object / null | User who added the item — `{ id, username, display_name, avatar_url }`. `null` for items created before this field was added (migration 0044) and for items whose creator's account was deleted. Only admins and moderators can edit or delete `null`-creator items. |
 
 **Example response**
 

@@ -1775,6 +1775,9 @@ class BoardImportExportMixin:
                         text=checklist_data.get("text", ""),
                         is_checked=checklist_data.get("is_checked", False),
                         position=ci_idx,
+                        # The importer is the actor; a NULL creator would make
+                        # every imported item moderator-only (#1943).
+                        created_by=request.user,
                     )
                     checklists_to_create.append(item)
                     if CardActivity.EventType.CHECKLIST_ITEM_ADDED not in history_types:

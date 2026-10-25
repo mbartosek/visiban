@@ -185,6 +185,26 @@ class BoardImportJSONTests(TestCase):
         self.assertIn("Reproduce issue", activities)
         self.assertIn("Write fix", activities)
 
+    def test_json_import_checklist_items_owned_by_importer(self):
+        """#1943: imported checklist items record the importer as creator, so
+        the NULL-creator moderator-only gate does not lock them out."""
+        resp = self.client.post(
+            "/api/v1/boards/import/",
+            {"file": self._make_json_file(self._valid_json_data())},
+            format="multipart",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        items = CardChecklist.objects.filter(card__board_id=resp.data["id"])
+        self.assertEqual(items.count(), 2)
+        self.assertTrue(all(i.created_by_id is not None for i in items))
+        item = items.first()
+        self.assertEqual(item.created_by, self.user)
+        r = self.client.patch(
+            f"/api/v1/boards/{resp.data['id']}/cards/{item.card_id}/checklist/{item.pk}/",
+            {"text": "Edited"},
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+
     def test_json_import_archived_at_preserved(self):
         """An archived card in the export must be restored as archived, not re-activated."""
         data = self._valid_json_data()
