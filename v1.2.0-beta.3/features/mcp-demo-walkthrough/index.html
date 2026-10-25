@@ -4084,7 +4084,7 @@
 <p>The response's <code>token</code> field is the <code>vbn_...</code> value. Copy it now; it is shown once.</p>
 </li>
 </ol>
-<p>The token-creation form in the web app does not offer a scope picker, and a token created there gets <code>read</code> and <code>write</code>, which <code>/mcp</code> refuses. That is why this step uses the API (see the <a href="../../api/mcp/">API Reference</a>).</p>
+<p>This step uses the API so the walkthrough is scriptable; in the web app you would tick <strong>mcp:read</strong> under Settings &gt; Access Tokens instead (see the <a href="../../api/mcp/">API Reference</a>).</p>
 <p>A token with only <code>mcp:read</code> can list and read boards, columns, swimlanes, cards, and card history. Calling a write tool (<code>create_card</code>, <code>move_card</code>, <code>update_card</code>, <code>archive_card</code>) fails with a structured error. Scopes are not hierarchical; see <a href="../personal-access-tokens/#scopes">Personal Access Tokens</a>.</p>
 <h2 id="4-connect-your-agent">4. Connect your agent<a class="headerlink" href="#4-connect-your-agent" title="Permanent link">&para;</a></h2>
 <p><strong>Claude Code:</strong></p>

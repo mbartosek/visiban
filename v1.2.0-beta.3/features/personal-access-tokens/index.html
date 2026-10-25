@@ -4126,12 +4126,13 @@
 <ol>
 <li>Open your avatar menu (top-right) and select <strong>Settings</strong>.</li>
 <li>Go to <strong>Access Tokens</strong> in the left sidebar.</li>
-<li>Click <strong>New token</strong>.</li>
+<li>Use the <strong>New token</strong> form above the token list.</li>
 <li>Enter a descriptive name — for example, <code>deploy-script</code> or <code>ci-pipeline</code>.</li>
 <li>Optionally set an expiry date (see <a href="#expiry">Expiry</a> below).</li>
-<li>Click <strong>Create token</strong>.</li>
+<li>Choose the token's <a href="#scopes">scopes</a>. <code>read</code> and <code>write</code> are pre-checked, so leaving them alone gives the default token. Tick <code>mcp:read</code> (and <code>mcp:write</code> for write tools) to make a token an MCP client can use, or untick <code>read</code> and <code>write</code> if the token is only for MCP. At least one scope is required. <code>admin</code> is offered to site administrators only.</li>
+<li>Click <strong>Generate token</strong>.</li>
 </ol>
-<p>Tokens created this way get the default <code>read</code> and <code>write</code> scopes. To choose other scopes, such as <code>mcp:read</code>, create the token with <code>POST /api/v1/auth/tokens/</code> and a <code>scopes</code> list; see <a href="#scopes">Scopes</a>. A UI scope selector is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1934">#1934</a>.</p>
+<p>The token list shows each token's scopes; tokens created before 1.2 are labeled "Legacy: full REST access". You can also set scopes through the API with <code>POST /api/v1/auth/tokens/</code> and a <code>scopes</code> list; see <a href="#scopes">Scopes</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Copy your token now</p>
 <p>The full token value is shown <strong>only once</strong> — immediately after creation. Once you navigate away, Visiban stores only a secure hash and cannot show the token again. Copy it to a password manager or secret store before leaving the page.</p>
@@ -4189,7 +4190,7 @@
 <p>A token created without specific scopes gets <code>read</code> and <code>write</code> — enough for the scripting and CI use cases PATs were built for, and nothing more. <code>admin</code> and the <code>mcp:*</code> scopes must always be requested explicitly.</p>
 <h3 id="tokens-created-before-12">Tokens created before 1.2<a class="headerlink" href="#tokens-created-before-12" title="Permanent link">&para;</a></h3>
 <p>Tokens that already existed when your instance upgraded to 1.2 have <strong>no scopes recorded</strong>. They keep working exactly as before across the whole REST API, including the admin endpoints if you're a site administrator — upgrading doesn't break a running integration.</p>
-<p>They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with <code>mcp:read</code> through the API (<code>POST /api/v1/auth/tokens/</code> with <code>"scopes": ["mcp:read"]</code>; see <a href="../mcp-server/#generating-a-bearer-token">MCP Server</a>).</p>
+<p>They are, however, refused by the MCP server: an agent credential has to be issued deliberately, so a token created before MCP scopes existed can't be used as one. To connect an MCP client, create a new token with <code>mcp:read</code> (tick it in Settings &gt; Access Tokens, or use <code>POST /api/v1/auth/tokens/</code> with <code>"scopes": ["mcp:read"]</code>; see <a href="../mcp-server/#generating-a-bearer-token">MCP Server</a>).</p>
 <p>Replace pre-1.2 tokens with scoped ones as you rotate them.</p>
 <h3 id="what-a-scope-cannot-do">What a scope cannot do<a class="headerlink" href="#what-a-scope-cannot-do" title="Permanent link">&para;</a></h3>
 <p>Scopes are a ceiling, never a floor — they narrow a token's authority and never widen it. Every request is still subject to the same board membership and role checks as a browser session. A token scoped <code>admin</code> on a non-administrator account reaches nothing new.</p>

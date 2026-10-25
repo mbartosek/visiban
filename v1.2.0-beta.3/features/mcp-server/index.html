@@ -4099,8 +4099,7 @@
 <li>An MCP-compatible AI client — Claude Desktop, or any client supporting the Streamable HTTP transport</li>
 </ul>
 <h2 id="generating-a-bearer-token">Generating a Bearer token<a class="headerlink" href="#generating-a-bearer-token" title="Permanent link">&para;</a></h2>
-<p>The MCP server reuses Visiban's existing <a href="../personal-access-tokens/">Personal Access Token</a> system — there's no separate "API Tokens" screen in Django admin. Create one through the API, because the web form cannot set scopes (a UI scope selector is tracked in <a href="https://gitlab.com/visiban/visiban/-/issues/1934">#1934</a>):</p>
-<p>The web app's <strong>Settings</strong>, <strong>Access Tokens</strong> screen creates tokens with the default <code>read</code> and <code>write</code> scopes only, and it has no scope picker, so a token made there is refused at <code>/mcp</code>. Create the MCP token through the API instead, with <code>mcp:read</code> (plus <code>mcp:write</code> only if you want the agent to create, move, update, or archive cards):</p>
+<p>The MCP server reuses Visiban's existing <a href="../personal-access-tokens/">Personal Access Token</a> system — there's no separate "API Tokens" screen in Django admin. In <strong>Settings &gt; Access Tokens</strong>, tick <strong>mcp:read</strong> (plus <code>mcp:write</code> only if you want the agent to create, move, update, or archive cards) before generating the token; the default <code>read</code> and <code>write</code> scopes alone are refused at <code>/mcp</code>. To do the same through the API:</p>
 <ol>
 <li>Log in to get a session token: <code>POST /api/v1/auth/login/</code> with your username and password.</li>
 <li>
