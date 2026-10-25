@@ -9,7 +9,7 @@ here directly: ``moderator_field_visible``, ``site_admin_field_visible``,
 """
 from types import SimpleNamespace
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from boards import permissions as perms
 from boards.models import BoardMembership
@@ -353,3 +353,218 @@ class PermissionClassTests(TestCase):
             self.assertTrue(perm.has_object_permission(self._req(boss), None, obj))
             self.assertFalse(perm.has_object_permission(self._req(self.member), None, obj))
             self.assertFalse(perm.has_object_permission(self._req(self.outsider), None, obj))
+
+
+# ── #1930: predicates and analytics filter added after the 2026-10-09 baseline ──
+#
+# The weekly mutation run of 2026-10-25 found every mutant of these survived:
+# the RBAC suites in the `permissions` target never call them, and the suites
+# that do (the consumers, the change feed, the analytics summary) are not in
+# the target's test list. Each is pinned here directly.
+
+
+class BroadcastVisibilityPredicateTests(SimpleTestCase):
+    def test_site_admin_roster_visible_to_either_kind_of_site_admin(self):
+        self.assertIs(perms.site_admin_roster_visible(SITE_ADMIN, False), True)
+        self.assertIs(perms.site_admin_roster_visible(ADMIN, True), True)
+        self.assertIs(perms.site_admin_roster_visible(SITE_ADMIN, True), True)
+
+    def test_site_admin_roster_hidden_from_everyone_else(self):
+        self.assertIs(perms.site_admin_roster_visible(ADMIN, False), False)
+        self.assertIs(perms.site_admin_roster_visible(MEMBER, None), False)
+        # Only the boolean True counts: a truthy non-bool must not open it.
+        self.assertIs(perms.site_admin_roster_visible(VIEWER, 1), False)
+
+    def test_invite_field_visible_only_to_admin_roles(self):
+        self.assertIs(perms.invite_field_visible(ADMIN), True)
+        self.assertIs(perms.invite_field_visible(SITE_ADMIN), True)
+        self.assertIs(perms.invite_field_visible(MEMBER), False)
+        self.assertIs(perms.invite_field_visible(VIEWER), False)
+        self.assertIs(perms.invite_field_visible(None), False)
+
+    def test_per_user_events_are_the_star_and_saved_filter_events(self):
+        self.assertEqual(
+            perms.PER_USER_EVENTS,
+            frozenset({"board.star_changed", "saved_filter.created", "saved_filter.deleted"}),
+        )
+
+    def test_per_user_event_reaches_only_its_owner(self):
+        self.assertIs(perms.per_user_event_visible(5, {"user_id": 5}), True)
+        self.assertIs(perms.per_user_event_visible(5, {"user_id": 6}), False)
+
+    def test_per_user_event_fails_closed(self):
+        self.assertIs(perms.per_user_event_visible(None, {"user_id": None}), False)
+        self.assertIs(perms.per_user_event_visible(None, {"user_id": 5}), False)
+        self.assertIs(perms.per_user_event_visible(5, {}), False)
+        self.assertIs(perms.per_user_event_visible(5, {"user_id": None}), False)
+        # A non-dict payload is refused before it is read.
+        self.assertIs(perms.per_user_event_visible(5, "not-a-dict"), False)
+        self.assertIs(perms.per_user_event_visible(5, None), False)
+
+    def test_actor_scoped_events_and_fields(self):
+        self.assertEqual(
+            perms.ACTOR_SCOPED_FIELD_EVENTS,
+            frozenset({"board.created", "board.updated", "group.created", "group.updated"}),
+        )
+        self.assertEqual(perms.ACTOR_SCOPED_FIELDS, frozenset({"is_starred"}))
+
+    def test_actor_scoped_fields_visible_only_to_the_actor(self):
+        self.assertIs(perms.actor_scoped_fields_visible(7, 7), True)
+        self.assertIs(perms.actor_scoped_fields_visible(7, 8), False)
+        self.assertIs(perms.actor_scoped_fields_visible(7, None), False)
+        self.assertIs(perms.actor_scoped_fields_visible(None, 7), False)
+        self.assertIs(perms.actor_scoped_fields_visible(None, None), False)
+
+    def test_is_starred_dropped_for_other_viewers_on_scoped_events(self):
+        data = {"id": 1, "name": "b", "is_starred": True}
+        for event in ("board.created", "board.updated", "group.created", "group.updated"):
+            self.assertEqual(
+                perms.without_actor_scoped_fields(event, data, 7, 8), {"id": 1, "name": "b"},
+            )
+        self.assertEqual(data, {"id": 1, "name": "b", "is_starred": True})  # not mutated
+
+    def test_is_starred_kept_for_the_actor_and_for_other_events(self):
+        data = {"id": 1, "is_starred": True}
+        self.assertIs(perms.without_actor_scoped_fields("board.updated", data, 7, 7), data)
+        self.assertIs(perms.without_actor_scoped_fields("card.updated", data, 7, 8), data)
+        self.assertIs(perms.without_actor_scoped_fields("board.updated", {"id": 1}, 7, 8)["id"], 1)
+        self.assertEqual(perms.without_actor_scoped_fields("board.updated", "raw", 7, 8), "raw")
+
+
+class InvalidExplicitRoleTests(TestCase):
+    def test_unrecognized_explicit_role_is_no_access_even_with_a_group_role(self):
+        """An out-of-set board role decides the ladder (no access); groups are not consulted."""
+        owner = _make_user("ier_owner")
+        user = _make_user("ier_user")
+        group = Group.objects.create(name="ier_g", owner=owner)
+        GroupMembership.objects.create(group=group, user=user, role="admin")
+        board = _make_board(owner)
+        board.group = group
+        board.save(update_fields=["group"])
+        BoardMembership.objects.create(board=board, user=user, role="bogus")
+        board = type(board).objects.select_related(perms.GROUP_ANCESTOR_SELECT_RELATED).get(pk=board.pk)
+        self.assertIsNone(get_board_role(user, board))
+        self.assertFalse(hasattr(board, "_cached_membership"))
+
+
+def _named_panel(board, request):  # pragma: no cover - never invoked by the filter
+    """A plain-function panel with no ``min_role``."""
+    return {}
+
+
+class _StubPanel:
+    """A panel callable whose ``__module__``, ``__qualname__`` and ``min_role`` are set per instance.
+
+    ``module`` / ``qualname`` of ``None`` make the attribute absent (an
+    ``AttributeError``, as for an object that has none), so the log falls back
+    to ``?`` and the type name. ``raise_on_min_role`` makes reading
+    ``min_role`` raise: the "unreadable" case.
+    """
+
+    def __init__(self, *, module=None, qualname=None, min_role=None, raise_on_min_role=False):
+        object.__setattr__(self, "_attrs", {
+            "__module__": module, "__qualname__": qualname, "min_role": min_role,
+        })
+        object.__setattr__(self, "_raise", raise_on_min_role)
+
+    def __getattribute__(self, name):
+        attrs = object.__getattribute__(self, "_attrs")
+        if name == "min_role" and object.__getattribute__(self, "_raise"):
+            raise RuntimeError("unreadable")
+        if name in attrs:
+            if attrs[name] is None and name != "min_role":
+                raise AttributeError(name)
+            return attrs[name]
+        return object.__getattribute__(self, name)
+
+    def __call__(self, board, request):  # pragma: no cover - never invoked by the filter
+        return {}
+
+
+class AnalyticsPanelFilterTests(SimpleTestCase):
+    def setUp(self):
+        from boards import hooks
+
+        self.hooks = hooks
+        self.saved = list(hooks.ANALYTICS_EXTENSIONS)
+        hooks.ANALYTICS_EXTENSIONS.clear()
+
+    def tearDown(self):
+        self.hooks.ANALYTICS_EXTENSIONS[:] = self.saved
+
+    @staticmethod
+    def _fn(min_role):
+        def panel(board, request):  # pragma: no cover - never invoked by the filter
+            return {}
+        panel.min_role = min_role
+        return panel
+
+    def test_default_is_admin(self):
+        self.assertEqual(perms.ANALYTICS_PANEL_DEFAULT_MIN_ROLE, "admin")
+        self.assertEqual(perms.analytics_panel_min_role(_named_panel), "admin")
+        self.assertEqual(perms.analytics_panel_min_role(self._fn(None)), "admin")
+
+    def test_declared_role_is_returned(self):
+        for role in ("viewer", "collaborator", "member", "admin", "site_admin"):
+            self.assertEqual(perms.analytics_panel_min_role(self._fn(role)), role)
+
+    def test_unknown_string_or_non_string_falls_back_to_admin_and_logs(self):
+        for bad in ("owner", "Viewer", 3):
+            with self.assertLogs("boards.permissions", level="WARNING") as logs:
+                self.assertEqual(perms.analytics_panel_min_role(self._fn(bad)), "admin")
+            self.assertEqual(len(logs.records), 1)
+
+    def test_invalid_min_role_log_names_module_and_qualname(self):
+        fn = self._fn(3)
+        with self.assertLogs("boards.permissions", level="WARNING") as logs:
+            perms.analytics_panel_min_role(fn)
+        self.assertEqual(
+            logs.records[0].getMessage(),
+            f"ANALYTICS_EXTENSIONS callable {__name__}.{fn.__qualname__} "
+            "has an invalid min_role (int); treated as admin",
+        )
+
+    def test_invalid_min_role_log_falls_back_for_a_callable_without_names(self):
+        with self.assertLogs("boards.permissions", level="WARNING") as logs:
+            perms.analytics_panel_min_role(_StubPanel(min_role=3))
+        self.assertEqual(
+            logs.records[0].getMessage(),
+            "ANALYTICS_EXTENSIONS callable ?._StubPanel has an invalid min_role (int); "
+            "treated as admin",
+        )
+
+    def test_filter_ranks_the_caller_inclusively(self):
+        viewer, member, admin = self._fn("viewer"), self._fn("member"), self._fn("admin")
+        self.hooks.ANALYTICS_EXTENSIONS.extend([viewer, member, admin, _named_panel])
+        self.assertEqual(perms.analytics_extensions_for_role("viewer"), [viewer])
+        self.assertEqual(perms.analytics_extensions_for_role("collaborator"), [viewer])
+        self.assertEqual(perms.analytics_extensions_for_role("member"), [viewer, member])
+        everything = [viewer, member, admin, _named_panel]
+        self.assertEqual(perms.analytics_extensions_for_role("admin"), everything)
+        self.assertEqual(perms.analytics_extensions_for_role(SITE_ADMIN), everything)
+
+    def test_unknown_or_missing_role_gets_no_panel(self):
+        self.hooks.ANALYTICS_EXTENSIONS.append(self._fn("viewer"))
+        self.assertEqual(perms.analytics_extensions_for_role(None), [])
+        self.assertEqual(perms.analytics_extensions_for_role("owner"), [])
+
+    def test_unreadable_min_role_skips_only_that_panel_and_logs_its_names(self):
+        bad = _StubPanel(module="ext.panels", qualname="Panels.velocity", raise_on_min_role=True)
+        good = self._fn("viewer")
+        self.hooks.ANALYTICS_EXTENSIONS.extend([bad, good])
+        with self.assertLogs("boards.permissions", level="WARNING") as logs:
+            self.assertEqual(perms.analytics_extensions_for_role(SITE_ADMIN), [good])
+        self.assertEqual(
+            [r.getMessage() for r in logs.records],
+            ["ANALYTICS_EXTENSIONS callable ext.panels.Panels.velocity skipped: "
+             "min_role unreadable (RuntimeError)"],
+        )
+
+    def test_unreadable_min_role_log_falls_back_for_a_callable_without_names(self):
+        self.hooks.ANALYTICS_EXTENSIONS.append(_StubPanel(raise_on_min_role=True))
+        with self.assertLogs("boards.permissions", level="WARNING") as logs:
+            self.assertEqual(perms.analytics_extensions_for_role(SITE_ADMIN), [])
+        self.assertEqual(
+            logs.records[0].getMessage(),
+            "ANALYTICS_EXTENSIONS callable ?._StubPanel skipped: min_role unreadable (RuntimeError)",
+        )

@@ -3089,3 +3089,81 @@ class ExportHistoryGapTests(ExportBase):
             op["description"],
             "Admin only. Recent export audit log entries for this board, newest first.",
         )
+
+
+class ImportedCardCreatedAtUnitTests(TestCase):
+    """``_aware_timestamp`` and ``_imported_card_created_at`` (#1906), pinned directly (#1930).
+
+    ``test_import_card_created_at.py`` covers the import end to end but is not
+    in the ``import_export`` mutation target's test list; these assert each
+    rule of the two helpers on its own.
+    """
+
+    NOW = datetime.datetime(2026, 6, 1, 12, 0, tzinfo=datetime.timezone.utc)
+    CREATED = "2026-05-01T00:00:00+00:00"
+    CREATED_DT = datetime.datetime(2026, 5, 1, tzinfo=datetime.timezone.utc)
+    EARLIER = "2026-04-30T23:59:59+00:00"
+    LATER = "2026-05-02T00:00:00+00:00"
+
+    def _created(self, card_data, history_on=True, now=None):
+        from boards.views.import_export import _imported_card_created_at
+        return _imported_card_created_at(card_data, history_on, now or self.NOW)
+
+    def test_aware_timestamp_parses_an_aware_string(self):
+        from boards.views.import_export import _aware_timestamp
+        self.assertEqual(_aware_timestamp(self.CREATED), self.CREATED_DT)
+
+    def test_aware_timestamp_makes_a_naive_string_aware(self):
+        from boards.views.import_export import _aware_timestamp
+        parsed = _aware_timestamp("2026-05-01T00:00:00")
+        self.assertIsNotNone(parsed)
+        self.assertFalse(timezone.is_naive(parsed))
+        self.assertEqual(parsed, timezone.make_aware(datetime.datetime(2026, 5, 1)))
+
+    def test_aware_timestamp_rejects_absent_non_string_and_unparseable(self):
+        from boards.views.import_export import _aware_timestamp
+        for value in (None, "", 5, ["2026-05-01T00:00:00Z"], "yesterday", "2026-13-45T00:00:00Z"):
+            with self.subTest(value=value):
+                self.assertIsNone(_aware_timestamp(value))
+
+    def test_file_date_is_kept(self):
+        self.assertEqual(self._created({"created_at": self.CREATED}), self.CREATED_DT)
+
+    def test_absent_or_future_date_is_now(self):
+        self.assertIsNone(self._created({}))
+        self.assertIsNone(self._created({"created_at": "2026-06-02T00:00:00Z"}))
+
+    def test_date_equal_to_now_is_kept(self):
+        self.assertEqual(
+            self._created({"created_at": self.CREATED}, now=self.CREATED_DT), self.CREATED_DT,
+        )
+
+    def test_history_entry_before_the_date_drops_it(self):
+        for child, key in (("movements", "moved_at"), ("activities", "created_at"),
+                           ("comments", "created_at")):
+            with self.subTest(child=child):
+                card = {"created_at": self.CREATED, child: [{key: self.EARLIER}]}
+                self.assertIsNone(self._created(card))
+                # With history off the entries are not imported, so they do not count.
+                self.assertEqual(self._created(card, history_on=False), self.CREATED_DT)
+
+    def test_history_entry_at_or_after_the_date_keeps_it(self):
+        for child, key in (("movements", "moved_at"), ("activities", "created_at"),
+                           ("comments", "created_at")):
+            with self.subTest(child=child):
+                card = {"created_at": self.CREATED,
+                        child: [{key: self.CREATED}, {key: self.LATER}, {key: None}, "junk"]}
+                self.assertEqual(self._created(card), self.CREATED_DT)
+
+    def test_only_each_childs_own_timestamp_key_counts(self):
+        card = {
+            "created_at": self.CREATED,
+            "movements": [{"created_at": self.EARLIER}],
+            "activities": [{"moved_at": self.EARLIER}],
+            "comments": [{"moved_at": self.EARLIER}],
+        }
+        self.assertEqual(self._created(card), self.CREATED_DT)
+
+    def test_non_list_history_is_ignored(self):
+        card = {"created_at": self.CREATED, "movements": {"moved_at": self.EARLIER}}
+        self.assertEqual(self._created(card), self.CREATED_DT)
