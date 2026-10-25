@@ -23,13 +23,21 @@ Any Streamable HTTP MCP client can connect: Claude Desktop, Claude.ai (via a rem
 
 The MCP server reuses Visiban's existing [Personal Access Token](personal-access-tokens.md) system — there's no separate "API Tokens" screen in Django admin. Generate one from your own account settings:
 
-1. Open your avatar menu (top-right) and select **Settings**.
-2. Go to **Access Tokens** in the left sidebar.
-3. Click **New token**.
-4. Enter a descriptive name — for example, `claude-desktop`.
-5. Select scopes: **`mcp:read`** is required to open an MCP session at all. Also select **`mcp:write`** if you want the agent to create, move, update, or archive cards — read-only agents can omit it.
-6. Optionally set an expiry date.
-7. Click **Create token**.
+The web app's **Settings**, **Access Tokens** screen creates tokens with the default `read` and `write` scopes only, and it has no scope picker, so a token made there is refused at `/mcp`. Create the MCP token through the API instead, with `mcp:read` (plus `mcp:write` only if you want the agent to create, move, update, or archive cards):
+
+1. Log in to get a session token: `POST /api/v1/auth/login/` with your username and password.
+2. Create the token:
+
+    ```bash
+    curl -s -X POST http://localhost:8000/api/v1/auth/tokens/ \
+      -H "Authorization: Token <your-session-token>" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "claude-desktop", "scopes": ["mcp:read"]}'
+    ```
+
+    Add `"mcp:write"` to `scopes` for a read-write agent. Optionally add an `expires_at` date.
+
+For a read-only worked example against demo data, see [Ask Your Own Agent About the Demo Data](mcp-demo-walkthrough.md).
 
 !!! warning "Copy your token now"
     The full token value is shown **only once**, immediately after creation. Copy it to a password manager or secret store before navigating away.

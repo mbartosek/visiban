@@ -40,13 +40,31 @@ This creates the "Visiban Demo Board" (five columns, ten swimlanes, about 80 car
 
 ## 3. Sign in and mint a read-only token
 
-The seeded `demo1` to `demo5` accounts have unusable passwords, so sign in as the site admin, which can read every board.
+The seeded `demo1` to `demo5` accounts have unusable passwords, so use the site admin, which can read every board.
 
 1. Get the one-time admin password: `docker compose exec backend cat /tmp/visiban_admin_password` (if the file is missing, see [First Boot](../getting-started/first-boot.md)).
-2. Open `http://localhost:5173`, sign in as `admin`, and choose a new password when asked. Until you do, `/mcp` answers `403`.
-3. Open your avatar menu, then **Settings**, then **Access Tokens**, then **New token**.
-4. Name it `demo-agent` and select **only** the `mcp:read` scope. Leave `mcp:write`, `read`, and `write` unselected.
-5. Click **Create token** and copy the value now. It is shown once.
+2. Open `http://localhost:5173`, sign in as `admin`, and choose a new password when asked. Do this first: until you do, `/mcp` answers `403`, and a password change revokes every token issued before it.
+3. Log in through the API to get a session token (use your new password):
+
+    ```bash
+    curl -s -X POST http://localhost:8000/api/v1/auth/login/ \
+      -H "Content-Type: application/json" \
+      -d '{"username": "admin", "password": "<your-new-password>"}'
+    # {"key": "<session-token>"}
+    ```
+
+4. Create a token that carries **only** the `mcp:read` scope:
+
+    ```bash
+    curl -s -X POST http://localhost:8000/api/v1/auth/tokens/ \
+      -H "Authorization: Token <session-token>" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "demo-agent", "scopes": ["mcp:read"]}'
+    ```
+
+    The response's `token` field is the `vbn_...` value. Copy it now; it is shown once.
+
+The token-creation form in the web app does not offer a scope picker, and a token created there gets `read` and `write`, which `/mcp` refuses. That is why this step uses the API (see the [API Reference](../api/mcp.md)).
 
 A token with only `mcp:read` can list and read boards, columns, swimlanes, cards, and card history. Calling a write tool (`create_card`, `move_card`, `update_card`, `archive_card`) fails with a structured error. Scopes are not hierarchical; see [Personal Access Tokens](personal-access-tokens.md#scopes).
 
@@ -96,4 +114,4 @@ Then try to break the read-only promise, to see the guardrail: "Create a card ca
 | `403` | The account still has to change its password in the web app |
 | `seed_demo_data` refuses to run | `DEBUG` is not `true` in `.env`; see the [production guard](../administration/demo-data.md#production-guard) |
 
-When you are done, delete the token from **Access Tokens** and run `docker compose down -v` to discard the local data.
+When you are done, delete the token from **Settings**, **Access Tokens** and run `docker compose down -v` to discard the local data.
