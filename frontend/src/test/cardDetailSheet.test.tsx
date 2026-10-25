@@ -160,7 +160,11 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     const notch = screen.getByTestId('card-sheet-notch')
     expect(notch).toHaveAttribute('aria-hidden', 'true')
     expect(notch).toHaveAttribute('data-clamped', 'false')
-    expect(notch.className).toContain('bg-surface')
+    // #1937: solid brand-blue fill + border (>= 3:1 on the panel and the board in both themes).
+    expect(notch.className).toContain('bg-primary-emphasis')
+    expect(notch.className).toContain('border-primary-emphasis')
+    expect(notch.className).toContain('border-l-2')
+    expect(notch.className).not.toContain('bg-surface')
     // Card center 310, sheet top 104: notch center 206, a 14px square.
     expect(notch.style.top).toBe('199px')
     expect(notch.style.left).toBe('-5px')
@@ -232,6 +236,9 @@ describe('CardDetail sheet — anchor rule (#1914)', () => {
     const notch = screen.getByTestId('card-sheet-notch')
     expect(notch).toHaveAttribute('data-clamped', 'true')
     expect(notch.className).toContain('bg-surface-hover')
+    // Same border as unclamped, but no solid fill: the hollow arrow is the "pinned" cue.
+    expect(notch.className).toContain('border-primary-emphasis')
+    expect(notch.className).not.toContain('bg-primary-emphasis')
     // Pinned 28px below the sheet's top corner.
     expect(notch.style.top).toBe(`${28 - 7}px`)
   })
