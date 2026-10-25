@@ -689,7 +689,7 @@ class SeedNotificationsTests(TestCase):
 class SeedDemoSiteTests(TestCase):
     """#1034: --demo-site seeds the hosted-demo boards and accounts."""
 
-    #: #1389/#1412: seven boards, each a different workflow and swimlane entity
+    #: #1389/#1412: seven boards (plus the Trello import, #1908), each a different workflow and swimlane entity
     #: (Sales Territory (Overlay) deliberately overlaps Sales Territory — #1412
     #: supersedes #1406's "keep the roster at six" decision at the user's
     #: explicit direction).
@@ -775,7 +775,7 @@ class SeedDemoSiteTests(TestCase):
         self.assertEqual(sorted(r["Coverage"] for r in rows.values()).count("Full"), len(rows) - 2)
         self.assertEqual({r["Coverage"] for r in rows.values()}, {"Full", "Partial", "Gap"})
 
-    def test_seeds_exactly_seven_boards_with_at_least_fifteen_cards_each(self):
+    def test_seeds_seven_showcase_boards_plus_the_trello_import(self):
         _seed(demo_site=True)
         seeded = set(Board.objects.exclude(name=BOARD_NAME).values_list("name", flat=True))
         self.assertEqual(seeded, set(self.BOARD_NAMES) | {"Product Roadmap (Trello import)"})
@@ -1837,6 +1837,18 @@ class DemoSiteTrelloBoardTests(TestCase):
         self.assertEqual(
             list(self.board.columns.order_by("position").values_list("name", flat=True)),
             [lst["name"] for lst in sorted(data["lists"], key=lambda x: x["pos"]) if not lst["closed"]],
+        )
+        # The seed reads the fixture from the path it builds; the card count
+        # (cards in archived lists are skipped by default) is the export's.
+        from boards.management.commands import seed_demo_data
+
+        path = Path(seed_demo_data.__file__).resolve().parents[2] / "tests" / "fixtures" / "trello_export.json"
+        self.assertEqual(path, Path(__file__).resolve().parent / "fixtures" / "trello_export.json")
+        self.assertTrue(path.is_file())
+        open_lists = {lst["id"] for lst in data["lists"] if not lst["closed"]}
+        self.assertEqual(
+            self.board.cards.count(),
+            sum(1 for c in data["cards"] if c["idList"] in open_lists),
         )
         self.assertEqual(self.board.cards.count(), 3)
 

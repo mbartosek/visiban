@@ -62,7 +62,8 @@ Usage:
 
     python manage.py seed_demo_data --force --wipe --demo-site
         Hosted demo instance (#1034, try.visiban.com). In addition to the
-        normal demo board, seeds seven showcase boards, each with a different
+        normal demo board, seeds seven showcase boards (plus a Trello import
+        board, #1908), each with a different
         swimlane entity (#1389, #1412): Software Team, Property Management,
         Construction, Sales Territory, Sales Territory (Overlay), Content
         Moderation and Logistics Exceptions (16-20 cards each, with comments, assignees, labels,
@@ -1178,6 +1179,8 @@ class Command(BaseCommand):
         from boards.views.boards import BoardViewSet
 
         admin = users["admin"]
+        # Coupled to the importer's test fixture on purpose: editing it changes
+        # the demo board (test_the_board_is_the_export pins its shape).
         fixture = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / spec["trello"]
         django_request = APIRequestFactory().post(
             "/api/v1/boards/import/trello/?confirm=true",
@@ -1214,8 +1217,8 @@ class Command(BaseCommand):
         history reconciler (#1889), so the seed writes the same rows the API
         would have: a creation movement at the card's restored ``created_at``,
         an archive movement for an archived card, and an activity for each
-        value the card holds, all credited to the importing admin, as an
-        import credits its history. Each comment's activity keeps the Trello
+        value the card holds, all credited to the importing admin, the way
+        the sample import credits its history. Each comment's activity keeps the Trello
         author's name as import provenance, as the comment does.
         """
         cards = board.cards.select_related("column", "swimlane", "assignee", "created_by")
