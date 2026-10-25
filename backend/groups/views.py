@@ -1992,6 +1992,15 @@ class JoinGroupView(APIView):
         if not is_member_of_used and not invite_creator_is_valid(link):
             logger.info("Invite token lookup failed: creator not admin. token=%s ip=%s", token_hint, ip)
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        # A shareable admin link no longer redeems (#1727, #1940), so the
+        # preview answers like a revoked link rather than offering a join that
+        # the POST would refuse.
+        if (
+            link.delivery == GroupInviteLink.Delivery.LINK
+            and link.role == GroupInviteLink.Role.ADMIN
+        ):
+            logger.info("Invite token lookup failed: shareable admin link. token=%s ip=%s", token_hint, ip)
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         # Residual distinction accepted: with a live creator an expired or
         # consumed link still answers 410, so "creator gone" (404) is
         # distinguishable from "creator live, link expired/used". The SPA

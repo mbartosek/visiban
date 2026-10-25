@@ -189,6 +189,11 @@ class PreExistingGroupInviteLinkTests(_Fixture, TestCase):
         self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND, r.content)
         self.assertFalse(GroupMembership.objects.filter(group=self.group, user=self.joiner).exists())
 
+    def test_preview_of_shareable_admin_link_is_not_found(self):
+        _link, raw = self.legacy_admin_link()
+        r = self.client.get(f"/api/v1/groups/join/{raw}/")
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND, r.content)
+
     def test_existing_link_still_lists_with_its_admin_role_and_no_expiry(self):
         link, _raw = self.legacy_admin_link()
         r = self.client.get(self.url)
