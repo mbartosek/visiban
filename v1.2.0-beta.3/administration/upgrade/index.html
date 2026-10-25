@@ -5861,12 +5861,41 @@ is still accepted. Scripts that reorder this way must switch to
 <a href="../../api/boards/#columns">Columns API</a>, the <a href="../../api/boards/#swimlanes">Swimlanes API</a>,
 and the <a href="../../api/cards/">checklist item reference</a>.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Share links with no recorded enabling admin must be turned on again</p>
+<p>From 1.2 a board's public share link records the board admin who enabled it, and lasts only
+while that account is active and still an admin of the board (#1865). A link enabled
+before the enabler was recorded (for example under 1.1, or 1.2.0-beta.3 and earlier) has no
+recorded admin, so from the upgrade on it no longer opens: visitors get <code>404 Not Found</code> and the same "This
+board is no longer shared" page as for a link that was turned off (#1939). No admin is
+filled in for these links at upgrade. The <strong>Sharing</strong> tab shows sharing as off on such a
+board (and <code>share_link_active</code> reads <code>false</code>), and the first time the old link is opened it
+is also cleared from the board.</p>
+<p><strong>To restore public sharing on such a board</strong>, a board admin opens
+<strong>Board Settings → Sharing</strong> and turns <strong>Enable public share link</strong> on. This creates a new
+link recorded against that admin and shows it once; send the new URL to anyone who needs
+it. The previous URL does not come back. (<strong>Rotate link</strong> also creates a new link, but the
+tab offers it only for an active link, which such a board does not have.) API clients call
+<code>POST /api/v1/boards/{id}/share/</code>, which creates a new link whether or not one is set.</p>
+<p>The same applies to a link that a backend pod still on the previous version creates or
+re-enables during a rolling upgrade: it records no admin, so turn it on again once every
+pod runs 1.2.</p>
+<p>To list the boards whose link has no recorded admin (after migrating):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>shell<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="s2">from boards.models import Board</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="s2">boards = Board.objects.filter(share_token__isnull=False, share_enabled_by__isnull=True)</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="s2">for pk, name in boards.order_by('pk').values_list('pk', 'name'):</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="s2">    print(pk, name)</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="s2">"</span>
+</code></pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Public share links are now looked up by a hash of their token</p>
 <p>Board share links are now resolved by a SHA-256 hash of the share token, as invite links
 already are (#1880). Migrations <code>boards/0087</code>–<code>0089</code> add the hash column, fill it in for every
-existing share link, and build its unique index concurrently. Share links created before the
-upgrade keep working, and no action is needed. During a rolling upgrade, a backend pod still
+existing share link, and build its unique index concurrently. This change needs no action for
+links created before the upgrade (but see the note above on links enabled before the enabler was recorded). During a rolling upgrade, a backend pod still
 on the previous version writes the token without its hash. A share link that such a pod
 creates, regenerates or re-enables after migration <code>0088</code> has run answers <code>404 Not Found</code>,
 and so does the link it replaced, until a board admin regenerates it under
@@ -5875,10 +5904,11 @@ and so does the link it replaced, until a board admin regenerates it under
 <div class="admonition note">
 <p class="admonition-title">The share link is shown once; <code>share_token</code> on board reads is deprecated</p>
 <p>From 1.2 the <strong>Sharing</strong> tab shows a board's public link only once, right after it is
-created, and offers <strong>Rotate link</strong> for a link created earlier (#1935). Existing links keep
-working; no action is needed. For API clients, <code>share_token</code> on
+created, and offers <strong>Rotate link</strong> for a link created earlier (#1935). This needs no action:
+links that record the admin who enabled them keep working (a link enabled before the
+enabler was recorded must be turned on again; see the note above). For API clients, <code>share_token</code> on
 <code>GET /api/v1/boards/{id}/full/</code> is <strong>deprecated</strong> and will be removed in 2.0. It is still
-returned unchanged in 1.2. Read the token from the <code>POST /api/v1/boards/{id}/share/</code> response
+returned in 1.2, except that a link with no recorded admin reads as no link (<code>null</code>). Read the token from the <code>POST /api/v1/boards/{id}/share/</code> response
 instead, and use the new <code>share_link_active</code> field to tell whether a link is set. See the
 <a href="../../api/boards/#get-apiv1boardsidfull">Boards API</a>.</p>
 </div>
@@ -5921,13 +5951,13 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <p class="admonition-title">Breaking change — Valkey authentication is now required in production</p>
 <p><code>docker-compose.prod.yml</code> now starts Valkey with <code>--requirepass</code> and constructs <code>REDIS_URL</code> and <code>REDIS_CACHE_URL</code> using the password. <strong>The stack will fail to start if <code>REDIS_PASSWORD</code> is not set in your <code>.env</code>.</strong></p>
 <p>Before running <code>docker compose -f docker-compose.prod.yml up</code>, add <code>REDIS_PASSWORD</code> to your <code>.env</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Generate a strong random password and insert it into .env</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>sed<span class="w"> </span>-i<span class="w"> </span><span class="s2">"s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span><span class="s2">|"</span><span class="w"> </span>.env
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Generate a strong random password and insert it into .env</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>sed<span class="w"> </span>-i<span class="w"> </span><span class="s2">"s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=</span><span class="k">$(</span>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="k">)</span><span class="s2">|"</span><span class="w"> </span>.env
 </code></pre></div>
 <p>Or generate a value manually and add it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="w">   </span><span class="c1"># hex, not base64: a "/" in the password breaks the redis:// URL</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="c1"># Copy the output, then add to .env:</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="nv">REDIS_PASSWORD</span><span class="o">=</span>&lt;generated<span class="w"> </span>value&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>openssl<span class="w"> </span>rand<span class="w"> </span>-hex<span class="w"> </span><span class="m">32</span><span class="w">   </span><span class="c1"># hex, not base64: a "/" in the password breaks the redis:// URL</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="c1"># Copy the output, then add to .env:</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="nv">REDIS_PASSWORD</span><span class="o">=</span>&lt;generated<span class="w"> </span>value&gt;
 </code></pre></div>
 <p>Existing deployments that used the default unauthenticated Valkey (or Redis) will continue to work after setting this variable — Valkey data in the container is ephemeral (it holds only WebSocket channel state and short-lived cache keys), so no migration of data is required.</p>
 </div>
@@ -5936,10 +5966,10 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <p>Migration <code>boards/0030</code> creates full-text GIN indexes on the <code>cards</code> table using <code>CREATE INDEX</code> (not <code>CREATE INDEX CONCURRENTLY</code>). On PostgreSQL, a standard index build holds an <code>AccessShareLock</code> on the table for the duration of the build, blocking writes to <code>cards</code>.</p>
 <p>For most self-hosted deployments the index build completes in seconds and is not noticeable. For installations with <strong>millions of cards</strong>, this may cause a brief write outage on board operations during the migration window.</p>
 <p><strong>If you have a large <code>cards</code> table and need zero-downtime index creation</strong>, pre-create the indexes manually before running <code>migrate</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">boards_card_title_trgm</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">boards_card</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">title</span><span class="w"> </span><span class="n">gin_trgm_ops</span><span class="p">);</span>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">boards_card_description_trgm</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">boards_card</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">description</span><span class="w"> </span><span class="n">gin_trgm_ops</span><span class="p">);</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">boards_card_title_trgm</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">boards_card</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">title</span><span class="w"> </span><span class="n">gin_trgm_ops</span><span class="p">);</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">CONCURRENTLY</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">boards_card_description_trgm</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">boards_card</span><span class="w"> </span><span class="k">USING</span><span class="w"> </span><span class="n">gin</span><span class="w"> </span><span class="p">(</span><span class="n">description</span><span class="w"> </span><span class="n">gin_trgm_ops</span><span class="p">);</span>
 </code></pre></div>
 <p>Then run <code>python manage.py migrate</code> as normal — the migration's <code>CREATE INDEX IF NOT EXISTS</code> will detect the indexes exist and skip creation.</p>
 </div>
@@ -5947,8 +5977,8 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <p class="admonition-title">Pre-1.0 installs upgrading directly to 1.1 — <code>groups/0003_placeholder</code></p>
 <p>If your database was created from any pre-1.0 release <strong>and you are upgrading directly to 1.1.x without first running 1.0.x</strong>, you must apply the same <code>groups/0003_placeholder</code> reconciliation step described under <a href="#upgrading-to-100">Upgrading to 1.0.0</a> below before running <code>manage.py migrate</code>. Without it, Django's <code>InconsistentMigrationHistory</code> check aborts the upgrade and the schema is not advanced.</p>
 <p>Equivalent management-command form (run inside the backend container):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w"> </span>groups<span class="w"> </span>0003_placeholder<span class="w"> </span>--fake
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w"> </span>groups<span class="w"> </span>0003_placeholder<span class="w"> </span>--fake
 </code></pre></div>
 <p>Instances that already ran 1.0.x are unaffected — the reconciliation row is already present in <code>django_migrations</code>.</p>
 </div>
@@ -5962,22 +5992,22 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <p>Migration <code>boards/0043</code> adds a unique constraint on <code>(board, name)</code> for columns. Before applying the constraint, it runs a Python loop to deduplicate any existing column names within the same board (e.g. renaming a second "Done" column to "Done (2)").</p>
 <p>For deployments with a very large number of boards and columns, this deduplication loop may take several seconds. The subsequent <code>ADD CONSTRAINT</code> then issues a brief table lock to build the unique index.</p>
 <p><strong>If you have many thousands of columns</strong>, you can run the deduplication ahead of the migration window by executing it as a one-off management command before upgrading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>shell<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="s2">from boards.models import Column</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="s2">from django.db.models import Count</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="s2">for board_id in Column.objects.values_list('board_id', flat=True).distinct():</span>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="s2">    seen = {}</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="s2">    for col in Column.objects.filter(board_id=board_id).order_by('position'):</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="s2">        base = col.name</span>
-<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="s2">        if base in seen:</span>
-<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="s2">            seen[base] += 1</span>
-<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="s2">            col.name = f'{base} ({seen[base]})'</span>
-<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a><span class="s2">            col.save(update_fields=['name'])</span>
-<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a><span class="s2">        else:</span>
-<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a><span class="s2">            seen[base] = 1</span>
-<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a><span class="s2">print('Done')</span>
-<a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a><span class="s2">"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>shell<span class="w"> </span>-c<span class="w"> </span><span class="s2">"</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="s2">from boards.models import Column</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="s2">from django.db.models import Count</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="s2">for board_id in Column.objects.values_list('board_id', flat=True).distinct():</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="s2">    seen = {}</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="s2">    for col in Column.objects.filter(board_id=board_id).order_by('position'):</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a><span class="s2">        base = col.name</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a><span class="s2">        if base in seen:</span>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="s2">            seen[base] += 1</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a><span class="s2">            col.name = f'{base} ({seen[base]})'</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="s2">            col.save(update_fields=['name'])</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a><span class="s2">        else:</span>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a><span class="s2">            seen[base] = 1</span>
+<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="s2">print('Done')</span>
+<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a><span class="s2">"</span>
 </code></pre></div>
 <p>After this runs, <code>boards/0043</code> will find no duplicates and the constraint add will complete quickly.</p>
 </div>
@@ -5985,9 +6015,9 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <div class="admonition warning">
 <p class="admonition-title">Required pre-deploy step for any instance that ran a pre-1.0 beta</p>
 <p>If your database was created from any pre-1.0 release (including any release candidate), you <strong>must</strong> run the following SQL against your database <strong>before</strong> running <code>manage.py migrate</code> or starting the 1.0 backend container:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">django_migrations</span><span class="w"> </span><span class="p">(</span><span class="n">app</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">applied</span><span class="p">)</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'groups'</span><span class="p">,</span><span class="w"> </span><span class="s1">'0003_placeholder'</span><span class="p">,</span><span class="w"> </span><span class="n">NOW</span><span class="p">())</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">NOTHING</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">django_migrations</span><span class="w"> </span><span class="p">(</span><span class="n">app</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">applied</span><span class="p">)</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="s1">'groups'</span><span class="p">,</span><span class="w"> </span><span class="s1">'0003_placeholder'</span><span class="p">,</span><span class="w"> </span><span class="n">NOW</span><span class="p">())</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">NOTHING</span><span class="p">;</span>
 </code></pre></div>
 <p><strong>Why:</strong> Migration <code>groups/0003_placeholder</code> was added to the 1.0 release to fill a gap in the <code>groups</code> migration sequence. Because <code>groups/0004</code> was already applied in pre-1.0 releases, Django's startup check (<code>InconsistentMigrationHistory</code>) will prevent <code>manage.py migrate</code> from running if <code>0003</code> is not already marked applied. The SQL above registers it as applied so Django accepts the history as consistent. The migration itself is a no-op — it contains no schema changes.</p>
 <p>Fresh installs (where no pre-1.0 migrations have ever been applied) are not affected.</p>
@@ -6018,8 +6048,8 @@ instead, and use the new <code>share_link_active</code> field to tell whether a 
 <hr />
 <h2 id="checking-migration-status">Checking migration status<a class="headerlink" href="#checking-migration-status" title="Permanent link">&para;</a></h2>
 <p>At any time you can inspect which migrations have been applied:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>showmigrations
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>backend<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">  </span>python<span class="w"> </span>manage.py<span class="w"> </span>showmigrations
 </code></pre></div>
 <p><code>[X]</code> means applied. <code>[ ]</code> means pending. A pending migration after a deployment indicates the migration step was skipped or failed silently — run <code>migrate</code> manually and check the output for errors before serving traffic.</p>
 

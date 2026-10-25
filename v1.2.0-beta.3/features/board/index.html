@@ -5518,7 +5518,8 @@ parked out of sight cannot wash out every tint on the board.</p>
 <p>An admin who still administers the board another way (for example as its owner, or through a direct board admin role) keeps the link.</p>
 <p>For the changes listed above, the <strong>Sharing</strong> tab shows sharing as off once the board page is reloaded.</p>
 <p>The public page also checks this every time it is opened, so the link never stays usable after the admin's role ends, however that happens.</p>
-<p>Another board admin can turn sharing back on, which creates a new link. Links turned on before 1.2 are not affected.</p>
+<p>Another board admin can turn sharing back on, which creates a new link.</p>
+<p>A link turned on before the enabler was recorded (for example under 1.1, or 1.2.0-beta.3 and earlier) has no recorded admin, so it stops working at the upgrade to 1.2 (#1939). The <strong>Sharing</strong> tab shows sharing as off on such a board. A board admin restores sharing by turning <strong>Enable public share link</strong> on, which creates a new link and shows it once; the old URL does not come back. See the <a href="../../administration/upgrade/#upgrading-to-12x">upgrade notes</a>.</p>
 <h3 id="what-the-public-view-shows">What the public view shows<a class="headerlink" href="#what-the-public-view-shows" title="Permanent link">&para;</a></h3>
 <p>The public view renders the full board grid (columns, swimlane rows, and cards) in read-only mode. The following card metadata is visible:</p>
 <ul>
