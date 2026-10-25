@@ -378,6 +378,23 @@ describe('ProfileTab', () => {
     expect(mockUpdateCurrentUser.mock.calls[0][0]).not.toHaveProperty('current_password')
   })
 
+  it('asks an account without a password to sign in again when the session is too old (#1932)', async () => {
+    mockUpdateCurrentUser.mockRejectedValueOnce({
+      response: { status: 403, data: { detail: 'x', code: 'recent_login_required' } },
+    })
+    const user = userEvent.setup()
+    renderSettings({ ...fakeUser, has_usable_password: false })
+    const emailInput = screen.getByDisplayValue('j@example.com')
+    await user.clear(emailInput)
+    await user.type(emailInput, 'other@example.com')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(
+      await screen.findByText(/To change your email address, sign out, sign in again with your sign-in provider/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Failed to save changes. Please try again.')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+  })
+
   it("shows the server's current_password error", async () => {
     mockUpdateCurrentUser.mockRejectedValueOnce({
       response: {

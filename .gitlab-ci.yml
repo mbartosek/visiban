@@ -2389,8 +2389,8 @@ frontend-lint:
   image: ${DOCKERHUB_MIRROR}/node:20-alpine
   variables:
     # Cap below available RAM so V8 GCs aggressively instead of OOM-killing.
-    # 1500 MB caused exit 137 on the 2 GB runner; 512 MB forces earlier GC.
-    NODE_OPTIONS: "--max-old-space-size=512"
+    # 1500 MB caused exit 137 on the 2 GB runner; 512 MB OOMed tsc as the app grew.
+    NODE_OPTIONS: "--max-old-space-size=1024"
   # No unconditional main fallback (#1266) — nothing needs this job.
   rules:
     - changes:

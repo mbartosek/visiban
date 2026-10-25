@@ -647,7 +647,10 @@ class UserSerializer(serializers.ModelSerializer):
         "address taken", and that answer must not reach a caller who has not
         proved they know the password. See
         ``accounts.credentials.email_change_requires_current_password`` for the
-        rule and why accounts without a password are exempt.
+        rule and why accounts without a password are exempt from it; they need a
+        recent provider sign-in in the session instead
+        (``email_change_requires_recent_login``, #1932), checked at the same
+        point for the same reason.
         """
         self._check_username_change_needs_session(data)
         self._check_current_password_for_email_change(data)
@@ -702,6 +705,21 @@ class UserSerializer(serializers.ModelSerializer):
             # A token caller gets the session rule's 403 from validate_email;
             # whether it knows the password is irrelevant.
             return
+        # #1932: an account with no usable password has no password to prove,
+        # so its session must hold a recent provider sign-in instead, the
+        # first-password rule (#1260). The same 403 body and ``code`` as that
+        # rule, raised here so no "address taken" answer comes first.
+        if credentials_module.email_change_requires_recent_login(
+            request, self.instance, requested
+        ):
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied(
+                {
+                    "detail": credentials_module.EMAIL_CHANGE_RECENT_LOGIN_REQUIRED_MESSAGE,
+                    "code": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                }
+            )
         if not credentials_module.email_change_requires_current_password(
             self.instance, requested
         ):

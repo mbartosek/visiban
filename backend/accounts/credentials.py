@@ -265,7 +265,9 @@ def email_change_requires_current_password(user, requested_email) -> bool:
     Accounts without a usable password (sign-in through an identity provider
     only) are not asked: they have no password to confirm, and an owner who
     has lost the primary mailbox must still be able to recover the account.
-    Their control is a notice instead: an address added to or confirmed on
+    They need a recent provider sign-in in the session instead
+    (``email_change_requires_recent_login``, #1932), and a notice is sent as
+    well: an address added to or confirmed on
     such an account is reported to the account's current email, and a first
     password set (from a reset link or by the signed-in user) is reported to the account email and every
     verified address
@@ -282,6 +284,39 @@ def email_change_requires_current_password(user, requested_email) -> bool:
     if (requested_email or "") == (user.email or ""):
         return False
     return user.has_usable_password()
+
+
+# Same ``code`` as the first-password refusal, so the SPA handles both alike.
+EMAIL_CHANGE_RECENT_LOGIN_REQUIRED_MESSAGE = (
+    "To change your email address, sign out, sign in again with your sign-in "
+    "provider, and then change it within a few minutes. If you can't sign in "
+    'with a provider, use "Forgot password?" on the sign-in page to set a '
+    "password first."
+)
+
+
+def email_change_requires_recent_login(request, user, requested_email) -> bool:
+    """True when *request*'s session is too old to change *user*'s email (#1932).
+
+    An account with no usable password has no current password to prove
+    (``email_change_requires_current_password``), so an email change on such an
+    account needs the same proof as setting a first password (#1260): a recent
+    provider sign-in to this account, recorded in this session
+    (``session_recently_signed_in_by_provider``).
+
+    The same "not a change" rule as ``email_change_requires_session``: the
+    stored value sent back unchanged needs nothing. False whenever
+    ``user.has_usable_password()`` is true: those accounts prove their current
+    password instead. *request* may be ``None`` (a serializer used outside a
+    request), which is not refused, as in ``email_change_requires_session``.
+    """
+    if request is None:
+        return False
+    if (requested_email or "") == (user.email or ""):
+        return False
+    if user.has_usable_password():
+        return False
+    return not session_recently_signed_in_by_provider(request, user)
 
 
 def email_change_requires_session(request, current_email, requested_email) -> bool:

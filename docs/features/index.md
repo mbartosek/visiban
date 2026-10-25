@@ -247,7 +247,7 @@ Usernames are unique regardless of case: if someone is already `alice`, you can'
 
 > **Added in 1.2**
 
-**Changing your email address** — if your account has a password, Visiban asks for your current password (a **Current password** field appears under the email field once you edit it) before it saves a new address. Accounts that sign in only with an identity provider aren't asked. Once your address changes, Visiban sends a short notice to your previous address so you'd know if someone else made the change.
+**Changing your email address** — if your account has a password, Visiban asks for your current password (a **Current password** field appears under the email field once you edit it) before it saves a new address. Accounts that sign in only with an identity provider aren't asked for a password; instead, the change works only within five minutes of signing in to Visiban with one of your connected providers (changed in 1.2). After that, Settings asks you to sign out, sign in again with your provider, and then change the address straight away. Once your address changes, Visiban sends a short notice to your previous address so you'd know if someone else made the change.
 
 > **Added in 1.2**
 

@@ -823,7 +823,8 @@ touched — so it is zero-downtime and requires no operator action.
     - **A session also needs the current password to change the email** of an account that
       has a password: the same requests must include the new optional `current_password`
       field, or they get `400` with a `current_password` error. Accounts that sign in only
-      through an identity provider are not asked, and requests that don't change `email` are
+      through an identity provider are not asked (they need a recent provider sign-in
+      instead, below), and requests that don't change `email` are
       unaffected. Custom clients that let users change their email should send the field
       (see [Authentication API](../api/authentication.md#patch-apiv1authme)).
     - **The previous address is notified of an email change.** Whenever an account's email
@@ -846,6 +847,11 @@ touched — so it is zero-downtime and requires no operator action.
       set a first password only when the session signed in through one of the account's
       providers in the last five minutes; otherwise they answer `403` with
       `"code": "recent_login_required"`.
+      The same applies to changing the email of an account without a password
+      (`PATCH /api/v1/auth/me/`, `PATCH`/`PUT /api/v1/auth/user/`, and adding or making
+      an address primary on `/accounts/email/`, #1932). Addresses already on an account are
+      not changed by the upgrade; an operator who wants to review them can do so under
+      **Email addresses** in the Django admin.
       Accounts with a password are unaffected (see
       [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
