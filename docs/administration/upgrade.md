@@ -841,6 +841,13 @@ touched — so it is zero-downtime and requires no operator action.
       second **Connect** click in Settings is needed. These pages are served by the backend and are unbranded. Accounts without a password are not asked; their primary address receives a
       short fixed-text notice when a provider is connected. Signing in with a provider is
       unaffected (see [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
+    - **Setting a first password needs a recent provider sign-in.** On an account without
+      a password, `POST /api/v1/auth/change-password/` and `POST /api/v1/auth/password/change/`
+      set a first password only when the session signed in through one of the account's
+      providers in the last five minutes; otherwise they answer `403` with
+      `"code": "recent_login_required"`.
+      Accounts with a password are unaffected (see
+      [Connected accounts](authentication.md#connected-accounts-and-email-collisions)).
     - **Existing tokens are refused by the MCP server**, which now requires the `mcp:read`
       scope. Any MCP client authenticating with a pre-1.2 token stops connecting after the
       upgrade — create a new token with `mcp:read` to reconnect it.

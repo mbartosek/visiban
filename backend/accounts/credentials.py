@@ -17,6 +17,8 @@ any stored row.
 
 from __future__ import annotations
 
+import time
+
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.authentication import SessionAuthentication
@@ -103,6 +105,98 @@ def first_password_requires_session(request, user) -> bool:
     if user.has_usable_password():
         return False
     return not request_is_interactive_session(request)
+
+
+# Stable error code for the SPA (``{"detail": ..., "code": ...}``): it tells
+# the user to sign in again rather than showing a generic failure.
+FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE = "recent_login_required"
+# The reset pointer is for a session with no provider to sign in again with
+# (an account without a linked identity): a reset link proves the mailbox.
+FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE = (
+    "To set a password, sign out, sign in again with your sign-in provider, "
+    "and then set the password within a few minutes. If you can't sign in with "
+    'a provider, use "Forgot password?" on the sign-in page instead.'
+)
+
+
+def first_password_requires_recent_login(request, user) -> bool:
+    """True when *request*'s session is too old to set *user*'s first password (#1260).
+
+    An account with no usable password has no current password to prove, so
+    without this check a stolen session cookie alone could set one and keep
+    access after the session ends. The owner settled the rule: a first
+    password needs a recent sign-in to this account, recorded in this session
+    (``session_recently_signed_in_by_provider``). Run after
+    ``first_password_requires_session``, which refuses token callers first.
+    False whenever ``user.has_usable_password()`` is true: those accounts prove
+    their current password instead.
+    """
+    if user.has_usable_password():
+        return False
+    return not session_recently_signed_in_by_provider(request, user)
+
+
+def session_recently_signed_in_by_provider(request, user) -> bool:
+    """True when this session holds a recent provider sign-in to *user*'s own account.
+
+    The source is allauth's per-session authentication records
+    (``allauth.account.authentication.get_authentication_records``), which its
+    social-login flow writes into the session at sign-in time. Not
+    ``user.last_login``: that column is per user, so a fresh sign-in on the
+    owner's other device would make a stolen, older cookie look recent.
+
+    allauth's own ``did_recently_authenticate`` is not used, because it treats
+    an account with no password or MFA as always recently authenticated (it
+    has no way to reauthenticate one), which is exactly the account this rule
+    is for. The window is allauth's ``ACCOUNT_REAUTHENTICATION_TIMEOUT``
+    (default 300 seconds), the same "recent" the registry already uses for
+    email changes and provider connects, so there is one setting for it and
+    no new environment variable. Five minutes is enough to sign in and fill
+    the form, and short enough that a cookie copied from an idle session is
+    not usable for this.
+
+    Only a ``socialaccount`` record counts, and only when its provider and uid
+    are an identity linked to *user*: an account with no usable password can
+    only sign in through a provider. The records belong to the session, not
+    to an account: allauth's provider flow signs a signed-in user out before
+    it writes one, but a record written while the session was anonymous (for
+    example by a provider sign-in that stopped part way) is kept when the
+    session then signs in by another route, such as the REST login, because
+    Django keeps session data across a login. Matching the identity keeps such
+    a record from counting for a different account.
+
+    Fails closed: a session with no provider sign-in record within the window
+    is not recent. That includes a session signed in some other way (a REST
+    login, a password login or a test ``force_login``, none of which writes a
+    ``socialaccount`` record) and one whose provider sign-in is older than the
+    window. A session signed in through a provider before this rule shipped
+    has the same record (allauth has always written it) and passes while it
+    is inside the window.
+    """
+    from allauth.account import app_settings as account_settings
+    from allauth.account.authentication import get_authentication_records
+    from allauth.socialaccount.models import SocialAccount
+
+    if getattr(request, "session", None) is None:
+        return False
+    cutoff = time.time() - account_settings.REAUTHENTICATION_TIMEOUT
+    recent = set()
+    for record in get_authentication_records(request):
+        if not isinstance(record, dict) or record.get("method") != "socialaccount":
+            continue
+        at = record.get("at")
+        if not isinstance(at, (int, float)) or at < cutoff:
+            continue
+        recent.add((record.get("provider"), str(record.get("uid"))))
+    if not recent:
+        return False
+    linked = {
+        (provider, str(uid))
+        for provider, uid in SocialAccount.objects.filter(user_id=user.pk).values_list(
+            "provider", "uid"
+        )
+    }
+    return not recent.isdisjoint(linked)
 
 
 def request_is_interactive_session(request) -> bool:

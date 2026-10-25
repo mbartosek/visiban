@@ -33,6 +33,7 @@ from accounts.no_password_notices import (
     notify_primary_of_address_change,
 )
 from accounts.tests.email_change_helpers import reauthenticate
+from accounts.tests.provider_sign_in_helpers import sign_in_through_provider
 from accounts.tests.test_password_reset import _redeem_via_allauth_html_page
 
 VERIFICATION_MODES = ("none", "optional", "mandatory")
@@ -554,6 +555,9 @@ class DirectFirstPasswordNoticeTests(TestCase):
     def _post(self, url, user, *, with_old=False):
         client = APIClient()
         client.force_login(user)
+        if not with_old:
+            # A first password needs a recent provider sign-in (#1260).
+            sign_in_through_provider(client, user)
         body = {"new_password1": NEW_PASSWORD, "new_password2": NEW_PASSWORD}
         if url.endswith("/change-password/"):
             body = {"new_password": NEW_PASSWORD}

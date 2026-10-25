@@ -745,10 +745,14 @@ function SecurityTab({
       // user rather than waiting for a reload.
       if (!hasPw) onUserUpdated?.({ ...user, has_usable_password: true });
     } catch (err) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
+      const response = (err as { response?: { status?: number; data?: { code?: unknown } } })?.response;
+      const status = response?.status;
       setError(
         status === 429
           ? "Too many attempts. Please wait before trying again."
+          : response?.data?.code === "recent_login_required"
+          ? // #1260: a first password needs a recent provider sign-in in this session.
+            'To set a password, sign out, sign in again with your sign-in provider, and then set the password within a few minutes. If you can\'t sign in with a provider, use "Forgot password?" on the sign-in page instead.'
           : hasPw
           ? "Failed to change password. Check your current password and try again."
           : "Failed to set password. Please try again."
@@ -766,7 +770,8 @@ function SecurityTab({
         {!hasPw && (
           <p className="text-sm text-fg-tertiary">
             You signed in with a social account. Set a password below to also enable
-            username/password login.
+            username/password login. For your security, this works only within a few
+            minutes of signing in.
           </p>
         )}
 

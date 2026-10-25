@@ -534,11 +534,12 @@ Since 1.2, a body that is not a JSON object returns `400 Bad Request` (it return
 ```
 
 - `current_password` is not required for social-only accounts (accounts with no usable password that are setting a password for the first time). Setting that first password is available from an interactive session only: a request authenticated with a token (a Personal Access Token or the login API token) is refused with `403 Forbidden` and nothing is changed
+- **Changed in 1.2 (#1260):** the session must also have signed in to the account through one of its connected sign-in providers within the last 5 minutes (allauth's `ACCOUNT_REAUTHENTICATION_TIMEOUT`, default 300 seconds). Otherwise the request is refused with `403 Forbidden`, nothing is changed, and the body carries a stable `code` clients can act on (declared on both routes' `403` in the OpenAPI schema, component `PasswordChangeForbidden`, where `code` is optional because other refusals send `detail` only): `{"detail": "To set a password, sign out, sign in again with your sign-in provider, and then set the password within a few minutes. If you can't sign in with a provider, use \"Forgot password?\" on the sign-in page instead.", "code": "recent_login_required"}`. A session with no provider sign-in on record within that window (for example one that signed in longer ago, or by another route) is refused the same way, so the user signs out and signs in again. Accounts that already have a password are unaffected; they prove `current_password` instead
 - Minimum 12 characters; standard Django complexity rules apply
 - If `must_change_password` was set, it is cleared on success
 - The API token issued by `POST /api/v1/auth/login/` is revoked on success; a caller that authenticated with that token receives a replacement in the response's optional `key` field — see [API token on password change](#api-token-on-password-change) below
 
-**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a token credential is used to set a first password on an account with no usable password; `429 Too Many Requests` when the request limits described under [Rate limits for password change](#rate-limits-for-password-change) are exceeded. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
+**Response** `200 OK { "detail": "Password changed successfully." }` on success; `400 Bad Request` with field errors on failure; `403 Forbidden` when a token credential is used to set a first password on an account with no usable password (`{"detail": "Setting a first password is available from an interactive session only."}`), or when the session has no recent provider sign-in to the account (`"code": "recent_login_required"`, above); `429 Too Many Requests` when the request limits described under [Rate limits for password change](#rate-limits-for-password-change) are exceeded. When the request was authenticated with the login API token, the body also carries `key`, the replacement token:
 
 ```json
 { "detail": "Password changed successfully.", "key": "<new-api-token>" }
@@ -595,7 +596,9 @@ not accept the same body — but since 1.2 they enforce the same rules.
     send it. Social-only accounts (no usable password yet) may still omit it to
     set their first password from a signed-in session, matching
     `/auth/change-password/`; a request authenticated with a token is refused
-    with `403 Forbidden` in that case.
+    with `403 Forbidden` in that case, and so is a session without a recent
+    provider sign-in to the account (`"code": "recent_login_required"`, see
+    `/auth/change-password/` above; #1260).
 
 - **Minimum 12 characters** (changed in 1.2, #1258). Previously this endpoint
   accepted 8, Django's default. The minimum now comes from the instance-wide

@@ -830,6 +830,31 @@ describe('SecurityTab — social account (no usable password)', () => {
     )
   }, 15000)
 
+  it('asks the user to sign in again when the session is too old to set a first password', async () => {
+    mockChangePassword.mockRejectedValueOnce({
+      response: { status: 403, data: { detail: 'x', code: 'recent_login_required' } },
+    })
+    const user = await openSecurityTabForSocial()
+    await user.type(screen.getByLabelText('New password'), 'NewPassword123!')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Set password' }))
+    await waitFor(() =>
+      expect(screen.getByText(/sign out, sign in again with your sign-in provider/i)).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('Failed to set password. Please try again.')).not.toBeInTheDocument()
+  }, 15000)
+
+  it('keeps the generic message for any other 403', async () => {
+    mockChangePassword.mockRejectedValueOnce({ response: { status: 403, data: { detail: 'x' } } })
+    const user = await openSecurityTabForSocial()
+    await user.type(screen.getByLabelText('New password'), 'NewPassword123!')
+    await user.type(screen.getByLabelText('Confirm new password'), 'NewPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Set password' }))
+    await waitFor(() =>
+      expect(screen.getByText('Failed to set password. Please try again.')).toBeInTheDocument(),
+    )
+  }, 15000)
+
   it('updates the shared user after a first password is set, so other tabs see it', async () => {
     mockChangePassword.mockResolvedValueOnce({ detail: 'ok' })
     const onUserUpdated = vi.fn()
