@@ -3662,7 +3662,7 @@ frontend-docker-build:
       fi
       printf '{"auths":{%s}}' "${AUTHS}" > /kaniko/.docker/config.json
   script:
-    - /kaniko/executor --context=frontend --dockerfile=frontend/Dockerfile --no-push --snapshot-mode=redo --build-arg NODE_OPTIONS=--max-old-space-size=512 --build-arg BASE_REGISTRY=${DOCKERHUB_MIRROR:-docker.io/library}
+    - /kaniko/executor --context=frontend --dockerfile=frontend/Dockerfile --no-push --snapshot-mode=redo --build-arg NODE_OPTIONS=--max-old-space-size=1024 --build-arg BASE_REGISTRY=${DOCKERHUB_MIRROR:-docker.io/library}
 
 # ─── Docker push (amd64 + arm64) ───────────────────────────────────────────────
 #
@@ -3822,7 +3822,7 @@ frontend-docker-push:
         --context=frontend \
         --dockerfile=frontend/Dockerfile \
         --snapshot-mode=redo \
-        --build-arg NODE_OPTIONS=--max-old-space-size=512 \
+        --build-arg NODE_OPTIONS=--max-old-space-size=1024 \
         --build-arg BASE_REGISTRY=${DOCKERHUB_MIRROR:-docker.io/library} \
         $(destinations frontend)
 
@@ -4026,7 +4026,7 @@ frontend-docker-push-arm64:
         --provenance=false \
         --sbom=false \
         --file frontend/Dockerfile \
-        --build-arg NODE_OPTIONS=--max-old-space-size=512 \
+        --build-arg NODE_OPTIONS=--max-old-space-size=1024 \
         --build-arg BASE_REGISTRY="${DOCKERHUB_MIRROR:-docker.io/library}" \
         --tag "${GL_REF}" \
         frontend
