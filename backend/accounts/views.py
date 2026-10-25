@@ -706,8 +706,6 @@ def _reissued_auth_token(request) -> dict:
     return {}
 
 
-# One component shared by both password-change routes so their documented
-# responses cannot drift apart.
 # The 403 both password-change routes can answer (#1260). Declared so the
 # ``code`` the SPA acts on is part of the contract; without it the schema hook
 # (visiban.schema_hooks.add_standard_error_responses) documents the generic
@@ -736,6 +734,8 @@ _PASSWORD_CHANGE_FORBIDDEN_RESPONSE = OpenApiResponse(
     ),
 )
 
+# One component shared by both password-change routes so their documented
+# responses cannot drift apart.
 _PASSWORD_CHANGE_RESPONSE = inline_serializer(
     name="PasswordChangeResponse",
     fields={
