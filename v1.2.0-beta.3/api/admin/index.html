@@ -5373,6 +5373,10 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 <hr />
 <h3 id="delete-apiv1admininvite-linksid"><code>DELETE /api/v1/admin/invite-links/{id}/</code><a class="headerlink" href="#delete-apiv1admininvite-linksid" title="Permanent link">&para;</a></h3>
 <p>Revoke an invite link immediately. The link can no longer be used for registration.</p>
+<div class="admonition note">
+<p class="admonition-title">Differs from the other revoke endpoints</p>
+<p>This route deliberately keeps its 1.1 contract: <code>200 OK</code> with the revoked link and <code>400</code> on a repeat revoke. The board-scoped, group-scoped and <a href="#delete-apiv1adminboard-invite-linksid"><code>admin/board-invite-links</code></a> revokes answer <code>204</code> with no body, <code>404</code> on a repeat revoke and <code>400</code> for a used invite. The two conventions stay different for all of 1.x because changing a shipped status code would break 1.1 clients (#1912).</p>
+</div>
 <p><strong>Permission:</strong> <code>IsSiteAdmin</code>.</p>
 <p><strong>Response</strong> <code>200 OK</code> — the updated link object with <code>status: "revoked"</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
@@ -5588,7 +5592,7 @@ return <code>{"error": {"code": "maintenance_mode", "detail": "…"}}</code>. MC
 </tr>
 </tbody>
 </table>
-<p>This endpoint behaves exactly like the <a href="../boards/#delete-apiv1boardsidinvite-linkslink_id">board-scoped revoke</a>: <code>204</code> on success, <code>400</code> for a used invite, <code>404</code> for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered <code>200</code> with the row and <code>400</code> for a repeat revoke. The separate site invite-link revoke (<code>DELETE /api/v1/admin/invite-links/{id}/</code>) keeps its 1.1 behavior (<code>200</code> with a body, <code>400</code> on a repeat revoke), which differs from this family; that is tracked in #1912.</p>
+<p>This endpoint behaves exactly like the <a href="../boards/#delete-apiv1boardsidinvite-linkslink_id">board-scoped revoke</a>: <code>204</code> on success, <code>400</code> for a used invite, <code>404</code> for an unknown or already-revoked one. The endpoint is new in 1.2 and in no GA release; before this change the 1.2 pre-releases answered <code>200</code> with the row and <code>400</code> for a repeat revoke. The separate site invite-link revoke (<code>DELETE /api/v1/admin/invite-links/{id}/</code>) keeps its 1.1 behavior (<code>200</code> with a body, <code>400</code> on a repeat revoke), which differs from this family on purpose and stays that way for all of 1.x (#1912).</p>
 
 
 

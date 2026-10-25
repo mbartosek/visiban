@@ -4441,6 +4441,11 @@ an entry whose finding still fires turns the job red, whether the finding is dri
 break. Entries are only ever deleted (when one goes stale) or re-justified, never added.
 The exceptions are the #1781 replacement above and the temporary #1788 entries below.
 The temporary #1783 entries below are a third exception, and the #1792 entry a fourth.</p>
+<p>A fifth exception is permanent, not temporary: the <code>REMOVED_RESPONSE_STATUS DELETE /api/v1/admin/invite-links/{id}/ 204</code>
+entry under <code>#1912</code>. The v1.1.0 baseline listed <code>204</code> there (drf-spectacular's DELETE default), but
+v1.1.0 always answered <code>200</code> with the revoked link and <code>400</code> on a repeat revoke. That runtime
+contract is frozen for all of 1.x, so the schema now declares it and the entry is not removed at
+the v1.2.0 roll.</p>
 <p>Four temporary <code>key</code> entries under <code>#1788</code> cover <code>NEW_REQUIRED_REQUEST_BODY</code> on <code>POST swimlanes/</code>,
 <code>PUT swimlanes/{id}/</code>, and <code>PATCH swimlanes/{id}/set-collapsed/</code> and <code>set_collapsed/</code>. The v1.1.0
 baseline lacks those bodies because <code>SwimlaneViewSet</code> crashed during schema generation; #1788
