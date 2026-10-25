@@ -975,6 +975,15 @@ describe('CardDetail', () => {
       expect(screen.getAllByTitle('Remove item')).toHaveLength(1)
     })
 
+    it('lets the demo visitor (plain member) modify items created by others', async () => {
+      ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue(items)
+      render(<CardDetail {...memberProps()} currentUser={fakeUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
+      await waitFor(() => expect(screen.getByText('Legacy')).toBeInTheDocument())
+      const checklistBoxes = screen.getAllByRole('checkbox').slice(-3) as HTMLInputElement[]
+      expect(checklistBoxes.every((b) => !b.disabled)).toBe(true)
+      expect(screen.getAllByTitle('Remove item')).toHaveLength(3)
+    })
+
     it('lets a moderator modify every item including null-creator ones', async () => {
       ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue(items)
       render(<CardDetail {...memberProps(true)} currentUser={fakeUser} />)

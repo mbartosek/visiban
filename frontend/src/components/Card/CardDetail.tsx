@@ -1099,7 +1099,9 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
   const canModifyChecklistItem = (item: CardChecklistItem): boolean =>
     (item.created_by !== null && item.created_by !== undefined && currentUser !== null &&
       item.created_by.id === currentUser.id) ||
-    canModifyOthersContent;
+    // The hosted-demo visitor (a plain member) may tick/remove any checklist
+    // item server-side (demo-data.md), so mirror it like card reassignment.
+    canModifyOthersContentInDemo;
 
   const handleDeleteComment = async (commentId: number) => {
     // Re-entry guard: the disabled Confirm covers clicks, this covers a
