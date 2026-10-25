@@ -569,7 +569,13 @@ def create_card(
         # card's deferred swimlane FK check at COMMIT.
         locked_column = (
             Column.objects.select_for_update(no_key=True)
-            .filter(pk=column.pk).values_list("pk", flat=True).first()
+            .filter(pk=column.pk)
+            .values_list(
+                "pk",
+                # Only `is None` is read below; a 1-tuple is just as non-None.
+                flat=True,  # pragma: no mutate -- equivalent: result is tested for None only (#1931)
+            )
+            .first()
         )
         if locked_column is None:
             raise ColumnNotFound()
@@ -1297,7 +1303,10 @@ def _lock_cascade_boards(boards):
     list(
         boards.order_by("pk")
         .select_for_update(no_key=True, of=("self",))
-        .values_list("pk", flat=True)
+        .values_list(
+            "pk",
+            flat=True,  # pragma: no mutate -- equivalent: the list() result is discarded (#1931)
+        )
     )
 
 
@@ -1315,7 +1324,10 @@ def _lock_entry_columns(columns):
     list(
         columns.order_by("pk")
         .select_for_update(no_key=True, of=("self",))
-        .values_list("pk", flat=True)
+        .values_list(
+            "pk",
+            flat=True,  # pragma: no mutate -- equivalent: the list() result is discarded (#1931)
+        )
     )
 
 
@@ -1600,7 +1612,9 @@ def _move_card_attempt(
             board=board, column=target_column, swimlane=target_swimlane
         ).exclude(pk=card.pk)
         highest = target_cell.aggregate(m=Max("position"))["m"]
-        position = max(0, min(position, -1 if highest is None else highest + 1))
+        # An empty cell caps at 0 (the same result as any negative bound under
+        # max(0, ...)); a bound of 1 would leave a gap, which a test pins (#1931).
+        position = max(0, min(position, 0 if highest is None else highest + 1))
 
         # Shift the (already locked) target cell to make room.
         target_cell.filter(position__gte=position).update(

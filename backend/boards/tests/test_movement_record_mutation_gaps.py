@@ -182,6 +182,87 @@ class CardMovementModelContractTests(MovementGapBase):
         )
         self.assertEqual(CardMovement._meta.ordering, ["-moved_at"])
 
+    # -- append-only save() and snapshot fill (#1931) ---------------------------
+
+    def test_snapshot_defaults_are_empty_for_a_row_with_no_card(self):
+        """Python default and database default of the card snapshot are ``""``."""
+        row = CardMovement.objects.create(board=self.board, card=None)
+        row.refresh_from_db()
+        self.assertEqual((row.card_uid, row.card_title), ("", ""))
+        # The database default is what an INSERT from a release that does not
+        # know the columns relies on (#1469); no ORM path observes it, so pin it.
+        self.assertEqual(CardMovement._meta.get_field("card_uid").db_default, "")
+        self.assertEqual(CardMovement._meta.get_field("card_title").db_default, "")
+
+    def test_save_fills_board_and_snapshots_from_the_card(self):
+        row = CardMovement(card=self.card)
+        row.save()
+        row.refresh_from_db()
+        self.assertEqual(row.board_id, self.board.pk)
+        self.assertEqual(row.card_uid, self.card.uid)
+        self.assertEqual(row.card_title, "Subject")
+
+    def test_save_keeps_a_board_and_snapshots_the_caller_supplied(self):
+        """Only blank values are filled; a supplied value is never overwritten."""
+        other_board = _make_board(self.owner, "Other board")
+        row = CardMovement.objects.create(
+            card=self.card, board=other_board,
+            card_uid="OLD-UID", card_title="Old title",
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.board_id, other_board.pk)
+        self.assertEqual(row.card_uid, "OLD-UID")
+        self.assertEqual(row.card_title, "Old title")
+
+    def test_a_row_with_a_pk_is_refused_even_while_adding(self):
+        """A pk already set means Django would UPDATE, so it is refused on its own."""
+        from boards.models import AppendOnlyViolation
+
+        row = CardMovement(pk=987654, card=self.card)
+        self.assertTrue(row._state.adding)
+        with self.assertRaises(AppendOnlyViolation):
+            row.save()
+        self.assertFalse(CardMovement.objects.filter(pk=987654).exists())
+
+    def test_saving_a_stored_row_again_is_refused_with_its_message(self):
+        from boards.models import AppendOnlyViolation
+
+        row = CardMovement.objects.create(card=self.card)
+        with self.assertRaises(AppendOnlyViolation) as ctx:
+            row.save()
+        self.assertEqual(
+            str(ctx.exception),
+            "CardMovement rows are append-only; an existing movement cannot be changed.",
+        )
+
+    def test_delete_is_refused_with_its_message(self):
+        from boards.models import AppendOnlyViolation
+
+        row = CardMovement.objects.create(card=self.card)
+        with self.assertRaises(AppendOnlyViolation) as ctx:
+            row.delete()
+        self.assertEqual(
+            str(ctx.exception),
+            "CardMovement rows are append-only; a movement is removed only by deleting "
+            "its board or by an operator's purge_card_history run.",
+        )
+        self.assertTrue(CardMovement.objects.filter(pk=row.pk).exists())
+
+    def test_card_board_and_imported_author_are_nullable(self):
+        """A deleted card, a pre-backfill row and a non-imported row all store NULL.
+
+        The column constraint itself comes from the migrations, so the model
+        declaration is pinned here as well (``null=True`` is the contract the
+        SET_NULL retention and the nullable board snapshot rely on, #1469, #1675).
+        """
+        for name in ("card", "board", "imported_from_username"):
+            self.assertTrue(CardMovement._meta.get_field(name).null, name)
+        row = CardMovement.objects.create(card=None, board=None)
+        row.refresh_from_db()
+        self.assertEqual(
+            (row.card_id, row.board_id, row.imported_from_username), (None, None, None),
+        )
+
     def test_history_survives_deleting_what_it_points_at(self):
         """SET_NULL, with the denormalized names kept, is what preserves history."""
         actor = _make_user("gap_actor")

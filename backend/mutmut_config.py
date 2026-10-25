@@ -80,6 +80,7 @@ _CARD_SERVICE_TESTS = _MOVEMENT_TESTS + (
     "test_board_events.py",
     "test_security_fixes.py",
     "test_card_service_mutation_gaps.py",
+    "test_card_lock_mutation_gaps.py",
 )
 # The union of the head (#1502) and remainder (#1484) re-measures, plus the
 # custom-field CSV suite for the code #1449 added after them (#1546).
