@@ -1413,7 +1413,12 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
   // as a derived value only; they are never written back to the URL or
   // persisted state (BoardView stays mounted across a board switch with the
   // previous board's filters, so a write-back would copy them to the new board).
-  const effectiveFilters = useMemo(() => pruneStaleFilters(filters, board), [filters, board.labels, board.custom_field_definitions]);
+  const boardLabels = board.labels;
+  const boardCustomFieldDefs = board.custom_field_definitions;
+  const effectiveFilters = useMemo(
+    () => pruneStaleFilters(filters, { labels: boardLabels, custom_field_definitions: boardCustomFieldDefs }),
+    [filters, boardLabels, boardCustomFieldDefs],
+  );
 
   effectiveFiltersRef.current = effectiveFilters;
 
