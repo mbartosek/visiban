@@ -303,9 +303,7 @@ A tool that can fail for a reason other than "your token can't reach `/mcp` at a
 }
 ```
 
-Every error has a `code` your agent can branch on. The table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing.
-
-Every error carries a `code`. Most also carry a human-readable `detail` string, but not all do: the WIP and weight limit errors carry only their own fields, and `validation_error` carries an `errors` object instead of `detail` (it is the one exception to the `detail` convention). Branch on `code`, never on `detail`.
+Every error has a `code` your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing. Most errors also carry a human-readable `detail`, but not all: `wip_limit_exceeded` and `weight_limit_exceeded` carry only their own fields, and `validation_error` carries an `errors` object instead of `detail` (the one exception to the `detail` convention). Branch on `code`, never on `detail`.
 
 | `code` | Meaning |
 |---|---|
@@ -314,23 +312,22 @@ Every error carries a `code`. Most also carry a human-readable `detail` string, 
 | `column_not_found` | The column id does not exist, or belongs to a different board than the one you named. Identical either way. |
 | `swimlane_not_found` | Same, for a swimlane id. |
 | `object_not_found` | Reserved generic not-found code for a lookup with no more specific code above. |
-| `permission_denied` | Your board role is `collaborator` or `viewer`; card writes require `admin` or `member`. Also returned by `move_card` when the card is assigned to someone else and your role is below moderator. |
-| `force_not_permitted` | A `force` override of a WIP or weight limit was requested by someone who is not a board admin. |
-| `invalid_version` | The supplied `version` is not an integer. |
-| `invalid_position` | The supplied move `position` is not an integer. |
+| `permission_denied` | Your board role is `collaborator` or `viewer`; card writes require `admin` or `member`. Also returned by `update_card` and `archive_card` when your role only allows changing cards you created, and by `move_card` when the card is assigned to someone else and your role is below moderator. |
+| `force_not_permitted` | Reserved: no tool currently exposes `force`. A `force` override of a WIP or weight limit was requested by someone who is not a board admin. |
+| `invalid_version` | Reserved: no tool currently takes `version`. The supplied `version` is not an integer. |
+| `invalid_position` | Reserved: `position` is schema-typed as an integer, so this is not currently reachable. The supplied move `position` is not an integer. |
 | `card_creation_not_allowed` | `create_card` targeted a column that has card creation turned off. |
-| `container_changed` | A column, swimlane, or board kept gaining cards while it was being locked for deletion; nothing was deleted. Retry. |
+| `container_changed` | Reserved: no MCP tool deletes containers. A column, swimlane, or board kept gaining cards while it was being locked for deletion; nothing was deleted. Retry. |
 | `use_move_endpoint` | An update tried to change a card's column, swimlane, or position. Use `move_card` instead. |
 | `internal_error` | A tool error with no registered code. Should not occur; report it as a bug. |
 | `demo_read_only` | The instance is a shared demo (`DEMO_MODE`) and every MCP write is refused. |
-
 | `missing_scope` | Your token lacks the `mcp:write` scope required for this tool — see above. |
 | `maintenance_mode` | The instance is in [maintenance mode](admin.md#maintenance-mode) and your token does not belong to a site admin. Only ever returned by the write tools below (`create_card`, `move_card`, `update_card`, `archive_card`) — the read tools (`list_boards`, `list_columns`, `list_swimlanes`, `list_cards`) keep working regardless. Added in 1.2. |
 | `throttled` | Your token has exceeded its per-token rate limit. Carries a `retry_after` (seconds) — see [Rate limiting](#rate-limiting). Added in 1.2. |
 | `validation_error` | A field failed validation — includes an `errors` object keyed by field name, e.g. an `assignee` username or label name that does not resolve to an assignable board member/label. Every unresolved `assignee` returns the same message, whether the username does not exist, belongs to someone with no role on the board, or belongs to a `viewer` (who cannot be assigned). |
 | `wip_limit_exceeded` / `wip_hard_blocked` | The target column is at its WIP limit. Returned by `move_card` and, since 1.2 (#1428), `create_card`. Neither tool overrides either — there is no `force` option over MCP. |
 | `weight_limit_exceeded` | The target column is at its weight limit (`move_card`, and `create_card` since 1.2). |
-| `version_conflict` | `move_card` only. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. Re-read the card and retry. Added in 1.2 (#1522). |
+| `version_conflict` | `move_card`, and `create_card` when `position` is given. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. Re-read the card and retry. Added in 1.2 (#1522). |
 
 ### User fields
 
