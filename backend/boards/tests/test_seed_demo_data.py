@@ -9,11 +9,11 @@ from django.core.management.base import CommandError
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
+from boards.management.commands import seed_demo_data as seed_module
 from boards.management.commands.seed_demo_data import (
     DEMO_GROUP_NAME,
     LOAD_TEST_BOARD_NAME,
     LOAD_TEST_EXTRA_BOARD_PREFIX,
-    SEED_ANCHOR_DATE,
 )
 from accounts.models import AdminActionLog, User
 from boards.models import (
@@ -111,7 +111,7 @@ class SeedDueDateTests(TestCase):
     def test_at_least_one_overdue_card(self):
         _seed()
         board = Board.objects.get(name=BOARD_NAME)
-        overdue = board.cards.filter(due_date__lt=SEED_ANCHOR_DATE).count()
+        overdue = board.cards.filter(due_date__lt=timezone.now().date()).count()
         self.assertGreater(overdue, 0, "Expected at least one overdue card")
 
     def test_at_least_one_card_with_no_due_date(self):
@@ -123,8 +123,44 @@ class SeedDueDateTests(TestCase):
     def test_at_least_one_future_due_date(self):
         _seed()
         board = Board.objects.get(name=BOARD_NAME)
-        future = board.cards.filter(due_date__gt=SEED_ANCHOR_DATE).count()
+        future = board.cards.filter(due_date__gt=timezone.now().date()).count()
         self.assertGreater(future, 0, "Expected at least one card with a future due date")
+
+
+@override_settings(DEBUG=True)
+class SeedDueDateAnchorTests(TestCase):
+    """Due dates track today (#1948): the hourly demo reseed must not drift overdue."""
+
+    @staticmethod
+    def _seed_on(day, seed=42):
+        with mock.patch.object(
+            seed_module.Command, "_due_date_anchor", return_value=day
+        ):
+            _seed(seed=seed, wipe=True)
+        board = Board.objects.get(name=BOARD_NAME)
+        rows = board.cards.order_by("title", "id").values_list("title", "due_date")
+        return [(t, None if d is None else (d - day).days) for t, d in rows]
+
+    def test_due_dates_are_offsets_from_pinned_today(self):
+        day = datetime.date(2031, 7, 15)
+        _seed_rows = self._seed_on(day)
+        offsets = [o for _, o in _seed_rows if o is not None]
+        self.assertTrue(offsets)
+        self.assertTrue(any(o < 0 for o in offsets))
+        self.assertTrue(any(o > 0 for o in offsets))
+        board = Board.objects.get(name=BOARD_NAME)
+        for due in board.cards.exclude(due_date__isnull=True).values_list("due_date", flat=True):
+            self.assertLessEqual(abs((due - day).days), 30)
+
+    def test_same_seed_on_different_days_gives_identical_titles_and_offsets(self):
+        first = self._seed_on(datetime.date(2026, 1, 3))
+        second = self._seed_on(datetime.date(2029, 11, 20))
+        self.assertEqual(first, second)
+
+    def test_default_anchor_is_utc_today(self):
+        self.assertEqual(
+            seed_module.Command._due_date_anchor(), timezone.now().date()
+        )
 
 
 @override_settings(DEBUG=True)
@@ -205,7 +241,7 @@ class SeedMovementHistoryTests(TestCase):
         """The most recent movement per non-backlog card must fall within the last 30 days.
 
         Regression guard: when _add_movement_history used a hardcoded
-        SEED_ANCHOR_DATE the movements aged out of the 7d/30d analytics
+        fixed date the movements aged out of the 7d/30d analytics
         windows over time, causing Throughput to show all dashes.
         """
         import datetime

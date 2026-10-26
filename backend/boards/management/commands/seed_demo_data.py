@@ -171,9 +171,6 @@ LOAD_TEST_EXTRA_BOARD_PREFIX = "Visiban Load Test Extra Board"
 LOAD_TEST_EXTRA_BOARD_CARDS = 8
 DEMO_GROUP_NAME = "Visiban Demo Workspace"
 RANDOM_SEED = 42
-# Fixed reference date for due-date calculations — keeps the seeded card corpus
-# deterministic regardless of when the command is run.
-SEED_ANCHOR_DATE = datetime.date(2026, 4, 1)
 
 # ── Demo users ────────────────────────────────────────────────────────────────
 
@@ -1616,8 +1613,22 @@ class Command(BaseCommand):
                     created_by=owner,
                 )
 
+    @staticmethod
+    def _due_date_anchor():
+        """Today (UTC): the date every card due date is an offset from.
+
+        Why not a fixed date: the Helm reset CronJob reseeds try.visiban.com
+        hourly, and a constant anchor regenerated the same deadlines around that
+        constant, so the demo read as overdue as the calendar moved on (#1948).
+        --seed determinism is about titles, layout and the random draws, which
+        are unchanged: only the base date moves, so the day-offsets are stable.
+        The UTC date matches the demo-site anchor and avoids a host-local date
+        that runs ahead of UTC.
+        """
+        return timezone.now().date()
+
     def _create_cards(self, board, columns, swimlanes, labels, users):
-        today = SEED_ANCHOR_DATE
+        today = self._due_date_anchor()
         titles = list(CARD_TITLES)
         random.shuffle(titles)
 

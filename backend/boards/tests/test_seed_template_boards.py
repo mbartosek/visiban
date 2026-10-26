@@ -216,7 +216,7 @@ class SeedMovementHistoryTests(TestCase):
         """The most recent movement per card must fall within the last 30 days.
 
         Regression guard: when _add_movement_history used a hardcoded
-        SEED_ANCHOR_DATE the movements aged out of the 7d/30d analytics
+        the fixed seed date the movements aged out of the 7d/30d analytics
         windows as time passed, causing Throughput to show all dashes.
         """
         import datetime

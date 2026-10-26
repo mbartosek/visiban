@@ -10,6 +10,8 @@
 
 It creates a "Visiban Demo Board": five columns, ten swimlanes, ~80 cards, movement history, checklists, and comments. The board also belongs to a demo Group, and one card carries a custom field value and a file attachment; one `SavedFilter`, one group invite link, and one group label are seeded as well, so every board- and group-scoped resource family has at least one real row. The non-owner demo users (`demo2` to `demo5`) are `MEMBER`s of the demo Group (`demo1` is its admin), and `demo2` authored one card that carries its own attachment, comment, checklist item, and relation (used by the schema-fuzz CI job). Use it for:
 
+Card due dates on the generic demo board are counted from the day the command runs (UTC), not from a fixed date, so a board reseeded by the hourly reset never drifts into overdue. `--seed` keeps titles, layout and day offsets identical; only the calendar day moves (#1948).
+
 - Local development to have a board ready without manual setup
 - Staging environments used for product demos or sales calls
 - CI pipelines that need a non-empty board for integration tests
