@@ -410,9 +410,8 @@ class FileDateAnchorImportTests(TestCase):
             (tomorrow, "date_anchor cannot be in the future."),
             ("1999-01-01", "date_anchor cannot be more than 10 years ago."),
             ("garbage", "Date has wrong format."),
-            (20260315, "Date has wrong format."),
-            (None, "This field may not be null."),
-            (["2026-03-15"], "Date has wrong format."),
+            ("2026-02-30", "Date has wrong format."),
+            ("", "Date has wrong format."),
         ):
             with self.subTest(anchor):
                 data = self._file()
@@ -422,6 +421,16 @@ class FileDateAnchorImportTests(TestCase):
                 self.assertIn(f"The file's 'date_anchor' is invalid: {why}", resp.data["detail"])
                 self.assertIn("shift_dates as false", resp.data["detail"])
         self.assertFalse(Board.objects.exists())
+
+    def test_a_non_string_anchor_is_no_anchor(self):
+        """Only a string is an anchor, matching the dialog that offers the opt-out."""
+        for anchor in (None, 20260315, ["2026-03-15"], {"d": "2026-03-15"}, True):
+            with self.subTest(anchor):
+                data = self._file()
+                data["date_anchor"] = anchor
+                resp = self._post(data)
+                self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+                self.assertNotIn("shift_dates_from", resp.data["import_summary"]["options_applied"])
 
     def test_shipped_sample_files_carry_the_manifest_anchor(self):
         for entry in sample_boards.list_samples():

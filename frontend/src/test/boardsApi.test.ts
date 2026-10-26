@@ -296,6 +296,21 @@ describe('Board API wrappers', () => {
       expect(JSON.parse(formData.get('options') as string)).toEqual({ labels: true, shift_dates_from: '2026-03-15' })
     })
 
+    // #1949: the opt-out and the target day are date-shift requests on their own.
+    it.each([
+      [{ shift_dates_to: '2026-06-01' }],
+      [{ shift_dates: false }],
+      [{ labels: true, cards: true, shift_dates_to: '2026-06-01' }],
+      [{ shift_dates_from: '2026-03-15', shift_dates_to: '2026-06-01' }],
+    ])('sends the date-shift options %j', async (options) => {
+      const file = new File(['{}'], 'board.json', { type: 'application/json' })
+      mockClient.post.mockResolvedValue({ data: { id: 99 } })
+      await importBoard(file, undefined, undefined, options)
+
+      const formData = mockClient.post.mock.calls[0][1] as FormData
+      expect(JSON.parse(formData.get('options') as string)).toEqual(options)
+    })
+
     it('sends non-default options as a JSON string', async () => {
       const file = new File(['{}'], 'board.json', { type: 'application/json' })
       mockClient.post.mockResolvedValue({ data: { id: 99 } })

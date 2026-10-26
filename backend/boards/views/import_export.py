@@ -1273,8 +1273,12 @@ class BoardImportExportMixin:
         # the importer rather than in the import modal so every caller gets
         # the same board from the same file; an explicit ``shift_dates_from``
         # always wins and ``shift_dates: false`` opts out. A file without the
-        # key is imported exactly as before.
-        if shift_from is None and options.get("shift_dates", True) and "date_anchor" in data:
+        # key is imported exactly as before, and so is one whose value is not
+        # a string (null, a number, a list): an anchor is only ever written as
+        # a ``YYYY-MM-DD`` string, and the import dialog (which offers the
+        # opt-out) only recognizes a string, so the two agree on what counts.
+        # A string anchor is always validated strictly.
+        if shift_from is None and options.get("shift_dates", True) and isinstance(data.get("date_anchor"), str):
             anchor = ImportDateAnchorSerializer(data={"date_anchor": data["date_anchor"]})
             if not anchor.is_valid():
                 return Response(

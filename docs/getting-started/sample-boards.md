@@ -101,8 +101,8 @@ In the Import Board dialog the **Dates** section shows when the file carries an 
 
 - **Move dates to today** is on by default. Untick it to import the dates exactly as written.
 - **Adjust dates** opens a date field set to today. Pick an earlier day to date the board
-  around that day instead, for example to match a demo you ran last week. Future days are
-  not offered, so imported history never lands after the import. The dialog sends the day
+  around that day instead, for example to match a demo you ran last week. A day after today
+  is refused, so imported history never lands after the import. The dialog sends the day
   only when you change it; otherwise the server uses today (UTC).
 
 From the API the same choices are the `shift_dates` and `shift_dates_to` import options; see

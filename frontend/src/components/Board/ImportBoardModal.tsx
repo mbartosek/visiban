@@ -109,8 +109,10 @@ function localToday(): string {
 
 /** The top-level `date_anchor` of a chosen JSON file, or null (#1949). The
  *  server reads the same key and shifts the dates by default; the modal reads
- *  it only to decide whether to show the Dates controls. A file that is not
- *  parseable JSON shows none: the server reports its own error on submit. */
+ *  it only to decide whether to show the Dates controls. Only a string counts,
+ *  exactly as on the server, so the opt-out is offered whenever the server
+ *  would shift. A file that is not parseable JSON shows none: the server
+ *  reports its own error on submit. */
 function readDateAnchor(file: File): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();

@@ -831,7 +831,7 @@ The shipped [sample boards](../getting-started/sample-boards.md) are generated a
 
 Dates then move by the whole days from the source day to `shift_dates_to`, or to today's UTC date when it is not sent. The importer, not the web client, reads the file's anchor, so the import dialog, a `curl` upload of a downloaded sample, and any API client get the same board from the same file. When the file's anchor was used, `options_applied.shift_dates_from` reports it.
 
-A `date_anchor` the importer would use is validated like `shift_dates_from`. A malformed or out-of-range value returns `400 Bad Request`, for example `The file's 'date_anchor' is invalid: date_anchor cannot be in the future. Send the import option shift_dates as false to import its dates as written.` With `shift_dates: false`, or an explicit `shift_dates_from`, the key is not read.
+Only a string counts as an anchor: a `date_anchor` that is `null`, a number, a list, or an object is ignored, and the file imports unshifted. A string `date_anchor` the importer would use is validated like `shift_dates_from`. One that is not a real `YYYY-MM-DD` date, or is out of range, returns `400 Bad Request`, for example `The file's 'date_anchor' is invalid: date_anchor cannot be in the future. Send the import option shift_dates as false to import its dates as written.` With `shift_dates: false`, or an explicit `shift_dates_from`, the key is not read.
 
 ```bash
 # A downloaded sample, dated around today (no options needed)

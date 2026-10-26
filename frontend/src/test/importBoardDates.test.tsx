@@ -215,6 +215,7 @@ describe('ImportBoardModal — Dates for a chosen file (#1949)', () => {
     const { user } = await renderModal()
     for (const file of [
       new File(['{"name":"B"}'], 'board.json', { type: 'application/json' }),
+      // A non-string anchor is no anchor on the server either (#1949), so there is nothing to opt out of.
       new File(['{"date_anchor": 20260315}'], 'board.json', { type: 'application/json' }),
       new File(['not json'], 'board.json', { type: 'application/json' }),
       new File(['null'], 'board.json', { type: 'application/json' }),
