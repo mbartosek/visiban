@@ -157,6 +157,23 @@ class SeedDueDateAnchorTests(TestCase):
         second = self._seed_on(datetime.date(2029, 11, 20))
         self.assertEqual(first, second)
 
+    def test_movement_anchor_is_utc_date(self):
+        """_movement_anchor uses the UTC clock, so movements land around it (#1948).
+
+        Pin 23:59 UTC on a day far from the real one: a host-local
+        date.today() would date every movement around the real today instead.
+        """
+        frozen = datetime.datetime(2030, 3, 9, 23, 59, tzinfo=datetime.timezone.utc)
+        with mock.patch.object(seed_module.timezone, "now", return_value=frozen):
+            _seed(wipe=True)
+        board = Board.objects.get(name=BOARD_NAME)
+        moved = list(
+            CardMovement.objects.filter(card__board=board).values_list("moved_at", flat=True)
+        )
+        self.assertTrue(moved)
+        self.assertLessEqual(max(moved).date(), datetime.date(2030, 3, 9))
+        self.assertGreater(min(moved), frozen - datetime.timedelta(days=400))
+
     def test_default_anchor_is_utc_today(self):
         # Late evening UTC: a host-local or naive date.today() would differ on
         # a host ahead of UTC, so this proves the anchor is the UTC date.

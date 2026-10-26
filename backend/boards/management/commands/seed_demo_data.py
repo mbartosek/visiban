@@ -5,7 +5,9 @@ Creates a "Visiban Demo Board" with 5 columns, 10 swimlanes, ~120 cards,
 checklists, comments, movement history, and activity records suitable for
 product demos, sales calls, and integration testing.
 
-Uses random.seed(42) by default so output is deterministic and git-diffable.
+Uses random.seed(42) by default so titles, layout and day offsets are
+deterministic; due dates and movement dates are counted from the (UTC) day the
+command runs, so the calendar dates move with the run date.
 Pass --seed N to override (e.g. for generating alternate datasets in CI).
 
 
@@ -32,8 +34,9 @@ Usage:
         command only seeds the live demo database.
 
     python manage.py seed_demo_data --seed N
-        Override the random seed (integer). The default seed (42) produces a
-        fixed, deterministic dataset.
+        Override the random seed (integer). The default seed (42) produces the same
+        titles, layout and day offsets every run; due dates and movement
+        dates are counted from the run date (UTC).
 
         To generate data that varies by day (e.g. in a CI refresh job),
         pass today's date as an integer:
