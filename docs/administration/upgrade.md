@@ -814,8 +814,8 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     The sample board `.json` files moved from `sample-boards/` to `backend/boards/sample_boards/`
     so the backend image ships them. Raw links and `curl` commands that point at
     `sample-boards/<name>.json` (including copies of the examples from older docs) now return
-    `404`; use `backend/boards/sample_boards/<name>.json` instead. The `.csv` files and
-    `demo_board.json` stay in `sample-boards/`. The files are also named without the
+    `404`; use `backend/boards/sample_boards/<name>.json` instead. The `.csv` files stay in
+    `sample-boards/`. The files are also named without the
     "Template:" prefix, so an import is named "Imported: Sales Pipeline". See
     [Sample Boards](../getting-started/sample-boards.md#where-to-get-the-files) (#1452, #1450).
 
@@ -832,7 +832,7 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     now joins the group or board when the invited address is **verified**, not at sign-up. Until
     then the invite is held for that account and is not used up. An invite that is revoked or
     expires before the address is confirmed grants nothing. `optional` and `none` are unchanged.
-    Tell invitees to confirm their address, or they will sign in without the access they expect.
+    Tell invitees to confirm their email address: they will not have that access until they do (#1704).
 
 !!! note "Board cards list: `X-Total-Count` and `X-Truncated` headers, and `imported_from_username` on comments"
     - `GET /api/v1/boards/{id}/cards/` returns at most 200 cards per request, as before, but it
@@ -845,7 +845,7 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     - Comments created by a Trello or JSON board import are now posted under the user who ran the
       import, keep their original time, and keep the source's author name as text in the new
       `imported_from_username` field. The comments API, the MCP card resource, and JSON export
-      carry the field, so a re-imported export keeps the original name (#1675).
+      carry the field, so a re-imported export keeps the original name (#1702).
 
 !!! note "MCP SDK upgrade: some protocol-level responses changed"
     The MCP SDK behind `/mcp` moved from `mcp` 1.30.0 to 2.3.0. The URL, authentication, tools,
