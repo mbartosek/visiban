@@ -241,6 +241,8 @@ helm install visiban helm/visiban \
 | `externalRedis.existingSecret` / `externalRedis.existingSecretPasswordKey` | `""` / `redis-password` | Secret holding the external instance's password, instead of in the URL (#1361). Leave the password out of `url`/`cacheUrl` |
 | `networkPolicy.enabled` | `false` | Create NetworkPolicy resources restricting pod-to-pod traffic |
 
+On Helm installs the frontend's Content-Security-Policy names `ingress.host` for WebSocket connections (`wss://`, plus `ws://` when `ingress.tls.enabled` is `false`), and nothing is added when the ingress is disabled or no host is set, so WebSocket connections then rely on `'self'` (as does reaching the app through a different host name or `kubectl port-forward`); set `ingress.host` if your browser does not map `'self'` to `ws`/`wss`; the frame policy is `X-Frame-Options: DENY`, matching the Compose templates.
+
 ### Ingress annotations
 
 The chart ships with default annotations for nginx-ingress that match the Docker Compose Nginx configuration:
