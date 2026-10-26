@@ -2293,6 +2293,7 @@ export default function BoardView({ onBoardDeleted, userTimezone = "", userDateF
               hiddenCount={hiddenCount}
               scope={scope}
               onScopeChange={setScope}
+              userDateFormat={userDateFormat}
             />
           </div>
         </>

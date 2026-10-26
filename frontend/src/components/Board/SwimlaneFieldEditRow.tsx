@@ -11,6 +11,8 @@ interface Props {
   onInvalidChange?: (invalid: boolean) => void;
   /** URL fields (#1390): a server 400 for this field, mapped to inline copy. */
   serverError?: string | null;
+  /** The user's `date_format` preference (#1993). */
+  userDateFormat?: string;
 }
 
 /**
@@ -27,7 +29,7 @@ interface Props {
  * debounce, clicking Save within that window of the last keystroke would drop
  * those characters, because the timer never fires before the form is read.
  */
-export default function SwimlaneFieldEditRow({ definition, value, onChange, onInvalidChange, serverError }: Props) {
+export default function SwimlaneFieldEditRow({ definition, value, onChange, onInvalidChange, serverError, userDateFormat }: Props) {
   // ToggleField renders its own label and description, so a checkbox row must
   // not print them again — same carve-out CustomFieldEditRow makes.
   const isCheckbox = definition.field_type === "checkbox";
@@ -51,6 +53,7 @@ export default function SwimlaneFieldEditRow({ definition, value, onChange, onIn
         escapePriority={definition.field_type === "multi_select" ? 46 : 45}
         onInvalidChange={onInvalidChange}
         serverError={serverError}
+        userDateFormat={userDateFormat}
       />
       {!isCheckbox && definition.help_text && (
         <p className="text-xs text-fg-muted mt-1">{definition.help_text}</p>

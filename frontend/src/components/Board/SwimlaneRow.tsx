@@ -517,6 +517,7 @@ export default function SwimlaneRow({ swimlane, columns, cards, boardId, isAdmin
           onDeleted={(id) => { onSwimlaneDeleted(id); setEditing(false); }}
           onClose={() => setEditing(false)}
           swimlaneFieldDefinitions={swimlaneFieldDefinitions}
+          userDateFormat={userDateFormat}
         />
       )}
     </>

@@ -109,6 +109,8 @@ interface Props {
    */
   scope?: "board" | "all";
   onScopeChange?: (scope: "board" | "all") => void;
+  /** The user's `date_format` preference, for date custom-field chips (#1993). */
+  userDateFormat?: string;
 }
 
 interface MyCardsButtonProps {
@@ -166,7 +168,7 @@ const FACET_OPTIONS: { value: FacetId; label: string }[] = [
   { value: "dueDate", label: "Due date" },
 ];
 
-export default function FilterBar({ board, filters, onChange, searchRef, isSearching, currentUser, hiddenCount = 0, scope = "board", onScopeChange }: Props) {
+export default function FilterBar({ board, filters, onChange, searchRef, isSearching, currentUser, hiddenCount = 0, scope = "board", onScopeChange, userDateFormat = "MM/DD/YYYY" }: Props) {
   const activeCount = countActiveFilters(filters);
   const searchDisabled = scope === "all";
 
@@ -304,7 +306,7 @@ export default function FilterBar({ board, filters, onChange, searchRef, isSearc
   for (const def of board.custom_field_definitions) {
     const v = filters.customFields[def.id];
     if (!v || !isCustomFieldFilterActive(v)) continue;
-    const displayValue = v.kind === "choice" || v.kind === "multi_choice" ? v.values.join(", ") : v.kind === "text" ? v.query : formatCustomFieldValue(def, v.equals, "MM/DD/YYYY");
+    const displayValue = v.kind === "choice" || v.kind === "multi_choice" ? v.values.join(", ") : v.kind === "text" ? v.query : formatCustomFieldValue(def, v.equals, userDateFormat);
     chips.push({
       key: `cf:${def.id}`,
       label: `${def.name}: ${displayValue}`,

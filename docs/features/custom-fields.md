@@ -12,7 +12,7 @@ Seven field types are available:
 |---|---|---|---|
 | Text | `Aa` | Free text | No length limit enforced client-side |
 | Number | `#` | Numeric string | No range validation |
-| Date | `📅` | ISO date | Rendered with a calendar picker in the card detail panel |
+| Date | `📅` | ISO date | Rendered with a calendar picker; shown in your **Date format** preference (Settings → Profile) everywhere it appears, including the editor, filter chips, and swimlane row fields. The stored value and exports stay `YYYY-MM-DD` |
 | Dropdown | `▾` | One of a fixed list of choices | Requires at least one choice |
 | Checkbox | `☑` | `true` / `false` | Displayed as **Yes** / **No** |
 | URL | `↗` | A web address | Must start with `http://` or `https://` (a bare `example.com` gets `https://` added for you); at most 500 characters. See [URL fields](#url-fields) |
