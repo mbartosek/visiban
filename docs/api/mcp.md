@@ -303,14 +303,14 @@ A tool that can fail for a reason other than "your token can't reach `/mcp` at a
 }
 ```
 
-Every error has a `code` your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing. Most errors also carry a human-readable `detail`, but not all: `wip_limit_exceeded` and `weight_limit_exceeded` carry only their own fields, and `validation_error` carries an `errors` object instead of `detail`, and `card_creation_not_allowed` carries a `column` message instead of `detail` (these two are the exceptions to the `detail` convention). Branch on `code`, never on `detail`.
+Every error has a `code` your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing. Most errors also carry a human-readable `detail`. Exactly four codes do not: `wip_limit_exceeded` and `weight_limit_exceeded` carry only their own fields (`column_name` and the counters), `validation_error` carries an `errors` object, and `card_creation_not_allowed` carries a `column` message. `internal_error` carries `code` plus whatever fields the underlying error has, normally `detail`. Branch on `code`, never on `detail`.
 
 | `code` | Meaning |
 |---|---|
 | `board_not_found` | The board id does not exist, or exists but you have no role on it (identical either way — Visiban never confirms a board id you cannot see). |
 | `card_not_found` | Same, for a card id. |
-| `column_not_found` | `move_card` only. The target column id does not exist, or belongs to a different board than the one you named. Identical either way. (`create_card` reports an unresolvable column as a `validation_error` with the message under `errors.column`.) |
-| `swimlane_not_found` | `move_card` only. Same, for a swimlane id. |
+| `column_not_found` | `move_card` and `create_card`. The column id does not exist, or belongs to a different board than the one you named. Identical either way. At create time an unresolvable column id is normally a `validation_error` (`errors.column`) from input validation; this code occurs there only when the column, or its board, is deleted while the request is in flight. |
+| `swimlane_not_found` | `move_card` and `create_card`. Same, for a swimlane id (`errors.swimlane` at create time; this code only when the swimlane is deleted mid-request). |
 | `object_not_found` | Reserved generic not-found code for a lookup with no more specific code above. |
 | `permission_denied` | Your board role is `collaborator` or `viewer`; card writes require `admin` or `member`. Also returned by `update_card` and `archive_card` when your role only allows changing cards you created, and by `move_card` when the card is assigned to someone else and your role is below moderator. |
 | `force_not_permitted` | Reserved: no tool currently exposes `force`. A `force` override of a WIP or weight limit was requested by someone who is not a board admin. |
@@ -327,7 +327,7 @@ Every error has a `code` your agent can branch on, and the table below is the co
 | `validation_error` | A field failed validation — includes an `errors` object keyed by field name, e.g. an `assignee` username or label name that does not resolve to an assignable board member/label. Every unresolved `assignee` returns the same message, whether the username does not exist, belongs to someone with no role on the board, or belongs to a `viewer` (who cannot be assigned). |
 | `wip_limit_exceeded` / `wip_hard_blocked` | The target column is at its WIP limit. Returned by `move_card` and, since 1.2 (#1428), `create_card`. Neither tool overrides either — there is no `force` option over MCP. |
 | `weight_limit_exceeded` | The target column is at its weight limit (`move_card`, and `create_card` since 1.2). |
-| `version_conflict` | `move_card`, and `create_card` when `position` is given. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. Re-read the card and retry. Added in 1.2 (#1522). |
+| `version_conflict` | `move_card`, and `create_card` when `position` is given. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. For `move_card`, re-read the card and retry. For `create_card` with `position`, the card has already been created when the follow-up reorder fails, and the error carries no card id, so retrying creates a duplicate: list the cards first and check before retrying. The same applies to a `card_not_found` from that reorder (a known limitation, tracked in #1992). Added in 1.2 (#1522). |
 
 ### User fields
 

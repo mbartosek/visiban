@@ -50,16 +50,32 @@ NON_SERVICE_CODES = {
     "demo_read_only",
 }
 
+# Exact class -> wire code mapping. Pinned per class, not just as a set, so
+# remapping a class to another valid code (e.g. ColumnNotFound -> card_not_found)
+# fails here.
+EXPECTED_SERVICE_CODES = {
+    "NotPermitted": "permission_denied",
+    "MoveNotPermitted": "permission_denied",
+    "ForceNotPermitted": "force_not_permitted",
+    "ObjectNotFound": "object_not_found",
+    "CardNotFound": "card_not_found",
+    "ColumnNotFound": "column_not_found",
+    "SwimlaneNotFound": "swimlane_not_found",
+    "BoardNotFound": "board_not_found",
+    "InvalidVersion": "invalid_version",
+    "InvalidPosition": "invalid_position",
+    "VersionConflict": "version_conflict",
+    "ContainerChanged": "container_changed",
+    "WipLimitExceeded": "wip_limit_exceeded",
+    "WipHardBlocked": "wip_hard_blocked",
+    "WeightLimitExceeded": "weight_limit_exceeded",
+    "CardCreationNotAllowed": "card_creation_not_allowed",
+    "UseMoveEndpoint": "use_move_endpoint",
+}
+
 # The complete public vocabulary. Adding to it means updating docs/api/mcp.md
 # (test_documented_codes_match_pinned_set); removing from it is a breaking change.
-PINNED_CODES = {
-    "board_not_found", "card_not_found", "column_not_found", "swimlane_not_found",
-    "object_not_found", "permission_denied", "force_not_permitted",
-    "invalid_version", "invalid_position", "version_conflict",
-    "container_changed", "wip_limit_exceeded", "wip_hard_blocked",
-    "weight_limit_exceeded", "card_creation_not_allowed", "use_move_endpoint",
-    "internal_error",
-} | NON_SERVICE_CODES
+PINNED_CODES = set(EXPECTED_SERVICE_CODES.values()) | {"internal_error"} | NON_SERVICE_CODES
 
 
 def _all_subclasses(cls):
@@ -81,15 +97,15 @@ class ErrorCodeVocabularyTests(SimpleTestCase):
         }
         self.assertEqual(names, set(FACTORIES))
 
-    def test_every_subclass_yields_a_snake_case_code(self):
+    def test_every_subclass_yields_its_pinned_snake_case_code(self):
+        self.assertEqual(set(FACTORIES), set(EXPECTED_SERVICE_CODES))
         for name, factory in FACTORIES.items():
             with self.subTest(name):
                 with self.assertNoLogs(tools.logger, level="ERROR"):
                     payload = tools._error_payload(factory())
                 code = payload["error"]["code"]
                 self.assertRegex(code, SNAKE_CASE)
-                self.assertIn(code, PINNED_CODES)
-                self.assertNotEqual(code, "internal_error")
+                self.assertEqual(code, EXPECTED_SERVICE_CODES[name])
 
     def test_unregistered_subclass_never_leaks_its_class_name(self):
         class BrandNewError(CardServiceError):
@@ -106,11 +122,16 @@ class ErrorCodeVocabularyTests(SimpleTestCase):
         self.assertEqual(
             payload, {"error": {"code": "validation_error", "errors": {"f": ["bad"]}}})
 
-    def test_pinned_set_covers_emitted_service_codes(self):
-        emitted = {
-            tools._error_payload(f())["error"]["code"] for f in FACTORIES.values()
-        }
-        self.assertLessEqual(emitted, PINNED_CODES)
+    def test_non_service_codes_are_emitted_by_their_modules(self):
+        # Guards the hand-listed NON_SERVICE_CODES against drifting from the
+        # code that actually builds them.
+        server_src = (Path(tools.__file__).parent / "server.py").read_text()
+        for code in ("missing_scope", "maintenance_mode"):
+            self.assertIn(f'"code": "{code}"', server_src)
+        from visiban.demo import DEMO_READ_ONLY_CODE
+        self.assertEqual(DEMO_READ_ONLY_CODE, "demo_read_only")
+        throttling_src = (Path(tools.__file__).parent / "throttling.py").read_text()
+        self.assertIn('ERROR_CODE_THROTTLED = "throttled"', throttling_src)
 
     def test_documented_codes_match_pinned_set(self):
         text = DOCS.read_text()
