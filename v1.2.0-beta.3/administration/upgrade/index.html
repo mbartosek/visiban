@@ -4855,6 +4855,15 @@ instance:</p>
 <p><strong>Check any script or integration</strong> that creates group invite links with <code>role: "admin"</code>,
 <code>expiry_days: null</code> or <code>expiry_days</code> over 30 (#1727).</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Checklist items with no recorded creator are now moderator-only</p>
+<p>Collaborators and members can edit or delete only the checklist items they created, the
+same rule comments and attachments follow. Items with no recorded creator used to be open
+to every collaborator; since 1.2 only admins and moderators can edit or delete them. This
+affects items created before migration 0044 and items whose creator's account was deleted.
+No operator action is needed. Imported items now record the importing user as creator.
+See <a href="../../api/cards/">checklist items</a> in the API reference (#1943).</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Analytics extension panels without <code>min_role</code> are now admin-only</p>
 <p>Panels registered through <code>ANALYTICS_EXTENSIONS</code> (enterprise or third-party analytics
