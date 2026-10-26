@@ -1,4 +1,4 @@
-"""Move a board export's dates by a whole number of days (#1452).
+"""Move a board export's dates by a whole number of days, either way (#1452, #1949).
 
 The sample boards are generated around a fixed anchor date, so imported as-is
 most of their cards are overdue. ``shift_board_dates`` runs on the parsed
@@ -62,7 +62,11 @@ def _shift_custom_values(values, date_names, delta):
 
 
 def shift_board_dates(data, days):
-    """Shift ``data`` (a parsed Visiban JSON export) forward by ``days``, in place."""
+    """Shift ``data`` (a parsed Visiban JSON export) by ``days``, in place.
+
+    ``days`` may be negative: a ``shift_dates_to`` earlier than the source day
+    moves every date backward (#1949).
+    """
     if not days:
         return data
     delta = datetime.timedelta(days=days)

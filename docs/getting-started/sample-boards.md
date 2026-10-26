@@ -93,9 +93,11 @@ Imports are limited to 10 per user per hour.
 The samples are generated around a fixed day, and each sample file records that day as its
 `date_anchor`. On import, Visiban moves every date in the board (due dates, date custom
 fields, card creation, comments, moves and history) forward by the days between that anchor
-and today, keeping the spacing between them. This happens however the file reaches Visiban:
-the gallery, **Import** with a file you downloaded, or an API upload. A board you exported
-yourself has no `date_anchor`, so its dates always import as written.
+and today, keeping the spacing between them. This happens however the JSON file reaches
+Visiban: the gallery, **Import** with a file you downloaded, or an API upload. A board you
+exported yourself has no `date_anchor`, so its dates always import as written. The sample
+`.csv` files are not shifted: a CSV import always keeps its dates as written, so a sample
+imported from CSV keeps the March 2026 dates it was generated with.
 
 In the Import Board dialog the **Dates** section shows when the file carries an anchor:
 

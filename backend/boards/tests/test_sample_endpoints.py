@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -477,9 +477,13 @@ class FileDateAnchorImportTests(TestCase):
         self.assertEqual(self._due(resp), datetime.date(2026, 3, 10))
 
     def test_default_target_is_the_utc_date(self):
-        # 23:30 UTC: the target is that UTC day, whatever the hour.
+        # 23:30 UTC on 1 July is already 13:30 on 2 July in Kiritimati (UTC+14),
+        # so localdate() and the UTC date differ: the target must be the UTC day.
+        # (Settings pin TIME_ZONE to UTC, which alone could not tell them apart.)
         frozen = datetime.datetime(2026, 7, 1, 23, 30, tzinfo=datetime.timezone.utc)
-        with mock.patch("django.utils.timezone.now", return_value=frozen):
+        with override_settings(TIME_ZONE="Pacific/Kiritimati"), \
+                mock.patch("django.utils.timezone.now", return_value=frozen):
+            self.assertEqual(timezone.localdate(), datetime.date(2026, 7, 2))
             resp = self._post(self._file())
         # 2026-03-15 -> 2026-07-01 is 108 days.
         self.assertEqual(self._due(resp), datetime.date(2026, 7, 6))

@@ -66,7 +66,9 @@ importing user.
 Each template's `.csv` file has the same column layout as **Export → CSV**
 It is meant for
 spreadsheet review or for trying the CSV importer, which creates cards but not their
-history, comments, checklists or custom field values.
+history, comments, checklists or custom field values. A CSV import keeps its dates as
+written (only the JSON files are moved to the import day), so a sample imported from CSV
+keeps the March 2026 dates it was generated with.
 
 ## Regenerating
 

@@ -4060,10 +4060,11 @@ class ImportOptionsSerializer(serializers.Serializer):
     comments = _StrictBooleanField(default=True)
     checklist = _StrictBooleanField(default=True)
     history = _StrictBooleanField(default=True)
-    # Sample-board flow (#1452): shift every date in the file forward by
-    # (today - this date) so the imported board is dated around the import day.
-    # Absent by default, so a plain import is unchanged, and omitted from
-    # ``options_applied`` unless given.
+    # Sample-board flow (#1452): shift every date in the file by
+    # (target - this date), the target being ``shift_dates_to`` or today, so the
+    # imported board is dated around that day. When absent, a file's own
+    # ``date_anchor`` stands in (#1949); a file without one is not shifted.
+    # Omitted from ``options_applied`` unless given or taken from the file.
     shift_dates_from = serializers.DateField(required=False)
     # #1949: a file that carries a top-level ``date_anchor`` (the shipped
     # samples do) is shifted from that anchor by default when
