@@ -192,7 +192,7 @@ When registration mode is Closed, use **Admin → Users → Add user** to create
 ## Loading sample data
 
 To see a fully populated board before your team's real work arrives, import one of the
-sample boards. The backend image ships the JSON files, so **Create from sample** on the dashboard works without a
+sample boards. The backend image ships the JSON files, so **Import** on the dashboard and pick one under **Start from a sample** works without a
 download. To import a file yourself (or to get the CSVs, which are repo-only), download them from [`backend/boards/sample_boards/` on GitLab](https://gitlab.com/visiban/visiban/-/tree/main/backend/boards/sample_boards)
 (or the [GitHub mirror](https://github.com/visiban/visiban/tree/main/backend/boards/sample_boards)), then
 use **Dashboard → Import**. See [Sample Boards](sample-boards.md) for the list and for what

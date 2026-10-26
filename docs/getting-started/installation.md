@@ -475,7 +475,7 @@ See [First Boot](first-boot.md) for full details.
 
 !!! tip "Sample data"
     The backend image ships the sample board JSON files. To try Visiban with a
-    populated board, use **Create from sample** on the dashboard, or download a file from
+    populated board, use **Import** on the dashboard and pick one under **Start from a sample**, or download a file from
     [`backend/boards/sample_boards/`](https://gitlab.com/visiban/visiban/-/tree/main/backend/boards/sample_boards) and use
     **Dashboard → Import**. See [Sample Boards](sample-boards.md).
 

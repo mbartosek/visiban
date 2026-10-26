@@ -654,7 +654,7 @@ These are also suitable for external load balancer health checks. The readiness 
 ## Sample data
 
 The backend image ships the sample board JSON files, so you can import one with
-**Create from sample** on the dashboard. To import a file by hand, download it from
+**Import** on the dashboard and pick one under **Start from a sample**. To import a file by hand, download it from
 [`backend/boards/sample_boards/`](https://gitlab.com/visiban/visiban/-/tree/main/backend/boards/sample_boards) in the
 repository and import one from **Dashboard → Import**. See [Sample Boards](sample-boards.md).
 
