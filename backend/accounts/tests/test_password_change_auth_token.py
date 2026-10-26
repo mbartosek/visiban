@@ -238,7 +238,7 @@ class _FirstPasswordSessionOnlyCases:
 
     def _assert_recent_login_refusal(self, r):
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(r.data["code"], credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE)
+        self.assertEqual(r.data["code"], credentials.RECENT_LOGIN_REQUIRED_CODE)
         self.assertEqual(r.data["detail"], credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE)
         self.user.refresh_from_db()
         self.assertFalse(self.user.has_usable_password())

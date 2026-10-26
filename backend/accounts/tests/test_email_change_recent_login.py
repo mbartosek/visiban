@@ -61,7 +61,7 @@ class RestEmailChangeRecentLoginTests(TestCase):
 
     def _assert_refused(self, r):
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(r.json()["code"], credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE)
+        self.assertEqual(r.json()["code"], credentials.RECENT_LOGIN_REQUIRED_CODE)
         self.assertEqual(r.json()["detail"], credentials.EMAIL_CHANGE_RECENT_LOGIN_REQUIRED_MESSAGE)
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, OLD)

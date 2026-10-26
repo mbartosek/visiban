@@ -107,9 +107,10 @@ def first_password_requires_session(request, user) -> bool:
     return not request_is_interactive_session(request)
 
 
-# Stable error code for the SPA (``{"detail": ..., "code": ...}``): it tells
-# the user to sign in again rather than showing a generic failure.
-FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE = "recent_login_required"
+# Stable error code for the SPA (``{"detail": ..., "code": ...}``), shared by
+# the first-password and email-change recent-login rules: it tells the user
+# to sign in again rather than showing a generic failure.
+RECENT_LOGIN_REQUIRED_CODE = "recent_login_required"
 # The reset pointer is for a session with no provider to sign in again with
 # (an account without a linked identity): a reset link proves the mailbox.
 FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE = (
