@@ -519,7 +519,7 @@ class VisibanPasswordChangeSerializer(DjRestAuthPasswordChangeSerializer):
             raise PermissionDenied(
                 {
                     "detail": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE,
-                    "code": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                    "code": credentials_module.RECENT_LOGIN_REQUIRED_CODE,
                 }
             )
         return super().validate(attrs)
@@ -717,7 +717,7 @@ class UserSerializer(serializers.ModelSerializer):
             raise PermissionDenied(
                 {
                     "detail": credentials_module.EMAIL_CHANGE_RECENT_LOGIN_REQUIRED_MESSAGE,
-                    "code": credentials_module.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                    "code": credentials_module.RECENT_LOGIN_REQUIRED_CODE,
                 }
             )
         if not credentials_module.email_change_requires_current_password(

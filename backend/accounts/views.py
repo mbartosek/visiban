@@ -851,7 +851,7 @@ class ChangePasswordView(APIView):
                 return Response(
                     {
                         "detail": credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_MESSAGE,
-                        "code": credentials.FIRST_PASSWORD_RECENT_LOGIN_REQUIRED_CODE,
+                        "code": credentials.RECENT_LOGIN_REQUIRED_CODE,
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
