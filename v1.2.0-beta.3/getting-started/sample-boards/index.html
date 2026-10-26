@@ -845,6 +845,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#dates-on-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dates on import
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4190,7 +4201,8 @@ A <code>manifest.json</code> next to the JSON files lists every sample.</p>
    Use <strong>Change</strong> to go back and pick a different sample.</li>
 </ol>
 <p>The sample is fetched from your own Visiban server, so it matches your installed version and works without internet access.
-Dates in the sample are moved to the day you import it, so the board does not open mostly overdue.
+Dates in the sample are moved to the day you import it, so the board does not open mostly overdue
+(see <a href="#dates-on-import">Dates on import</a>).
 The board is named <strong>Imported: <sample title></strong>, and a second import of the same sample is numbered.
 Press <strong>Esc</strong> while a sample is loading to cancel it. If samples can't be loaded, the dialog says so and you can retry or upload a file instead.</p>
 <h3 id="from-a-file">From a file<a class="headerlink" href="#from-a-file" title="Permanent link">&para;</a></h3>
@@ -4200,9 +4212,34 @@ Press <strong>Esc</strong> while a sample is loading to cancel it. If samples ca
 <li>Choose a <code>.json</code> file from <code>backend/boards/sample_boards/</code>.</li>
 <li>Optionally untick what you don't want (cards, labels, comments, checklists, history).
    The board's columns, swimlanes and custom field definitions are always imported.</li>
-<li>The board is created with everything in the file.</li>
+<li>The board is created with everything in the file, dated around today
+   (see <a href="#dates-on-import">Dates on import</a>).</li>
 </ol>
 <p>Imports are limited to 10 per user per hour.</p>
+<h3 id="dates-on-import">Dates on import<a class="headerlink" href="#dates-on-import" title="Permanent link">&para;</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Changed in 1.2</p>
+<p>Before #1949, only the in-app gallery moved a sample's dates. A sample file chosen from
+disk or downloaded with <code>curl</code> kept the dates it was generated with (around March 2026).</p>
+</div>
+<p>The samples are generated around a fixed day, and each sample file records that day as its
+<code>date_anchor</code>. On import, Visiban moves every date in the board (due dates, date custom
+fields, card creation, comments, moves and history) forward by the days between that anchor
+and today, keeping the spacing between them. This happens however the JSON file reaches
+Visiban: the gallery, <strong>Import</strong> with a file you downloaded, or an API upload. A board you
+exported yourself has no <code>date_anchor</code>, so its dates always import as written. The sample
+<code>.csv</code> files are not shifted: a CSV import always keeps its dates as written, so a sample
+imported from CSV keeps the March 2026 dates it was generated with.</p>
+<p>In the Import Board dialog the <strong>Dates</strong> section shows when the file carries an anchor:</p>
+<ul>
+<li><strong>Move dates to today</strong> is on by default. Untick it to import the dates exactly as written.</li>
+<li><strong>Adjust dates</strong> opens a date field set to today. Pick an earlier day to date the board
+  around that day instead, for example to match a demo you ran last week. A day after today
+  is refused, so imported history never lands after the import. The dialog sends the day
+  only when you change it; otherwise the server uses today (UTC).</li>
+</ul>
+<p>From the API the same choices are the <code>shift_dates</code> and <code>shift_dates_to</code> import options; see
+<a href="../../api/boards/#date-shifting">Date shifting</a>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Who did what</p>
 <p>The samples name the users <code>demo1</code> through <code>demo5</code> as assignees and as the people
