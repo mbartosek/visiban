@@ -4063,8 +4063,8 @@
 <td>board row(s) <code>FOR NO KEY UPDATE</code> -&gt; container's cards <code>FOR UPDATE</code> (one pk-ordered statement) -&gt; entry column rows <code>FOR NO KEY UPDATE</code> (one pk-ordered statement) -&gt; the collector's <code>DELETE</code>s</td>
 </tr>
 <tr>
-<td>Card entry (<code>create_card</code>, <code>move_card</code>, admin card form)</td>
-<td>(<code>create_card</code> and the admin card form: board row <code>FOR SHARE</code> first, #1632) -&gt; moved card and cell cards (one pk-ordered statement) -&gt; source and target column rows (one pk-ordered statement); <code>FOR KEY SHARE</code> on the board, column and swimlane only at commit</td>
+<td>Card entry (<code>create_card</code>, <code>move_card</code>, <code>create_card_at_position</code>, admin card form)</td>
+<td>(<code>create_card</code>, <code>create_card_at_position</code> and the admin card form: board row <code>FOR SHARE</code> first, #1632) -&gt; moved card and cell cards (one pk-ordered statement) -&gt; source and target column rows (one pk-ordered statement); <code>FOR KEY SHARE</code> on the board, column and swimlane only at commit. <code>create_card_at_position</code> (the MCP <code>create_card</code> tool with <code>position</code>, #1992) takes the target cell's cards and column in that order <em>before</em> it calls <code>create_card</code> and then <code>move_card</code> in the same transaction, re-reading the cell once it holds the column and retrying from a savepoint if a card entered it; by then every lock the two calls take is already held. A bare transaction around the two calls would hold the column from the create and then lock the cell's cards in the move: a card after a column, which deadlocks with a concurrent move in that cell</td>
 </tr>
 <tr>
 <td>Card write and card delete</td>
