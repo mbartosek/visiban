@@ -4756,7 +4756,7 @@
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="p">}</span>
 </code></pre></div>
-<p>Every error has a <code>code</code> your agent can branch on. The common ones:</p>
+<p>Every error has a <code>code</code> your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized <code>code</code> as a generic failure rather than crashing. Most errors also carry a human-readable <code>detail</code>. Exactly four codes do not: <code>wip_limit_exceeded</code> and <code>weight_limit_exceeded</code> carry only their own fields (<code>column_name</code> and the counters), <code>validation_error</code> carries an <code>errors</code> object, and <code>card_creation_not_allowed</code> carries a <code>column</code> message. <code>internal_error</code> carries <code>code</code> plus whatever fields the underlying error has, normally <code>detail</code>. Branch on <code>code</code>, never on <code>detail</code>.</p>
 <table>
 <thead>
 <tr>
@@ -4774,8 +4774,52 @@
 <td>Same, for a card id.</td>
 </tr>
 <tr>
+<td><code>column_not_found</code></td>
+<td><code>move_card</code> and <code>create_card</code>. The column id does not exist, or belongs to a different board than the one you named. Identical either way. At create time an unresolvable column id is normally a <code>validation_error</code> (<code>errors.column</code>) from input validation; this code occurs there only when the column, or its board, is deleted while the request is in flight.</td>
+</tr>
+<tr>
+<td><code>swimlane_not_found</code></td>
+<td><code>move_card</code> and <code>create_card</code>. Same, for a swimlane id (<code>errors.swimlane</code> at create time; this code only when the swimlane is deleted mid-request).</td>
+</tr>
+<tr>
+<td><code>object_not_found</code></td>
+<td>Reserved generic not-found code for a lookup with no more specific code above.</td>
+</tr>
+<tr>
 <td><code>permission_denied</code></td>
-<td>Your board role is <code>collaborator</code> or <code>viewer</code>; card writes require <code>admin</code> or <code>member</code>.</td>
+<td>Your board role is <code>collaborator</code> or <code>viewer</code>; card writes require <code>admin</code> or <code>member</code>. Also returned by <code>update_card</code> and <code>archive_card</code> when your role only allows changing cards you created, and by <code>move_card</code> when the card is assigned to someone else and your role is below moderator.</td>
+</tr>
+<tr>
+<td><code>force_not_permitted</code></td>
+<td>Reserved: no tool currently exposes <code>force</code>. A <code>force</code> override of a WIP or weight limit was requested by someone who is not a board admin.</td>
+</tr>
+<tr>
+<td><code>invalid_version</code></td>
+<td>Reserved: no tool currently takes <code>version</code>. The supplied <code>version</code> is not an integer.</td>
+</tr>
+<tr>
+<td><code>invalid_position</code></td>
+<td>Reserved: <code>position</code> is schema-typed as an integer, so this is not currently reachable. The supplied move <code>position</code> is not an integer.</td>
+</tr>
+<tr>
+<td><code>card_creation_not_allowed</code></td>
+<td><code>create_card</code> targeted a column that has card creation turned off. Carries a <code>column</code> message instead of <code>detail</code>: <code>{"column": "Card creation is not allowed in this column.", "code": "card_creation_not_allowed"}</code>.</td>
+</tr>
+<tr>
+<td><code>container_changed</code></td>
+<td>Reserved: no MCP tool deletes containers. A column, swimlane, or board kept gaining cards while it was being locked for deletion; nothing was deleted. Retry.</td>
+</tr>
+<tr>
+<td><code>use_move_endpoint</code></td>
+<td>Reserved: no tool currently emits it, because <code>update_card</code> takes no column, swimlane, or position. An update tried to change a card's column, swimlane, or position. Use <code>move_card</code> instead.</td>
+</tr>
+<tr>
+<td><code>internal_error</code></td>
+<td>A tool error with no registered code. Should not occur; report it as a bug.</td>
+</tr>
+<tr>
+<td><code>demo_read_only</code></td>
+<td>The instance is a shared demo (<code>DEMO_MODE</code>) and every MCP write is refused.</td>
 </tr>
 <tr>
 <td><code>missing_scope</code></td>
@@ -4803,7 +4847,7 @@
 </tr>
 <tr>
 <td><code>version_conflict</code></td>
-<td><code>move_card</code> only. The card kept changing under concurrent writes while the server retried locking it. <code>move_card</code> takes no <code>version</code> argument, so this is the only cause. Re-read the card and retry. Added in 1.2 (#1522).</td>
+<td><code>move_card</code>, and <code>create_card</code> when <code>position</code> is given. The card kept changing under concurrent writes while the server retried locking it. <code>move_card</code> takes no <code>version</code> argument, so this is the only cause. For <code>move_card</code>, re-read the card and retry. For <code>create_card</code> with <code>position</code>, the card has already been created when the follow-up reorder fails, and the error carries no card id, so retrying creates a duplicate: list the cards first and check before retrying. The same applies to a <code>card_not_found</code> from that reorder (a known limitation, tracked in #1992). Added in 1.2 (#1522).</td>
 </tr>
 </tbody>
 </table>
