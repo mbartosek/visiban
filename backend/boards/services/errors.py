@@ -207,8 +207,14 @@ class VersionConflict(CardServiceError):
     status = 409
     detail = "This card was modified by another user. Please refresh and try again."
 
-    def __init__(self, current_version: int):
+    def __init__(self, current_version: int | None, detail: str | None = None):
+        # ``detail`` overrides the class default for a conflict that is not
+        # about an existing card's version: create_card_at_position losing its
+        # cell-lock race (#1992), where no card exists and current_version is
+        # None. The code, and so the contract clients branch on, is the same.
         self.current_version = current_version
+        if detail is not None:
+            self.detail = detail
         super().__init__(self.detail)
 
     def body(self) -> dict:

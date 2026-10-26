@@ -607,6 +607,152 @@ class CreateCardTests(CrudToolsTestCase):
         self.assertFalse(Card.objects.filter(title="Over").exists())
 
 
+class CreateCardAtomicReorderTests(CrudToolsTestCase):
+    """``create_card`` with ``position`` is one transaction (#1992).
+
+    It used to commit the create and then run the reorder on its own, so a
+    reorder that failed left the card behind an error with no card id, and the
+    documented retry made a duplicate.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # A sibling at 0, so the new card is appended at 1 and position=0
+        # needs the follow-up reorder.
+        self.sibling = _make_card(self.column, self.swimlane, title="Sibling", position=0)
+
+    def _create(self, **extra):
+        return self._call(
+            "create_card", self.write_token, board_id=self.board.id,
+            column_id=self.column.id, swimlane_id=self.swimlane.id, title="Placed",
+            position=0, **extra,
+        )
+
+    def _assert_failed_reorder_writes_nothing(self, error, code):
+        from unittest.mock import patch
+
+        from boards import hooks
+
+        hook_calls = []
+        cards_before = Card.objects.count()
+        movements_before = CardMovement.objects.count()
+        events_before = BoardEvent.objects.count()
+        with patch.object(hooks, "CARD_MUTATION_HOOKS", [lambda *a: hook_calls.append(a)]), \
+                patch("boards.services.cards.move_card", side_effect=error), \
+                patch("boards.broadcast.broadcast_board_event") as broadcast, \
+                self.captureOnCommitCallbacks(execute=True):
+            result = self._create()
+
+        self.assertEqual(result["error"]["code"], code)
+        # The create rolled back with the reorder: no card, no "Card created"
+        # movement, no change-feed row, and nothing left for after the commit,
+        # so no card.created frame for a card that does not exist and no hook.
+        self.assertEqual(Card.objects.count(), cards_before)
+        self.assertFalse(Card.objects.filter(title="Placed").exists())
+        self.assertEqual(CardMovement.objects.count(), movements_before)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
+        # captureOnCommitCallbacks ran whatever was left to run on commit.
+        broadcast.assert_not_called()
+        self.assertEqual(hook_calls, [])
+
+        # So retrying is safe: exactly one card, at the requested position.
+        retried = self._create()
+        self.assertEqual(Card.objects.filter(title="Placed").count(), 1)
+        self.assertEqual(Card.objects.get(pk=retried["id"]).position, 0)
+        self.sibling.refresh_from_db()
+        self.assertEqual(self.sibling.position, 1)
+
+    def test_version_conflict_on_reorder_writes_nothing_and_retry_creates_one(self):
+        from boards.services.errors import VersionConflict
+
+        self._assert_failed_reorder_writes_nothing(VersionConflict(2), "version_conflict")
+
+    def test_card_not_found_on_reorder_writes_nothing_and_retry_creates_one(self):
+        from boards.services.errors import CardNotFound
+
+        self._assert_failed_reorder_writes_nothing(CardNotFound(), "card_not_found")
+
+    def test_success_fires_created_then_moved_after_one_commit(self):
+        from unittest.mock import patch
+
+        from boards import hooks
+
+        hook_calls = []
+        with patch.object(hooks, "CARD_MUTATION_HOOKS", [lambda *a: hook_calls.append(a)]), \
+                patch("boards.broadcast.broadcast_board_event") as broadcast, \
+                self.captureOnCommitCallbacks(execute=True):
+            result = self._create()
+
+        card = Card.objects.get(pk=result["id"])
+        self.assertEqual(result["position"], 0)
+        self.assertEqual(card.position, 0)
+        self.sibling.refresh_from_db()
+        self.assertEqual(self.sibling.position, 1)
+        # The frames clients saw before #1992, in the same order: the card
+        # appended, then the same-cell reorder ({card}, no movement).
+        events = [c.args[1] for c in broadcast.call_args_list]
+        self.assertEqual(events, ["card.created", "card.moved"])
+        self.assertEqual(set(broadcast.call_args_list[1].args[2]), {"card"})
+        self.assertEqual(
+            [(event, card_id) for event, card_id, _board, _actor in hook_calls],
+            [("card.created", card.id), ("card.moved", card.id)],
+        )
+
+    def test_position_already_at_end_skips_the_reorder(self):
+        result = self._call(
+            "create_card", self.write_token, board_id=self.board.id,
+            column_id=self.column.id, swimlane_id=self.swimlane.id, title="Placed",
+            position=1,
+        )
+        self.assertEqual(result["position"], 1)
+        self.assertEqual(BoardEvent.objects.filter(event="card.created").count(), 1)
+        self.assertFalse(BoardEvent.objects.filter(event="card.moved").exists())
+
+    def _assert_limit_refusal_writes_nothing(self, expected_code):
+        cards_before = Card.objects.count()
+        movements_before = CardMovement.objects.count()
+        events_before = BoardEvent.objects.count()
+        result = self._create()
+        self.assertEqual(result["error"]["code"], expected_code)
+        self.assertFalse(Card.objects.filter(title="Placed").exists())
+        self.assertEqual(Card.objects.count(), cards_before)
+        self.assertEqual(CardMovement.objects.count(), movements_before)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
+        self.sibling.refresh_from_db()
+        self.assertEqual(self.sibling.position, 0)
+
+    def test_wip_limit_with_position_is_structured_and_writes_nothing(self):
+        # The limit is enforced inside create_card on the new path too, and
+        # the refusal rolls back the up-front cell locks' transaction whole.
+        self.board.enforce_wip_limits = True
+        self.board.save(update_fields=["enforce_wip_limits"])
+        self.column.wip_limit = 1
+        self.column.save(update_fields=["wip_limit"])
+        self._assert_limit_refusal_writes_nothing("wip_limit_exceeded")
+
+    def test_hard_wip_with_position_is_structured_and_writes_nothing(self):
+        self.board.enforce_wip_hard = True
+        self.board.save(update_fields=["enforce_wip_hard"])
+        self.column.wip_limit = 1
+        self.column.save(update_fields=["wip_limit"])
+        self._assert_limit_refusal_writes_nothing("wip_hard_blocked")
+
+    def test_weight_limit_with_position_is_structured_and_writes_nothing(self):
+        # Card.weight defaults to 1: the sibling fills a budget of 1.
+        self.board.enforce_weight_limits = True
+        self.board.save(update_fields=["enforce_weight_limits"])
+        self.column.weight_limit = 1
+        self.column.save(update_fields=["weight_limit"])
+        self._assert_limit_refusal_writes_nothing("weight_limit_exceeded")
+
+    def test_column_creation_closed_is_refused_before_any_lock(self):
+        self.column.allow_card_creation = False
+        self.column.save(update_fields=["allow_card_creation"])
+        result = self._create()
+        self.assertEqual(result["error"]["code"], "card_creation_not_allowed")
+        self.assertFalse(Card.objects.filter(title="Placed").exists())
+
+
 class MoveCardTests(CrudToolsTestCase):
     def test_move_to_new_column_creates_movement(self):
         card = _make_card(self.column, self.swimlane, title="Movable")
@@ -733,13 +879,13 @@ class RefetchVsDeleteTests(CrudToolsTestCase):
             )
         self.assertEqual(result["error"]["code"], "card_not_found")
         self.assertEqual(calls["n"], 2)
-        # create_card's own transaction committed first (its render was call 1,
-        # which succeeded), so its card.created row is recorded synchronously and
-        # stays. Only the follow-up move's savepoint rolled back, so no
-        # card.moved event exists.
-        self.assertEqual(BoardEvent.objects.count(), before + 1)
-        self.assertEqual(BoardEvent.objects.filter(event="card.created").count(), 1)
-        self.assertFalse(BoardEvent.objects.filter(event="card.moved").exists())
+        # Create and reorder share one transaction (#1992), so the failed
+        # reorder rolls back the create too: no card.created row, no card.moved
+        # row, and no "Gone" card. The racing delete ran inside that same
+        # transaction, so it rolled back as well and the sibling is still there.
+        self.assertEqual(BoardEvent.objects.count(), before)
+        self.assertFalse(Card.objects.filter(title="Gone").exists())
+        self.assertTrue(Card.objects.filter(title="Sibling").exists())
 
     def test_move_card_refetch_gone(self):
         from boards.models import BoardEvent

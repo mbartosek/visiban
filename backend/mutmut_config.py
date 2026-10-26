@@ -81,6 +81,8 @@ _CARD_SERVICE_TESTS = _MOVEMENT_TESTS + (
     "test_security_fixes.py",
     "test_card_service_mutation_gaps.py",
     "test_card_lock_mutation_gaps.py",
+    # create_card_at_position / _lock_cell_for_placement (#1992).
+    "test_create_card_at_position_1992.py",
 )
 # The union of the head (#1502) and remainder (#1484) re-measures, plus the
 # custom-field CSV suite for the code #1449 added after them (#1546).

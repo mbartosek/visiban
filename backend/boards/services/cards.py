@@ -613,6 +613,112 @@ def create_card(
     return CardMutationResult(card=card, payload=payload)
 
 
+def create_card_at_position(
+    *, actor, board, column_id, swimlane_id, position, save, render, render_moved,
+    role=None,
+):
+    """Create a card and place it at ``position`` in its cell, in one
+    transaction (#1992). Returns ``(created, moved)``; ``moved`` is ``None``
+    when the card was appended at ``position`` already.
+
+    Why one transaction: the MCP ``create_card`` tool used to call
+    ``create_card`` and then ``move_card`` as two transactions, so a reorder
+    that failed (``version_conflict``, ``card_not_found``) left the card
+    created behind an error that carried no card id, and the documented "retry"
+    made a duplicate. Here a failed reorder rolls the create back with it:
+    nothing is written, and no broadcast, hook or mention notification is
+    registered (their ``on_commit`` callbacks belong to the outer transaction
+    and are discarded with it), so the caller may simply retry.
+
+    Why the cell is locked up front: nesting the two calls in a bare
+    ``atomic()`` would break the lock order. ``create_card`` holds the cell's
+    column row until commit, and ``move_card`` then locks the cell's card
+    rows, which is a card row after a column row. A concurrent move in the
+    same cell takes them the other way round (cards, then the column), so the
+    two would deadlock. So the cell's cards and its column are taken first, in
+    the card-entry order (board ``FOR SHARE`` -> cell cards -> column), with
+    the same membership re-check ``move_card`` makes (#1567). After that every
+    lock ``create_card`` and ``move_card`` ask for is already held, so neither
+    waits on anything and neither can take a lock out of order. ``move_card``'s
+    own retry loop still runs in its savepoint, but cannot lose a race: no
+    card can enter the cell while its column row is held.
+
+    The success path is unchanged for clients: a ``card.created`` frame (the
+    card at the end of its cell) followed by a ``card.moved`` frame (``{card}``,
+    a same-cell reorder), now committed together.
+    """
+    role = _resolve_role(actor, board, role)
+    _require_mutation_role(role)
+    # The same lookups, in the same order, as create_card, so a caller sees the
+    # same error first; they also keep the cell lock below on this board.
+    column = _board_scoped(Column, column_id, board, ColumnNotFound)
+    if not column.allow_card_creation:
+        raise CardCreationNotAllowed()
+    swimlane = _board_scoped(Swimlane, swimlane_id, board, SwimlaneNotFound)
+
+    with transaction.atomic():
+        if not lock_board_for_card_write(board.id):
+            raise ColumnNotFound()
+        _lock_cell_for_placement(board=board, column=column, swimlane=swimlane)
+        created = create_card(
+            actor=actor, board=board, column_id=column.pk, swimlane_id=swimlane.pk,
+            save=save, render=render, role=role,
+        )
+        moved = None
+        if position != created.card.position:
+            moved = move_card(
+                actor=actor, board=board, card_id=created.card.pk,
+                target_column_id=column.pk, target_swimlane_id=swimlane.pk,
+                position=position, render=render_moved, role=role,
+            )
+    return created, moved
+
+
+# The detail of _lock_cell_for_placement's VersionConflict (#1992): no card
+# exists yet, so the class default about a modified card would be wrong.
+_PLACEMENT_CONFLICT_DETAIL = (
+    "Cards kept being added to this column and swimlane while the card was "
+    "being placed. Nothing was created. Please try again."
+)
+
+
+def _lock_cell_for_placement(*, board, column, swimlane):
+    """Lock a cell's card rows, then its column row, for
+    ``create_card_at_position``; retry if a card entered the cell in between.
+
+    The ``_lock_move_cells`` -> ``_lock_move_columns`` ->
+    ``_require_cells_locked`` sequence of a move, for a cell that has no moved
+    card yet. The card statement locks the rows of its snapshot, taken before
+    it waited, so a card committed into the cell during that wait is not
+    locked; once the column row is held no further card can enter, so the
+    cell is re-read and, if it gained a card, the attempt is rolled back to its
+    savepoint (releasing its locks) and repeated. Locking the newcomer in a
+    second statement would take a card row after a column row instead.
+
+    A cell that gains a card on every attempt raises ``VersionConflict``, with
+    ``current_version`` ``None`` since there is no card yet, a detail that
+    says nothing was created, and nothing written: the same code ``move_card``
+    gives for the same lost race.
+    """
+    cell = Card.objects.filter(board=board, column=column, swimlane=swimlane)
+    for _attempt in range(_MOVE_LOCK_ATTEMPTS):
+        try:
+            with transaction.atomic():
+                locked_pks = frozenset(
+                    cell.order_by("pk").select_for_update(of=("self",))
+                    .values_list("pk", flat=True)
+                )
+                if column.pk not in _lock_move_columns({column.pk}):
+                    # Deleted while this waited (#1602), as in create_card.
+                    raise ColumnNotFound()
+                if not set(cell.values_list("pk", flat=True)) <= locked_pks:
+                    raise _CardChangedBeforeLock(None)
+            return
+        except _CardChangedBeforeLock:
+            continue
+    raise VersionConflict(None, detail=_PLACEMENT_CONFLICT_DETAIL)
+
+
 # ---------------------------------------------------------------------------
 # update
 # ---------------------------------------------------------------------------
