@@ -4339,6 +4339,15 @@ beyond loopback. The chart uses the one value in two places:</p>
   (<code>helm/visiban/templates/_backend-env.tpl</code>), where it <strong>replaces</strong> the
   loopback default, as described above.</li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Behind the chart's Ingress the two layers see different addresses</p>
+<p>The Nginx rules match the address of the connection reaching the frontend pod,
+which is the ingress controller's pod address. The backend middleware uses the
+client address derived from <code>X-Forwarded-For</code> and <code>NUM_PROXIES</code> (the chart renders <code>2</code>
+behind its Ingress by default, see <a href="../configuration/#reverse-proxies-and-the-client-ip">Reverse proxies</a>).
+Because one <code>adminAllowedIPs</code> value feeds both, list the ingress controller's range
+(for Nginx) as well as the client addresses (for Django).</p>
+</div>
 <p>Both layers accept CIDR ranges (e.g. <code>10.0.0.0/8</code>) as well as individual IPs —
 the backend middleware parses each entry with <code>ipaddress.ip_network()</code>, so a
 range that passes the Nginx allowlist is matched by Django too. An entry with

@@ -4261,7 +4261,7 @@
 <td>1.1.x</td>
 <td>1.2.x (minor)</td>
 <td>Yes — zero-downtime</td>
-<td>Follow the <a href="#standard-upgrade-steps">standard upgrade steps</a>. See <a href="#upgrading-to-12x">Upgrading to 1.2.x</a> — most changes are additive and need no operator action, but read the <code>!!!</code> callouts (Compose <code>ALLOWED_HOSTS</code>/<code>DOMAIN</code>, Helm <code>ALLOWED_HOSTS</code> no longer includes <code>localhost</code>, Helm catch-all/loopback <code>allowedHosts</code> entries fail the render (<strong>this one can stop <code>helm upgrade</code></strong>; opt out with <code>backend.settings.allowUnsafeHosts=true</code>), Helm values-schema validation, PAT scopes and the MCP server).</td>
+<td>Follow the <a href="#standard-upgrade-steps">standard upgrade steps</a>. See <a href="#upgrading-to-12x">Upgrading to 1.2.x</a> — most changes are additive and need no operator action, but read the <code>!!!</code> callouts (Compose <code>ALLOWED_HOSTS</code>/<code>DOMAIN</code>, Helm <code>NUM_PROXIES</code> is now 2 behind the chart's Ingress (can change <code>/admin/</code> access if only the ingress range was allowlisted), Helm <code>ALLOWED_HOSTS</code> no longer includes <code>localhost</code>, Helm catch-all/loopback <code>allowedHosts</code> entries fail the render (<strong>this one can stop <code>helm upgrade</code></strong>; opt out with <code>backend.settings.allowUnsafeHosts=true</code>), Helm values-schema validation, PAT scopes and the MCP server).</td>
 </tr>
 </tbody>
 </table>
@@ -4601,6 +4601,29 @@ values keys (<code>backend.settings.importMaxSizeBytes</code>, <code>demo.thrott
 <code>backend.migrate.connectTimeout</code>, <code>backend.migrate.lockTimeout</code>) are unchanged. If you
 are upgrading from 1.1, none of these names existed, so no action is needed. See
 <a href="../configuration/#deprecated-environment-variable-names">Deprecated environment variable names</a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Helm: NUM_PROXIES is 2 when the chart's Ingress is enabled</p>
+<p>The chart now sets <code>NUM_PROXIES</code> to <code>2</code> when <code>ingress.enabled</code> is true,
+<code>frontend.service.type</code> is <code>ClusterIP</code> and <code>backend.settings.numProxies</code> is unset.
+Previously those installs rendered nothing and the backend used its default of <code>1</code>.
+The chain behind an ingress is two hops deep (the ingress controller, then this chart's
+frontend nginx), so per-IP limits, such as the login and anonymous request limits, now
+key on the client address rather than the ingress controller's address.</p>
+<ul>
+<li><strong>Who is affected:</strong> installs with the ingress enabled (the default) that never set
+  <code>backend.settings.numProxies</code>. Upgrading rolls the backend pods.</li>
+<li><strong><code>/admin/</code> allowlist:</strong> the allowlist is checked twice, and the two layers see
+  different addresses. The frontend nginx <code>allow</code> rules match the ingress controller's
+  pod address, while Django's middleware matches the client address. Behind the ingress,
+  <code>backend.settings.adminAllowedIPs</code> needs both the ingress range (for nginx) and the
+  client addresses (for Django). See
+  <a href="../secret-rotation/#helm">Helm admin allowlist</a>.</li>
+<li><strong>Keep the previous value:</strong> set <code>backend.settings.numProxies: 1</code> explicitly.</li>
+<li><strong>Set it by hand</strong> when the frontend Service is exposed directly (use <code>1</code>), when
+  another proxy such as a CDN sits in front of the ingress (the count must equal the number of trusted hops that append to <code>X-Forwarded-For</code>, and the ingress controller must be configured to preserve and append the upstream header; check its forwarded-header settings), or when
+  your ingress controller does not add <code>X-Forwarded-For</code>.</li>
+</ul>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Helm: use this chart with a backend image from the same release</p>

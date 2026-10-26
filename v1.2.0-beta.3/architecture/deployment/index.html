@@ -4367,7 +4367,7 @@
 </div>
 <div class="admonition tip">
 <p class="admonition-title">TLS terminated upstream?</p>
-<p>If your load balancer or ingress controller terminates TLS and sets <code>X-Forwarded-Proto: https</code>, you do <strong>not</strong> need <code>forceInsecureCookies: true</code>. Django reads the header and treats the request as secure. Keep <code>forceInsecureCookies: false</code> (the default) and set <code>corsAllowedOrigins</code> to <code>https://...</code> as usual.</p>
+<p>If your load balancer or ingress controller terminates TLS and sets <code>X-Forwarded-Proto: https</code>, you do <strong>not</strong> need <code>forceInsecureCookies: true</code>. Django reads the header and treats the request as secure. Keep <code>forceInsecureCookies: false</code> (the default) and set <code>corsAllowedOrigins</code> to <code>https://...</code> as usual. Also make sure <code>backend.settings.numProxies</code> matches your proxy chain: the chart renders <code>2</code> (this chart's frontend nginx plus the ingress controller) when the ingress is enabled and the frontend Service is <code>ClusterIP</code>; set it explicitly if another proxy, such as the load balancer, also appends to <code>X-Forwarded-For</code>. See <a href="../../administration/configuration/#reverse-proxies-and-the-client-ip">Reverse proxies and the client IP</a>.</p>
 </div>
 <h3 id="key-helm-values">Key Helm values<a class="headerlink" href="#key-helm-values" title="Permanent link">&para;</a></h3>
 <table>
@@ -4423,6 +4423,11 @@
 <td><code>backend.settings.forceInsecureCookies</code></td>
 <td><code>false</code></td>
 <td>Disable secure cookie flags for plain-HTTP deployments</td>
+</tr>
+<tr>
+<td><code>backend.settings.numProxies</code></td>
+<td>unset (renders <code>2</code> with the ingress enabled and a <code>ClusterIP</code> frontend Service, otherwise the backend default of <code>1</code>)</td>
+<td><code>NUM_PROXIES</code>: trusted proxy hops that append to <code>X-Forwarded-For</code>, so per-client rate limits and the <code>/admin/</code> allowlist see the real client address. An explicit value always wins</td>
 </tr>
 <tr>
 <td><code>backend.oauth.oidc.serverUrl</code></td>
