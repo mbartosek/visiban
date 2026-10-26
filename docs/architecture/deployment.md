@@ -201,7 +201,7 @@ helm install visiban helm/visiban \
     `forceInsecureCookies: true` disables `SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE`. Do not enable this when the application is reachable from the public internet without TLS termination upstream.
 
 !!! tip "TLS terminated upstream?"
-    If your load balancer or ingress controller terminates TLS and sets `X-Forwarded-Proto: https`, you do **not** need `forceInsecureCookies: true`. Django reads the header and treats the request as secure. Keep `forceInsecureCookies: false` (the default) and set `corsAllowedOrigins` to `https://...` as usual.
+    If your load balancer or ingress controller terminates TLS and sets `X-Forwarded-Proto: https`, you do **not** need `forceInsecureCookies: true`. Django reads the header and treats the request as secure. Keep `forceInsecureCookies: false` (the default) and set `corsAllowedOrigins` to `https://...` as usual. Also make sure `backend.settings.numProxies` matches your proxy chain: the chart renders `2` (this chart's frontend nginx plus the ingress controller) when the ingress is enabled and the frontend Service is `ClusterIP`; set it explicitly if another proxy, such as the load balancer, also appends to `X-Forwarded-For`. See [Reverse proxies and the client IP](../administration/configuration.md#reverse-proxies-and-the-client-ip).
 
 ### Key Helm values
 
@@ -216,6 +216,7 @@ helm install visiban helm/visiban \
 | `backend.settings.frontendUrl` | `https://visiban.example.com` | Full URL of the SPA — allauth redirects here after OAuth login/logout |
 | `backend.settings.siteDomain` | `visiban.example.com` | Public hostname for OAuth callback URLs |
 | `backend.settings.forceInsecureCookies` | `false` | Disable secure cookie flags for plain-HTTP deployments |
+| `backend.settings.numProxies` | unset (renders `2` with the ingress enabled and a `ClusterIP` frontend Service, otherwise the backend default of `1`) | `NUM_PROXIES`: trusted proxy hops that append to `X-Forwarded-For`, so per-client rate limits and the `/admin/` allowlist see the real client address. An explicit value always wins |
 | `backend.oauth.oidc.serverUrl` | `""` | OIDC issuer URL (e.g. `https://sso.example.com/realms/my-realm`) — set all three OIDC fields to enable |
 | `backend.oauth.oidc.clientId` | `""` | OIDC client ID |
 | `backend.oauth.oidc.clientSecret` | `""` | OIDC client secret |

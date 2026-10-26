@@ -30,6 +30,16 @@ Visiban has been deployed!
      (send the real Host header; `localhost` in allowedHosts needs allowUnsafeHosts=true)
    - Or set backend.settings.adminAllowedIPs to a comma-separated CIDR list.
 
+{{- if and .Values.ingress.enabled (kindIs "invalid" .Values.backend.settings.numProxies) (ne (.Values.frontend.service.type | default "ClusterIP") "ClusterIP") }}
+
+   Proxy hops: the ingress is enabled but the frontend Service type is
+   {{ .Values.frontend.service.type }}, so backend.settings.numProxies is left unset (the backend
+   default of 1 applies). Set it to match your proxy chain so per-client rate
+   limits and the /admin/ allowlist see the real client address: 1 when
+   clients reach the frontend Service directly, 2 when they only arrive
+   through this chart's ingress.
+{{- end }}
+
 {{- if .Values.backend.mediaPersistence.enabled }}
 
 5. Media uploads are stored on a {{ .Values.backend.mediaPersistence.size }} PVC

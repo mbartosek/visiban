@@ -128,14 +128,14 @@ Per-IP rate limits (the login throttle, the anonymous request ceiling, allauth's
 
 | Variable | Default | Description |
 |---|---|---|
-| `NUM_PROXIES` | `1` | Number of reverse proxies in front of the backend that append to `X-Forwarded-For`. The default of `1` counts this chart's own frontend nginx, which is correct for Docker Compose and for a bare Helm install with nothing else in front of the frontend Service. A non-negative integer. Anything else refuses to start. Helm: `backend.settings.numProxies`. |
+| `NUM_PROXIES` | `1` | Number of reverse proxies in front of the backend that append to `X-Forwarded-For`. The default of `1` counts this chart's own frontend nginx, which is correct for Docker Compose and for a Helm install with the ingress disabled and nothing else in front of the frontend Service. The Helm chart renders `2` instead when `ingress.enabled` is true, `frontend.service.type` is `ClusterIP` and `backend.settings.numProxies` is unset; an explicit value always wins. A non-negative integer. Anything else refuses to start. Helm: `backend.settings.numProxies`. |
 
 Set it to the real depth of your proxy chain:
 
 - **Too low**: every client appears to come from the nearest proxy. One client exhausts the login and anonymous throttles for everyone.
 - **Too high**: a client can choose its own address by sending its own `X-Forwarded-For`, and so escape per-IP limits.
 
-**Behind an ingress controller, `1` is too low.** This chart's frontend nginx always appends one hop (`proxy_add_x_forwarded_for`); an ingress controller in front of it appends its own, so the real chain is two hops deep, not one. Count every proxy between the internet and the frontend Service, including the frontend nginx itself.
+**Behind an ingress controller, `1` is too low.** The Helm chart therefore renders `2` by default when its Ingress is enabled and the frontend Service is `ClusterIP` (if the frontend Service is exposed directly, only one hop applies; set `backend.settings.numProxies` to override; an additional proxy in front of the ingress, such as a CDN, needs an explicit value). This chart's frontend nginx always appends one hop (`proxy_add_x_forwarded_for`); an ingress controller in front of it appends its own, so the real chain is two hops deep, not one. Count every proxy between the internet and the frontend Service, including the frontend nginx itself. The value must equal the number of trusted proxy hops that append to `X-Forwarded-For`, and each proxy (including the ingress controller) must be configured to preserve and append the upstream header; check your controller's forwarded-header settings in its documentation.
 
 The hosted demo behind a Cloudflare Tunnel uses `2` (Cloudflare appends the visitor, then the frontend nginx appends the tunnel pod). See [Public demo mode](demo-data.md#public-demo-mode-helm).
 
