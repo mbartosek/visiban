@@ -76,6 +76,8 @@ Django uses `SECRET_KEY` to sign cookies, sessions, CSRF tokens, and password re
 
 ## VISIBAN_SECRET_ENCRYPTION_KEY
 
+> **Added in 1.2** (#306)
+
 Optional. When set, this key — rather than one derived from `SECRET_KEY` — encrypts
 secrets Visiban stores at rest (today: the SMTP password set in **Admin → Settings →
 Email**). Setting it lets you rotate `SECRET_KEY` on its own schedule without
