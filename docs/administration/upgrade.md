@@ -539,12 +539,14 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     is not a member. See [Security Invariants](../development/security-invariants.md)
     (Rules 5 and 7) (#1670).
 
-!!! warning "Behavior change: registering an address that is already in use returns 201 with mandatory verification"
-    With `EMAIL_VERIFICATION=mandatory`, `POST /api/v1/auth/registration/` and the
-    server-rendered `/accounts/signup/` form now answer a registration for an address that
-    another account already uses with `201 Created` and
+!!! warning "Behavior change: registering an address that is already in use returns 201 from the API with mandatory verification"
+    With `EMAIL_VERIFICATION=mandatory`, `POST /api/v1/auth/registration/` now answers a
+    registration for an address that is already in use (another account's email or username,
+    or an address another account has verified) with `201 Created` and
     `{"detail": "Verification e-mail sent."}`, the same response as any other registration.
-    Earlier releases answered `400`. No account is created or changed, and the address
+    Earlier releases answered `400`. The server-rendered `/accounts/signup/` form likewise
+    behaves as it does for a new address (the usual "verify your email" page) instead of
+    showing an "already in use" error. No account is created or changed, and the address
     receives an "account already exists" email with a password-reset link instead of a
     confirmation link. With `EMAIL_VERIFICATION=optional` (the default) or `none`, the
     existing `400` response is unchanged.
