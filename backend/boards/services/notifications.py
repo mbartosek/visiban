@@ -82,7 +82,9 @@ def quoted_card_verb(lead, title, suffix=""):
     ``" to Done"``, ``" is due soon"``) are kept intact when they fit. An empty
     ``lead`` produces no leading space. If ``lead`` + ``suffix`` alone leave
     less than ``_MIN_TITLE_ROOM`` characters for the title, the suffix is
-    clipped as a last resort so the verb can never exceed the column.
+    clipped as a last resort. Precondition: ``lead`` itself must fit the column
+    (about 496 characters); callers' leads are short and bounded (a username or a
+    fixed phrase), so the result then never exceeds the column.
     """
     max_len = Notification._meta.get_field("verb").max_length
     lead_part = f"{lead} " if lead else ""

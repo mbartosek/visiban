@@ -141,6 +141,8 @@ does not make you a watcher. Explicit watch/unwatch is planned (#229).
 
 Cards that haven't moved between columns in a configurable number of days are considered **stale**. The `notify_stale_cards` management command scans all boards and creates notifications for assignees and board admins of stale cards, for those who have the **Card has gone stale** preference on (it was **Due date approaching** before 1.2 — see the note in [Notification preferences](#notification-preferences)).
 
+The notification text is `"<card title>" hasn't moved in N days (board: <board name>)`. Very long card titles are shortened with an ellipsis so the text always fits, and board names longer than 100 characters are shortened to 100 characters in this text.
+
 ### Staleness threshold
 
 Each board has a `staleness_threshold_days` setting (default: **7 days**). A card is stale when its last `CardMovement` record is older than this threshold (or when a card has never been moved and was created more than that many days ago).
