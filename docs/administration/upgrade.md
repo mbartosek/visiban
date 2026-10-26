@@ -831,7 +831,8 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     With `EMAIL_VERIFICATION=mandatory`, an account created from an emailed group or board invite
     now joins the group or board when the invited address is **verified**, not at sign-up. Until
     then the invite is held for that account and is not used up. An invite that is revoked or
-    expires before the address is confirmed grants nothing. `optional` and `none` are unchanged.
+    expires before the address is confirmed grants nothing. `optional` and `none` are unchanged. Only invites bound to an address that is not yet verified
+    are held: emailed invites sent before the upgrade, and sign-ups whose OAuth provider reports the invited address as verified, still join at sign-up.
     Tell invitees to confirm their email address: they will not have that access until they do (#1704).
 
 !!! note "Board cards list: `X-Total-Count` and `X-Truncated` headers, and `imported_from_username` on comments"
@@ -850,15 +851,15 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
 !!! note "MCP SDK upgrade: some protocol-level responses changed"
     The MCP SDK behind `/mcp` moved from `mcp` 1.30.0 to 2.3.0. The URL, authentication, tools,
     and resources are unchanged, but a client that parses protocol errors will see these
-    differences (the server first shipped in a 1.2 pre-release, so this matters only if you ran
-    one):
+    differences (MCP 2.3.0 was already in v1.2.0-beta.1, so this affects only people coming from a
+    1.2 alpha):
 
     - An unknown method returns JSON-RPC error `-32601` (it was `-32602`).
     - A failed `resources/read` returns `-32603` (or `-32602` for an unknown URI) instead of `0`.
     - A request body over 4 MiB is rejected with `413`.
     - Transport-level errors carry `id: null` instead of `"server-error"`.
 
-    The full list is in the [MCP API reference](../api/mcp.md#protocol-errors-and-limits).
+    The main changes are listed in the [MCP API reference](../api/mcp.md#protocol-errors-and-limits).
 
 !!! note "Board import default name changed"
     `POST /api/v1/boards/import/` called without a `name` field now names the new board
