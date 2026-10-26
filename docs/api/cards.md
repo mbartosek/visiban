@@ -849,7 +849,7 @@ Update an item (e.g. check/uncheck). **Minimum role: Collaborator.**
 
 > **Concurrent card delete:** if the card is deleted while the request is in flight, the response is `404 Not Found` and the change is not saved.
 
-> **Ownership gate:** Collaborators and members may only edit items they created. Admins and moderators may edit any item. Items created before the `created_by` field existed (migration 0044) have no recorded creator and are unrestricted. Non-moderator callers who did not create the item receive `403 Forbidden` with `{"detail": "You can only edit checklist items you created."}`.
+> **Ownership gate:** Collaborators and members may only edit items they created. Admins and moderators may edit any item. Items with no recorded creator (created before the `created_by` field existed in migration 0044, or whose creator's account was deleted) can be edited only by admins and moderators, the same as comments and attachments. Non-moderator callers who did not create the item receive `403 Forbidden` with `{"detail": "You can only edit checklist items you created."}`.
 
 > **`position` cannot be changed via PATCH.** The field is present in the response, and echoing back the item's *current* `position` value is accepted (so a PUT-style client that round-trips the full representation still works). Submitting a *different* value is rejected with `400` and body `{"position": ["Changing a checklist item's position via PATCH is not allowed — ..."]}`. To reorder checklist items, use `POST /api/v1/boards/{board_id}/cards/{id}/checklist/reorder/` (since 1.2, #1292).
 
@@ -873,7 +873,7 @@ All checklist endpoints (`GET`, `POST`, `PATCH`, `POST .../reorder/`) return che
 | `text` | string | Item text |
 | `is_checked` | boolean | Whether the item is checked |
 | `position` | integer | Sort order within the checklist (0-based); update via `reorder/` only — a `PATCH` that changes `position` returns `400 Bad Request` (since 1.2, #1292). Echoing the current value back is accepted. |
-| `created_by` | object / null | User who added the item — `{ id, username, display_name, avatar_url }`. `null` for items created before this field was added (migration 0044). |
+| `created_by` | object / null | User who added the item — `{ id, username, display_name, avatar_url }`. `null` for items created before this field was added (migration 0044) and for items whose creator's account was deleted. Only admins and moderators can edit or delete `null`-creator items. |
 
 **Example response**
 

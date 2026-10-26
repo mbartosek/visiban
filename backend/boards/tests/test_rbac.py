@@ -422,7 +422,7 @@ class ViewerCollaboratorBoundaryTests(TestCase):
     @patch("boards.broadcast.broadcast_board_event")
     def test_collaborator_can_patch_checklist_item(self, _mock):
         from boards.models import CardChecklist
-        item = CardChecklist.objects.create(card=self.card, text="task", position=0)
+        item = CardChecklist.objects.create(card=self.card, text="task", position=0, created_by=self.collab)
         self.client.force_authenticate(self.collab)
         resp = self.client.patch(
             f"/api/v1/boards/{self.board.pk}/cards/{self.card.pk}/checklist/{item.pk}/",
@@ -443,7 +443,7 @@ class ViewerCollaboratorBoundaryTests(TestCase):
     @patch("boards.broadcast.broadcast_board_event")
     def test_collaborator_can_delete_checklist_item(self, _mock):
         from boards.models import CardChecklist
-        item = CardChecklist.objects.create(card=self.card, text="task", position=0)
+        item = CardChecklist.objects.create(card=self.card, text="task", position=0, created_by=self.collab)
         self.client.force_authenticate(self.collab)
         resp = self.client.delete(
             f"/api/v1/boards/{self.board.pk}/cards/{self.card.pk}/checklist/{item.pk}/",

@@ -1059,7 +1059,7 @@ class CardChecklist(models.Model):
     # Ownership field — mirrors the pattern on CardComment and CardAttachment so
     # collaborators can only edit/delete items they created. Nullable so existing
     # rows (before this migration) remain valid; the view layer treats null
-    # created_by as "no ownership restriction" for backward compatibility.
+    # created_by as moderator-only (fails closed, #1943).
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

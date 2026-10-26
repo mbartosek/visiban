@@ -601,6 +601,14 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     **Check any script or integration** that creates group invite links with `role: "admin"`,
     `expiry_days: null` or `expiry_days` over 30 (#1727).
 
+!!! note "Checklist items with no recorded creator are now moderator-only"
+    Collaborators and members can edit or delete only the checklist items they created, the
+    same rule comments and attachments follow. Items with no recorded creator used to be open
+    to every collaborator; since 1.2 only admins and moderators can edit or delete them. This
+    affects items created before migration 0044 and items whose creator's account was deleted.
+    No operator action is needed. Imported items now record the importing user as creator.
+    See [checklist items](../api/cards.md) in the API reference (#1943).
+
 !!! warning "Analytics extension panels without `min_role` are now admin-only"
     Panels registered through `ANALYTICS_EXTENSIONS` (enterprise or third-party analytics
     add-ons) now declare the lowest board role that may see them with a `min_role` attribute.

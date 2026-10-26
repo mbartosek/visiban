@@ -1092,6 +1092,17 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
     (a.uploaded_by !== null && currentUser !== null && a.uploaded_by.id === currentUser.id) ||
     canModifyOthersContent;
 
+  // Mirrors the server's checklist ownership gate (#692, #1943): PATCH/DELETE
+  // on an item is allowed for its creator or a moderator/admin. A null creator
+  // (legacy row or deleted account) is moderator-only, so a plain member sees
+  // the controls disabled instead of a failed request.
+  const canModifyChecklistItem = (item: CardChecklistItem): boolean =>
+    (item.created_by !== null && item.created_by !== undefined && currentUser !== null &&
+      item.created_by.id === currentUser.id) ||
+    // The hosted-demo visitor (a plain member) may tick/remove any checklist
+    // item server-side (demo-data.md), so mirror it like card reassignment.
+    canModifyOthersContentInDemo;
+
   const handleDeleteComment = async (commentId: number) => {
     // Re-entry guard: the disabled Confirm covers clicks, this covers a
     // double-fire before React re-renders, so only one DELETE is ever sent.
@@ -1702,15 +1713,29 @@ export default function CardDetail({ card, board, onClose, onDeleted, onUpdated,
                           <input
                             type="checkbox"
                             checked={item.is_checked}
-                            onChange={canComment ? () => handleToggleChecklistItem(item) : undefined}
-                            disabled={!canComment}
-                            title={!canComment ? "Viewers cannot modify checklist items" : undefined}
-                            className={`w-3.5 h-3.5 rounded accent-primary shrink-0 ${canComment ? "cursor-pointer" : "cursor-default"}`}
+                            onChange={canComment && canModifyChecklistItem(item) ? () => handleToggleChecklistItem(item) : undefined}
+                            disabled={!canComment || !canModifyChecklistItem(item)}
+                            title={
+                              !canComment
+                                ? "Viewers cannot modify checklist items"
+                                : !canModifyChecklistItem(item)
+                                  ? "Only the creator or a moderator can modify this item"
+                                  : undefined
+                            }
+                            // A disabled input is not focusable, so the title never
+                            // reaches keyboard or screen-reader users; fold the
+                            // reason into the accessible name (sub-pattern B).
+                            aria-label={
+                              canComment && !canModifyChecklistItem(item)
+                                ? `${item.text}. Only the creator or a moderator can modify this item`
+                                : undefined
+                            }
+                            className={`w-3.5 h-3.5 rounded accent-primary shrink-0 ${canComment && canModifyChecklistItem(item) ? "cursor-pointer" : "cursor-default"}`}
                           />
                           <span className={`text-sm flex-1 ${item.is_checked ? "line-through text-fg-faint" : "text-fg-secondary"}`}>
                             {item.text}
                           </span>
-                          {(canEdit || (role === "collaborator" && currentUser != null && item.created_by?.id === currentUser.id)) && (
+                          {(canEdit || role === "collaborator") && canModifyChecklistItem(item) && (
                             <button
                               onClick={() => handleDeleteChecklistItem(item.id)}
                               className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-fg-faint hover:text-danger transition text-xs shrink-0 focus:outline-none focus:ring-2 focus:ring-danger-emphasis rounded"

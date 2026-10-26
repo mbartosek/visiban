@@ -947,6 +947,56 @@ describe('CardDetail', () => {
     })
   })
 
+  describe('checklist ownership gating (#1943)', () => {
+    const owner = { id: 1, username: 'user1', display_name: 'User 1', avatar_url: '' }
+    const memberProps = (isModerator = false) => {
+      const props = defaultProps()
+      props.board = makeBoard({
+        current_user_role: 'member',
+        members: [{ id: 1, user: fakeUser, role: 'member', is_moderator: isModerator, joined_at: '' }],
+      })
+      return props
+    }
+    const items = [
+      { id: 1, text: 'Mine', is_checked: false, position: 0, created_by: owner },
+      { id: 2, text: 'Theirs', is_checked: false, position: 1, created_by: { ...owner, id: 7 } },
+      { id: 3, text: 'Legacy', is_checked: false, position: 2, created_by: null },
+    ]
+
+    it('lets a plain member modify only items they created', async () => {
+      ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue(items)
+      render(<CardDetail {...memberProps()} currentUser={fakeUser} />)
+      await waitFor(() => expect(screen.getByText('Legacy')).toBeInTheDocument())
+      const boxes = screen.getAllByRole('checkbox').filter((b) => (b as HTMLInputElement).type === 'checkbox')
+      const checklistBoxes = boxes.slice(-3) as HTMLInputElement[]
+      expect(checklistBoxes[0].disabled).toBe(false)
+      expect(checklistBoxes[1].disabled).toBe(true)
+      expect(checklistBoxes[2].disabled).toBe(true)
+      // The reason is in the accessible name, not only the unfocusable title
+      expect(
+        screen.getByRole('checkbox', { name: 'Legacy. Only the creator or a moderator can modify this item' }),
+      ).toBe(checklistBoxes[2])
+      expect(checklistBoxes[0]).not.toHaveAttribute('aria-label')
+      expect(screen.getAllByTitle('Remove item')).toHaveLength(1)
+    })
+
+    it('lets the demo visitor (plain member) modify items created by others', async () => {
+      ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue(items)
+      render(<CardDetail {...memberProps()} currentUser={fakeUser} />, { wrapper: flagsWrapper({ demo_mode: true }) })
+      await waitFor(() => expect(screen.getByText('Legacy')).toBeInTheDocument())
+      const checklistBoxes = screen.getAllByRole('checkbox').slice(-3) as HTMLInputElement[]
+      expect(checklistBoxes.every((b) => !b.disabled)).toBe(true)
+      expect(screen.getAllByTitle('Remove item')).toHaveLength(3)
+    })
+
+    it('lets a moderator modify every item including null-creator ones', async () => {
+      ;(getChecklist as ReturnType<typeof vi.fn>).mockResolvedValue(items)
+      render(<CardDetail {...memberProps(true)} currentUser={fakeUser} />)
+      await waitFor(() => expect(screen.getByText('Legacy')).toBeInTheDocument())
+      expect(screen.getAllByTitle('Remove item')).toHaveLength(3)
+    })
+  })
+
   it('renders attachments when present', async () => {
     const mockGetAttachments = getCardAttachments as ReturnType<typeof vi.fn>
     mockGetAttachments.mockResolvedValue([

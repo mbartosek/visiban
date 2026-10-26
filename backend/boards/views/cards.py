@@ -1637,8 +1637,9 @@ class CardViewSet(viewsets.ModelViewSet):
         item = get_object_or_404(CardChecklist, pk=item_pk, card=card)
         # Ownership gate: collaborators and members may only edit/delete items
         # they created. Admins and moderators may edit any item. Null created_by
-        # (pre-migration rows) is treated as unrestricted for backward compat.
-        if item.created_by_id and item.created_by_id != request.user.id:
+        # (pre-migration rows or a deleted account, FK is SET_NULL) fails closed
+        # to moderator-only, like comments and attachments (#1943).
+        if item.created_by_id != request.user.id:
             if not _can_modify_others_content(board, role, request.user):
                 raise PermissionDenied("You can only edit checklist items you created.")
         if request.method == "DELETE":

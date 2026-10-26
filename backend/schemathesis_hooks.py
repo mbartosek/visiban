@@ -471,7 +471,8 @@ def _mint_disposable(kind):
             return CardComment.objects.create(card=shared, author=member, body=_DISPOSABLE_TITLE).id
         if kind == "checklist_item":
             return CardChecklist.objects.create(
-                card=shared, text=_DISPOSABLE_TITLE, position=900 + n).id
+                card=shared, text=_DISPOSABLE_TITLE, position=900 + n,
+                created_by=member).id
         if kind == "relation":
             low, high = sorted((shared, card()), key=lambda c: c.pk)
             return CardRelation.objects.create(
