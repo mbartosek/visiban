@@ -4499,6 +4499,7 @@ verify the same invariant.</p>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">  </span>--set<span class="w"> </span>backend.settings.frontendUrl<span class="o">=</span>http://boards.internal<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">  </span>--set<span class="w"> </span>backend.settings.siteDomain<span class="o">=</span>boards.internal
 </code></pre></div>
+<p>On Helm installs the frontend's Content-Security-Policy names <code>ingress.host</code> for WebSocket connections (<code>wss://</code>, plus <code>ws://</code> when <code>ingress.tls.enabled</code> is <code>false</code>), and nothing is added when the ingress is disabled or no host is set, so WebSocket connections then rely on <code>'self'</code> (as does reaching the app through a different host name or <code>kubectl port-forward</code>); set <code>ingress.host</code> if your browser does not map <code>'self'</code> to <code>ws</code>/<code>wss</code>; the frame policy is <code>X-Frame-Options: DENY</code>, matching the Compose templates.</p>
 <div class="admonition danger">
 <p class="admonition-title">Insecure cookies</p>
 <p><code>forceInsecureCookies: true</code> disables <code>Secure</code> flags on session and CSRF cookies. Only use this when the entire path from browser to Visiban is within a trusted network, or when an upstream proxy terminates TLS and sets <code>X-Forwarded-Proto: https</code>.</p>
