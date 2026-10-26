@@ -166,6 +166,34 @@ describe('card hover expansion stays an overlay inside its cell', () => {
     expect(wrapper.style.height).toBe('')
   })
 
+  it('reports the expansion to the cell on hover and its end on leave', () => {
+    const onExpandChange = vi.fn()
+    const { container } = render(
+      <div data-board-cell>
+        <CardItem card={makeCard()} density="dense" onExpandChange={onExpandChange} />
+      </div>,
+    )
+    const card = container.querySelector('[data-card-id]') as HTMLElement
+    const wrapper = card.parentElement as HTMLElement
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({ top: 100, bottom: 188, height: REST_HEIGHT } as DOMRect)
+    act(() => { fireEvent.mouseEnter(card) })
+    expect(onExpandChange).toHaveBeenLastCalledWith(1, true)
+    act(() => { fireEvent.mouseLeave(card) })
+    expect(onExpandChange).toHaveBeenLastCalledWith(1, false)
+  })
+
+  it('a dimmed card is blurred and faded to near-invisible, on the wrapper the cell lays out', () => {
+    const { container, rerender } = render(<CardItem card={makeCard()} density="dense" dimmed />)
+    const wrapper = (container.querySelector('[data-card-id]') as HTMLElement).parentElement as HTMLElement
+    expect(wrapper).toHaveAttribute('data-dimmed', 'true')
+    expect(wrapper).toHaveClass('opacity-[0.08]')
+    expect(wrapper).toHaveClass('blur-[2px]')
+    rerender(<CardItem card={makeCard()} density="dense" dimmed={false} />)
+    expect(wrapper).not.toHaveAttribute('data-dimmed')
+    expect(wrapper).not.toHaveClass('opacity-[0.08]')
+    expect(wrapper).not.toHaveClass('blur-[2px]')
+  })
+
   it('the drag-overlay copy never expands', () => {
     const { container } = render(
       <div data-board-cell>

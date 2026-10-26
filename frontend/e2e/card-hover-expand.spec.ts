@@ -39,6 +39,12 @@ test.describe('card hover expansion', () => {
     // The cell did not grow and the cell-mate did not move.
     expect(cellAfter.height).toBe(cellBefore.height)
     expect(mateAfter.y).toBe(mateBefore.y)
+    // The cell-mate is dimmed to near-invisible (and blurred) under the
+    // expanded card; the hovered card itself is not.
+    const mateWrapper = mate.locator('xpath=..')
+    await expect.poll(() => mateWrapper.evaluate((el) => parseFloat(getComputedStyle(el).opacity))).toBeLessThan(0.1)
+    expect(await mateWrapper.evaluate((el) => getComputedStyle(el).filter)).toContain('blur')
+    expect(await busy.locator('xpath=..').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
     // The overlay stays inside the cell on every edge. The hover lift
     // translates the card up 2px, hence the 2px slack at the top.
     expect(busyAfter.x).toBeGreaterThanOrEqual(cellAfter.x)
@@ -51,5 +57,6 @@ test.describe('card hover expansion', () => {
     await expect(row).toHaveClass(/overflow-hidden/)
     await expect.poll(async () => (await busy.boundingBox())!.height).toBe(busyBefore.height)
     expect((await cell.boundingBox())!.height).toBe(cellBefore.height)
+    await expect.poll(() => mateWrapper.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
   })
 })

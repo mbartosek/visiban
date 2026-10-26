@@ -65,6 +65,13 @@ interface Props {
    *  ones. */
   customFieldDefinitions?: CustomFieldDefinition[];
   boardId?: number;
+  /** Another card in the same cell is expanded (hovered or focused): this one
+   *  is blurred and faded to near-invisible so the expanded card reads as the
+   *  cell's only content. Driven by BoardCell from `onExpandChange`. */
+  dimmed?: boolean;
+  /** Reports the in-place expansion starting or ending, with the card id, so
+   *  the cell can dim its other cards. One stable callback per cell. */
+  onExpandChange?: (cardId: number, expanded: boolean) => void;
   /**
    * Called after a quick-edit write succeeds, with the full updated card —
    * same shape as the WS `card.updated` → `onCardUpdated` path in
@@ -155,11 +162,13 @@ function arePropsEqual(prev: Props, next: Props): boolean {
     prev.inDoneColumn === next.inDoneColumn &&
     prev.customFieldDefinitions === next.customFieldDefinitions &&
     prev.boardId === next.boardId &&
+    prev.dimmed === next.dimmed &&
+    prev.onExpandChange === next.onExpandChange &&
     prev.onCardUpdated === next.onCardUpdated
   );
 }
 
-const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, current = false, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, peekSuppressed = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, onCardUpdated }: Props) {
+const CardItem = memo(function CardItem({ card, onClick, overlay, selected, highlighted, current = false, onSelect, density = "comfortable", userTimezone = "", userDateFormat = "MM/DD/YYYY", readOnly = false, peekSuppressed = false, compact = false, staleness_threshold_days = 14, stale_warning_pct = 50, inDoneColumn = false, customFieldDefinitions = [], boardId, dimmed = false, onExpandChange, onCardUpdated }: Props) {
   // Per-density visibility booleans (#961). The decision tree:
   //   comfortable → one urgency badge, one primary label, checklist, assignee
   //   standard    → adds due date (when not in urgency), weight (>1), attachments, second label
@@ -278,6 +287,15 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     const shift = overflow > 0 ? Math.max(0, Math.min(overflow, slotTop - cellTop)) : 0;
     setExpandClamp({ top: -shift, maxHeight: Math.max(0, cellBottom - cellTop) });
   }, [expandBase]);
+
+  // Tell the cell when this card's expansion starts and ends, so it can dim
+  // the others. Also reports the end on unmount (a card moved or deleted out
+  // from under the pointer), or the cell would stay dimmed.
+  useEffect(() => {
+    if (!onExpandChange || !expanded) return;
+    onExpandChange(card.id, true);
+    return () => onExpandChange(card.id, false);
+  }, [expanded, onExpandChange, card.id]);
 
   const handleMouseEnter = () => {
     setHovered(true);
@@ -449,7 +467,11 @@ const CardItem = memo(function CardItem({ card, onClick, overlay, selected, high
     <>
     {/* While expanded, this wrapper holds the card's at-rest height so the
         overlay below it never changes the cell's layout. */}
-    <div className="relative" style={expanded ? { height: expandBase } : undefined}>
+    <div
+      className={`relative transition-[opacity,filter] duration-150 ${dimmed ? "opacity-[0.08] blur-[2px]" : ""}`}
+      data-dimmed={dimmed ? "true" : undefined}
+      style={expanded ? { height: expandBase } : undefined}
+    >
       {/* Sibling tooltip — rendered as an absolutely-positioned overlay so we
           never need to wrap the card root div in cloneElement-based <Tooltip>,
           which would clobber ref={setNodeRef} from useDraggable. */}
