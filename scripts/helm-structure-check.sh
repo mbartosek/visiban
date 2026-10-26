@@ -512,6 +512,92 @@ check_spa_cache_policy() {
 }
 
 # ---------------------------------------------------------------------------
+# Frontend security headers must match the bundled nginx templates (#1952).
+# ---------------------------------------------------------------------------
+# The Helm ConfigMap is a third nginx config next to nginx/app.conf.template and
+# nginx/app-http.conf.template. It must send the same Content-Security-Policy
+# and X-Frame-Options DENY, and the headers must stay server-level: a location
+# that declares its own add_header silently drops every inherited one.
+check_frontend_security_headers() {
+  section "Frontend security headers match the bundled nginx templates (#1952)"
+
+  local conf bad=0
+  conf="$(doc ConfigMap 'nginx$' | yq '.data."nginx.conf"')"
+  if [ -z "$conf" ] || [ "$conf" = "null" ]; then
+    fail "no nginx ConfigMap rendered — cannot check the security headers"
+    return
+  fi
+
+  if ! grep -qE "^[[:space:]]*add_header[[:space:]]+X-Frame-Options[[:space:]]+DENY[[:space:]]+always;" <<< "$conf"; then
+    fail "nginx does not send 'X-Frame-Options DENY always' (the bundled templates do)"
+    bad=1
+  fi
+
+  # The policy value of an add_header line, or empty. `|| true`: grep exits 1
+  # on no match and set -e/pipefail would otherwise kill the script before the
+  # explicit FAIL below can print.
+  local csp_re='^[[:space:]]*add_header[[:space:]]+Content-Security-Policy[[:space:]]'
+  local csp tpl tpl_csp
+  csp="$(grep -E "$csp_re" <<< "$conf" | head -1 || true)"
+  if [ -z "$csp" ]; then
+    fail "nginx sends no Content-Security-Policy header"
+    bad=1
+  else
+    if ! grep -qE '"[[:space:]]+always;[[:space:]]*$' <<< "$csp"; then
+      fail "nginx Content-Security-Policy is not sent with 'always'"
+      bad=1
+    fi
+    # Compare the WHOLE policy against the bundled template, normalizing only
+    # the connect-src host list (the templated part), so any other drift —
+    # a widened img-src or style-src included — fails.
+    tpl="$(dirname "${BASH_SOURCE[0]}")/../nginx/app.conf.template"
+    tpl_csp="$(grep -E 'add_header[[:space:]]+Content-Security-Policy' "$tpl" 2>/dev/null | head -1 | sed -E 's/.*"([^"]*)".*/\1/' || true)"
+    if [ -z "$tpl_csp" ]; then
+      echo "  - skipped: nginx/app.conf.template not found; CSP parity not compared" >&2
+    else
+      local norm_chart norm_tpl
+      norm_chart="$(sed -E 's/.*"([^"]*)".*/\1/; s/connect-src[^;]*/connect-src X/' <<< "$csp")"
+      norm_tpl="$(sed -E 's/connect-src[^;]*/connect-src X/' <<< "$tpl_csp")"
+      if [ "$norm_chart" != "$norm_tpl" ]; then
+        fail "chart CSP differs from nginx/app.conf.template (ignoring connect-src hosts): chart='$norm_chart' template='$norm_tpl'"
+        bad=1
+      fi
+    fi
+  fi
+  # No location may declare its own add_header (inheritance drop).
+  if awk '/^[[:space:]]*location[[:space:]]/{loc=1} loc&&/^[[:space:]]*add_header/{f=1} END{exit !f}' <<< "$conf"; then
+    fail "a nginx location declares its own add_header — it drops the server-level security headers"
+    bad=1
+  fi
+
+  # connect-src per ingress variant: host unset / ingress off -> 'self' only;
+  # TLS on -> wss:// only; TLS off -> ws:// and wss:// (upstream terminator).
+  local variant args want got h="csp-check.visiban.local" out
+  for variant in "tls-off|--set ingress.host=$h|ws://$h ws://$h:* wss://$h wss://$h:*" \
+                 "tls-on|--set ingress.host=$h --set ingress.tls.enabled=true|wss://$h wss://$h:*" \
+                 "no-host|--set ingress.host=|" \
+                 "ingress-off|--set ingress.enabled=false --set ingress.host=$h|"; do
+    args="$(cut -d'|' -f2 <<< "$variant")"
+    want="connect-src 'self'$(cut -d'|' -f3 <<< "$variant" | sed -E 's/^(.)/ \1/')"
+    out="$RUN_TMP/csp-variant.yaml"
+    # shellcheck disable=SC2086
+    if ! helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" $args > "$out" 2>/dev/null; then
+      fail "CSP variant '${variant%%|*}' does not render"
+      bad=1
+      continue
+    fi
+    got="$(yq 'select(.kind == "ConfigMap" and (.metadata.name | test("nginx$"))) | .data."nginx.conf"' "$out" \
+           | grep -E "$csp_re" | grep -oE "connect-src[^;]*" | head -1 || true)"
+    if [ "$got" != "$want" ]; then
+      fail "CSP variant '${variant%%|*}': expected '$want', got '$got'"
+      bad=1
+    fi
+  done
+  [ "$bad" -eq 0 ] && pass "nginx sends X-Frame-Options DENY and a CSP identical to the bundled template (connect-src host list aside), with the right connect-src per ingress variant"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # 5. Probe paths must be routes the backend actually serves.
 # ---------------------------------------------------------------------------
 # A renamed health URL makes every backend pod fail its readiness gate: the
@@ -1795,6 +1881,7 @@ run_all_checks() {
   check_env_contract
   check_nginx_upstream
   check_spa_cache_policy
+  check_frontend_security_headers
   check_probe_paths
   check_transport_limits
   check_netpol_coverage
@@ -1856,6 +1943,14 @@ self_test() {
     "SPA theme-init.js not no-cache|templates/frontend-configmap.yaml|s/theme-init/theme-removed/"
     # 4c (#1633): the cache header stops being emitted.
     "SPA cache header not applied|templates/frontend-configmap.yaml|s/add_header Cache-Control \$visiban_cache_control;/add_header X-Cache-Policy-Removed 1;/"
+    # 4f (#1952): the chart's frontend stops sending the CSP / reverts to SAMEORIGIN.
+    "frontend CSP header removed|templates/frontend-configmap.yaml|s/add_header Content-Security-Policy /add_header X-Policy-Removed /"
+    "frontend X-Frame-Options weakened|templates/frontend-configmap.yaml|s/X-Frame-Options           DENY/X-Frame-Options           SAMEORIGIN/"
+    # 4g (#1952): CSP img-src widened; an add_header inside a location (drops the
+    # inherited server-level headers); the `:*` (port) connect-src entry dropped.
+    "frontend CSP img-src widened|templates/frontend-configmap.yaml|s/img-src 'self' data: blob:/img-src 'self' data: blob: https:/"
+    "frontend add_header inside a location|templates/frontend-configmap.yaml|s/proxy_cache off;/add_header X-Location-Header 1;/"
+    "frontend connect-src port entry dropped|templates/frontend-configmap.yaml|s/printf \" wss:\/\/%s wss:\/\/%s:\*\" [$]h [$]h/printf \" wss:\/\/%s\" \$h/"
     "6 transport limit below app cap|templates/frontend-configmap.yaml|s/client_max_body_size {{ include \"visiban.transportBodyLimitMB\" . }}M;/client_max_body_size 1M;/"
     "8 renamed manage.py command|templates/backend-deployment.yaml|s/\"manage.py\", \"ensure_site_admin\"/\"manage.py\", \"ensure_admin_site\"/"
     # 8b: a scheduled-job CronJob (#1157) names a command that does not exist —

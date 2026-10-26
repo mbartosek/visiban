@@ -1985,6 +1985,29 @@ oidc-smoke:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes: *helm-paths
 
+# helm-template alone also runs when the bundled nginx template changes: its
+# structure check compares the chart's frontend security headers against
+# nginx/app.conf.template (#1952), so that file must trigger it. Kept off
+# `helm-paths` so the install/netpol drills are not widened.
+.rules-helm-template: &rules-helm-template
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - helm/**/*
+        - scripts/helm-structure-check.sh
+        - scripts/helm-install-drill.sh
+        - scripts/helm-netpol-drill.sh
+        - nginx/app.conf.template
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - helm/**/*
+        - scripts/helm-structure-check.sh
+        - scripts/helm-install-drill.sh
+        - scripts/helm-netpol-drill.sh
+        - nginx/app.conf.template
+        - .gitlab-ci.yml
+
 helm-lint:
   stage: lint
   image:
@@ -2050,7 +2073,7 @@ helm-template:
   image:
     name: ${DOCKERHUB_MIRROR}/alpine/helm:3.16.4
     entrypoint: [""]
-  <<: *rules-helm
+  <<: *rules-helm-template
   variables:
     KUBECONFORM_VERSION: "0.6.7"
     # 4.44.3 has a confirmed upstream bug (fixed by 4.53.3): a yq expression of

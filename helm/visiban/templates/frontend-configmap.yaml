@@ -42,11 +42,30 @@ data:
         index index.html;
 
         # Security headers
-        add_header X-Frame-Options           SAMEORIGIN always;
+        add_header X-Frame-Options           DENY always;
         add_header X-Content-Type-Options    nosniff always;
         # Cache-Control per $visiban_cache_control (see map above); no `always`, so error
         # responses (e.g. a 404 under /assets/) are never marked cacheable.
         add_header Cache-Control $visiban_cache_control;
+        # Content-Security-Policy: this ConfigMap and the bundled nginx templates
+        # (nginx/app.conf.template) send the same policy; scripts/helm-structure-check.sh
+        # compares them. See that file for the rationale behind each directive.
+        # connect-src names the ingress host (with and without a port) for the
+        # Channels WebSocket: wss:// when ingress TLS is on; both ws:// and wss://
+        # when it is off, because an upstream TLS terminator is supported. With the
+        # ingress disabled or no ingress.host set, only 'self' remains, which relies
+        # on the browser mapping 'self' to ws/wss; set ingress.host if yours does
+        # not. All of these are server-level on purpose: no location below declares
+        # its own add_header, so none of them drops these by inheritance.
+        {{- $wsSrc := "" }}
+        {{- if and .Values.ingress.enabled .Values.ingress.host }}
+        {{- $h := .Values.ingress.host }}
+        {{- $wsSrc = printf " wss://%s wss://%s:*" $h $h }}
+        {{- if not .Values.ingress.tls.enabled }}
+        {{- $wsSrc = printf " ws://%s ws://%s:*%s" $h $h $wsSrc }}
+        {{- end }}
+        {{- end }}
+        add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'{{ $wsSrc }}; font-src 'self'; frame-ancestors 'none'" always;
 
         # Transport body limit — derived from the larger of
         # backend.settings.maxUploadSizeBytes and importMaxSizeBytes
