@@ -158,9 +158,13 @@ class SeedDueDateAnchorTests(TestCase):
         self.assertEqual(first, second)
 
     def test_default_anchor_is_utc_today(self):
-        self.assertEqual(
-            seed_module.Command._due_date_anchor(), timezone.now().date()
-        )
+        # Late evening UTC: a host-local or naive date.today() would differ on
+        # a host ahead of UTC, so this proves the anchor is the UTC date.
+        frozen = datetime.datetime(2030, 3, 9, 23, 59, tzinfo=datetime.timezone.utc)
+        with mock.patch.object(seed_module.timezone, "now", return_value=frozen):
+            self.assertEqual(
+                seed_module.Command._due_date_anchor(), datetime.date(2030, 3, 9)
+            )
 
 
 @override_settings(DEBUG=True)
@@ -240,8 +244,8 @@ class SeedMovementHistoryTests(TestCase):
     def test_most_recent_movements_within_30_day_window(self):
         """The most recent movement per non-backlog card must fall within the last 30 days.
 
-        Regression guard: when _add_movement_history used a hardcoded
-        fixed date the movements aged out of the 7d/30d analytics
+        Regression guard: when _add_movement_history used a fixed date
+        the movements aged out of the 7d/30d analytics
         windows over time, causing Throughput to show all dashes.
         """
         import datetime

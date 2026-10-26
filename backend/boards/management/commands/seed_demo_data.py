@@ -737,7 +737,7 @@ class Command(BaseCommand):
         random.seed(options["seed"])
         # Movement timestamps use today's date in normal runs so analytics
         # windows (7d, 30d, 90d) always show recent data.
-        self._movement_anchor = datetime.date.today()
+        self._movement_anchor = timezone.now().date()  # UTC, same clock as _due_date_anchor
 
         # Production guard: refuse to run on any non-DEBUG environment unless
         # --force is explicitly passed. This applies to both plain runs (which
