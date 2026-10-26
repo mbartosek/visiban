@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from boards.models import Card, Notification
-from boards.services.notifications import create_notifications
+from boards.services.notifications import create_notifications, quoted_card_verb
 from boards.utils import _get_effective_member_ids
 
 logger = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ class Command(BaseCommand):
                     action_type=Notification.ActionType.DUE_SOON,
                     # Matches the string docs/features/notifications.md has
                     # documented since before the feature existed.
-                    verb=f'"{card.title}" is due soon',
+                    verb=quoted_card_verb("", card.title, " is due soon"),
                     card=card,
                     board=board,
                 )

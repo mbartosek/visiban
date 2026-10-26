@@ -59,19 +59,41 @@ def card_watcher_ids(card) -> set[int]:
     return {card.created_by_id, card.assignee_id} - {None}
 
 
-def quoted_card_verb(lead, title):
-    """Return ``f'{lead} "{title}"'`` clipped to fit ``Notification.verb``.
+_MIN_TITLE_ROOM = 40  # title characters guaranteed before a suffix is clipped
+
+
+def clip_text(text, limit):
+    """Shorten ``text`` to at most ``limit`` characters, ending in an ellipsis."""
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 1, 0)] + "\u2026"
+
+
+def quoted_card_verb(lead, title, suffix=""):
+    """Return ``f'{lead} "{title}"{suffix}'`` clipped to fit ``Notification.verb``.
 
     ``Card.title`` and ``Notification.verb`` are both ``max_length=500``, so an
     unclipped title plus any prefix overflows the column — a DataError on
-    PostgreSQL that would turn the comment POST behind the notification into a
-    500. The title is shortened with an ellipsis; the lead is never cut.
+    PostgreSQL that would turn the request behind the notification (comment,
+    move, assignment) into a 500, or abort a bulk_create in a management
+    command. SQLite does not enforce varchar length, so only PostgreSQL shows it.
+
+    The title is shortened with an ellipsis; ``lead`` and ``suffix`` (e.g.
+    ``" to Done"``, ``" is due soon"``) are kept intact when they fit. An empty
+    ``lead`` produces no leading space. If ``lead`` + ``suffix`` alone leave
+    less than ``_MIN_TITLE_ROOM`` characters for the title, the suffix is
+    clipped as a last resort. Precondition: ``lead`` itself must fit the column
+    (about 496 characters); callers' leads are short and bounded (a username or a
+    fixed phrase), so the result then never exceeds the column.
     """
     max_len = Notification._meta.get_field("verb").max_length
-    room = max_len - len(lead) - 3  # the separating space and two quotes
-    if len(title) > room:
-        title = title[: max(room - 1, 0)] + "\u2026"
-    return f'{lead} "{title}"'
+    lead_part = f"{lead} " if lead else ""
+    fixed = len(lead_part) + 2  # the two quotes
+    suffix_room = max_len - fixed - _MIN_TITLE_ROOM
+    suffix = clip_text(suffix, max(suffix_room, 0))
+    room = max_len - fixed - len(suffix)
+    title = clip_text(title, room)
+    return f'{lead_part}"{title}"{suffix}'
 
 
 def create_notifications(notifications, *, context=None):

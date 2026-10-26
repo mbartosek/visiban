@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from boards.models import Board, Card, CardMovement, Notification
-from boards.services.notifications import create_notifications
+from boards.services.notifications import clip_text, create_notifications, quoted_card_verb
 from boards.utils import _get_effective_member_ids
 
 
@@ -127,7 +127,13 @@ class Command(BaseCommand):
                     stale_since = card.created_at
 
                 days_stale = (now - stale_since).days
-                verb = f"\"{card.title}\" hasn't moved in {days_stale} days (board: {board.name})"
+                # Board name is clipped too: it is user-controlled (max 200+) and sits in
+                # the suffix, which would otherwise squeeze the title out.
+                verb = quoted_card_verb(
+                    "",
+                    card.title,
+                    f" hasn't moved in {days_stale} days (board: {clip_text(board.name, 100)})",
+                )
 
                 # Recipients: assignee + board admins, filtered to opted-in
                 recipients = set(admin_users)
