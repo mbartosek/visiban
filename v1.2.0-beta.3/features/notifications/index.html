@@ -4394,6 +4394,7 @@ does not make you a watcher. Explicit watch/unwatch is planned (#229).</p>
 </ul>
 <h2 id="staleness-notifications">Staleness notifications<a class="headerlink" href="#staleness-notifications" title="Permanent link">&para;</a></h2>
 <p>Cards that haven't moved between columns in a configurable number of days are considered <strong>stale</strong>. The <code>notify_stale_cards</code> management command scans all boards and creates notifications for assignees and board admins of stale cards, for those who have the <strong>Card has gone stale</strong> preference on (it was <strong>Due date approaching</strong> before 1.2 — see the note in <a href="#notification-preferences">Notification preferences</a>).</p>
+<p>The notification text is <code>"&lt;card title&gt;" hasn't moved in N days (board: &lt;board name&gt;)</code>. Very long card titles are shortened with an ellipsis so the text always fits, and board names longer than 100 characters are shortened to 100 characters in this text.</p>
 <h3 id="staleness-threshold">Staleness threshold<a class="headerlink" href="#staleness-threshold" title="Permanent link">&para;</a></h3>
 <p>Each board has a <code>staleness_threshold_days</code> setting (default: <strong>7 days</strong>). A card is stale when its last <code>CardMovement</code> record is older than this threshold (or when a card has never been moved and was created more than that many days ago).</p>
 <h3 id="stale-card-indicator">Stale card indicator<a class="headerlink" href="#stale-card-indicator" title="Permanent link">&para;</a></h3>
