@@ -539,6 +539,22 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     is not a member. See [Security Invariants](../development/security-invariants.md)
     (Rules 5 and 7) (#1670).
 
+!!! warning "Behavior change: registering an address that is already in use returns 201 with mandatory verification"
+    With `EMAIL_VERIFICATION=mandatory`, `POST /api/v1/auth/registration/` and the
+    server-rendered `/accounts/signup/` form now answer a registration for an address that
+    another account already uses with `201 Created` and
+    `{"detail": "Verification e-mail sent."}`, the same response as any other registration.
+    Earlier releases answered `400`. No account is created or changed, and the address
+    receives an "account already exists" email with a password-reset link instead of a
+    confirmation link. With `EMAIL_VERIFICATION=optional` (the default) or `none`, the
+    existing `400` response is unchanged.
+
+    **Check any integration, script, or client** that treats `400` as "this email is already
+    registered" in `mandatory` mode, or that treats `201` as proof a new account was created.
+    Neither holds any more. See
+    [An address that is already in use](../api/authentication.md#an-address-that-is-already-in-use)
+    (#1877).
+
 !!! warning "Group and board placement now require group admin; emailed invites are bound to an address"
     - **Group create with a `parent` you do not administer** (`POST /api/v1/groups/`) now
       returns `400` with a `parent` error instead of `403`; an unknown parent id returns the
