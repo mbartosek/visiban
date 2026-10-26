@@ -4073,13 +4073,16 @@ by design — Nginx and the SPA router tell them apart by the trailing slash.</p
 <li><strong>Groups</strong> (workspace groups, under the <strong>Groups</strong> app) — visible to superusers only and read-only: fields cannot be edited and groups cannot be deleted here. The one write is the <strong>Transfer ownership of the selected group</strong> action, intended for a group whose owner is deactivated or gone; it works on any group (see <a href="#transferring-a-groups-ownership">Transferring a group's ownership</a>).</li>
 <li><strong>Authentication and Authorization → Groups</strong> (Django auth permission groups) — visible and editable by superusers only; staff accounts do not see this entry even when granted the group permissions</li>
 <li><strong>Site settings</strong> — instance-wide configuration (registration mode, file uploads, <a href="../maintenance-mode/">maintenance mode</a>); clicking the entry goes directly to the settings form — there is always exactly one row</li>
-<li><strong>Card movements</strong> — view and search only (#1469): movement records can't be added, edited or deleted here. They are removed only by deleting their board, or by a superuser running the <code>purge_card_history</code> command (since 1.2; see <a href="../card-history-retention/">Card History Retention</a>).</li>
+<li><strong>Card movements</strong> — view and search only (#1469): movement records can't be added, edited or deleted here. They are removed only by deleting their board, or by a superuser running the <code>purge_card_history</code> command (since 1.2, #1797; see <a href="../card-history-retention/">Card History Retention</a>).</li>
 <li><strong>Boards, columns, swimlanes</strong> — direct database access for debugging</li>
 <li><strong>Board memberships</strong> — view and correct membership records</li>
 <li><strong>Email addresses, social accounts, social tokens, social apps, API tokens and Sites</strong> — available to superusers only. Staff accounts do not see these entries.</li>
 </ul>
 <p>The change forms for users, groups, site settings, boards and board memberships save only the fields you changed; a field you left alone keeps its current stored value. If the record changed after you opened its form, the save is refused with a message asking you to reload the page and make your changes again.</p>
 <h2 id="transferring-a-groups-ownership">Transferring a group's ownership<a class="headerlink" href="#transferring-a-groups-ownership" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1643)</p>
+</blockquote>
 <p>A user who owns groups cannot be deleted until ownership moves, and only the owner can transfer a group through the web app. When the owner is deactivated or gone, a superuser does it from the Django admin:</p>
 <ol>
 <li>Open <strong>Groups</strong> under the <strong>Groups</strong> app and tick exactly one group. The list shows each owner and whether the owner is active.</li>

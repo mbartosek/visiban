@@ -3946,6 +3946,13 @@
 <p>After choosing a template you're prompted to name the first swimlane using the template's label (e.g. "Account" for Sales Pipeline). You can also mark any newly created board as your <strong>default board</strong> so it opens automatically after login.</p>
 <p>→ <a href="board/">Board &amp; Cards</a></p>
 <hr />
+<h2 id="start-from-a-sample">Start from a sample<a class="headerlink" href="#start-from-a-sample" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Added in 1.2</strong> (#1452)</p>
+</blockquote>
+<p>Instead of finding and uploading a file, open <strong>Import</strong> on the Dashboard and pick a ready-made board under <strong>Start from a sample</strong> — Software Development, Sales Overlay, Simple Kanban, Sales Pipeline and more. Samples come from your own server, so they match your installed version, and their dates are moved to the day you import so the board does not open mostly overdue.</p>
+<p>→ <a href="../getting-started/sample-boards/">Sample Boards</a></p>
+<hr />
 <h2 id="card-detail">Card detail<a class="headerlink" href="#card-detail" title="Permanent link">&para;</a></h2>
 <p>Click any card to open a side panel with full context:</p>
 <ul>
@@ -3969,6 +3976,13 @@
 <p>Export your board as CSV or JSON for backup or analysis, or import a previously exported board to recreate it with all its structure and cards. Import accepts lowercase and snake_case column headers (e.g. <code>title</code>, <code>due_date</code>) so files from external tools import cleanly without manual editing.</p>
 <p>Coming from Trello? Import a Trello board JSON export into a new board, with a preview of how lists, labels, checklists, comments, and members will map before anything is created.</p>
 <p>→ <a href="board/#bulk-card-operations">Board &amp; Cards</a> · <a href="board/#export-import">Export &amp; Import</a> · <a href="trello-import/">Import from Trello</a></p>
+<hr />
+<h2 id="card-history-survives-card-deletion">Card history survives card deletion<a class="headerlink" href="#card-history-survives-card-deletion" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (#1469)</p>
+</blockquote>
+<p>Deleting a card does not erase its movement history: the moves stay in the board's <strong>History</strong> view under the title recorded at each move. Operators who need to erase that history can use the <code>purge_card_history</code> command (added in 1.2, #1797).</p>
+<p>→ <a href="card-history/#deleted-cards-keep-their-history">Deleted cards keep their history</a> · <a href="../administration/card-history-retention/">Card History Retention</a></p>
 <hr />
 <h2 id="card-archiving">Card archiving<a class="headerlink" href="#card-archiving" title="Permanent link">&para;</a></h2>
 <p>Cards can be archived instead of deleted — removing them from the active board view while preserving their full history and movement audit trail. Archived cards can be restored at any time from the <strong>Archived</strong> panel in the board toolbar. Analytics dwell-time uses <code>archived_at</code> as the terminal timestamp so only the active period is counted.</p>
@@ -4188,7 +4202,8 @@
 </blockquote>
 <p>Board admins can define up to 30 typed metadata fields per board — text, number, date, dropdown, checkbox, URL, or multi-select — for tracking anything specific to that board's workflow. Up to 2 fields can be pinned to the card face as small chips; checkbox and dropdown chips are editable directly from the card face. Every field also gets its own input in the card detail panel, and the filter bar can filter on any of them.</p>
 <p>Boards can also define up to 15 separate fields scoped to <strong>swimlanes</strong> (rows) instead of cards, with up to 8 pinned as chips in the swimlane label panel. Swimlane fields are a fully independent per-board schema, managed on their own <strong>Swimlane fields</strong> tab in Board Settings, and each can be marked admin-only so only board admins see its values.</p>
-<p>→ <a href="custom-fields/">Custom Fields</a></p>
+<p>Admins can also turn off <strong>Show field names on row chips</strong> (Board Settings → Swimlane fields) so each swimlane row chip shows its value alone; the name stays in the tooltip and for screen readers (added in 1.2).</p>
+<p>→ <a href="custom-fields/">Custom Fields</a> · <a href="custom-fields/#hiding-field-names-on-row-chips">Hiding field names on row chips</a></p>
 <hr />
 <h2 id="card-density">Card density<a class="headerlink" href="#card-density" title="Permanent link">&para;</a></h2>
 <blockquote>

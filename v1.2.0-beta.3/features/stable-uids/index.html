@@ -4104,7 +4104,7 @@
 
 
 <h1 id="stable-uids">Stable UIDs<a class="headerlink" href="#stable-uids" title="Permanent link">&para;</a></h1>
-<p>Every board object — boards, columns, swimlanes, labels, cards, and custom field definitions — carries a stable, globally unique identifier called a <strong>UID</strong>. <strong>Why it matters:</strong> names change and numeric IDs go null on delete; a UID never does, so it's the safe key for external systems.</p>
+<p>Every board object — boards, columns, swimlanes, labels, cards, and custom field definitions (added in 1.2) — carries a stable, globally unique identifier called a <strong>UID</strong>. <strong>Why it matters:</strong> names change and numeric IDs go null on delete; a UID never does, so it's the safe key for external systems.</p>
 <h2 id="what-is-a-uid">What is a UID?<a class="headerlink" href="#what-is-a-uid" title="Permanent link">&para;</a></h2>
 <p>A UID is a 16-character lowercase hex string (64 bits of randomness), generated once when the object is created and never changed again. Example: <code>3a9f1c2d7e4b8a05</code>.</p>
 <p>UIDs are:</p>
@@ -4154,7 +4154,7 @@
 <tr>
 <td>Custom field definition</td>
 <td><code>uid</code></td>
-<td><code>GET /api/v1/boards/{id}/custom-fields/</code>, <code>GET /api/v1/boards/{id}/swimlane-custom-fields/</code> — see <a href="../custom-fields/">Custom Fields</a></td>
+<td><code>GET /api/v1/boards/{id}/custom-fields/</code>, <code>GET /api/v1/boards/{id}/swimlane-custom-fields/</code> — see <a href="../custom-fields/">Custom Fields</a> (added in 1.2)</td>
 </tr>
 </tbody>
 </table>
