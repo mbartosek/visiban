@@ -14,6 +14,8 @@ It creates a "Visiban Demo Board": five columns, ten swimlanes, ~80 cards, movem
 - Staging environments used for product demos or sales calls
 - CI pipelines that need a non-empty board for integration tests
 
+Card due dates on the generic demo board are counted from the day the command runs (UTC), not from a fixed date, so a board reseeded by the hourly reset never drifts into overdue. `--seed` keeps titles, layout and day offsets identical; only the calendar day moves (#1948).
+
 ## Running the command
 
 ```bash
