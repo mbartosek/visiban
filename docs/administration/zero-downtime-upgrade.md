@@ -1,5 +1,7 @@
 # Zero-Downtime Upgrade Playbook
 
+> **Added in 1.2** (#860)
+
 !!! tip "Docker Compose or a single server?"
     This playbook is for a **Helm / Kubernetes** deployment with more than one backend
     replica. If you run Visiban with Docker Compose on a single host, follow the

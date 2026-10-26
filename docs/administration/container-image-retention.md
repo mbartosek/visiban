@@ -1,5 +1,7 @@
 # Container image retention
 
+> **Added in 1.2** (#1074)
+
 Visiban publishes `backend` and `frontend` images to **two** registries on every release:
 the GitLab container registry (`${CI_REGISTRY_IMAGE}`, i.e. `registry.gitlab.com/visiban/visiban`)
 and GHCR (`ghcr.io/visiban/visiban`). Both registries can run their own cleanup/retention

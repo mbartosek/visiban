@@ -38,6 +38,16 @@ After choosing a template you're prompted to name the first swimlane using the t
 
 ---
 
+## Start from a sample
+
+> **Added in 1.2** (#1452)
+
+Instead of finding and uploading a file, open **Import** on the Dashboard and pick a ready-made board under **Start from a sample** — Software Development, Sales Overlay, Simple Kanban, Sales Pipeline and more. Samples come from your own server, so they match your installed version, and their dates are moved to the day you import so the board does not open mostly overdue.
+
+→ [Sample Boards](../getting-started/sample-boards.md)
+
+---
+
 ## Card detail
 
 Click any card to open a side panel with full context:
@@ -68,6 +78,16 @@ Export your board as CSV or JSON for backup or analysis, or import a previously 
 Coming from Trello? Import a Trello board JSON export into a new board, with a preview of how lists, labels, checklists, comments, and members will map before anything is created.
 
 → [Board & Cards](board.md#bulk-card-operations) · [Export & Import](board.md#export-import) · [Import from Trello](trello-import.md)
+
+---
+
+## Card history survives card deletion
+
+> **Changed in 1.2** (#1469)
+
+Deleting a card does not erase its movement history: the moves stay in the board's **History** view under the title recorded at each move. Operators who need to erase that history can use the `purge_card_history` command (added in 1.2, #1797).
+
+→ [Deleted cards keep their history](card-history.md#deleted-cards-keep-their-history) · [Card History Retention](../administration/card-history-retention.md)
 
 ---
 
@@ -300,7 +320,9 @@ Board admins can define up to 30 typed metadata fields per board — text, numbe
 
 Boards can also define up to 15 separate fields scoped to **swimlanes** (rows) instead of cards, with up to 8 pinned as chips in the swimlane label panel. Swimlane fields are a fully independent per-board schema, managed on their own **Swimlane fields** tab in Board Settings, and each can be marked admin-only so only board admins see its values.
 
-→ [Custom Fields](custom-fields.md)
+Admins can also turn off **Show field names on row chips** (Board Settings → Swimlane fields) so each swimlane row chip shows its value alone; the name stays in the tooltip and for screen readers (added in 1.2).
+
+→ [Custom Fields](custom-fields.md) · [Hiding field names on row chips](custom-fields.md#hiding-field-names-on-row-chips)
 
 ---
 

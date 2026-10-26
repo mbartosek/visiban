@@ -1,6 +1,6 @@
 # Stable UIDs
 
-Every board object — boards, columns, swimlanes, labels, cards, and custom field definitions — carries a stable, globally unique identifier called a **UID**. **Why it matters:** names change and numeric IDs go null on delete; a UID never does, so it's the safe key for external systems.
+Every board object — boards, columns, swimlanes, labels, cards, and custom field definitions (added in 1.2) — carries a stable, globally unique identifier called a **UID**. **Why it matters:** names change and numeric IDs go null on delete; a UID never does, so it's the safe key for external systems.
 
 ## What is a UID?
 
@@ -25,7 +25,7 @@ UIDs appear in every API response that returns the object type.
 | Swimlane | `uid` | `GET /api/v1/boards/{id}/full/` (inside `swimlanes` array) |
 | Label | `uid` | `GET /api/v1/boards/{id}/full/` (inside `labels` array), `GET /api/v1/boards/{id}/labels/` |
 | Card | `uid` | All card endpoints |
-| Custom field definition | `uid` | `GET /api/v1/boards/{id}/custom-fields/`, `GET /api/v1/boards/{id}/swimlane-custom-fields/` — see [Custom Fields](custom-fields.md) |
+| Custom field definition | `uid` | `GET /api/v1/boards/{id}/custom-fields/`, `GET /api/v1/boards/{id}/swimlane-custom-fields/` — see [Custom Fields](custom-fields.md) (added in 1.2) |
 
 ## UIDs in movement history
 
