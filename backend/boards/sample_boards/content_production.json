@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "date_anchor": "2026-03-15",
   "name": "Content Production",
   "description": "Manage content from idea through publication. Each swimlane is a content channel; each card is a piece of content.",
   "columns": [

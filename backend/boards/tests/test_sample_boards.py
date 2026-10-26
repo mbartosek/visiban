@@ -306,10 +306,13 @@ class SampleBoardImportTests(TestCase):
             User.objects.create_user(username=f"demo{i}", password="pass")
         self.client.force_authenticate(self.user)
 
-    def _import(self, path):
+    def _import(self, path, options=None):
         f = io.BytesIO(path.read_bytes())
         f.name = path.name
-        resp = self.client.post("/api/v1/boards/import/", {"file": f}, format="multipart")
+        payload = {"file": f}
+        if options is not None:
+            payload["options"] = json.dumps(options)
+        resp = self.client.post("/api/v1/boards/import/", payload, format="multipart")
         self.assertEqual(resp.status_code, 201, (path.name, getattr(resp, "data", None)))
         return Board.objects.get(pk=resp.data["id"])
 
@@ -360,7 +363,9 @@ class SampleBoardImportTests(TestCase):
     def test_imported_values_are_stored_as_written(self):
         path = SAMPLE_DIR / "sales_overlay.json"
         data = _load(path)
-        board = self._import(path)
+        # Unshifted, so date-typed values compare with the file (#1949: the
+        # file's own date_anchor shifts an import that sends no options).
+        board = self._import(path, {"shift_dates": False})
         lane = data["swimlanes"][0]
         stored = {
             v.field_definition.name: v.value

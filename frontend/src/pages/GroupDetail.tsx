@@ -1244,6 +1244,7 @@ export default function GroupDetail({ user, onLogout, onUserUpdated, onStarToggl
         <ImportBoardModal
           onImport={handleImportBoard}
           onCancel={() => setImportingBoard(false)}
+          dateFormat={user.date_format}
           onSwitchToTrello={() => {
             setImportingBoard(false);
             setTrelloImporting(true);

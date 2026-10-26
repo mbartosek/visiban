@@ -48,7 +48,8 @@ from ..services.date_shift import shift_board_dates
 from ..permissions import SITE_ADMIN
 from ..serializers import (
     BoardExportLogSerializer, BoardSerializer, CSVImportOptionsSerializer,
-    CustomFieldDefinitionSerializer, ExternalRefSerializer, ImportOptionsSerializer,
+    CustomFieldDefinitionSerializer, ExternalRefSerializer, ImportDateAnchorSerializer, ImportOptionsSerializer,
+    shift_today,
     SwimlaneCustomFieldDefinitionSerializer, _normalize_custom_field_value,
     _run_custom_field_validator_hooks, _swimlane_custom_field_values,
 )
@@ -1136,9 +1137,13 @@ class BoardImportExportMixin:
             "options": {"type": "string", "description": (
                 "JSON object choosing what to import. Keys (all optional booleans, default true): "
                 "labels, cards, comments, checklist, history. comments, checklist and history "
-                "require cards. Also shift_dates_from (YYYY-MM-DD, JSON only, optional, default "
-                "off): moves every date in the file forward by the days between that date and "
-                "today. A CSV import accepts only labels and cards."
+                "require cards. Date shift (JSON only, all optional): a file with a top-level "
+                "date_anchor (the shipped samples) is shifted by default, with no option needed; "
+                "shift_dates_from (YYYY-MM-DD) names the source day instead and always wins; "
+                "shift_dates (boolean, default true) set to false imports the dates as written; "
+                "shift_dates_to (YYYY-MM-DD, default today in UTC) is the day the board is dated "
+                "around. Every date moves by the days from the source day to that day, so the "
+                "shift can be backward. A CSV import accepts only labels and cards."
             )},
         }, "required": ["file"]}},
         responses={
@@ -1261,8 +1266,41 @@ class BoardImportExportMixin:
         # Sample-board flow (#1452): move the file's dates to the import day
         # before validation, so shifted values face the same checks as any other.
         shift_from = options.get("shift_dates_from")
+        # #1949: a file that carries its own ``date_anchor`` (the shipped
+        # samples, however they arrive: the gallery, "choose a file", a curl
+        # download, an API client) is shifted from it by default. Read here in
+        # the importer rather than in the import modal so every caller gets
+        # the same board from the same file; an explicit ``shift_dates_from``
+        # always wins and ``shift_dates: false`` opts out. A file without the
+        # key is imported exactly as before, and so is one whose value is not
+        # a string (null, a number, a list): an anchor is only ever written as
+        # a ``YYYY-MM-DD`` string, and the import dialog (which offers the
+        # opt-out) only recognizes a string, so the two agree on what counts.
+        # A string anchor is always validated strictly.
+        if shift_from is None and options.get("shift_dates", True) and isinstance(data.get("date_anchor"), str):
+            anchor = ImportDateAnchorSerializer(data={"date_anchor": data["date_anchor"]})
+            if not anchor.is_valid():
+                return Response(
+                    {"detail": (
+                        f"The file's 'date_anchor' is invalid: {anchor.errors['date_anchor'][0]} "
+                        "Send the import option shift_dates as false to import its dates as written."
+                    )},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            shift_from = anchor.validated_data["date_anchor"].isoformat()
+            # Reported like a sent option, so the response and the persisted
+            # ``board.created`` event say which anchor the dates moved from.
+            options = {**options, "shift_dates_from": shift_from}
         if shift_from:
-            shift_board_dates(data, (django_timezone.localdate() - datetime.date.fromisoformat(shift_from)).days)
+            # ``shift_dates_to`` (#1949) picks the day the board is dated
+            # around; the default is today on the shift clock (UTC).
+            shift_to = options.get("shift_dates_to")
+            target = datetime.date.fromisoformat(shift_to) if shift_to else shift_today()
+            shift_board_dates(data, (target - datetime.date.fromisoformat(shift_from)).days)
+        elif "shift_dates_to" in options:
+            # Nothing shifts (opted out, or no source date): a target was not
+            # applied, so options_applied must not claim one.
+            options = {k: v for k, v in options.items() if k != "shift_dates_to"}
 
         # Schema version guard — warn on missing (pre-versioning files) or future versions.
         # The current importer understands schema_version 1 and 2.  Files without the field

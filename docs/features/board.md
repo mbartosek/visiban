@@ -570,6 +570,29 @@ Comments, checklist items, and card history belong to cards: unchecking **Cards*
 
 Everything is included by default ("Importing: everything"), so an import where you change nothing behaves exactly as before. When an import leaves out cards or anything on them, the new board opens with a short notice counting what was skipped, for example "Board imported. Skipped: 12 cards, 30 comments, 4 card labels." It counts cards, comments, checklist items, labels on cards, and history entries (movements and activity entries together); label definitions that no card uses are not counted, so leaving **Labels** out of a file whose labels are unused shows no notice. The notice closes by itself after a few seconds, and stays open while you hover over it or focus it. CSV imports can also report warnings: a column skipped because its field name is empty, a custom-field value that was too long, contained an unsupported character or was refused for its field type, or a swimlane whose values conflicted (one value is kept). They are listed in the same notice (at most 20, then "…and N more"). A notice that lists warnings stays open until you dismiss it, and the list can be scrolled and focused with the keyboard. A CSV import with no warnings shows the notice exactly as before, or none at all.
 
+#### Dates on import
+
+> **Added in 1.2** (#1949)
+
+A JSON file can carry a top-level `date_anchor`: the day its dates were made around. Every
+[sample board](../getting-started/sample-boards.md) file has one, whether you pick the sample
+under **Start from a sample** or choose a downloaded sample file. Such a file is dated around
+the day you import it: due dates, date custom fields, card creation, comments, and history
+all move forward together, keeping their spacing, so the board does not open mostly overdue.
+A board you exported yourself has no `date_anchor`, and its dates always import as written.
+
+When the file has an anchor, a **Dates** section appears below **Include**:
+
+- **Move dates to today** is checked by default. Uncheck it to import the dates exactly as
+  written.
+- **Adjust dates** opens a **Date the board around** field set to today. Pick an earlier day
+  to date the board around that day instead. A day after today is refused with "Pick today or
+  an earlier day." The day is sent only when you change it.
+
+The line under the checkbox says which applies, for example "Dated around 06/01/2026 instead
+of today." API callers use the `shift_dates` and `shift_dates_to` import options; see
+[Date shifting](../api/boards.md#date-shifting).
+
 !!! tip "Coming from Trello?"
     Use **Import a Trello export** instead. See [Import from Trello](trello-import.md).
 

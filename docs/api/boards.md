@@ -194,7 +194,7 @@ List the sample boards in gallery order.
 | `includes` | Any of `labels`, `checklists`, `comments`, `history`, derived from the file's contents. |
 | `order` | Gallery order. Unique; the list is sorted by it. |
 | `schema_version` | The export schema version of the file. |
-| `date_anchor` | The day the board's dates are measured from. Send it as the import option [`shift_dates_from`](#import-options) to have the imported board dated around today. |
+| `date_anchor` | The day the board's dates are measured from. Since #1949 the sample file carries the same value as a top-level `date_anchor`, so importing the file with no options already dates the board around today (see [Date shifting](#date-shifting)). Sending it as the import option [`shift_dates_from`](#import-options) does the same explicitly. |
 
 ### `GET /api/v1/boards/samples/{id}/`
 Return one sample as the raw Visiban JSON export (`Content-Type: application/json`), with a strong `ETag`. Send it back in `If-None-Match` to get `304 Not Modified` with no body. The bundled nginx (Compose and the Helm frontend) gzips `application/json` for clients that send `Accept-Encoding: gzip`, so a fetch is roughly 30-60 KB on the wire against 265-560 KB raw. A deployment behind a different proxy gets the raw size unless that proxy compresses.
@@ -808,11 +808,40 @@ entries only for history the file does not already record: with `history` on, a 
 timestamp and source name, recorded under the importing user) and gets no synthetic copy, so re-importing an export does not double
 its history.
 
-One more option is not an include flag:
+Three more options are not include flags. They move the file's dates (see [Date shifting](#date-shifting)):
 
 | Key | Type | Effect |
 |---|---|---|
-| `shift_dates_from` | `YYYY-MM-DD` string, JSON only, optional | Moves every date in the file forward by the whole days between this date and today: card due dates, `date` custom field values on cards and swimlanes, the timestamps on cards, comments, movements, and activities, and the old and new values of due-date-change history entries. Spacing between dates is preserved. Absent by default, so a plain import is unchanged. Must not be in the future or more than 10 years ago. A CSV import rejects it as an unknown option. Used by the sample flow with a sample's `date_anchor`. When given, it is echoed in `import_summary.options_applied` and the `board.created` event's `import_options`. |
+| `shift_dates_from` | `YYYY-MM-DD` string, JSON only, optional | The day to move dates *from*. Moves every date in the file by the whole days between this date and the target day (`shift_dates_to`, default today): card due dates, `date` custom field values on cards and swimlanes, the timestamps on cards, comments, movements, and activities, and the old and new values of due-date-change history entries. Spacing between dates is preserved. When absent, a file's own top-level `date_anchor` is used in its place; a file without one is not shifted. Must not be in the future or more than 10 years ago. Used by the sample gallery with a sample's `date_anchor`. When given, it is echoed in `import_summary.options_applied` and the `board.created` event's `import_options`. |
+| `shift_dates` | boolean, JSON only, optional, default `true` | `false` turns all shifting off: the file's dates are imported exactly as written, its `date_anchor` is not read, and `shift_dates_to` is ignored. Sending it with `shift_dates_from` is a contradiction and is rejected. Added in 1.2 (#1949). Echoed in `options_applied` when sent. |
+| `shift_dates_to` | `YYYY-MM-DD` string, JSON only, optional, default today (UTC) | The day to move dates *to*: the shifted board is dated around this day instead of today. Used only when dates shift (an explicit `shift_dates_from` or the file's `date_anchor`); otherwise ignored. It may be earlier than the source date, which moves dates back. Must not be in the future (UTC) or more than 10 years ago, so imported history never lands after the moment of import. Added in 1.2 (#1949). Echoed in `options_applied` and `import_options` when sent and applied. |
+
+A CSV import rejects all three as unknown options: dates in a CSV are always imported as written.
+
+#### Date shifting
+
+> **Added in 1.2** (#1452; the file's own anchor, `shift_dates` and `shift_dates_to` since #1949)
+
+The shipped [sample boards](../getting-started/sample-boards.md) are generated around a fixed day, so imported as written most of their cards would be overdue. Each sample file carries that day as a top-level `"date_anchor": "YYYY-MM-DD"` key, and the importer resolves the shift like this:
+
+1. `shift_dates` is `false`: nothing moves.
+2. Otherwise the source day is `shift_dates_from` when sent. An explicit option always wins over the file.
+3. Otherwise it is the file's `date_anchor`, when the file has one.
+4. With no source day, nothing moves. A file without `date_anchor`, which includes every board export, imports exactly as in earlier releases.
+
+Dates then move by the whole days from the source day to `shift_dates_to`, or to today's UTC date when it is not sent. The importer, not the web client, reads the file's anchor, so the import dialog, a `curl` upload of a downloaded sample, and any API client get the same board from the same file. When the file's anchor was used, `options_applied.shift_dates_from` reports it.
+
+Only a string counts as an anchor: a `date_anchor` that is `null`, a number, a list, or an object is ignored, and the file imports unshifted. A string `date_anchor` the importer would use is validated like `shift_dates_from`. One that is not a real `YYYY-MM-DD` date, or is out of range, returns `400 Bad Request`, for example `The file's 'date_anchor' is invalid: date_anchor cannot be in the future. Send the import option shift_dates as false to import its dates as written.` With `shift_dates: false`, or an explicit `shift_dates_from`, the key is not read.
+
+```bash
+# A downloaded sample, dated around today (no options needed)
+curl -X POST https://visiban.example.com/api/v1/boards/import/ \
+  -H "Authorization: Token $TOKEN" -F file=@sales_overlay.json
+
+# The same file dated around 1 June 2026, or with its dates as written
+curl ... -F file=@sales_overlay.json -F 'options={"shift_dates_to": "2026-06-01"}'
+curl ... -F file=@sales_overlay.json -F 'options={"shift_dates": false}'
+```
 
 An omitted `comments`, `checklist`, or `history` follows `cards`, so `{"cards": false}` alone imports structure and labels only. An explicit contradiction such as `{"cards": false, "comments": true}` is rejected.
 
@@ -822,10 +851,12 @@ An invalid `options` field returns `400 Bad Request` before anything is created,
 |---|---|
 | `'options' is not valid JSON.` | The field does not parse as JSON. |
 | `'options' must be a JSON object.` | It parses, but not to an object (for example `[]` or `true`). |
-| `Invalid 'options': Unknown import option(s): x.` | A key other than the five above and `shift_dates_from` — or, for a CSV file, other than `labels` and `cards`. |
-| `Invalid 'options': 'shift_dates_from': shift_dates_from cannot be in the future.` | The date is after today (server date). |
+| `Invalid 'options': Unknown import option(s): x.` | A key other than the five above, `shift_dates_from`, `shift_dates`, and `shift_dates_to` — or, for a CSV file, other than `labels` and `cards`. |
+| `Invalid 'options': 'shift_dates_from': shift_dates_from cannot be in the future.` | The date is after today (UTC). |
 | `Invalid 'options': 'shift_dates_from': shift_dates_from cannot be more than 10 years ago.` | The date is more than 10 years back. |
 | `Invalid 'options': 'shift_dates_from': Date has wrong format. Use one of these formats instead: YYYY-MM-DD.` | The value is not a `YYYY-MM-DD` string (`null` reads `This field may not be null.`). |
+| `Invalid 'options': 'shift_dates_to': shift_dates_to cannot be in the future.` | The target day is after today (UTC). The same three messages as for `shift_dates_from` apply, naming `shift_dates_to`. |
+| `Invalid 'options': Import option shift_dates_from requires 'shift_dates'.` | `shift_dates_from` was sent with `shift_dates: false`. |
 | `Invalid 'options': Import option(s) comments require 'cards'.` | A dependent is explicitly `true` while `cards` is `false`. |
 | `Invalid 'options': 'labels': Must be a valid boolean.` | A value is not a JSON boolean (the key named is the offending one; `null` reads `'labels': This field may not be null.`). |
 
@@ -951,7 +982,7 @@ Returns the newly created board object, using the same shape as `GET /api/v1/boa
 
 | Field | Description |
 |---|---|
-| `import_summary.options_applied` | All five options as resolved, including dependents that followed `cards`, plus `shift_dates_from` (a `YYYY-MM-DD` string) when it was sent. A CSV import reports `comments`, `checklist`, and `history` equal to `cards`. |
+| `import_summary.options_applied` | All five options as resolved, including dependents that followed `cards`, plus `shift_dates_from` (a `YYYY-MM-DD` string) when it was sent or the file's `date_anchor` was used in its place, `shift_dates` when it was sent, and `shift_dates_to` when it was sent and dates moved. A CSV import reports `comments`, `checklist`, and `history` equal to `cards`. |
 | `import_summary.skipped.*` | How many items in the file the chosen options left out: `cards`, `comments`, `checklist_items`, `label_refs` (label references on cards), `movements`, and `activities`. Items the importer drops regardless of options — a label name with no definition, an activity with an unknown event type — are not counted. All are `0` when no options are sent. |
 
 The `board.created` event for the new board carries the resolved options as an additional `import_options` field.

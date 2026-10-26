@@ -42,12 +42,19 @@ Download the JSON files you want from `backend/boards/sample_boards/`, either on
 curl -LO https://gitlab.com/visiban/visiban/-/raw/main/backend/boards/sample_boards/sales_overlay.json
 ```
 
+Each file carries a top-level `date_anchor`, the day its dates were generated around. Importing
+the file, from the app or the API, moves its dates to the import day so the board does not open
+mostly overdue. To keep the dates as written, untick **Move dates to today** in the Import Board
+dialog or send the import option `{"shift_dates": false}`; to date the board around another
+(past) day, use **Adjust dates** or `{"shift_dates_to": "YYYY-MM-DD"}`. See
+[Dates on import](../docs/getting-started/sample-boards.md#dates-on-import).
+
 ## How to import
 
 1. Log in to your Visiban instance.
 2. From the **Dashboard**, click **Import**.
 3. Choose a `.json` file from `backend/boards/sample_boards/`.
-4. The board is created with everything in the file.
+4. The board is created with everything in the file, dated around the import day.
 
 Users named `demo1` to `demo5` in the files are linked only if accounts with those
 usernames are visible to the importing user: the importer, people who share a board or
@@ -59,7 +66,9 @@ importing user.
 Each template's `.csv` file has the same column layout as **Export → CSV**
 It is meant for
 spreadsheet review or for trying the CSV importer, which creates cards but not their
-history, comments, checklists or custom field values.
+history, comments, checklists or custom field values. A CSV import keeps its dates as
+written (only the JSON files are moved to the import day), so a sample imported from CSV
+keeps the March 2026 dates it was generated with.
 
 ## Regenerating
 

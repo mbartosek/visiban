@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -157,8 +157,10 @@ class SampleImportDateShiftTests(TestCase):
             payload["options"] = json.dumps(options)
         return self.client.post("/api/v1/boards/import/", payload, format="multipart")
 
-    def test_import_without_the_option_is_unchanged(self):
-        resp = self._post("simple_kanban")
+    def test_import_with_shifting_off_is_unchanged(self):
+        # Without options a sample now shifts from its own date_anchor (#1949,
+        # FileDateAnchorImportTests); shift_dates false keeps the file's dates.
+        resp = self._post("simple_kanban", {"shift_dates": False})
         self.assertEqual(resp.status_code, 201)
         self.assertNotIn("shift_dates_from", resp.data["import_summary"]["options_applied"])
         due = sorted(Card.objects.filter(board_id=resp.data["id"], due_date__isnull=False).values_list("due_date", flat=True))
@@ -284,6 +286,250 @@ class SampleImportDateShiftTests(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
         self.assertIn("shift_dates_from", resp.data["detail"])
+
+
+class FileDateAnchorImportTests(TestCase):
+    """#1949: a file's own top-level ``date_anchor`` shifts a raw JSON import.
+
+    The gallery sends ``shift_dates_from``; choosing a sample file from disk
+    or posting a curl-downloaded one sends nothing, so the importer reads the
+    anchor from the file. An explicit option wins, ``shift_dates: false``
+    opts out, and a file without the key imports exactly as before.
+    """
+
+    def setUp(self):
+        patcher = mock.patch.object(BoardImportThrottle, "allow_request", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="importer", password="pass")
+        self.client.force_authenticate(self.user)
+        self.client.raise_request_exception = False
+
+    def _post(self, data, options=None, name="x.json"):
+        f = io.BytesIO(data if isinstance(data, bytes) else json.dumps(data).encode())
+        f.name = name
+        payload = {"file": f}
+        if options is not None:
+            payload["options"] = json.dumps(options)
+        return self.client.post("/api/v1/boards/import/", payload, format="multipart")
+
+    def _file(self, anchor="2026-03-15", due="2026-03-20", **extra):
+        data = {
+            "name": "B", "columns": [{"name": "To Do", "position": 0}], "swimlanes": [{"name": "L"}],
+            "custom_fields": [{"name": "Go-live", "field_type": "date"}],
+            "cards": [{
+                "title": "t", "column": "To Do", "swimlane": "L", "due_date": due,
+                "custom_field_values": {"Go-live": due},
+            }],
+            **extra,
+        }
+        if anchor is not None:
+            data["date_anchor"] = anchor
+        return data
+
+    def _due(self, resp):
+        self.assertEqual(resp.status_code, 201, getattr(resp, "data", None))
+        return Card.objects.get(board_id=resp.data["id"]).due_date
+
+    def _shifted(self, date, anchor):
+        days = (timezone.localdate() - datetime.date.fromisoformat(anchor)).days
+        return datetime.date.fromisoformat(date) + datetime.timedelta(days=days)
+
+    def test_anchored_file_without_options_is_shifted_from_its_anchor(self):
+        resp = self._post(self._file())
+        self.assertEqual(self._due(resp), self._shifted("2026-03-20", "2026-03-15"))
+        value = CustomFieldValue.objects.get(card__board_id=resp.data["id"]).value
+        self.assertEqual(value, self._shifted("2026-03-20", "2026-03-15").isoformat())
+        # Reported as the anchor the dates moved from, in the response and the event.
+        self.assertEqual(resp.data["import_summary"]["options_applied"]["shift_dates_from"], "2026-03-15")
+        self.assertNotIn("shift_dates", resp.data["import_summary"]["options_applied"])
+        from boards.models import BoardEvent
+        event = BoardEvent.objects.filter(board_id=resp.data["id"]).order_by("-id").first()
+        self.assertEqual(event.data["import_options"]["shift_dates_from"], "2026-03-15")
+
+    def test_include_options_alone_still_use_the_anchor(self):
+        resp = self._post(self._file(), {"labels": False})
+        self.assertEqual(self._due(resp), self._shifted("2026-03-20", "2026-03-15"))
+
+    def test_shift_dates_true_is_the_default_made_explicit(self):
+        resp = self._post(self._file(), {"shift_dates": True})
+        self.assertEqual(self._due(resp), self._shifted("2026-03-20", "2026-03-15"))
+        self.assertIs(resp.data["import_summary"]["options_applied"]["shift_dates"], True)
+
+    def test_explicit_shift_dates_from_wins_over_the_file_anchor(self):
+        explicit = (timezone.localdate() - datetime.timedelta(days=7)).isoformat()
+        resp = self._post(self._file(anchor="2026-01-01"), {"shift_dates_from": explicit})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 27))
+        self.assertEqual(resp.data["import_summary"]["options_applied"]["shift_dates_from"], explicit)
+
+    def test_explicit_option_wins_even_over_an_invalid_anchor(self):
+        explicit = (timezone.localdate() - datetime.timedelta(days=7)).isoformat()
+        resp = self._post(self._file(anchor="garbage"), {"shift_dates_from": explicit})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 27))
+
+    def test_shift_dates_false_imports_the_dates_as_written(self):
+        resp = self._post(self._file(), {"shift_dates": False})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+        applied = resp.data["import_summary"]["options_applied"]
+        self.assertNotIn("shift_dates_from", applied)
+        self.assertIs(applied["shift_dates"], False)
+
+    def test_shift_dates_false_skips_validating_the_anchor(self):
+        for anchor in ("garbage", None, "2999-01-01"):
+            with self.subTest(anchor):
+                data = self._file()
+                data["date_anchor"] = anchor
+                self.assertEqual(self._due(self._post(data, {"shift_dates": False})), datetime.date(2026, 3, 20))
+
+    def test_file_without_an_anchor_is_untouched(self):
+        for options in (None, {}, {"shift_dates": True}, {"labels": False}):
+            with self.subTest(options):
+                resp = self._post(self._file(anchor=None), options)
+                self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+                self.assertNotIn("shift_dates_from", resp.data["import_summary"]["options_applied"])
+
+    def test_contradiction_with_shift_dates_from_is_rejected(self):
+        resp = self._post(self._file(), {"shift_dates": False, "shift_dates_from": "2026-03-15"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(
+            resp.data["detail"], "Invalid 'options': Import option shift_dates_from requires 'shift_dates'.",
+        )
+        self.assertFalse(Board.objects.exists())
+
+    def test_shift_dates_must_be_a_json_boolean(self):
+        for bad in ("false", 0, None):
+            with self.subTest(bad):
+                resp = self._post(self._file(), {"shift_dates": bad})
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn("shift_dates", resp.data["detail"])
+
+    def test_invalid_anchor_is_a_400_that_names_the_opt_out(self):
+        tomorrow = (timezone.localdate() + datetime.timedelta(days=1)).isoformat()
+        for anchor, why in (
+            (tomorrow, "date_anchor cannot be in the future."),
+            ("1999-01-01", "date_anchor cannot be more than 10 years ago."),
+            ("garbage", "Date has wrong format."),
+            ("2026-02-30", "Date has wrong format."),
+            ("", "Date has wrong format."),
+        ):
+            with self.subTest(anchor):
+                data = self._file()
+                data["date_anchor"] = anchor  # set directly: _file(anchor=None) omits the key
+                resp = self._post(data)
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn(f"The file's 'date_anchor' is invalid: {why}", resp.data["detail"])
+                self.assertIn("shift_dates as false", resp.data["detail"])
+        self.assertFalse(Board.objects.exists())
+
+    def test_a_non_string_anchor_is_no_anchor(self):
+        """Only a string is an anchor, matching the dialog that offers the opt-out."""
+        for anchor in (None, 20260315, ["2026-03-15"], {"d": "2026-03-15"}, True):
+            with self.subTest(anchor):
+                data = self._file()
+                data["date_anchor"] = anchor
+                resp = self._post(data)
+                self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+                self.assertNotIn("shift_dates_from", resp.data["import_summary"]["options_applied"])
+
+    def test_shipped_sample_files_carry_the_manifest_anchor(self):
+        for entry in sample_boards.list_samples():
+            with self.subTest(entry["id"]):
+                _, body = sample_boards.get_sample(entry["id"])
+                self.assertEqual(json.loads(body)["date_anchor"], entry["date_anchor"])
+
+    def test_a_downloaded_sample_file_is_dated_around_today(self):
+        """The reported path: a sample file imported with no options, as from disk or curl."""
+        entry, body = sample_boards.get_sample("sales_pipeline")
+        raw = json.loads(body)
+        resp = self._post(body, name=entry["file"])
+        self.assertEqual(resp.status_code, 201, resp.data)
+        delta = timezone.localdate() - datetime.date.fromisoformat(entry["date_anchor"])
+        due = {c.title: c.due_date for c in Card.objects.filter(board_id=resp.data["id"])}
+        for c in raw["cards"]:
+            if c["due_date"]:
+                self.assertEqual(due[c["title"]], datetime.date.fromisoformat(c["due_date"]) + delta, c["title"])
+
+    def test_csv_import_refuses_shift_dates(self):
+        for options in ({"shift_dates": False}, {"shift_dates_to": "2026-06-01"}):
+            with self.subTest(options):
+                resp = self._post(b"Title,Column,Swimlane\nA,To Do,Main\n", options, name="x.csv")
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn(next(iter(options)), resp.data["detail"])
+
+    # -- shift_dates_to (#1949) ------------------------------------------------
+
+    def test_shift_dates_to_dates_the_board_around_that_day(self):
+        resp = self._post(self._file(), {"shift_dates_to": "2026-06-01"})
+        # 2026-03-15 -> 2026-06-01 is 78 days; the card's 2026-03-20 moves with it.
+        self.assertEqual(self._due(resp), datetime.date(2026, 6, 6))
+        value = CustomFieldValue.objects.get(card__board_id=resp.data["id"]).value
+        self.assertEqual(value, "2026-06-06")
+        applied = resp.data["import_summary"]["options_applied"]
+        self.assertEqual(applied["shift_dates_to"], "2026-06-01")
+        self.assertEqual(applied["shift_dates_from"], "2026-03-15")
+        from boards.models import BoardEvent
+        event = BoardEvent.objects.filter(board_id=resp.data["id"]).order_by("-id").first()
+        self.assertEqual(event.data["import_options"]["shift_dates_to"], "2026-06-01")
+
+    def test_shift_dates_to_may_be_before_the_anchor(self):
+        resp = self._post(self._file(), {"shift_dates_to": "2026-03-05"})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 10))
+
+    def test_default_target_is_the_utc_date(self):
+        # 23:30 UTC on 1 July is already 13:30 on 2 July in Kiritimati (UTC+14),
+        # so localdate() and the UTC date differ: the target must be the UTC day.
+        # (Settings pin TIME_ZONE to UTC, which alone could not tell them apart.)
+        frozen = datetime.datetime(2026, 7, 1, 23, 30, tzinfo=datetime.timezone.utc)
+        with override_settings(TIME_ZONE="Pacific/Kiritimati"), \
+                mock.patch("django.utils.timezone.now", return_value=frozen):
+            self.assertEqual(timezone.localdate(), datetime.date(2026, 7, 2))
+            resp = self._post(self._file())
+        # 2026-03-15 -> 2026-07-01 is 108 days.
+        self.assertEqual(self._due(resp), datetime.date(2026, 7, 6))
+        self.assertNotIn("shift_dates_to", resp.data["import_summary"]["options_applied"])
+
+    def test_explicit_shift_dates_from_wins_and_shift_dates_to_still_applies(self):
+        resp = self._post(
+            self._file(anchor="2026-01-01"), {"shift_dates_from": "2026-03-01", "shift_dates_to": "2026-03-11"},
+        )
+        # From the explicit 2026-03-01 (not the file's 2026-01-01) to 2026-03-11: +10 days.
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 30))
+
+    def test_shift_dates_to_also_applies_to_an_explicit_source_without_an_anchor(self):
+        resp = self._post(
+            self._file(anchor=None), {"shift_dates_from": "2026-03-01", "shift_dates_to": "2026-03-11"},
+        )
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 30))
+
+    def test_opt_out_ignores_shift_dates_to(self):
+        resp = self._post(self._file(), {"shift_dates": False, "shift_dates_to": "2026-06-01"})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+        applied = resp.data["import_summary"]["options_applied"]
+        self.assertNotIn("shift_dates_to", applied)
+        self.assertNotIn("shift_dates_from", applied)
+
+    def test_shift_dates_to_leaves_a_file_without_an_anchor_untouched(self):
+        resp = self._post(self._file(anchor=None), {"shift_dates_to": "2026-06-01"})
+        self.assertEqual(self._due(resp), datetime.date(2026, 3, 20))
+        self.assertNotIn("shift_dates_to", resp.data["import_summary"]["options_applied"])
+
+    def test_malformed_or_out_of_range_shift_dates_to_is_a_400(self):
+        tomorrow = (timezone.now().date() + datetime.timedelta(days=1)).isoformat()
+        for bad, why in (
+            ("garbage", "Date has wrong format."),
+            ("2026-02-30", "Date has wrong format."),
+            (20260601, "Date has wrong format."),
+            (None, "This field may not be null."),
+            (tomorrow, "shift_dates_to cannot be in the future."),
+            ("1999-01-01", "shift_dates_to cannot be more than 10 years ago."),
+        ):
+            with self.subTest(bad):
+                resp = self._post(self._file(), {"shift_dates_to": bad})
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn("'shift_dates_to'", resp.data["detail"])
+                self.assertIn(why, resp.data["detail"])
+        self.assertFalse(Board.objects.exists())
 
 
 class ShiftBoardDatesUnitTests(SimpleTestCase):

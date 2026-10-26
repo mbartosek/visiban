@@ -2126,6 +2126,13 @@ def main(json_dir: str | None = None, csv_dir: str | None = None):
         for i, col in enumerate(data["columns"]):
             col["allow_card_creation"] = i == 0
 
+        # The anchor also travels in the file itself (#1949), right after
+        # schema_version, so a file imported without the gallery (chosen
+        # from disk, curl-downloaded, posted by an API client) is still dated
+        # around the import day: the importer reads it when the caller sends
+        # no shift_dates_from. Same value as the manifest's date_anchor.
+        data = {"schema_version": data["schema_version"], "date_anchor": ANCHOR.date().isoformat(), **data}
+
         json_bytes = (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
         with open(os.path.join(json_dir, f"{slug}.json"), "wb") as f:
             f.write(json_bytes)

@@ -248,8 +248,10 @@ export const importBoard = (file: File, name?: string, groupId?: number, options
   // Selective import (#119): the endpoint is multipart, so options travel as a
   // JSON string. Omitted entirely when everything is included (the default)
   // and no date shift is requested (#1452), so a default import sends exactly
-  // what it did before the field existed.
-  if (options && (Object.values(options).some((v) => v === false) || options.shift_dates_from)) {
+  // what it did before the field existed. Any date-shift key (#1452, #1949:
+  // shift_dates, shift_dates_from, shift_dates_to) is a real request and is sent.
+  const dateShift = options?.shift_dates !== undefined || !!options?.shift_dates_from || !!options?.shift_dates_to;
+  if (options && (Object.values(options).some((v) => v === false) || dateShift)) {
     formData.append('options', JSON.stringify(options));
   }
   return client.post<ImportBoardResponse>('/api/v1/boards/import/', formData).then((r) => r.data);
