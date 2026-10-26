@@ -470,6 +470,7 @@ Each board has an admin-controlled `card_density` setting that drives how much m
   - Task count: `✓ {done}/{total}`
   - Due date: `Due MM/DD/YY`
   - Assignee badge: see Avatar chips section
+- **The hover expansion is an overlay inside the cell, never a layout change.** The metadata row clips to one line at rest and wraps while the card is hovered or has focus inside the row, so every chip is readable. That expansion must not move anything: the cell's height is shared by every cell in the swimlane row, so a card that grows in flow jumps the whole board under the pointer. `CardItem` freezes its wrapper div at the card's at-rest height and renders the card `absolute left-0 right-0` on top of its cell-mates, then clamps it to the cell's content box (`[data-board-cell]`, minus padding): shifted up when it would run past the cell's bottom edge, `max-height` the cell's inner height, `overflow-hidden`. Covering the other cards in the cell is the intent; growing or leaving the cell is not. The expansion is React state (`expanded`), not `group-hover:`/`focus-within:` classes, so the measure and the overlay land in one layout-effect pass before paint. Do not reintroduce `group-hover:flex-wrap` on the row, and do not put `overflow-hidden` on the cell to clamp it instead: that clips the aging tooltip, the hover lift and the focus ring of the first card. `cardItemHoverExpand.test.tsx` pins the clamp arithmetic and `e2e/card-hover-expand.spec.ts` measures the cell in a browser.
 
 ## Avatar chips
 
