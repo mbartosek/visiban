@@ -72,7 +72,13 @@ def _all_subclasses(cls):
 
 class ErrorCodeVocabularyTests(SimpleTestCase):
     def test_every_subclass_has_a_factory(self):
-        names = {c.__name__ for c in _all_subclasses(CardServiceError)}
+        # Classes defined by other tests in this module (e.g. BrandNewError)
+        # linger in __subclasses__() until GC; counting them would make this
+        # test depend on execution order.
+        names = {
+            c.__name__ for c in _all_subclasses(CardServiceError)
+            if c.__module__ != __name__
+        }
         self.assertEqual(names, set(FACTORIES))
 
     def test_every_subclass_yields_a_snake_case_code(self):

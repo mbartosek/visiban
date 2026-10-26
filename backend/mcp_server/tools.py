@@ -225,7 +225,7 @@ class ValidationFailed(Exception):
 # some of these). MCP callers get a `code` on every error regardless, since
 # there is no HTTP status code for them to branch on instead; this table
 # supplies the ones already-coded errors don't need (their own `code` in
-# `.body()` wins via `setdefault` below).
+# `.body()` wins: the lookup below only runs when it is absent).
 _ERROR_CODES = {
     "NotPermitted": "permission_denied",
     "BoardNotFound": "board_not_found",

@@ -303,22 +303,22 @@ A tool that can fail for a reason other than "your token can't reach `/mcp` at a
 }
 ```
 
-Every error has a `code` your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing. Most errors also carry a human-readable `detail`, but not all: `wip_limit_exceeded` and `weight_limit_exceeded` carry only their own fields, and `validation_error` carries an `errors` object instead of `detail` (the one exception to the `detail` convention). Branch on `code`, never on `detail`.
+Every error has a `code` your agent can branch on, and the table below is the complete set. Codes are never removed; new ones may be added in a minor release, so treat an unrecognized `code` as a generic failure rather than crashing. Most errors also carry a human-readable `detail`, but not all: `wip_limit_exceeded` and `weight_limit_exceeded` carry only their own fields, and `validation_error` carries an `errors` object instead of `detail`, and `card_creation_not_allowed` carries a `column` message instead of `detail` (these two are the exceptions to the `detail` convention). Branch on `code`, never on `detail`.
 
 | `code` | Meaning |
 |---|---|
 | `board_not_found` | The board id does not exist, or exists but you have no role on it (identical either way — Visiban never confirms a board id you cannot see). |
 | `card_not_found` | Same, for a card id. |
-| `column_not_found` | The column id does not exist, or belongs to a different board than the one you named. Identical either way. |
-| `swimlane_not_found` | Same, for a swimlane id. |
+| `column_not_found` | `move_card` only. The target column id does not exist, or belongs to a different board than the one you named. Identical either way. (`create_card` reports an unresolvable column as a `validation_error` with the message under `errors.column`.) |
+| `swimlane_not_found` | `move_card` only. Same, for a swimlane id. |
 | `object_not_found` | Reserved generic not-found code for a lookup with no more specific code above. |
 | `permission_denied` | Your board role is `collaborator` or `viewer`; card writes require `admin` or `member`. Also returned by `update_card` and `archive_card` when your role only allows changing cards you created, and by `move_card` when the card is assigned to someone else and your role is below moderator. |
 | `force_not_permitted` | Reserved: no tool currently exposes `force`. A `force` override of a WIP or weight limit was requested by someone who is not a board admin. |
 | `invalid_version` | Reserved: no tool currently takes `version`. The supplied `version` is not an integer. |
 | `invalid_position` | Reserved: `position` is schema-typed as an integer, so this is not currently reachable. The supplied move `position` is not an integer. |
-| `card_creation_not_allowed` | `create_card` targeted a column that has card creation turned off. |
+| `card_creation_not_allowed` | `create_card` targeted a column that has card creation turned off. Carries a `column` message instead of `detail`: `{"column": "Card creation is not allowed in this column.", "code": "card_creation_not_allowed"}`. |
 | `container_changed` | Reserved: no MCP tool deletes containers. A column, swimlane, or board kept gaining cards while it was being locked for deletion; nothing was deleted. Retry. |
-| `use_move_endpoint` | An update tried to change a card's column, swimlane, or position. Use `move_card` instead. |
+| `use_move_endpoint` | Reserved: no tool currently emits it, because `update_card` takes no column, swimlane, or position. An update tried to change a card's column, swimlane, or position. Use `move_card` instead. |
 | `internal_error` | A tool error with no registered code. Should not occur; report it as a bug. |
 | `demo_read_only` | The instance is a shared demo (`DEMO_MODE`) and every MCP write is refused. |
 | `missing_scope` | Your token lacks the `mcp:write` scope required for this tool — see above. |
