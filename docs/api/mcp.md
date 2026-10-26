@@ -327,7 +327,7 @@ Every error has a `code` your agent can branch on, and the table below is the co
 | `validation_error` | A field failed validation — includes an `errors` object keyed by field name, e.g. an `assignee` username or label name that does not resolve to an assignable board member/label. Every unresolved `assignee` returns the same message, whether the username does not exist, belongs to someone with no role on the board, or belongs to a `viewer` (who cannot be assigned). |
 | `wip_limit_exceeded` / `wip_hard_blocked` | The target column is at its WIP limit. Returned by `move_card` and, since 1.2 (#1428), `create_card`. Neither tool overrides either — there is no `force` option over MCP. |
 | `weight_limit_exceeded` | The target column is at its weight limit (`move_card`, and `create_card` since 1.2). |
-| `version_conflict` | `move_card`, and `create_card` when `position` is given. The card kept changing under concurrent writes while the server retried locking it. `move_card` takes no `version` argument, so this is the only cause. For `move_card`, re-read the card and retry. For `create_card` with `position`, the card has already been created when the follow-up reorder fails, and the error carries no card id, so retrying creates a duplicate: list the cards first and check before retrying. The same applies to a `card_not_found` from that reorder (a known limitation, tracked in #1992). Added in 1.2 (#1522). |
+| `version_conflict` | `move_card`, and `create_card` when `position` is given. For `move_card`, the card kept changing under concurrent writes while the server retried locking it; `move_card` takes no `version` argument, so this is the only cause. Re-read the card and retry. For `create_card`, cards kept entering the target column/swimlane cell while the server retried locking it; nothing was created, so retry the same call. Added in 1.2 (#1522). |
 
 ### User fields
 
@@ -376,6 +376,8 @@ Creates a card, appended to the end of its column/swimlane cell (or inserted at 
 **Arguments:** `board_id`, `column_id`, `swimlane_id`, `title` (required); `description`, `priority` (default `"medium"`), `assignee` (username of any board member whose role is not `viewer`), `labels` (array of names), `due_date` (`YYYY-MM-DD`), `position` — all optional.
 
 **Returns:** the created card, same shape as one row of `list_cards`. Writes a `CardMovement` record with no "from" column (matching how the REST API records card creation) and broadcasts `card.created` on the board's WebSocket channel. The broadcast frame (and its [change-feed](events.md) row) carries the full card exactly as a REST create sends it, not the tool's return shape above; when `position` is given and differs from the position the card was appended at, the follow-up reorder also sends a `card.moved` frame (`{card}`, with no `movement`). *Fixed in 1.2 (#1926): the frame carried the tool's return shape, which web clients could not apply.*
+
+With `position`, the create and the reorder are one transaction: if the call returns an error, no card was created and no frame was sent, so it is safe to retry. *Fixed in 1.2 (#1992): a reorder that failed left the card created behind the error, and a retry created a duplicate.*
 
 Enforces the column's WIP and weight limits exactly as `move_card` does, with no override: a create into a full column returns `wip_limit_exceeded`/`wip_hard_blocked`/`weight_limit_exceeded` and writes nothing. *Changed in 1.2 (#1428): creates were not checked before.*
 

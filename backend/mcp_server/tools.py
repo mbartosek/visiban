@@ -796,11 +796,13 @@ def create_card(*, board_id, column_id, swimlane_id, title, description=None,
     adding placement logic of its own: ``boards.services.cards.create_card``
     always appends (the service decides where, not the caller — see its own
     docstring), so an explicit initial position is honored with a follow-up
-    ``move_card`` call. That second call is a pure same-cell reorder (column
-    and swimlane both unchanged), which ``move_card``'s own docstring notes is
-    exempt from WIP/weight enforcement and writes no extra ``CardMovement``
-    row — so this never double-counts against a WIP limit or pollutes the
-    audit trail with a redundant movement.
+    ``move_card`` call, both inside ``create_card_at_position``'s single
+    transaction (#1992), so a failed reorder writes nothing and a retry
+    cannot duplicate the card. That second call is a pure same-cell reorder
+    (column and swimlane both unchanged), which ``move_card``'s own docstring
+    notes is exempt from WIP/weight enforcement and writes no extra
+    ``CardMovement`` row — so this never double-counts against a WIP limit or
+    pollutes the audit trail with a redundant movement.
 
     The column's WIP and weight limits are enforced by the service exactly as
     for ``move_card`` (#1428), and as there this tool never passes ``force``:
@@ -837,24 +839,27 @@ def create_card(*, board_id, column_id, swimlane_id, title, description=None,
 
         # result.payload is the broadcast card (#1926); the tool returns its own shape.
         render = _BroadcastRender(board)
-        result = card_services.create_card(
-            actor=user, board=board, role=role,
-            column_id=column_id, swimlane_id=swimlane_id,
-            save=save, render=render.card,
-        )
-        card = result.card
-
-        if position is not None and position != card.position:
-            # A same-cell reorder, so the card.moved frame is {card} with no
-            # movement, as for the same reorder over REST.
-            move_render = _BroadcastRender(board)
-            card_services.move_card(
-                actor=user, board=board, role=role, card_id=card.id,
-                target_column_id=column_id, target_swimlane_id=swimlane_id,
-                position=position, render=move_render.moved,
+        if position is None:
+            card_services.create_card(
+                actor=user, board=board, role=role,
+                column_id=column_id, swimlane_id=swimlane_id,
+                save=save, render=render.card,
             )
-            return move_render.tool_card
-        return render.tool_card
+            return render.tool_card
+
+        # Create and reorder in ONE transaction (#1992): as two, a reorder
+        # that failed left the card created behind an error with no card id,
+        # and a client that retried made a duplicate. The service also takes
+        # the cell's locks up front, which a bare atomic() here would not (see
+        # its docstring). The reorder is a same-cell move, so its card.moved
+        # frame is {card} with no movement, as for the same reorder over REST.
+        move_render = _BroadcastRender(board)
+        _created, moved = card_services.create_card_at_position(
+            actor=user, board=board, role=role,
+            column_id=column_id, swimlane_id=swimlane_id, position=position,
+            save=save, render=render.card, render_moved=move_render.moved,
+        )
+        return (render if moved is None else move_render).tool_card
     except (CardServiceError, ValidationFailed, _DRFValidationError) as exc:
         return _error_payload(exc)
 
