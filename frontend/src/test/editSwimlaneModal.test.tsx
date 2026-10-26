@@ -427,3 +427,25 @@ describe('EditSwimlaneModal — URL fields (#1390)', () => {
     })
   })
 })
+
+describe('EditSwimlaneModal — date format (#1993)', () => {
+  it('shows a date row in the userDateFormat preference', () => {
+    const dateDef = {
+      id: 8, uid: 'sfuid0000008', name: 'Renewal', field_type: 'date' as const, choices: [], position: 0,
+      show_on_row: true, is_admin_only: false, is_required: false, help_text: '', number_prefix: '', number_suffix: '', number_decimals: null, choice_colors: {}, created_at: '',
+    }
+    render(
+      <EditSwimlaneModal
+        boardId={1}
+        swimlane={makeSwimlane({ custom_field_values: [{ field_definition: 8, value: '2026-11-26' }] } as never)}
+        cardCount={0}
+        onUpdated={vi.fn()}
+        onDeleted={vi.fn()}
+        onClose={vi.fn()}
+        swimlaneFieldDefinitions={[dateDef]}
+        userDateFormat="DD/MM/YYYY"
+      />
+    )
+    expect(screen.getByText('26/11/2026')).toBeInTheDocument()
+  })
+})

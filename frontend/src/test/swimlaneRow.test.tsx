@@ -31,7 +31,7 @@ vi.mock('../components/Board/BoardCell', () => ({
 }))
 
 vi.mock('../components/Board/EditSwimlaneModal', () => ({
-  default: () => <div data-testid="edit-swimlane-modal">Edit Swimlane</div>,
+  default: ({ userDateFormat }: { userDateFormat?: string }) => <div data-testid="edit-swimlane-modal" data-date-format={userDateFormat}>Edit Swimlane</div>,
 }))
 
 vi.mock('../api/cards', () => ({ createCard: vi.fn() }))
@@ -185,6 +185,12 @@ describe('SwimlaneRow', () => {
     render(<SwimlaneRow {...defaultProps()} />)
     await userEvent.setup().click(screen.getByTitle('Edit swimlane'))
     expect(screen.getByTestId('edit-swimlane-modal')).toBeInTheDocument()
+  })
+
+  it('passes userDateFormat through to EditSwimlaneModal (#1993)', async () => {
+    render(<SwimlaneRow {...defaultProps()} userDateFormat="DD/MM/YYYY" />)
+    await userEvent.setup().click(screen.getByTitle('Edit swimlane'))
+    expect(screen.getByTestId('edit-swimlane-modal')).toHaveAttribute('data-date-format', 'DD/MM/YYYY')
   })
 
   it('collapsed=true shows card count pill for non-empty cells', () => {

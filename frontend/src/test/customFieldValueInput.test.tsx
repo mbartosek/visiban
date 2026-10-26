@@ -171,6 +171,13 @@ describe('CustomFieldValueInput', () => {
       expect(screen.getByText('01/01/2026')).toBeInTheDocument()
     })
 
+    it('never formats a legacy non-ISO value (#1121 type change): the defensive §5(b) branch renders instead', () => {
+      const { container } = render(<CustomFieldValueInput definition={dateDef()} value="12-25-2026" onCommit={vi.fn()} userDateFormat="DD/MM/YYYY" />)
+      expect(screen.getByText(/doesn't match this field's current type/)).toBeInTheDocument()
+      expect(screen.queryByText('25/2026/12')).not.toBeInTheDocument()
+      expect(container.querySelector('input[type="date"]')).toBeNull()
+    })
+
     it('keeps the empty placeholder', () => {
       render(<CustomFieldValueInput definition={dateDef()} value="" onCommit={vi.fn()} userDateFormat="DD/MM/YYYY" />)
       expect(screen.getByText('Select a date')).toBeInTheDocument()
