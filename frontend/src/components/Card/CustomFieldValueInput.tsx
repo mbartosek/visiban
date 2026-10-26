@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { formatDateStr } from "../../utils/date";
 import type { FieldDefinitionShape } from "../../types";
 import SingleSelectDropdown from "../Common/SingleSelectDropdown";
 import { ToggleField } from "../Common/Toggle";
@@ -57,11 +58,16 @@ interface Props {
    * Save click that caused the blur already sees it.
    */
   onInvalidChange?: (invalid: boolean) => void;
+  /**
+   * The user's `date_format` preference (#1993). Only changes the visible text
+   * of a date field; the stored value and the native input stay ISO.
+   */
+  userDateFormat?: string;
 }
 
 const DEBOUNCE_MS = 600;
 
-export default function CustomFieldValueInput({ definition, value, onCommit, disabled, size = "md", autoFocus, debounceMs = DEBOUNCE_MS, escapePriority, serverError, onInvalidChange }: Props) {
+export default function CustomFieldValueInput({ definition, value, onCommit, disabled, size = "md", autoFocus, debounceMs = DEBOUNCE_MS, escapePriority, serverError, onInvalidChange, userDateFormat = "MM/DD/YYYY" }: Props) {
   const [local, setLocal] = useState(value ?? "");
   // URL type (#1390): client-side validation error, and the last value handed
   // to onCommit — so a blur right after an Enter does not save twice, and a
@@ -325,7 +331,7 @@ export default function CustomFieldValueInput({ definition, value, onCommit, dis
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1 cursor-pointer rounded focus-within:ring-2 focus-within:ring-primary-emphasis">
             <div className={`text-sm border rounded px-2.5 py-1.5 w-full select-none flex items-center justify-between pointer-events-none ${local ? "bg-surface-hover border-line-strong text-fg" : "bg-surface-hover border-line-strong text-fg-muted"}`}>
-              <span>{local || "Select a date"}</span>
+              <span>{local ? formatDateStr(local, userDateFormat) : "Select a date"}</span>
               <svg className="w-4 h-4 opacity-70 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" /><path d="M5 1v3M11 1v3M1.5 6h13" /></svg>
             </div>
             <input

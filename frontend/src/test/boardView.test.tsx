@@ -164,9 +164,9 @@ vi.mock('../components/Board/BoardSettingsModal', () => ({
 // Capture props passed into FilterBar so tests can assert on `scope` and `onScopeChange`
 // without rendering the real component (kept mocked to avoid touching dropdown/avatar
 // dependencies here — FilterBar has its own dedicated suite).
-let capturedFilterBarProps: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } } = {}
+let capturedFilterBarProps: { userDateFormat?: string; scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } } = {}
 vi.mock('../components/Board/FilterBar', () => ({
-  default: (props: { scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } }) => {
+  default: (props: { userDateFormat?: string; scope?: 'board' | 'all'; onScopeChange?: (s: 'board' | 'all') => void; filters?: { labelIds: number[]; assigneeIds: number[]; customFields?: Record<number, unknown>; visibleCustomFieldFilterIds?: number[] } }) => {
     capturedFilterBarProps = props
     return <div data-testid="filter-bar" data-scope={props.scope}>FilterBar</div>
   },
@@ -858,6 +858,13 @@ describe('BoardView', () => {
       fireEvent.keyDown(document, { key: 'f' })
       expect(capturedFilterBarProps.scope).toBe('all')
       expect(typeof capturedFilterBarProps.onScopeChange).toBe('function')
+    })
+
+    it('passes the user date format to FilterBar (#1993)', () => {
+      capturedFilterBarProps = {}
+      render(<BoardView {...defaultProps()} userDateFormat="DD/MM/YYYY" />)
+      fireEvent.keyDown(document, { key: 'f' })
+      expect(capturedFilterBarProps.userDateFormat).toBe('DD/MM/YYYY')
     })
 
     it('defaults to scope="board" when the URL param is absent', () => {

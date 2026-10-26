@@ -152,6 +152,37 @@ describe('CustomFieldValueInput', () => {
       expect(onCommit).toHaveBeenCalledWith('2026-10-01')
     })
 
+    // #1993 — the visible text follows the user's date_format; the native
+    // input (and so the committed payload) stays ISO.
+    it.each([
+      ['MM/DD/YYYY', '11/26/2026'],
+      ['DD/MM/YYYY', '26/11/2026'],
+      ['YYYY-MM-DD', '2026-11-26'],
+    ])('shows the stored ISO date as %s', (fmt, expected) => {
+      const { container } = render(
+        <CustomFieldValueInput definition={dateDef()} value="2026-11-26" onCommit={vi.fn()} userDateFormat={fmt} />,
+      )
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      expect((container.querySelector('input[type="date"]') as HTMLInputElement).value).toBe('2026-11-26')
+    })
+
+    it('defaults to MM/DD/YYYY and does not shift the day (no Date parsing)', () => {
+      render(<CustomFieldValueInput definition={dateDef()} value="2026-01-01" onCommit={vi.fn()} />)
+      expect(screen.getByText('01/01/2026')).toBeInTheDocument()
+    })
+
+    it('never formats a legacy non-ISO value (#1121 type change): the defensive §5(b) branch renders instead', () => {
+      const { container } = render(<CustomFieldValueInput definition={dateDef()} value="12-25-2026" onCommit={vi.fn()} userDateFormat="DD/MM/YYYY" />)
+      expect(screen.getByText(/doesn't match this field's current type/)).toBeInTheDocument()
+      expect(screen.queryByText('25/2026/12')).not.toBeInTheDocument()
+      expect(container.querySelector('input[type="date"]')).toBeNull()
+    })
+
+    it('keeps the empty placeholder', () => {
+      render(<CustomFieldValueInput definition={dateDef()} value="" onCommit={vi.fn()} userDateFormat="DD/MM/YYYY" />)
+      expect(screen.getByText('Select a date')).toBeInTheDocument()
+    })
+
     it('clear button commits an empty string immediately', () => {
       const onCommit = vi.fn()
       render(<CustomFieldValueInput definition={dateDef()} value="2026-10-01" onCommit={onCommit} />)

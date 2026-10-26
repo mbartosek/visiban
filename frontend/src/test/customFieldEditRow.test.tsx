@@ -156,3 +156,11 @@ describe('CustomFieldEditRow — dropdown Escape priority (#1478)', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('CustomFieldEditRow — date format forwarding (#1993)', () => {
+  it('shows an editable date value in the userDateFormat preference', () => {
+    const definition = makeDefinition({ field_type: 'date', name: 'Expected close' })
+    render(<CustomFieldEditRow definition={definition} value="2026-11-26" disabled={false} onSave={noop} userDateFormat="DD/MM/YYYY" />)
+    expect(screen.getByText('26/11/2026')).toBeInTheDocument()
+  })
+})

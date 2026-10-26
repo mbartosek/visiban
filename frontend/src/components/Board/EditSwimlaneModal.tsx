@@ -15,9 +15,11 @@ interface Props {
   onClose: () => void;
   /** Row field schema (#1140). The Fields section is omitted when empty. */
   swimlaneFieldDefinitions?: SwimlaneCustomFieldDefinition[];
+  /** The user's `date_format` preference (#1993). */
+  userDateFormat?: string;
 }
 
-export default function EditSwimlaneModal({ boardId, swimlane, cardCount, onUpdated, onDeleted, onClose, swimlaneFieldDefinitions }: Props) {
+export default function EditSwimlaneModal({ boardId, swimlane, cardCount, onUpdated, onDeleted, onClose, swimlaneFieldDefinitions, userDateFormat }: Props) {
   const [name, setName] = useState(swimlane.name);
   const [color, setColor] = useState(swimlane.color);
   const [saving, setSaving] = useState(false);
@@ -188,6 +190,7 @@ export default function EditSwimlaneModal({ boardId, swimlane, cardCount, onUpda
                       else invalidFieldIds.current.delete(def.id);
                     }}
                     serverError={fieldErrors[def.id] ?? null}
+                    userDateFormat={userDateFormat}
                   />
                 ))}
               </div>

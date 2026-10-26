@@ -68,6 +68,7 @@ export default function CustomFieldEditRow({ definition, value, disabled, onSave
           value={value}
           disabled={disabled}
           onCommit={commit}
+          userDateFormat={userDateFormat}
           // Above CardDetail's panel close (30) and ModalWrapper's (40), so Escape on an
           // open dropdown menu closes only the menu (#1478).
           escapePriority={CARD_DETAIL_FIELD_ESCAPE_PRIORITY}
