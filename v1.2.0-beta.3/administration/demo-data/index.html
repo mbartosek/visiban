@@ -4215,6 +4215,7 @@
 <li>Staging environments used for product demos or sales calls</li>
 <li>CI pipelines that need a non-empty board for integration tests</li>
 </ul>
+<p>Card due dates on the generic demo board are counted from the day the command runs (UTC), not from a fixed date, so a board reseeded by the hourly reset never drifts into overdue. <code>--seed</code> keeps titles, layout and day offsets identical; only the calendar day moves (#1948).</p>
 <h2 id="running-the-command">Running the command<a class="headerlink" href="#running-the-command" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Create the demo board (skip if it already exists). Requires DEBUG=True or --force.</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>manage.py<span class="w"> </span>seed_demo_data
