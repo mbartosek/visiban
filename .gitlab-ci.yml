@@ -1756,7 +1756,8 @@ backend-test-git-lens:
 # The coverage combine job `needs` this job's data file; if it were absent
 # from the pipeline, every mcp_server line would score 0% and the total would
 # drop back below the threshold on branches that touch no mcp_server file.
-# `.gitlab-ci.yml` is in the list so a change to this job re-runs it.
+# `.gitlab-ci.yml` is in the list so a change to this job re-runs it, and
+# `docs/api/mcp.md` because a test pins the documented error codes to it.
 backend-test-mcp:
   extends: .pip-cache
   stage: test
@@ -1767,6 +1768,7 @@ backend-test-mcp:
         - backend/**/*
         - requirements*.txt
         - .gitlab-ci.yml
+        - docs/api/mcp.md
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   services:
     - name: ${DOCKERHUB_MIRROR}/postgres:17-alpine

@@ -33,6 +33,8 @@ top-level ``"error"`` key, and a failure is ALWAYS a dict with exactly that
 key — that split is the whole contract, and it is now part of the tools'
 public (agent-facing) shape, so do not change it without a major version bump.
 """
+import logging
+
 from django.db.models import Count, Q, Window
 from rest_framework.exceptions import ValidationError as _DRFValidationError
 
@@ -59,6 +61,8 @@ from boards.views._helpers import (
 from visiban.request_shape import MAX_OFFSET
 
 from .context import get_current_user
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_board(board, role):
@@ -221,7 +225,7 @@ class ValidationFailed(Exception):
 # some of these). MCP callers get a `code` on every error regardless, since
 # there is no HTTP status code for them to branch on instead; this table
 # supplies the ones already-coded errors don't need (their own `code` in
-# `.body()` wins via `setdefault` below).
+# `.body()` wins: the lookup below only runs when it is absent).
 _ERROR_CODES = {
     "NotPermitted": "permission_denied",
     "BoardNotFound": "board_not_found",
@@ -232,7 +236,17 @@ _ERROR_CODES = {
     "InvalidVersion": "invalid_version",
     "InvalidPosition": "invalid_position",
     "ForceNotPermitted": "force_not_permitted",
+    "ObjectNotFound": "object_not_found",
 }
+
+# Wire code for a CardServiceError subclass that has neither a ``code`` in its
+# ``body()`` nor an ``_ERROR_CODES`` entry. The old fallback put the CamelCase
+# Python class name on the wire, which would have frozen an implementation
+# detail into the public code vocabulary (#1953). A generic snake_case code
+# keeps the contract valid, and the log line plus the exhaustive test in
+# mcp_server/tests/test_error_codes.py make the omission loud without turning
+# an agent-facing error result into a crash.
+_FALLBACK_ERROR_CODE = "internal_error"
 
 
 def _normalize_drf_errors(detail):
@@ -260,7 +274,16 @@ def _error_payload(exc):
     if isinstance(exc, ValidationFailed):
         return {"error": {"code": "validation_error", "errors": exc.errors}}
     body = dict(exc.body())
-    body.setdefault("code", _ERROR_CODES.get(type(exc).__name__, type(exc).__name__))
+    if "code" not in body:
+        code = _ERROR_CODES.get(type(exc).__name__)
+        if code is None:
+            logger.error(
+                "MCP tool error %s has no wire code; add it to _ERROR_CODES "
+                "and docs/api/mcp.md",
+                type(exc).__name__,
+            )
+            code = _FALLBACK_ERROR_CODE
+        body["code"] = code
     return {"error": body}
 
 
