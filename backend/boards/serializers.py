@@ -3990,6 +3990,52 @@ class _StrictBooleanField(serializers.BooleanField):
         return data
 
 
+SHIFT_ANCHOR_MAX_YEARS = 10
+
+
+def shift_today():
+    """Today on the import date-shift clock: the UTC date (#1949).
+
+    The one clock for the shift, its default target and its bounds, so a
+    target of "today" can never fail the "not in the future" check.
+    """
+    return timezone.now().date()
+
+
+def check_shift_anchor(value, name):
+    """Bound a date that an import shifts the file's dates from or to (#1452, #1949).
+
+    Shared by the ``shift_dates_from`` and ``shift_dates_to`` options and a
+    file's own ``date_anchor`` so they refuse the same values. A future source
+    would move dates backward past their anchor; a future target would date
+    history and comments after the moment of import; a very old one is almost
+    certainly a mistake.
+    """
+    today = shift_today()
+    if value > today:
+        raise serializers.ValidationError(f"{name} cannot be in the future.")
+    if (today - value).days > SHIFT_ANCHOR_MAX_YEARS * 366:
+        raise serializers.ValidationError(
+            f"{name} cannot be more than {SHIFT_ANCHOR_MAX_YEARS} years ago."
+        )
+    return value
+
+
+class ImportDateAnchorSerializer(serializers.Serializer):
+    """Validate a JSON import file's optional top-level ``date_anchor`` (#1949).
+
+    The shipped sample files carry the day their dates were generated around.
+    The importer reads it only when the caller sent no ``shift_dates_from``
+    and did not turn shifting off, and validates it here, at the boundary,
+    with the same rules as the option it stands in for.
+    """
+
+    date_anchor = serializers.DateField()
+
+    def validate_date_anchor(self, value):
+        return check_shift_anchor(value, "date_anchor")
+
+
 class ImportOptionsSerializer(serializers.Serializer):
     """Validate the ``options`` field of ``POST /boards/import/`` (#119).
 
@@ -4019,18 +4065,23 @@ class ImportOptionsSerializer(serializers.Serializer):
     # Absent by default, so a plain import is unchanged, and omitted from
     # ``options_applied`` unless given.
     shift_dates_from = serializers.DateField(required=False)
-
-    SHIFT_MAX_YEARS = 10
+    # #1949: a file that carries a top-level ``date_anchor`` (the shipped
+    # samples do) is shifted from that anchor by default when
+    # ``shift_dates_from`` is absent. ``false`` turns that default off and
+    # imports the file's dates as written. Absent by default (so it is not
+    # echoed in ``options_applied`` unless sent); absent means ``true``.
+    shift_dates = _StrictBooleanField(required=False)
+    # #1949: the day the shifted board is dated around. Defaults to today
+    # (UTC) when omitted. Used only when a shift happens (an explicit
+    # ``shift_dates_from`` or the file's ``date_anchor``); otherwise, and
+    # whenever ``shift_dates`` is false, it is ignored.
+    shift_dates_to = serializers.DateField(required=False)
 
     def validate_shift_dates_from(self, value):
-        today = timezone.localdate()
-        if value > today:
-            raise serializers.ValidationError("shift_dates_from cannot be in the future.")
-        if (today - value).days > self.SHIFT_MAX_YEARS * 366:
-            raise serializers.ValidationError(
-                f"shift_dates_from cannot be more than {self.SHIFT_MAX_YEARS} years ago."
-            )
-        return value
+        return check_shift_anchor(value, "shift_dates_from")
+
+    def validate_shift_dates_to(self, value):
+        return check_shift_anchor(value, "shift_dates_to")
 
     def validate(self, attrs):
         initial = self.initial_data if isinstance(self.initial_data, dict) else {}
@@ -4043,7 +4094,15 @@ class ImportOptionsSerializer(serializers.Serializer):
         # and embedded in the persisted ``board.created`` event payload, both of
         # which must stay JSON-native.
         if "shift_dates_from" in attrs:
+            # "Shift from this date" and "do not shift" cannot both be meant;
+            # refused like the cards/dependents contradiction below.
+            if attrs.get("shift_dates") is False:
+                raise serializers.ValidationError(
+                    "Import option shift_dates_from requires 'shift_dates'."
+                )
             attrs["shift_dates_from"] = attrs["shift_dates_from"].isoformat()
+        if "shift_dates_to" in attrs:
+            attrs["shift_dates_to"] = attrs["shift_dates_to"].isoformat()
         if not attrs["cards"]:
             contradictions = [k for k in self.DEPENDENTS if initial.get(k) is True]
             if contradictions:
@@ -4064,6 +4123,8 @@ class CSVImportOptionsSerializer(ImportOptionsSerializer):
     history = None
     # Dates in a CSV are the user's own; only the sample JSON files shift.
     shift_dates_from = None
+    shift_dates = None
+    shift_dates_to = None
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

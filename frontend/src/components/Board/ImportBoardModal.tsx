@@ -94,12 +94,49 @@ function optionsPayload(include: IncludeState, isCsv: boolean): ImportOptions | 
   return Object.values(payload).every(Boolean) ? undefined : payload;
 }
 
+/** Today in the browser's time zone, as YYYY-MM-DD (the date input's format). */
+function localToday(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** The top-level `date_anchor` of a chosen JSON file, or null (#1949). The
+ *  server reads the same key and shifts the dates by default; the modal reads
+ *  it only to decide whether to show the Dates controls. A file that is not
+ *  parseable JSON shows none: the server reports its own error on submit. */
+function readDateAnchor(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data: unknown = JSON.parse(String(reader.result));
+        const anchor = (data as { date_anchor?: unknown } | null)?.date_anchor;
+        resolve(typeof anchor === "string" ? anchor : null);
+      } catch {
+        resolve(null);
+      }
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsText(file);
+  });
+}
+
 export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [include, setInclude] = useState<IncludeState>(ALL_INCLUDED);
+  // Date shift (#1949): `fileAnchor` is a chosen file's own date_anchor (a
+  // sample's comes from the manifest instead). `shiftTo` is the "Adjust dates"
+  // target; it is sent as shift_dates_to only when it differs from today.
+  const [fileAnchor, setFileAnchor] = useState<string | null>(null);
+  const [shiftDates, setShiftDates] = useState(true);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [today, setToday] = useState(localToday);
+  const [shiftTo, setShiftTo] = useState(today);
+  const anchorRead = useRef(0);
   // The modal's one polite live region: the Cards cascade (#119) and a sample
   // load starting or canceled. A failed sample is the card's own role="alert".
   const [cascadeAnnouncement, setCascadeAnnouncement] = useState("");
@@ -121,6 +158,8 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
   const fileLabelId = useId();
   const fileButtonId = useId();
   const nameInputId = useId();
+  const adjustPanelId = useId();
+  const shiftToId = useId();
 
   const requestFocus = (id: string) => setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
 
@@ -172,6 +211,15 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
     setInclude(ALL_INCLUDED);
     dependentsMemo.current = null;
     setCascadeAnnouncement("");
+    // A new file is dated around today again, with the adjuster closed. A
+    // pending read of the previous file's anchor is discarded.
+    anchorRead.current += 1;
+    setFileAnchor(null);
+    setShiftDates(true);
+    setAdjustOpen(false);
+    const now = localToday();
+    setToday(now);
+    setShiftTo(now);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +229,12 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
     setSampleLoad(null);
     setFile(selected);
     resetSelection();
+    if (selected && detectFormat(selected) === "JSON") {
+      const readId = anchorRead.current;
+      void readDateAnchor(selected).then((anchor) => {
+        if (anchorRead.current === readId) setFileAnchor(anchor);
+      });
+    }
   };
 
   const selectSample = async (sample: SampleBoardSummary) => {
@@ -262,9 +316,8 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
     setError(null);
     try {
       const chosen = optionsPayload(include, format === "CSV");
-      // A sample is dated around its anchor; shifting it to today keeps the
-      // imported board from opening mostly overdue.
-      const options: ImportOptions | undefined = source ? { ...chosen, shift_dates_from: source.date_anchor } : chosen;
+      const dates = datesPayload();
+      const options: ImportOptions | undefined = chosen || dates ? { ...chosen, ...dates } : undefined;
       // Two arguments for a default import, so callers (and their tests) see
       // exactly the pre-#119 call; the third only when something differs.
       if (options) await onImport(file, name.trim() || undefined, options);
@@ -282,6 +335,29 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
   const format = file ? detectFormat(file) : null;
   const showInclude = format === "JSON" || format === "CSV";
   const isCsv = format === "CSV";
+  // The Dates controls appear only when the import would shift: a sample, or a
+  // JSON file that carries its own date_anchor.
+  const anchor = source?.date_anchor ?? fileAnchor;
+  const showDates = format === "JSON" && anchor !== null;
+  const customTarget = shiftTo !== "" && shiftTo !== today;
+
+  /** The date-shift options to send (#1949), or `undefined` for none. The
+   *  server shifts an anchored file to today by default, so a raw file sends
+   *  nothing unless the user turned shifting off or picked another day; a
+   *  sample keeps sending its manifest anchor as shift_dates_from. */
+  function datesPayload(): ImportOptions | undefined {
+    if (!showDates) return undefined;
+    if (!shiftDates) return { shift_dates: false };
+    const to: ImportOptions = customTarget ? { shift_dates_to: shiftTo } : {};
+    if (source) return { shift_dates_from: source.date_anchor, ...to };
+    return customTarget ? to : undefined;
+  }
+
+  const datesHint = !shiftDates
+    ? "Dates are imported exactly as written in the file."
+    : customTarget
+      ? `Dated around ${shiftTo} instead of today.`
+      : "Dated around today, so the board does not open mostly overdue.";
 
   const renderRow = (row: IncludeRow, dependent: boolean) => {
     const checked = include[row.key];
@@ -460,6 +536,73 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
               {importingSummary(include, isCsv)}
             </p>
           )}
+          {/* Dates (#1949) — only when the import would shift them. */}
+          {showDates && (
+            <fieldset className="min-w-0">
+              <legend className="block text-xs font-medium text-fg-tertiary uppercase tracking-wide mb-1.5">
+                Dates
+              </legend>
+              <div className="space-y-2 bg-sunken border border-line rounded-lg px-3 py-2.5">
+                <div>
+                  <label className="flex items-center gap-2 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={shiftDates}
+                      disabled={submitting}
+                      onChange={(e) => setShiftDates(e.target.checked)}
+                      aria-describedby="import-dates-hint"
+                      className="w-4 h-4 rounded accent-primary"
+                    />
+                    <span className="text-sm text-fg-secondary">Move dates to today</span>
+                  </label>
+                  <p id="import-dates-hint" className="text-xs text-fg-muted mt-0.5 ml-6 min-h-4">
+                    {datesHint}
+                  </p>
+                </div>
+                {shiftDates && (
+                  <div className="ml-6">
+                    <button
+                      type="button"
+                      onClick={() => setAdjustOpen((open) => !open)}
+                      aria-expanded={adjustOpen}
+                      aria-controls={adjustPanelId}
+                      disabled={submitting}
+                      className="inline-flex items-center gap-1 text-xs text-info hover:underline focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded disabled:opacity-40"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        className={`w-3 h-3 transition-transform motion-reduce:transition-none ${adjustOpen ? "" : "-rotate-90"}`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                      >
+                        <path d="M4 6l4 4 4-4" />
+                      </svg>
+                      Adjust dates
+                    </button>
+                    {adjustOpen && (
+                      <div id={adjustPanelId} className="mt-2">
+                        <label htmlFor={shiftToId} className="block text-xs text-fg-tertiary mb-1">
+                          Date the board around
+                        </label>
+                        <input
+                          id={shiftToId}
+                          type="date"
+                          value={shiftTo}
+                          max={today}
+                          disabled={submitting}
+                          onChange={(e) => setShiftTo(e.target.value)}
+                          className="bg-surface border border-line focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent text-fg-secondary rounded px-3 py-1.5 text-sm transition"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </fieldset>
+          )}
+
           {/* The one live region for the Cards cascade; the per-row
               consequence slots are deliberately not live. */}
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">

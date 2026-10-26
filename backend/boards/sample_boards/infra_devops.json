@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "date_anchor": "2026-03-15",
   "name": "Infrastructure & DevOps",
   "description": "Track infrastructure incidents, changes, and improvements. Each swimlane is a system; each card is a work item.",
   "columns": [

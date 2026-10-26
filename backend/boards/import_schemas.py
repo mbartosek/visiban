@@ -24,7 +24,18 @@ class ImportOptionsAppliedSerializer(serializers.Serializer):
     checklist = serializers.BooleanField()
     history = serializers.BooleanField()
     shift_dates_from = serializers.DateField(
-        required=False, help_text="YYYY-MM-DD; present only when it was sent (JSON import only).",
+        required=False, help_text=(
+            "YYYY-MM-DD; present when it was sent, or when the file's date_anchor "
+            "was applied in its place (JSON import only)."
+        ),
+    )
+    shift_dates = serializers.BooleanField(
+        required=False, help_text="Present only when it was sent (JSON import only).",
+    )
+    shift_dates_to = serializers.DateField(
+        required=False, help_text=(
+            "YYYY-MM-DD; present only when it was sent and the import shifted dates (JSON import only)."
+        ),
     )
 
 

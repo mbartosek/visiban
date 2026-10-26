@@ -1446,6 +1446,13 @@ export interface ImportOptions {
   /** Sample-board flow (#1452), JSON only: shift every date in the file forward
    *  by the days between this date (YYYY-MM-DD) and today. Omit for a plain import. */
   shift_dates_from?: string;
+  /** #1949, JSON only: `false` imports the dates exactly as written, turning off
+   *  the default shift a file with its own top-level `date_anchor` gets. Omit
+   *  for the default (`true`). Never sent together with `shift_dates_from`. */
+  shift_dates?: boolean;
+  /** #1949, JSON only: the day (YYYY-MM-DD) a shifted board is dated around.
+   *  Omit for today (UTC). Ignored when nothing shifts. */
+  shift_dates_to?: string;
 }
 
 /** What a sample board carries, derived from its contents (#1452). */
@@ -1463,9 +1470,13 @@ export interface SampleBoardSummary {
   includes: SampleBoardInclude[];
   order: number;
   schema_version: number;
-  /** Pass as `ImportOptions.shift_dates_from` to date the board around today. */
+  /** Pass as `ImportOptions.shift_dates_from` to date the board around today. The
+   *  file itself also carries it as a top-level `date_anchor` (#1949). */
   date_anchor: string;
 }
+
+/** Date-shift options: echoed in `options_applied` only when sent or applied. */
+type ShiftOptionKey = 'shift_dates_from' | 'shift_dates' | 'shift_dates_to';
 
 /** Counts of file contents left out by the chosen import options (#119). */
 export interface ImportSkippedCounts {
@@ -1478,8 +1489,8 @@ export interface ImportSkippedCounts {
 }
 
 export interface ImportSummary {
-  /** The five include flags are always echoed; shift_dates_from only when it was sent. */
-  options_applied: Required<Omit<ImportOptions, 'shift_dates_from'>> & Pick<ImportOptions, 'shift_dates_from'>;
+  /** The five include flags are always echoed; the shift options only when sent or applied. */
+  options_applied: Required<Omit<ImportOptions, ShiftOptionKey>> & Pick<ImportOptions, ShiftOptionKey>;
   skipped: ImportSkippedCounts;
   /** CSV import only: values or columns dropped (bounded, at most 21 entries). Absent on JSON and Trello. */
   warnings?: string[];

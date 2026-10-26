@@ -67,7 +67,8 @@ To match your installed version, replace `main` with your release tag (for examp
    Use **Change** to go back and pick a different sample.
 
 The sample is fetched from your own Visiban server, so it matches your installed version and works without internet access.
-Dates in the sample are moved to the day you import it, so the board does not open mostly overdue.
+Dates in the sample are moved to the day you import it, so the board does not open mostly overdue
+(see [Dates on import](#dates-on-import)).
 The board is named **Imported: <sample title>**, and a second import of the same sample is numbered.
 Press **Esc** while a sample is loading to cancel it. If samples can't be loaded, the dialog says so and you can retry or upload a file instead.
 
@@ -78,9 +79,34 @@ Press **Esc** while a sample is loading to cancel it. If samples can't be loaded
 3. Choose a `.json` file from `backend/boards/sample_boards/`.
 4. Optionally untick what you don't want (cards, labels, comments, checklists, history).
    The board's columns, swimlanes and custom field definitions are always imported.
-5. The board is created with everything in the file.
+5. The board is created with everything in the file, dated around today
+   (see [Dates on import](#dates-on-import)).
 
 Imports are limited to 10 per user per hour.
+
+### Dates on import
+
+!!! note "Changed in 1.2"
+    Before #1949, only the in-app gallery moved a sample's dates. A sample file chosen from
+    disk or downloaded with `curl` kept the dates it was generated with (around March 2026).
+
+The samples are generated around a fixed day, and each sample file records that day as its
+`date_anchor`. On import, Visiban moves every date in the board (due dates, date custom
+fields, card creation, comments, moves and history) forward by the days between that anchor
+and today, keeping the spacing between them. This happens however the file reaches Visiban:
+the gallery, **Import** with a file you downloaded, or an API upload. A board you exported
+yourself has no `date_anchor`, so its dates always import as written.
+
+In the Import Board dialog the **Dates** section shows when the file carries an anchor:
+
+- **Move dates to today** is on by default. Untick it to import the dates exactly as written.
+- **Adjust dates** opens a date field set to today. Pick an earlier day to date the board
+  around that day instead, for example to match a demo you ran last week. Future days are
+  not offered, so imported history never lands after the import. The dialog sends the day
+  only when you change it; otherwise the server uses today (UTC).
+
+From the API the same choices are the `shift_dates` and `shift_dates_to` import options; see
+[Date shifting](../api/boards.md#date-shifting).
 
 !!! tip "Who did what"
     The samples name the users `demo1` through `demo5` as assignees and as the people

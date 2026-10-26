@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "date_anchor": "2026-03-15",
   "name": "Sales Pipeline",
   "description": "Track open deals from first contact through close. Each swimlane is a sales region; each card is a deal or opportunity.",
   "columns": [

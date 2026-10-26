@@ -280,8 +280,13 @@ class ImportOpenApiTests(TestCase):
                 "default true): labels, cards, comments, checklist, history. comments, "
                 "checklist and history require cards. Also shift_dates_from (YYYY-MM-DD, "
                 "JSON only, optional, default off): moves every date in the file forward "
-                "by the days between that date and today. A CSV import accepts only "
-                "labels and cards."
+                "by the days between that date and today. A JSON file with a top-level "
+                "date_anchor (the shipped samples) is shifted from that date by default "
+                "when shift_dates_from is absent; shift_dates (boolean, JSON only, "
+                "optional, default true) set to false imports its dates as written. "
+                "shift_dates_to (YYYY-MM-DD, JSON only, optional, default today in UTC) "
+                "dates a shifted board around that day instead of today. A CSV import "
+                "accepts only labels and cards."
             ),
         })
         self.assertEqual(set(op["responses"]), {"201", "400", "401", "403", "404", "429"})

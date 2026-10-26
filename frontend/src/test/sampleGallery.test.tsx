@@ -261,7 +261,7 @@ describe('SampleGallery — choosing a sample', () => {
     })
   })
 
-  it('a hand-picked file never carries the date shift', async () => {
+  it('a hand-picked file without a date_anchor carries no date options', async () => {
     const { user, onImport } = await renderModal()
     await user.upload(
       document.querySelector('input[type="file"]') as HTMLInputElement,
