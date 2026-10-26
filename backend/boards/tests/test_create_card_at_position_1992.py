@@ -102,6 +102,7 @@ class CellMembershipRecheckTests(_Fixture, TestCase):
         # No card exists, so there is no version to report.
         self.assertIsNone(ctx.exception.body()["current_version"])
         self.assertEqual(ctx.exception.body()["code"], "version_conflict")
+        self.assertIn("Nothing was created", ctx.exception.body()["detail"])
         self.assertEqual(Card.objects.count(), cards_before)
         self.assertEqual(BoardEvent.objects.count(), events_before)
         self.assertFalse(CardMovement.objects.filter(card__title="Placed").exists())

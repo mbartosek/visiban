@@ -708,6 +708,43 @@ class CreateCardAtomicReorderTests(CrudToolsTestCase):
         self.assertEqual(BoardEvent.objects.filter(event="card.created").count(), 1)
         self.assertFalse(BoardEvent.objects.filter(event="card.moved").exists())
 
+    def _assert_limit_refusal_writes_nothing(self, expected_code):
+        cards_before = Card.objects.count()
+        movements_before = CardMovement.objects.count()
+        events_before = BoardEvent.objects.count()
+        result = self._create()
+        self.assertEqual(result["error"]["code"], expected_code)
+        self.assertFalse(Card.objects.filter(title="Placed").exists())
+        self.assertEqual(Card.objects.count(), cards_before)
+        self.assertEqual(CardMovement.objects.count(), movements_before)
+        self.assertEqual(BoardEvent.objects.count(), events_before)
+        self.sibling.refresh_from_db()
+        self.assertEqual(self.sibling.position, 0)
+
+    def test_wip_limit_with_position_is_structured_and_writes_nothing(self):
+        # The limit is enforced inside create_card on the new path too, and
+        # the refusal rolls back the up-front cell locks' transaction whole.
+        self.board.enforce_wip_limits = True
+        self.board.save(update_fields=["enforce_wip_limits"])
+        self.column.wip_limit = 1
+        self.column.save(update_fields=["wip_limit"])
+        self._assert_limit_refusal_writes_nothing("wip_limit_exceeded")
+
+    def test_hard_wip_with_position_is_structured_and_writes_nothing(self):
+        self.board.enforce_wip_hard = True
+        self.board.save(update_fields=["enforce_wip_hard"])
+        self.column.wip_limit = 1
+        self.column.save(update_fields=["wip_limit"])
+        self._assert_limit_refusal_writes_nothing("wip_hard_blocked")
+
+    def test_weight_limit_with_position_is_structured_and_writes_nothing(self):
+        # Card.weight defaults to 1: the sibling fills a budget of 1.
+        self.board.enforce_weight_limits = True
+        self.board.save(update_fields=["enforce_weight_limits"])
+        self.column.weight_limit = 1
+        self.column.save(update_fields=["weight_limit"])
+        self._assert_limit_refusal_writes_nothing("weight_limit_exceeded")
+
     def test_column_creation_closed_is_refused_before_any_lock(self):
         self.column.allow_card_creation = False
         self.column.save(update_fields=["allow_card_creation"])

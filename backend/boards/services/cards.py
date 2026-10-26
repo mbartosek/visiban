@@ -674,6 +674,14 @@ def create_card_at_position(
     return created, moved
 
 
+# The detail of _lock_cell_for_placement's VersionConflict (#1992): no card
+# exists yet, so the class default about a modified card would be wrong.
+_PLACEMENT_CONFLICT_DETAIL = (
+    "Cards kept being added to this column and swimlane while the card was "
+    "being placed. Nothing was created. Please try again."
+)
+
+
 def _lock_cell_for_placement(*, board, column, swimlane):
     """Lock a cell's card rows, then its column row, for
     ``create_card_at_position``; retry if a card entered the cell in between.
@@ -688,8 +696,9 @@ def _lock_cell_for_placement(*, board, column, swimlane):
     second statement would take a card row after a column row instead.
 
     A cell that gains a card on every attempt raises ``VersionConflict``, with
-    ``current_version`` ``None`` since there is no card yet, and nothing
-    written: the same answer ``move_card`` gives for the same lost race.
+    ``current_version`` ``None`` since there is no card yet, a detail that
+    says nothing was created, and nothing written: the same code ``move_card``
+    gives for the same lost race.
     """
     cell = Card.objects.filter(board=board, column=column, swimlane=swimlane)
     for _attempt in range(_MOVE_LOCK_ATTEMPTS):
@@ -707,7 +716,7 @@ def _lock_cell_for_placement(*, board, column, swimlane):
             return
         except _CardChangedBeforeLock:
             continue
-    raise VersionConflict(None)
+    raise VersionConflict(None, detail=_PLACEMENT_CONFLICT_DETAIL)
 
 
 # ---------------------------------------------------------------------------
