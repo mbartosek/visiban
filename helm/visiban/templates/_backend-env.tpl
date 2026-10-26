@@ -184,13 +184,21 @@ In-pod callers (probes, helm tests) send an explicit Host instead; see the
   value: "true"
 {{- end }}
 {{- /*
-  NUM_PROXIES (#1180) — only when the operator set it, so a default render is
-  unchanged and the backend keeps its own default of 1. `kindIs "invalid"` is
-  how a template sees YAML null (and a key missing under --reuse-values).
+  NUM_PROXIES (#1180, #1951). An explicit operator value always wins. When it
+  is unset, the chart's Ingress is enabled and the frontend Service is
+  ClusterIP (so traffic only reaches it through the ingress), the hop count is two: this
+  chart's frontend nginx appends one X-Forwarded-For entry and the ingress
+  controller in front of it appends another, so 2 is what lets per-IP limits
+  see the real client address. With ingress disabled and nothing set, nothing
+  is rendered and the backend keeps its own default of 1. `kindIs "invalid"`
+  is how a template sees YAML null (and a key missing under --reuse-values).
 */}}
 {{- if not (kindIs "invalid" $ctx.Values.backend.settings.numProxies) }}
 - name: NUM_PROXIES
   value: {{ $ctx.Values.backend.settings.numProxies | int | toString | quote }}
+{{- else if and (($ctx.Values.ingress | default dict).enabled) (eq (($ctx.Values.frontend.service | default dict).type | default "ClusterIP") "ClusterIP") }}
+- name: NUM_PROXIES
+  value: "2"
 {{- end }}
 {{- include "visiban.demoEnv" $ctx }}
 {{- end }}

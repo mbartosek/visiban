@@ -64,11 +64,13 @@ backend:
     # are derived from the LARGER of this and maxUploadSizeBytes.
     importMaxSizeBytes: 26214400
     # Number of reverse proxies in front of the backend that append to
-    # X-Forwarded-For (NUM_PROXIES). Unset (null) keeps the backend default of
-    # 1: the frontend nginx alone. Raise it only when another proxy sits in
-    # front of the frontend Service, e.g. 2 behind a Cloudflare Tunnel
-    # (values-demo.yaml). Too low and every client shares one throttle bucket;
-    # too high and a client can choose its own via a spoofed header.
+    # X-Forwarded-For (NUM_PROXIES). Unset (null) renders 2 while ingress.enabled
+    # is true and frontend.service.type is ClusterIP (this chart's frontend nginx
+    # plus the ingress controller), and otherwise keeps the backend default of 1 (the frontend nginx alone). An
+    # explicit value always wins. Set it when more proxies sit in front, e.g. 2
+    # behind a Cloudflare Tunnel with no ingress (values-demo.yaml). Too low and
+    # clients share one per-IP rate-limit bucket; too high and the backend
+    # trusts more X-Forwarded-For entries than your proxy chain appends.
     numProxies: null
 
   # SMTP / email backend.  Required to send password reset and email

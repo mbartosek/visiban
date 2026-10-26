@@ -31,7 +31,7 @@
 #
 # SCOPE, stated plainly because a self-test that looks comprehensive and is not
 # is worse than none: the fixtures cover sections 1, 2, 3, 4, 6, 8, 9, 10, 11,
-# 12, 13 and 15. Section 5 (probe paths) is asserted against the real chart only,
+# 12, 13, 15 and 16. Section 5 (probe paths) is asserted against the real chart only,
 # and section 7 (NetworkPolicy client coverage) is fixture-covered only
 # through the demo render in section 9 — see the notes on those sections.
 
@@ -788,10 +788,10 @@ check_demo_mode() {
     pass "demo.enabled=false renders no demo object"
   fi
   if yq '.. | select(tag == "!!map") | select(has("name") and (has("value") or has("valueFrom"))) | .name' "$RENDERED" \
-       | grep -qE '^(DEMO_[A-Z_]+|NUM_PROXIES)$'; then
-    fail "DEMO_*/NUM_PROXIES env renders with demo off and numProxies unset — the default render must be unchanged (#1180)"
+       | grep -qE '^DEMO_[A-Z_]+$'; then
+    fail "DEMO_* env renders with demo off — the default render must be unchanged (#1180)"
   else
-    pass "no DEMO_* or NUM_PROXIES env in the default render"
+    pass "no DEMO_* env in the default render"
   fi
 
   # (b) demo on
@@ -1710,6 +1710,85 @@ check_postgres_password_guard() {
   [ "$bad" -eq 0 ] && pass "the placeholder PostgreSQL password (and an empty one) fails the render with the default bundled StatefulSet; only a real password, both existing Secrets, or an external database clear it"
 }
 
+# ---------------------------------------------------------------------------
+# 16. The proxy-hop setting matches the chart's proxy chain (#1951).
+# ---------------------------------------------------------------------------
+# Per-IP rate limits key on the client address the backend derives from
+# X-Forwarded-For using NUM_PROXIES. This chart's frontend nginx appends one
+# entry and an ingress controller in front of it appends another, so with the
+# ingress enabled, a ClusterIP frontend Service and the value unset the chart renders 2. An explicit value
+# always wins, and with the ingress disabled nothing is rendered (the backend
+# keeps its own default of 1).
+backend_num_proxies() {
+  # Prints the NUM_PROXIES value of the backend Deployment's app container, or
+  # nothing when the variable is absent. Extra args are extra helm flags.
+  # A render failure prints RENDER-ERROR, so it can never read as "absent".
+  local rendered
+  rendered="$(helm template "$RELEASE" "$CHART_UNDER_TEST" "${RENDER_ARGS[@]}" "$@" 2>&1)" \
+    || { echo "RENDER-ERROR"; return 0; }
+  yq 'select(.kind == "Deployment" and (.metadata.name | test("backend$")))
+      | .spec.template.spec.containers[].env[] | select(.name == "NUM_PROXIES") | .value' <<< "$rendered" \
+    | grep -vE '^(---)?$' | head -1 || true
+}
+
+check_num_proxies_default() {
+  section "16. NUM_PROXIES is 2 by default when ingress is enabled, explicit values win (#1951)"
+  local got bad=0
+  got="$(backend_num_proxies --set ingress.enabled=true)"
+  if [ "$got" != "2" ]; then
+    fail "ingress enabled and numProxies unset renders NUM_PROXIES='${got:-<absent>}', expected 2"; bad=1
+  fi
+  got="$(backend_num_proxies --set ingress.enabled=true --set backend.settings.numProxies=3)"
+  if [ "$got" != "3" ]; then
+    fail "an explicit numProxies=3 with ingress enabled renders NUM_PROXIES='${got:-<absent>}', expected 3"; bad=1
+  fi
+  got="$(backend_num_proxies --set ingress.enabled=true --set backend.settings.numProxies=1)"
+  if [ "$got" != "1" ]; then
+    fail "an explicit numProxies=1 with ingress enabled renders NUM_PROXIES='${got:-<absent>}', expected 1"; bad=1
+  fi
+  got="$(backend_num_proxies --set ingress.enabled=true --set backend.settings.numProxies=0)"
+  if [ "$got" != "0" ]; then
+    fail "an explicit numProxies=0 with ingress enabled renders NUM_PROXIES='${got:-<absent>}', expected 0 (zero is a value, not unset)"; bad=1
+  fi
+  for svc in NodePort LoadBalancer; do
+    got="$(backend_num_proxies --set ingress.enabled=true --set frontend.service.type=$svc)"
+    if [ -n "$got" ]; then
+      fail "ingress enabled with a $svc frontend Service and numProxies unset renders NUM_PROXIES='$got', expected absent (traffic can reach the Service directly)"; bad=1
+    fi
+  done
+  got="$(backend_num_proxies --set ingress.enabled=false)"
+  if [ -n "$got" ]; then
+    fail "ingress disabled and numProxies unset renders NUM_PROXIES='$got', expected the variable to be absent"; bad=1
+  fi
+  got="$(backend_num_proxies --set ingress.enabled=false --set backend.settings.numProxies=2)"
+  if [ "$got" != "2" ]; then
+    fail "an explicit numProxies=2 with ingress disabled renders NUM_PROXIES='${got:-<absent>}', expected 2"; bad=1
+  fi
+
+  # With ingress on and a directly reachable frontend Service the chart renders
+  # nothing, so NOTES.txt must tell the operator to set the value. It must stay
+  # quiet for ClusterIP and when the value is set. `helm template` skips
+  # NOTES.txt, hence render_notes.
+  local notes errf
+  errf="$(mktemp)"
+  if ! notes="$(render_notes "$CHART_UNDER_TEST" --set ingress.enabled=true --set frontend.service.type=NodePort 2>"$errf")"; then
+    fail "NOTES.txt does not render with a NodePort frontend: $(head -3 "$errf" | tr '\n' ' ')"; bad=1
+  elif ! grep -qF 'Proxy hops:' <<< "$notes"; then
+    fail "ingress on + NodePort frontend + numProxies unset: NOTES.txt does not mention backend.settings.numProxies (#1951)"; bad=1
+  fi
+  local quiet
+  for quiet in "--set ingress.enabled=true" "--set ingress.enabled=true --set frontend.service.type=NodePort --set backend.settings.numProxies=1"; do
+    # shellcheck disable=SC2086  # flags are deliberately word-split
+    if ! notes="$(render_notes "$CHART_UNDER_TEST" $quiet 2>"$errf")"; then
+      fail "NOTES.txt does not render with '$quiet': $(head -3 "$errf" | tr '\n' ' ')"; bad=1
+    elif grep -qF 'Proxy hops:' <<< "$notes"; then
+      fail "NOTES.txt shows the proxy-hop note for '$quiet', where it does not apply"; bad=1
+    fi
+  done
+  rm -f "$errf"
+  [ "$bad" -eq 0 ] && pass "NUM_PROXIES: 2 with ingress on and unset; explicit values respected; absent with ingress off or a directly reachable frontend (with a NOTES.txt hint); render errors never read as absent"
+}
+
 run_all_checks() {
   check_migrate_placement
   check_secret_rotation_reaches_migrate
@@ -1729,6 +1808,7 @@ run_all_checks() {
   check_database_url_encoding
   check_allowed_hosts_not_widened
   check_postgres_password_guard
+  check_num_proxies_default
 }
 
 # ---------------------------------------------------------------------------
@@ -1826,6 +1906,8 @@ self_test() {
     "11c URL-password-plus-existingSecret guard removed|templates/_validate.tpl|s/{{- if contains \":\" \$userinfo -}}/{{- if false -}}/"
     # 11c: the bundled-Valkey-plus-existingSecret guard stops firing.
     "11c existingSecret-with-bundled-Valkey guard removed|templates/_validate.tpl|/externalRedis.existingSecret is set, but valkey.enabled is true/d"
+    # 16 (#1951): the ingress-enabled default stops being 2.
+    "16 ingress default changed|templates/_backend-env.tpl|s/  value: \"2\"/  value: \"1\"/"
     "10 SMTP guard removed|templates/_validate.tpl|s/{{- if or (eq (toString .Values.backend.email.backend) \"smtp\") .Values.backend.email.host -}}/{{- if false -}}/"
     # 12 (#1210, #1224): every overridable hardened workload (backend,
     # postgresql, frontend) loses its capability drop through their shared

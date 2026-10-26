@@ -219,7 +219,7 @@ so `helm upgrade` on an existing release changes nothing.
   `backend.settings.numProxies` unset or below `1`.
 - **Client IP.** Behind a tunnel or another proxy, set `backend.settings.numProxies`
   (`NUM_PROXIES`) to the real hop count — including this chart's own frontend
-  nginx, which always adds one. The chart refuses to render below `1`, but it
+  nginx, which always adds one. With `ingress.enabled` true, `frontend.service.type` `ClusterIP` and the value unset, the chart renders `2`; an explicit value always wins. The demo guard refuses to render below `1`, but it
   cannot know your actual proxy depth: get the count right, not just non-zero.
   `values-demo.yaml` sets `2` for a Cloudflare Tunnel.
 

@@ -12,7 +12,7 @@ Upgrade a self-hosted Visiban instance between releases with zero downtime, usin
 | Any pre-1.0 beta or RC | 1.0.x | **No — maintenance window required** | Run the `groups/0003_placeholder` SQL fix first; `boards/0005` and `groups/0012` both require stopping backends before migration. See [Upgrading to 1.0.0](#upgrading-to-100). |
 | 1.0.x | 1.0.x (patch) | Yes — zero-downtime | Follow the [standard upgrade steps](#standard-upgrade-steps). |
 | 1.0.x | 1.1.x (minor) | Yes — zero-downtime | Follow the [standard upgrade steps](#standard-upgrade-steps). Check the [release-specific notes](#release-specific-upgrade-notes) for any migration-window exceptions. |
-| 1.1.x | 1.2.x (minor) | Yes — zero-downtime | Follow the [standard upgrade steps](#standard-upgrade-steps). See [Upgrading to 1.2.x](#upgrading-to-12x) — most changes are additive and need no operator action, but read the `!!!` callouts (Compose `ALLOWED_HOSTS`/`DOMAIN`, Helm `ALLOWED_HOSTS` no longer includes `localhost`, Helm catch-all/loopback `allowedHosts` entries fail the render (**this one can stop `helm upgrade`**; opt out with `backend.settings.allowUnsafeHosts=true`), Helm values-schema validation, PAT scopes and the MCP server). |
+| 1.1.x | 1.2.x (minor) | Yes — zero-downtime | Follow the [standard upgrade steps](#standard-upgrade-steps). See [Upgrading to 1.2.x](#upgrading-to-12x) — most changes are additive and need no operator action, but read the `!!!` callouts (Compose `ALLOWED_HOSTS`/`DOMAIN`, Helm `NUM_PROXIES` is now 2 behind the chart's Ingress (can change `/admin/` access if only the ingress range was allowlisted), Helm `ALLOWED_HOSTS` no longer includes `localhost`, Helm catch-all/loopback `allowedHosts` entries fail the render (**this one can stop `helm upgrade`**; opt out with `backend.settings.allowUnsafeHosts=true`), Helm values-schema validation, PAT scopes and the MCP server). |
 
 Skipping minor versions (e.g. 1.0 → 1.2 directly) is supported — run all intermediate migrations in sequence. The standard upgrade command (`manage.py migrate`) handles this automatically. The standard path is: pull the new image, run database migrations, restart. The sections below cover what makes each step safe and what to watch out for in more complex deployments.
 
@@ -375,6 +375,27 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     `backend.migrate.connectTimeout`, `backend.migrate.lockTimeout`) are unchanged. If you
     are upgrading from 1.1, none of these names existed, so no action is needed. See
     [Deprecated environment variable names](configuration.md#deprecated-environment-variable-names).
+
+!!! note "Helm: NUM_PROXIES is 2 when the chart's Ingress is enabled"
+    The chart now sets `NUM_PROXIES` to `2` when `ingress.enabled` is true,
+    `frontend.service.type` is `ClusterIP` and `backend.settings.numProxies` is unset.
+    Previously those installs rendered nothing and the backend used its default of `1`.
+    The chain behind an ingress is two hops deep (the ingress controller, then this chart's
+    frontend nginx), so per-IP limits, such as the login and anonymous request limits, now
+    key on the client address rather than the ingress controller's address.
+
+    - **Who is affected:** installs with the ingress enabled (the default) that never set
+      `backend.settings.numProxies`. Upgrading rolls the backend pods.
+    - **`/admin/` allowlist:** the allowlist is checked twice, and the two layers see
+      different addresses. The frontend nginx `allow` rules match the ingress controller's
+      pod address, while Django's middleware matches the client address. Behind the ingress,
+      `backend.settings.adminAllowedIPs` needs both the ingress range (for nginx) and the
+      client addresses (for Django). See
+      [Helm admin allowlist](secret-rotation.md#helm).
+    - **Keep the previous value:** set `backend.settings.numProxies: 1` explicitly.
+    - **Set it by hand** when the frontend Service is exposed directly (use `1`), when
+      another proxy such as a CDN sits in front of the ingress (the count must equal the number of trusted hops that append to `X-Forwarded-For`, and the ingress controller must be configured to preserve and append the upstream header; check its forwarded-header settings), or when
+      your ingress controller does not add `X-Forwarded-For`.
 
 !!! warning "Helm: use this chart with a backend image from the same release"
     From this release the chart sets only the new names above. An older backend image
