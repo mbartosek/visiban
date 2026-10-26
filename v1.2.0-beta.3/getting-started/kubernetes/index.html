@@ -4976,7 +4976,8 @@ to check and trigger runs.</p>
 </table>
 <p>These are also suitable for external load balancer health checks. The readiness probe uses <code>initialDelaySeconds: 5</code> and <code>failureThreshold: 3</code>, so a pod is removed from the Service within ~35 seconds of a dependency failure.</p>
 <h2 id="sample-data">Sample data<a class="headerlink" href="#sample-data" title="Permanent link">&para;</a></h2>
-<p>The chart does not bundle the sample boards. Download them from
+<p>The backend image ships the sample board JSON files, so you can import one with
+<strong>Import</strong> on the dashboard and pick one under <strong>Start from a sample</strong>. To import a file by hand, download it from
 <a href="https://gitlab.com/visiban/visiban/-/tree/main/backend/boards/sample_boards"><code>backend/boards/sample_boards/</code></a> in the
 repository and import one from <strong>Dashboard → Import</strong>. See <a href="../sample-boards/">Sample Boards</a>.</p>
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>

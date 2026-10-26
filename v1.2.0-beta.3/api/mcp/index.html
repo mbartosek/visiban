@@ -2167,6 +2167,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#protocol-errors-and-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol errors and limits
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4492,6 +4503,46 @@
 </tbody>
 </table>
 <p>Authentication is enforced at the transport layer, before any MCP protocol frame is parsed — an unauthenticated caller cannot reach the protocol machinery at all. The <code>401</code> body is a JSON-RPC error envelope so that spec-compliant clients surface a useful message.</p>
+<h3 id="protocol-errors-and-limits">Protocol errors and limits<a class="headerlink" href="#protocol-errors-and-limits" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Changed in 1.2</strong> (MCP SDK 2.3.0), except the <code>Accept</code> row, which is unchanged.</p>
+</blockquote>
+<p>These responses come from the MCP SDK rather than from a Visiban tool, so a client should handle them in addition to the <a href="#tool-errors">tool errors</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unknown JSON-RPC method</td>
+<td>JSON-RPC error <code>-32601</code> (Method not found). Earlier pre-releases returned <code>-32602</code>.</td>
+</tr>
+<tr>
+<td><code>resources/read</code> fails inside the server</td>
+<td>JSON-RPC error <code>-32603</code> (Internal error), with a short message. Earlier pre-releases returned code <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>resources/read</code> for an unknown URI</td>
+<td>JSON-RPC error <code>-32602</code> (Invalid params).</td>
+</tr>
+<tr>
+<td>Request body larger than 4 MiB</td>
+<td><code>413</code>, before the body is parsed.</td>
+</tr>
+<tr>
+<td><code>Accept</code> header that does not accept both <code>application/json</code> and <code>text/event-stream</code> (or <code>*/*</code>), including a missing one</td>
+<td><code>406</code> (unchanged). Send <code>Accept: application/json, text/event-stream</code> on every <code>POST</code>, as spec-compliant clients do.</td>
+</tr>
+<tr>
+<td>Transport-level error</td>
+<td>JSON-RPC error with <code>id: null</code>. Earlier pre-releases used the string <code>"server-error"</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>serverInfo.version</code> reports the Visiban app version, not the SDK version.</p>
 <hr />
 <h2 id="rate-limiting">Rate limiting<a class="headerlink" href="#rate-limiting" title="Permanent link">&para;</a></h2>
 <blockquote>

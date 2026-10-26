@@ -5061,6 +5061,78 @@ stable release until the next stable tag. If you tracked GitLab <code>:latest</c
 switch to <code>:main</code> (amd64 only); short-SHA tags are still pushed for rollback. Pinned release
 tags and GHCR are unaffected. See <a href="../container-image-retention/#gitlab-registry-latest-is-stable-only-main-publishes-main">Container image retention</a>.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">PostgreSQL driver: <code>psycopg2-binary</code> is replaced by <code>psycopg[binary]</code> (psycopg 3)</p>
+<p>The backend now uses <code>psycopg[binary]</code> 3.3.6 instead of <code>psycopg2-binary</code>. No setting,
+environment variable, or <code>DATABASE_URL</code> value changes: Django selects the driver on its own.
+<strong>Docker Compose and Helm installs need no action</strong>, because the new image carries the new
+driver. Act only if you build your own image or run from source:</p>
+<ul>
+<li>A custom image or virtualenv that pins <code>psycopg2-binary</code> in its own requirements file
+  must switch to <code>psycopg[binary]</code>; <code>psycopg2</code> is no longer installed by
+  <code>backend/requirements.txt</code> or <code>backend/requirements.lock</code>.</li>
+<li>Reinstall <code>backend/requirements.txt</code> (or <code>requirements.lock</code>) in the virtualenv before
+  you start the new release (#1252).</li>
+</ul>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Sample board JSON files moved to <code>backend/boards/sample_boards/</code></p>
+<p>The sample board <code>.json</code> files moved from <code>sample-boards/</code> to <code>backend/boards/sample_boards/</code>
+so the backend image ships them. Raw links and <code>curl</code> commands that point at
+<code>sample-boards/&lt;name&gt;.json</code> (including copies of the examples from older docs) now return
+<code>404</code>; use <code>backend/boards/sample_boards/&lt;name&gt;.json</code> instead. The <code>.csv</code> files stay in
+<code>sample-boards/</code>. The files are also named without the
+"Template:" prefix, so an import is named "Imported: Sales Pipeline". See
+<a href="../../getting-started/sample-boards/#where-to-get-the-files">Sample Boards</a> (#1452, #1450).</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Group nesting is capped at 6 levels (HTTP 400)</p>
+<p>Creating a subgroup (<code>POST /api/v1/groups/</code>), or moving a group under a new <code>parent</code>
+(<code>PATCH</code>/<code>PUT /api/v1/groups/{id}/</code>), is refused with <code>400</code> when the resulting tree would
+be more than 6 levels deep. The body is a <code>parent</code> error: <code>Groups can be nested at most 6
+levels deep.</code> Group trees that were already deeper are left as they are, but cannot be
+extended. Check any script that builds deep group hierarchies. See
+<a href="../../features/groups/#subgroups">Subgroups</a> (#1690).</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Emailed invites under <code>EMAIL_VERIFICATION=mandatory</code> are held until the address is verified</p>
+<p>With <code>EMAIL_VERIFICATION=mandatory</code>, an account created from an emailed group or board invite
+now joins the group or board when the invited address is <strong>verified</strong>, not at sign-up. Until
+then the invite is held for that account and is not used up. An invite that is revoked or
+expires before the address is confirmed grants nothing. <code>optional</code> and <code>none</code> are unchanged. Only invites bound to an address that is not yet verified
+are held: emailed invites sent before the upgrade, and sign-ups whose OAuth provider reports the invited address as verified, still join at sign-up.
+Tell invitees to confirm their email address: they will not have that access until they do (#1704).</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Board cards list: <code>X-Total-Count</code> and <code>X-Truncated</code> headers, and <code>imported_from_username</code> on comments</p>
+<ul>
+<li><code>GET /api/v1/boards/{id}/cards/</code> returns at most 200 cards per request, as before, but it
+  no longer truncates silently. Every response carries <code>X-Total-Count</code> (the number of
+  matching cards) and <code>X-Truncated</code> (<code>true</code> when more exist), and the optional <code>limit</code> and
+  <code>offset</code> query parameters page past the cap. The body is still a plain JSON array, and a
+  client that sends no paging parameters sees the same body. A client that must see every
+  card should check <code>X-Truncated</code> and keep paging. A negative or non-integer <code>limit</code> returns
+  <code>400</code> with <code>"code": "invalid_query_param"</code>. See the <a href="../../api/cards/">Cards API</a> (#1724).</li>
+<li>Comments created by a Trello or JSON board import are now posted under the user who ran the
+  import, keep their original time, and keep the source's author name as text in the new
+  <code>imported_from_username</code> field. The comments API, the MCP card resource, and JSON export
+  carry the field, so a re-imported export keeps the original name (#1702).</li>
+</ul>
+</div>
+<div class="admonition note">
+<p class="admonition-title">MCP SDK upgrade: some protocol-level responses changed</p>
+<p>The MCP SDK behind <code>/mcp</code> moved from <code>mcp</code> 1.30.0 to 2.3.0. The URL, authentication, tools,
+and resources are unchanged, but a client that parses protocol errors will see these
+differences (MCP 2.3.0 was already in v1.2.0-beta.1, so this affects only people coming from a
+1.2 alpha):</p>
+<ul>
+<li>An unknown method returns JSON-RPC error <code>-32601</code> (it was <code>-32602</code>).</li>
+<li>A failed <code>resources/read</code> returns <code>-32603</code> (or <code>-32602</code> for an unknown URI) instead of <code>0</code>.</li>
+<li>A request body over 4 MiB is rejected with <code>413</code>.</li>
+<li>Transport-level errors carry <code>id: null</code> instead of <code>"server-error"</code>.</li>
+</ul>
+<p>The main changes are listed in the <a href="../../api/mcp/#protocol-errors-and-limits">MCP API reference</a>.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Board import default name changed</p>
 <p><code>POST /api/v1/boards/import/</code> called without a <code>name</code> field now names the new board
