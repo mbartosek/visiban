@@ -272,6 +272,7 @@ export default function Dashboard({ user, onLogout, onUserUpdated }: Props) {
         <ImportBoardModal
           onImport={handleImportBoard}
           onCancel={() => setImportingBoard(false)}
+          dateFormat={user.date_format}
           onSwitchToTrello={() => {
             setImportingBoard(false);
             setTrelloImporting(true);

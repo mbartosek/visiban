@@ -3,6 +3,7 @@ import ModalWrapper from "../shared/ModalWrapper";
 import SampleGallery, { type SampleFocusRequest, type SampleListState } from "./SampleGallery";
 import { getSampleBoardFile, listSampleBoards } from "../../api/boards";
 import { useEscapeStack } from "../../hooks/useEscapeStack";
+import { formatDateStr } from "../../utils/date";
 import type { ImportOptions, SampleBoardSummary } from "../../types";
 
 interface Props {
@@ -12,7 +13,12 @@ interface Props {
   onCancel: () => void;
   /** When provided, shows a link that switches to the Trello import wizard (#456). */
   onSwitchToTrello?: () => void;
+  /** The user's date format, for a custom "Adjust dates" day in the hint (#1949). */
+  dateFormat?: string;
 }
+
+/** The upload limit, checked again on submit (the server enforces its own). */
+const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -122,7 +128,7 @@ function readDateAnchor(file: File): Promise<string | null> {
   });
 }
 
-export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello }: Props) {
+export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello, dateFormat }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -160,6 +166,7 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
   const nameInputId = useId();
   const adjustPanelId = useId();
   const shiftToId = useId();
+  const shiftToErrorId = useId();
 
   const requestFocus = (id: string) => setFocusRequest((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
 
@@ -229,7 +236,8 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
     setSampleLoad(null);
     setFile(selected);
     resetSelection();
-    if (selected && detectFormat(selected) === "JSON") {
+    // An over-limit file is refused on submit; never parse one just to look for an anchor.
+    if (selected && detectFormat(selected) === "JSON" && selected.size <= MAX_IMPORT_BYTES) {
       const readId = anchorRead.current;
       void readDateAnchor(selected).then((anchor) => {
         if (anchorRead.current === readId) setFileAnchor(anchor);
@@ -299,9 +307,13 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
 
   const handleSubmit = async () => {
     if (!file || submitting) return;
+    if (targetInvalid) {
+      // The inline error under the date field already says why; keep focus there.
+      document.getElementById(shiftToId)?.focus();
+      return;
+    }
 
-    const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
+    if (file.size > MAX_IMPORT_BYTES) {
       setError("File is too large. Maximum size is 10 MB.");
       return;
     }
@@ -339,7 +351,10 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
   // JSON file that carries its own date_anchor.
   const anchor = source?.date_anchor ?? fileAnchor;
   const showDates = format === "JSON" && anchor !== null;
-  const customTarget = shiftTo !== "" && shiftTo !== today;
+  // `max` only constrains the native picker: a typed later day is refused here
+  // (inline error, submit blocked) rather than sent for the server to 400.
+  const targetInvalid = showDates && shiftDates && shiftTo !== "" && shiftTo > today;
+  const customTarget = shiftTo !== "" && shiftTo !== today && !targetInvalid;
 
   /** The date-shift options to send (#1949), or `undefined` for none. The
    *  server shifts an anchored file to today by default, so a raw file sends
@@ -356,7 +371,7 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
   const datesHint = !shiftDates
     ? "Dates are imported exactly as written in the file."
     : customTarget
-      ? `Dated around ${shiftTo} instead of today.`
+      ? `Dated around ${formatDateStr(shiftTo, dateFormat)} instead of today.`
       : "Dated around today, so the board does not open mostly overdue.";
 
   const renderRow = (row: IncludeRow, dependent: boolean) => {
@@ -555,7 +570,7 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
                     />
                     <span className="text-sm text-fg-secondary">Move dates to today</span>
                   </label>
-                  <p id="import-dates-hint" className="text-xs text-fg-muted mt-0.5 ml-6 min-h-4">
+                  <p id="import-dates-hint" className="text-xs text-fg-muted mt-0.5 ml-6 min-h-8">
                     {datesHint}
                   </p>
                 </div>
@@ -565,7 +580,7 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
                       type="button"
                       onClick={() => setAdjustOpen((open) => !open)}
                       aria-expanded={adjustOpen}
-                      aria-controls={adjustPanelId}
+                      aria-controls={adjustOpen ? adjustPanelId : undefined}
                       disabled={submitting}
                       className="inline-flex items-center gap-1 text-xs text-info hover:underline focus:outline-none focus:ring-2 focus:ring-primary-emphasis rounded disabled:opacity-40"
                     >
@@ -593,8 +608,18 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
                           max={today}
                           disabled={submitting}
                           onChange={(e) => setShiftTo(e.target.value)}
-                          className="bg-surface border border-line focus:outline-none focus:ring-2 focus:ring-primary-emphasis focus:border-transparent text-fg-secondary rounded px-3 py-1.5 text-sm transition"
+                          aria-invalid={targetInvalid || undefined}
+                          aria-describedby={targetInvalid ? shiftToErrorId : undefined}
+                          className={`bg-surface border focus:outline-none focus:ring-2 text-fg-secondary rounded px-3 py-1.5 text-sm transition ${
+                            targetInvalid
+                              ? "border-danger focus:ring-danger-emphasis"
+                              : "border-line focus:ring-primary-emphasis focus:border-transparent"
+                          }`}
                         />
+                        {/* Always-mounted alert slot; only its text varies (frontend/CLAUDE.md #1437). */}
+                        <p id={shiftToErrorId} role="alert" className="text-xs text-danger mt-0.5 min-h-4">
+                          {targetInvalid ? "Pick today or an earlier day." : ""}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -628,7 +653,9 @@ export default function ImportBoardModal({ onImport, onCancel, onSwitchToTrello 
           <button
             onClick={handleSubmit}
             disabled={!file || submitting}
-            aria-describedby={showInclude && !submitting ? "import-summary" : undefined}
+            aria-describedby={
+              showInclude && !submitting ? (showDates ? "import-summary import-dates-hint" : "import-summary") : undefined
+            }
             className="bg-button-primary hover:bg-button-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-on-primary text-sm font-medium px-5 py-2 rounded transition focus:outline-none focus:ring-2 focus:ring-primary-emphasis"
           >
             {submitting ? "Importing..." : "Import"}

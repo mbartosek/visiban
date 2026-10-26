@@ -40,10 +40,10 @@ const anchored = () =>
     type: 'application/json',
   })
 
-async function renderModal() {
+async function renderModal(dateFormat?: string) {
   const onImport = vi.fn().mockResolvedValue(undefined)
   const user = userEvent.setup()
-  render(<ImportBoardModal onImport={onImport} onCancel={vi.fn()} />)
+  render(<ImportBoardModal onImport={onImport} onCancel={vi.fn()} dateFormat={dateFormat} />)
   await screen.findAllByRole('button', { name: /^Use this sample: / })
   return { user, onImport }
 }
@@ -70,7 +70,13 @@ describe('ImportBoardModal — Dates for a chosen file (#1949)', () => {
     expect(screen.getByText('Dated around today, so the board does not open mostly overdue.')).toBeInTheDocument()
     // The disclosure starts closed: occasional users never see the date field.
     expect(adjust()).toHaveAttribute('aria-expanded', 'false')
+    // No dangling IDREF while the panel is not mounted.
+    expect(adjust()).not.toHaveAttribute('aria-controls')
     expect(screen.queryByLabelText('Date the board around')).not.toBeInTheDocument()
+    // The date choice is part of what the Import button describes.
+    expect(screen.getByRole('button', { name: 'Import' })).toHaveAttribute(
+      'aria-describedby', 'import-summary import-dates-hint',
+    )
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await waitFor(() => expect(onImport).toHaveBeenCalled())
@@ -124,10 +130,65 @@ describe('ImportBoardModal — Dates for a chosen file (#1949)', () => {
     await user.click(await screen.findByRole('button', { name: 'Adjust dates' }))
     fireEvent.change(screen.getByLabelText('Date the board around'), { target: { value: '2026-06-01' } })
 
-    expect(screen.getByText('Dated around 2026-06-01 instead of today.')).toBeInTheDocument()
+    // Shown in the user's date format (MM/DD/YYYY by default), sent as ISO.
+    expect(screen.getByText('Dated around 06/01/2026 instead of today.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await waitFor(() => expect(onImport).toHaveBeenCalled())
     expect(onImport.mock.calls[0][2]).toEqual({ shift_dates_to: '2026-06-01' })
+  })
+
+  it('names a custom day in the user\'s own date format', async () => {
+    const { user } = await renderModal('DD/MM/YYYY')
+    await upload(user, anchored())
+    await user.click(await screen.findByRole('button', { name: 'Adjust dates' }))
+    fireEvent.change(screen.getByLabelText('Date the board around'), { target: { value: '2026-06-01' } })
+    expect(screen.getByText('Dated around 01/06/2026 instead of today.')).toBeInTheDocument()
+  })
+
+  it('a typed day after today is refused inline and blocks the import', async () => {
+    const { user, onImport } = await renderModal()
+    await upload(user, anchored())
+    await user.click(await screen.findByRole('button', { name: 'Adjust dates' }))
+    const input = screen.getByLabelText('Date the board around')
+    expect(screen.getByRole('alert')).toHaveTextContent('')
+    expect(input).not.toHaveAttribute('aria-invalid')
+    fireEvent.change(input, { target: { value: '2999-01-01' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Pick today or an earlier day.')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAccessibleDescription('Pick today or an earlier day.')
+    // The hint does not claim the refused day.
+    expect(screen.getByText('Dated around today, so the board does not open mostly overdue.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    expect(onImport).not.toHaveBeenCalled()
+    expect(input).toHaveFocus()
+
+    fireEvent.change(input, { target: { value: '2026-06-01' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('')
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => expect(onImport).toHaveBeenCalled())
+    expect(onImport.mock.calls[0][2]).toEqual({ shift_dates_to: '2026-06-01' })
+  })
+
+  it('a refused day does not block an import with shifting turned off', async () => {
+    const { user, onImport } = await renderModal()
+    await upload(user, anchored())
+    await user.click(await screen.findByRole('button', { name: 'Adjust dates' }))
+    fireEvent.change(screen.getByLabelText('Date the board around'), { target: { value: '2999-01-01' } })
+    await user.click(moveDates())
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => expect(onImport).toHaveBeenCalled())
+    expect(onImport.mock.calls[0][2]).toEqual({ shift_dates: false })
+  })
+
+  it('does not read an over-limit file for an anchor', async () => {
+    const { user } = await renderModal()
+    const big = anchored()
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 })
+    await upload(user, big)
+    await screen.findByText(big.name)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('group', { name: 'Dates' })).not.toBeInTheDocument()
   })
 
   it('a cleared date falls back to today and is not sent', async () => {
@@ -144,6 +205,7 @@ describe('ImportBoardModal — Dates for a chosen file (#1949)', () => {
     const { user } = await renderModal()
     await upload(user, anchored())
     await user.click(await screen.findByRole('button', { name: 'Adjust dates' }))
+    expect(adjust()).toHaveAttribute('aria-controls', screen.getByLabelText('Date the board around').parentElement?.id)
     await user.click(adjust())
     expect(adjust()).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByLabelText('Date the board around')).not.toBeInTheDocument()
