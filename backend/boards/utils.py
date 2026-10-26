@@ -206,7 +206,7 @@ def notify_new_mentions(card, actor, old_text: str, new_text: str) -> None:
     """
     from accounts.models import User
     from .models import Card, Notification
-    from .services.notifications import create_notifications
+    from .services.notifications import create_notifications, quoted_card_verb
 
     added_usernames = extract_mentions(new_text) - extract_mentions(old_text)
     if not added_usernames:
@@ -242,7 +242,7 @@ def notify_new_mentions(card, actor, old_text: str, new_text: str) -> None:
                 recipient=u,
                 actor=actor,
                 action_type=Notification.ActionType.MENTIONED,
-                verb=f'{actor.username} mentioned you in "{fresh_card.title}"',
+                verb=quoted_card_verb(f"{actor.username} mentioned you in", fresh_card.title),
                 card=fresh_card,
                 board=fresh_card.board,
             )

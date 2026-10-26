@@ -167,7 +167,7 @@ def notify_on_card_moved(sender, instance, created, **kwargs):
     # Imported here, not at module scope: boards.services.notifications imports
     # this module for ``post_notification_created``, so a top-level import would
     # be circular.
-    from .services.notifications import create_notifications
+    from .services.notifications import create_notifications, quoted_card_verb
 
     create_notifications(
         [
@@ -175,7 +175,7 @@ def notify_on_card_moved(sender, instance, created, **kwargs):
                 recipient=card.assignee,
                 actor_id=instance.moved_by_id,
                 action_type=Notification.ActionType.CARD_MOVED,
-                verb=f"{mover} moved \"{card.title}\" to {to_col}",
+                verb=quoted_card_verb(f"{mover} moved", card.title, f" to {to_col}"),
                 card=card,
                 board=card.board,
             )

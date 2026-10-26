@@ -71,7 +71,7 @@ from ..models import (
 from ..permissions import SITE_ADMIN, can_modify_others_content, get_board_role
 from ..serializers import _card_labels
 from ..utils import notify_new_mentions
-from .notifications import create_notifications
+from .notifications import create_notifications, quoted_card_verb
 from .errors import (
     CardCreationNotAllowed, CardNotFound, ColumnNotFound, ContainerChanged, ForceNotPermitted,
     InvalidPosition, InvalidVersion, MoveNotPermitted, NotPermitted, SwimlaneNotFound,
@@ -831,7 +831,7 @@ def update_card(*, actor, board, card, submitted, apply, render, role=None, forc
                         recipient=card.assignee,
                         actor=actor,
                         action_type=Notification.ActionType.ASSIGNED,
-                        verb=f"You were assigned to \"{card.title}\"",
+                        verb=quoted_card_verb("You were assigned to", card.title),
                         card=card,
                         board=card.board,
                     )
