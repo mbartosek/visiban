@@ -798,6 +798,68 @@ The Deployment is named `<fullname>-backend`; `<fullname>` is the release name (
     switch to `:main` (amd64 only); short-SHA tags are still pushed for rollback. Pinned release
     tags and GHCR are unaffected. See [Container image retention](container-image-retention.md#gitlab-registry-latest-is-stable-only-main-publishes-main).
 
+!!! warning "PostgreSQL driver: `psycopg2-binary` is replaced by `psycopg[binary]` (psycopg 3)"
+    The backend now uses `psycopg[binary]` 3.3.6 instead of `psycopg2-binary`. No setting,
+    environment variable, or `DATABASE_URL` value changes: Django selects the driver on its own.
+    **Docker Compose and Helm installs need no action**, because the new image carries the new
+    driver. Act only if you build your own image or run from source:
+
+    - A custom image or virtualenv that pins `psycopg2-binary` in its own requirements file
+      must switch to `psycopg[binary]`; `psycopg2` is no longer installed by
+      `backend/requirements.txt` or `backend/requirements.lock`.
+    - Reinstall `backend/requirements.txt` (or `requirements.lock`) in the virtualenv before
+      you start the new release (#1252).
+
+!!! warning "Sample board JSON files moved to `backend/boards/sample_boards/`"
+    The sample board `.json` files moved from `sample-boards/` to `backend/boards/sample_boards/`
+    so the backend image ships them. Raw links and `curl` commands that point at
+    `sample-boards/<name>.json` (including copies of the examples from older docs) now return
+    `404`; use `backend/boards/sample_boards/<name>.json` instead. The `.csv` files and
+    `demo_board.json` stay in `sample-boards/`. The files are also named without the
+    "Template:" prefix, so an import is named "Imported: Sales Pipeline". See
+    [Sample Boards](../getting-started/sample-boards.md#where-to-get-the-files) (#1452, #1450).
+
+!!! note "Group nesting is capped at 6 levels (HTTP 400)"
+    Creating a subgroup (`POST /api/v1/groups/`), or moving a group under a new `parent`
+    (`PATCH`/`PUT /api/v1/groups/{id}/`), is refused with `400` when the resulting tree would
+    be more than 6 levels deep. The body is a `parent` error: `Groups can be nested at most 6
+    levels deep.` Group trees that were already deeper are left as they are, but cannot be
+    extended. Check any script that builds deep group hierarchies. See
+    [Subgroups](../features/groups.md#subgroups) (#1690).
+
+!!! note "Emailed invites under `EMAIL_VERIFICATION=mandatory` are held until the address is verified"
+    With `EMAIL_VERIFICATION=mandatory`, an account created from an emailed group or board invite
+    now joins the group or board when the invited address is **verified**, not at sign-up. Until
+    then the invite is held for that account and is not used up. An invite that is revoked or
+    expires before the address is confirmed grants nothing. `optional` and `none` are unchanged.
+    Tell invitees to confirm their address, or they will sign in without the access they expect.
+
+!!! note "Board cards list: `X-Total-Count` and `X-Truncated` headers, and `imported_from_username` on comments"
+    - `GET /api/v1/boards/{id}/cards/` returns at most 200 cards per request, as before, but it
+      no longer truncates silently. Every response carries `X-Total-Count` (the number of
+      matching cards) and `X-Truncated` (`true` when more exist), and the optional `limit` and
+      `offset` query parameters page past the cap. The body is still a plain JSON array, and a
+      client that sends no paging parameters sees the same body. A client that must see every
+      card should check `X-Truncated` and keep paging. A negative or non-integer `limit` returns
+      `400` with `"code": "invalid_query_param"`. See the [Cards API](../api/cards.md) (#1724).
+    - Comments created by a Trello or JSON board import are now posted under the user who ran the
+      import, keep their original time, and keep the source's author name as text in the new
+      `imported_from_username` field. The comments API, the MCP card resource, and JSON export
+      carry the field, so a re-imported export keeps the original name (#1675).
+
+!!! note "MCP SDK upgrade: some protocol-level responses changed"
+    The MCP SDK behind `/mcp` moved from `mcp` 1.30.0 to 2.3.0. The URL, authentication, tools,
+    and resources are unchanged, but a client that parses protocol errors will see these
+    differences (the server first shipped in a 1.2 pre-release, so this matters only if you ran
+    one):
+
+    - An unknown method returns JSON-RPC error `-32601` (it was `-32602`).
+    - A failed `resources/read` returns `-32603` (or `-32602` for an unknown URI) instead of `0`.
+    - A request body over 4 MiB is rejected with `413`.
+    - Transport-level errors carry `id: null` instead of `"server-error"`.
+
+    The full list is in the [MCP API reference](../api/mcp.md#protocol-errors-and-limits).
+
 !!! note "Board import default name changed"
     `POST /api/v1/boards/import/` called without a `name` field now names the new board
     `Imported: <name>` — the `name` in a JSON file, or the filename without its extension

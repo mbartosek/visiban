@@ -135,6 +135,23 @@ Unlike a missing `mcp:read` (rejected at the transport, before any tool runs), a
 
 Authentication is enforced at the transport layer, before any MCP protocol frame is parsed — an unauthenticated caller cannot reach the protocol machinery at all. The `401` body is a JSON-RPC error envelope so that spec-compliant clients surface a useful message.
 
+### Protocol errors and limits
+
+> **Changed in 1.2** (MCP SDK 2.3.0)
+
+These responses come from the MCP SDK rather than from a Visiban tool, so a client should handle them in addition to the [tool errors](#tool-errors):
+
+| Situation | Response |
+|---|---|
+| Unknown JSON-RPC method | JSON-RPC error `-32601` (Method not found). Earlier pre-releases returned `-32602`. |
+| `resources/read` fails inside the server | JSON-RPC error `-32603` (Internal error), with a short message. Earlier pre-releases returned code `0`. |
+| `resources/read` for an unknown URI | JSON-RPC error `-32602` (Invalid params). |
+| Request body larger than 4 MiB | `413`, before the body is parsed. |
+| `Accept` header does not include both `application/json` and `text/event-stream` | `406`. Send `Accept: application/json, text/event-stream` on every `POST`, as spec-compliant clients do. |
+| Transport-level error | JSON-RPC error with `id: null`. Earlier pre-releases used the string `"server-error"`. |
+
+`serverInfo.version` reports the Visiban app version, not the SDK version.
+
 ---
 
 ## Rate limiting
